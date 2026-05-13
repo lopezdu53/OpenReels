@@ -135,6 +135,9 @@ app.get("/api/v1/platforms", async () => {
     height: config.height,
     fps: config.fps,
     maxDurationSeconds: config.maxDurationSeconds,
+    minDurationSeconds: config.minDurationSeconds,
+    orientation: config.orientation ?? "portrait",
+    longForm: config.longForm ?? false,
   }));
 });
 

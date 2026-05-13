@@ -172,7 +172,9 @@ export function HomePage() {
             What story should we tell?
           </h1>
           <p className="mt-3 text-sm sm:text-base text-muted-foreground">
-            Describe a topic and we'll turn it into a fully rendered Short.
+            {platform === "youtube_horizontal"
+              ? `Describe a topic and we'll turn it into a fully rendered ${targetDurationMinutes}-minute YouTube video.`
+              : "Describe a topic and we'll turn it into a fully rendered Short."}
           </p>
         </div>
 
@@ -233,22 +235,24 @@ export function HomePage() {
                 </div>
               )}
 
-              {/* Pacing selector */}
-              <Select value={pacing} onValueChange={(v) => setPacing(v ?? "")}>
-                <SelectTrigger
-                  size="sm"
-                  className="h-auto gap-1.5 rounded-[8px] border-border bg-transparent px-3 py-1.5 text-xs font-medium text-text-subtle"
-                >
-                  <Gauge className="size-3.5 text-muted-foreground" />
-                  <SelectValue placeholder="Auto Pace" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Auto Pace</SelectItem>
-                  <SelectItem value="fast">Fast</SelectItem>
-                  <SelectItem value="moderate">Moderate</SelectItem>
-                  <SelectItem value="cinematic">Cinematic</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Pacing selector — hidden for long-form (duration controls pacing) */}
+              {platform !== "youtube_horizontal" && (
+                <Select value={pacing} onValueChange={(v) => setPacing(v ?? "")}>
+                  <SelectTrigger
+                    size="sm"
+                    className="h-auto gap-1.5 rounded-[8px] border-border bg-transparent px-3 py-1.5 text-xs font-medium text-text-subtle"
+                  >
+                    <Gauge className="size-3.5 text-muted-foreground" />
+                    <SelectValue placeholder="Auto Pace" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Auto Pace</SelectItem>
+                    <SelectItem value="fast">Fast</SelectItem>
+                    <SelectItem value="moderate">Moderate</SelectItem>
+                    <SelectItem value="cinematic">Cinematic</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
 
               {/* Advanced toggle */}
               <button
@@ -272,7 +276,9 @@ export function HomePage() {
                   disabled={!hasTopic || loading}
                   className="gap-2 rounded-[10px] px-6 py-2.5 text-sm font-semibold"
                 >
-                  {loading ? "Generating..." : "Generate"}
+                  {loading
+                    ? platform === "youtube_horizontal" ? "Generating video..." : "Generating..."
+                    : platform === "youtube_horizontal" ? `Generate ${targetDurationMinutes}min Video` : "Generate"}
                   {!loading && <ArrowRight className="size-4" />}
                 </Button>
               </div>

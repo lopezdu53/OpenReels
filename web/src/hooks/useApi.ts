@@ -52,6 +52,9 @@ export interface Platform {
   height: number;
   fps: number;
   maxDurationSeconds: number;
+  minDurationSeconds?: number;
+  orientation?: "portrait" | "landscape";
+  longForm?: boolean;
 }
 
 export interface ProviderOption {
