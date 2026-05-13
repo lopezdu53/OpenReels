@@ -346,6 +346,7 @@ function buildPipelineWorkflow(
     words?: WordTimestamp[];
     voiceoverPath?: string;
     sceneWords?: WordTimestamp[][];
+    voiceoverDurationSeconds?: number;
   } = {};
 
   const visualsResult: {
@@ -426,7 +427,7 @@ function buildPipelineWorkflow(
       cb.onStageStart?.("director");
       const start = Date.now();
       const videoEnabled = !opts.noVideo && (opts.videoProviders?.length ?? 0) > 0;
-      const directorOpts = { archetype: opts.archetype, pacing: opts.pacing, videoEnabled, direction: opts.direction };
+      const directorOpts = { archetype: opts.archetype, pacing: opts.pacing, videoEnabled, direction: opts.direction, targetDurationMinutes: opts.targetDurationMinutes };
 
       // ── Replay mode: use provided score, skip generation + revision ──
       if (opts.replayScore) {
@@ -616,6 +617,8 @@ function buildPipelineWorkflow(
       ttsResult.words = result.words;
       ttsResult.voiceoverPath = voiceoverPath;
       ttsResult.sceneWords = splitWordsIntoScenes(score, result.words);
+      // Get actual audio duration so Remotion doesn't clip trailing silence
+      ttsResult.voiceoverDurationSeconds = getVideoDuration(voiceoverPath) ?? undefined;
 
       cb.onStageComplete?.("tts", `${result.words.length} words`, dur);
       log.stages.push({ name: "tts", duration: dur, status: "done" });
@@ -798,6 +801,7 @@ function buildPipelineWorkflow(
           sceneWords: ttsResult.sceneWords!,
           allWords: ttsResult.words!,
           sceneSourceDurations: visualsResult.sceneSourceDurations,
+          voiceoverDurationSeconds: ttsResult.voiceoverDurationSeconds,
         },
         platformConfig.fps,
       );

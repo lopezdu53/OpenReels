@@ -60,7 +60,7 @@ export async function generateDirectorScore(
   llm: LLMProvider,
   topic: string,
   researchContext: ResearchResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; direction?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; direction?: string; targetDurationMinutes?: number },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt();
 
@@ -78,7 +78,7 @@ export async function generateDirectorScore(
     : "";
 
   // Resolve pacing tier: explicit --pacing override > archetype default > lookup table
-  const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing);
+  const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing, options?.targetDurationMinutes);
 
   const directionSection = options?.direction?.trim()
     ? `\n## Creative Direction (from the producer)\n\n${options.direction}\n\nHonor these creative constraints while exercising your judgment on anything not specified.\n`
@@ -162,7 +162,21 @@ const PACING_TIER_TABLE = `After choosing your archetype, use the matching pacin
 - moderate (7-10 scenes, 10-16 words/scene, 100-140 words total): warm_editorial, editorial_caricature, anime_illustration, vintage_snapshot, surreal_dreamscape, gothic_fantasy
 - cinematic (5-8 scenes, 15-22 words/scene, 90-130 words total): cinematic_documentary, moody_cinematic, studio_realism, warm_narrative, pastoral_watercolor`;
 
-export function buildPacingInstruction(archetype?: string, pacingOverride?: string): string {
+export function buildPacingInstruction(archetype?: string, pacingOverride?: string, targetDurationMinutes?: number): string {
+  // Path 0: Long-form YouTube horizontal — calculate scenes from target duration
+  if (targetDurationMinutes && targetDurationMinutes >= 5) {
+    const wordsTarget = Math.round(targetDurationMinutes * 150);
+    const wordsPerScene = 45;
+    const sceneCount = Math.round(wordsTarget / wordsPerScene);
+    console.log(`[creative-director] Long-form pacing: ~${sceneCount} scenes for ${targetDurationMinutes} min (~${wordsTarget} words)`);
+    return `This is a LONG-FORM YouTube video targeting ${targetDurationMinutes} minutes.
+Create a DirectorScore with approximately ${sceneCount} scenes.
+Per-scene word budget: 35-55 words (detailed narration, one focused idea per scene).
+Total word budget: approximately ${wordsTarget} words at ~150 words/minute.
+Structure: engaging intro (3-5 scenes), multiple topic chapters of 8-12 scenes each, strong conclusion with CTA (2-3 scenes).
+Each chapter must have a clear thematic focus. Vary visual types throughout. Do NOT exceed 200 scenes.`;
+  }
+
   // Path 1: Explicit --pacing override always wins
   if (pacingOverride && pacingOverride in PACING_CONFIG) {
     const tier = pacingOverride as ScenePacing;
@@ -201,7 +215,7 @@ export async function reviseDirectorScore(
   researchContext: ResearchResult,
   originalScore: DirectorScore,
   critique: CritiqueResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; direction?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; direction?: string; targetDurationMinutes?: number },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt();
 
@@ -209,7 +223,7 @@ export async function reviseDirectorScore(
   const revisionGuidance = critique.revision_instructions
     ?? `Address these weaknesses: ${critique.weaknesses.join("; ")}`;
 
-  const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing);
+  const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing, options?.targetDurationMinutes);
 
   const videoEnabled = options?.videoEnabled ?? false;
   const visualTypes = videoEnabled

@@ -46,6 +46,7 @@ interface JobData {
   noMusic?: boolean;
   noVideo?: boolean;
   direction?: string;
+  targetDurationMinutes?: number;
   score?: Record<string, unknown>;
   providers: {
     llm: string;
@@ -99,7 +100,7 @@ function writeMeta(jobDir: string, meta: JobMeta) {
 const worker = new Worker<JobData>(
   "openreels",
   async (job: Job<JobData>) => {
-    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, direction, score, providers, keys } =
+    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, direction, targetDurationMinutes, score, providers, keys } =
       job.data;
     const jobDir = path.join(JOBS_DIR, job.id!);
     fs.mkdirSync(jobDir, { recursive: true });
@@ -293,6 +294,7 @@ const worker = new Worker<JobData>(
         verifyModel,
         direction: effectiveDirection,
         replayScore,
+        targetDurationMinutes,
       },
       callbacks,
     );

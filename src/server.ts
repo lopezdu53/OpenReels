@@ -179,6 +179,7 @@ interface CreateJobBody {
   noMusic?: boolean;
   noVideo?: boolean;
   direction?: string;
+  targetDurationMinutes?: number;
   score?: Record<string, unknown>;
   providers?: {
     llm?: string;
@@ -196,7 +197,7 @@ interface CreateJobBody {
 }
 
 app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
-  const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, direction, score, providers, keys } =
+  const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, direction, targetDurationMinutes, score, providers, keys } =
     request.body ?? {};
 
   if (!topic || typeof topic !== "string" || topic.trim().length === 0) {
@@ -268,6 +269,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     noMusic: noMusic === true,
     noVideo: noVideo === true,
     ...(direction?.trim() ? { direction: direction.trim() } : {}),
+    ...(targetDurationMinutes != null ? { targetDurationMinutes: Number(targetDurationMinutes) } : {}),
     ...(validatedScore ? { score: validatedScore } : {}),
     providers: {
       llm: providers?.llm ?? "anthropic",

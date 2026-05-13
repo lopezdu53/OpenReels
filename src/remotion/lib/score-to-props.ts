@@ -31,6 +31,9 @@ export interface CompositionProps {
   captionAccentColor: string;
   captionChunkSize: number;
   captionLingerS: number;
+  // Actual audio file duration in seconds (from ffprobe). When set, used as the
+  // authoritative minimum video length so the voiceover never gets clipped.
+  voiceoverDurationSeconds?: number;
 }
 
 export interface ResolvedAssets {
@@ -40,6 +43,7 @@ export interface ResolvedAssets {
   sceneWords: WordTimestamp[][]; // per-scene words (for duration calculation only)
   allWords: WordTimestamp[]; // full absolute timestamps from TTS
   sceneSourceDurations: (number | null)[]; // source video durations in seconds (stock_video and ai_video)
+  voiceoverDurationSeconds?: number; // actual audio file duration from ffprobe
 }
 
 export function mapScoreToProps(
@@ -102,6 +106,7 @@ export function mapScoreToProps(
     captionAccentColor: archetype.colorPalette.accent,
     captionChunkSize: archetype.captionChunkSize ?? 5,
     captionLingerS: archetype.captionLingerS ?? 0.3,
+    voiceoverDurationSeconds: assets.voiceoverDurationSeconds,
   };
 }
 
@@ -116,9 +121,11 @@ export function getTotalDurationInFrames(props: CompositionProps, fps: number = 
 
   const adjusted = sceneDuration - transitionOverlap;
 
-  // Voiceover is the spine — composition must be at least as long as voiceover.
-  // If overlap causes a deficit, extend the last scene to fill the visual gap.
-  const voiceoverEnd = props.allWords[props.allWords.length - 1]?.end ?? 0;
+  // Voiceover is the spine — composition must be at least as long as the full audio.
+  // Prefer the actual file duration (from ffprobe) over word timestamps, which may
+  // not account for trailing silence added by TTS providers.
+  const wordBasedEnd = props.allWords[props.allWords.length - 1]?.end ?? 0;
+  const voiceoverEnd = Math.max(wordBasedEnd, props.voiceoverDurationSeconds ?? 0);
   const minFrames = Math.ceil(voiceoverEnd * fps);
 
   // WARNING: This mutates props.scenes[last].durationInFrames to prevent black frames.

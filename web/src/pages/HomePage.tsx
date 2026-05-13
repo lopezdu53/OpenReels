@@ -54,9 +54,10 @@ const CATEGORY_KEYS = Object.keys(TOPIC_CATEGORIES);
 
 const DISPLAY_NAMES: Record<string, string> = {
   // Platforms
-  youtube: "YouTube",
+  youtube: "YouTube Shorts",
   tiktok: "TikTok",
   instagram: "Instagram",
+  youtube_horizontal: "YouTube (horizontal)",
   // LLM
   anthropic: "Anthropic (Claude)",
   openai: "OpenAI (GPT)",
@@ -95,6 +96,7 @@ export function HomePage() {
   const [imageProvider, setImageProvider] = useState("gemini");
   const [musicProvider, setMusicProvider] = useState("bundled");
   const [pacing, setPacing] = useState("");
+  const [targetDurationMinutes, setTargetDurationMinutes] = useState(15);
   const [dryRun, setDryRun] = useState(false);
   const [directionText, setDirectionText] = useState("");
   const [scoreJson, setScoreJson] = useState<Record<string, unknown> | null>(null);
@@ -139,6 +141,7 @@ export function HomePage() {
         pacing: pacing || undefined,
         platform,
         dryRun,
+        ...(platform === "youtube_horizontal" ? { targetDurationMinutes } : {}),
         ...(directionText.trim() ? { direction: directionText.trim() } : {}),
         ...(scoreJson ? { score: scoreJson } : {}),
         providers: {
@@ -212,6 +215,23 @@ export function HomePage() {
                   ))}
                 </SelectContent>
               </Select>
+
+              {/* Duration slider — only for YouTube horizontal */}
+              {platform === "youtube_horizontal" && (
+                <div className="flex items-center gap-1.5 rounded-[8px] border border-border bg-transparent px-3 py-1.5 text-xs font-medium text-text-subtle">
+                  <span className="text-muted-foreground">Duración:</span>
+                  <input
+                    type="range"
+                    min={15}
+                    max={40}
+                    step={5}
+                    value={targetDurationMinutes}
+                    onChange={(e) => setTargetDurationMinutes(Number(e.target.value))}
+                    className="w-20 accent-primary"
+                  />
+                  <span className="min-w-[36px] text-foreground font-semibold">{targetDurationMinutes} min</span>
+                </div>
+              )}
 
               {/* Pacing selector */}
               <Select value={pacing} onValueChange={(v) => setPacing(v ?? "")}>

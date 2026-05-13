@@ -140,6 +140,7 @@ export interface CreateJobRequest {
   platform?: string;
   dryRun?: boolean;
   direction?: string;
+  targetDurationMinutes?: number;
   score?: Record<string, unknown>;
   providers?: {
     llm?: string;
