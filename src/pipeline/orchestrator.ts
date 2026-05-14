@@ -55,6 +55,7 @@ import {
   shouldAutoConfirm,
   shouldSkipPreview,
   splitWordsIntoScenes,
+  getVideoDuration,
   confirm,
 } from "./utils.js";
 
