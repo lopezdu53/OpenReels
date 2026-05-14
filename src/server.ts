@@ -63,6 +63,7 @@ app.get("/api/v1/health", async () => {
       INWORLD_TTS_API_KEY: !!process.env["INWORLD_TTS_API_KEY"],
       PEXELS_API_KEY: !!process.env["PEXELS_API_KEY"],
       PIXABAY_API_KEY: !!process.env["PIXABAY_API_KEY"],
+      VIVI_API_KEY: !!process.env["VIVI_API_KEY"],
     },
   };
 });
@@ -149,6 +150,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "gemini", label: "Google Gemini" },
     { key: "openrouter", label: "OpenRouter" },
     { key: "openai-compatible", label: "Custom (OpenAI-compatible)" },
+    { key: "vivi", label: "VIVI AI" },
   ],
   search: [
     { key: "native", label: "Native (provider built-in)" },
@@ -165,6 +167,7 @@ app.get("/api/v1/providers", async () => ({
   image: [
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI (GPT Image)" },
+    { key: "vivi", label: "VIVI AI" },
   ],
   video: [
     { key: "gemini", label: "Google Veo" },

@@ -64,6 +64,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   gemini: "Google Gemini",
   openrouter: "OpenRouter",
   "openai-compatible": "Custom (OpenAI-compatible)",
+  vivi: "VIVI AI",
   // TTS
   elevenlabs: "ElevenLabs",
   inworld: "Inworld",

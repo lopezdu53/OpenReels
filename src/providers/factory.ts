@@ -22,11 +22,13 @@ import type {
 import { FallbackImageProvider } from "./image/fallback.js";
 import { GeminiImage } from "./image/gemini.js";
 import { OpenAIImage } from "./image/openai.js";
+import { ViviImage } from "./image/vivi.js";
 import { AnthropicLLM } from "./llm/anthropic.js";
 import { GeminiLLM } from "./llm/gemini.js";
 import { OpenAILLM } from "./llm/openai.js";
 import { OpenAICompatibleLLM } from "./llm/openai-compatible.js";
 import { OpenRouterLLM } from "./llm/openrouter.js";
+import { ViviLLM } from "./llm/vivi.js";
 import { BundledMusic } from "./music/bundled-adapter.js";
 import { LyriaMusic } from "./music/lyria.js";
 import { createTavilySearchTools } from "./search/tavily.js";
@@ -134,6 +136,9 @@ export function createProviders(config: ProviderConfig): Providers {
       llm = new OpenAICompatibleLLM(baseUrl, model, apiKey, searchTools);
       break;
     }
+    case "vivi":
+      llm = new ViviLLM(config.llmModel, k["VIVI_API_KEY"], searchTools);
+      break;
     default:
       llm = new AnthropicLLM(config.llmModel, k["ANTHROPIC_API_KEY"], searchTools);
       break;
@@ -165,12 +170,20 @@ export function createProviders(config: ProviderConfig): Providers {
   const googleKey = k["GOOGLE_API_KEY"] ?? process.env["GOOGLE_API_KEY"];
   const openaiKey = k["OPENAI_API_KEY"] ?? process.env["OPENAI_API_KEY"];
 
+  const viviKey = k["VIVI_API_KEY"] ?? process.env["VIVI_API_KEY"];
+
   let imageGen: ImageProvider;
   if (config.image === "openai") {
     // OpenAI selected: use OpenAI with Gemini as fallback if both keys available
     const primary = new OpenAIImage(undefined, openaiKey);
     imageGen = googleKey
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "openai", "gemini")
+      : primary;
+  } else if (config.image === "vivi") {
+    // VIVI selected: use VIVI with Gemini as fallback if Google key available
+    const primary = new ViviImage(undefined, viviKey);
+    imageGen = googleKey
+      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "vivi", "gemini")
       : primary;
   } else {
     // Gemini selected (default): use Gemini with OpenAI as fallback if both keys available
@@ -236,6 +249,12 @@ export function createVerificationModel(
     case "openrouter": {
       const openrouter = apiKey ? createOpenRouter({ apiKey }) : createOpenRouter();
       return openrouter(model ?? "anthropic/claude-sonnet-4");
+    }
+    case "vivi": {
+      const key = apiKey ?? process.env["VIVI_API_KEY"];
+      if (!key) throw new Error("VIVI_API_KEY is required for VIVI provider");
+      const vivi = createAnthropic({ apiKey: key, baseURL: "https://api.viviai.cc/v1" });
+      return vivi(model ?? "claude-sonnet-4-6");
     }
     case "openai-compatible": {
       const baseUrl = process.env["OPENREELS_LLM_BASE_URL"];

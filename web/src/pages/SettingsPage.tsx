@@ -11,6 +11,7 @@ const API_KEY_FIELDS = [
   { key: "INWORLD_TTS_API_KEY", label: "Inworld (TTS)" },
   { key: "PEXELS_API_KEY", label: "Pexels (Stock)" },
   { key: "PIXABAY_API_KEY", label: "Pixabay (Stock)" },
+  { key: "VIVI_API_KEY", label: "VIVI AI (LLM/Image)" },
 ];
 
 interface HealthData {

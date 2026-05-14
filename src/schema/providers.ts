@@ -1,10 +1,10 @@
 import type { z } from "zod";
 import type { MusicMood } from "./director-score.js";
 
-export type LLMProviderKey = "anthropic" | "openai" | "gemini" | "openrouter" | "openai-compatible";
+export type LLMProviderKey = "anthropic" | "openai" | "gemini" | "openrouter" | "openai-compatible" | "vivi";
 export type SearchProviderKey = "native" | "tavily" | "none";
 export type TTSProviderKey = "elevenlabs" | "inworld" | "kokoro" | "gemini-tts" | "openai-tts";
-export type ImageProviderKey = "gemini" | "openai";
+export type ImageProviderKey = "gemini" | "openai" | "vivi";
 export type StockProviderKey = "pexels" | "pixabay";
 export type VideoProviderKey = "gemini" | "fal";
 export type MusicProviderKey = "bundled" | "lyria";
