@@ -63,19 +63,23 @@ function loadDirectorSystemPrompt(targetDurationMinutes?: number): string {
         `**CTA scene (FINAL scene, REQUIRED)**: 20-40 words. Summarize the key takeaway, then add a call-to-action (like/subscribe/comment prompt). Typically a text_card followed by a closing visual.`,
       );
 
+    const MAX_SCENES = 30;
+    const sceneCount = Math.min(Math.round(wordsTarget / 45), MAX_SCENES);
+    const wordsPerScene = Math.round(wordsTarget / sceneCount);
+
     systemPrompt += `
 
 ## LONG-FORM VIDEO OVERRIDE
 
 This is a LONG-FORM YouTube video, NOT a Short. Apply these rules instead of the short-form pacing table:
 
-- **Scene count**: approximately ${Math.round(wordsTarget / 45)} scenes total
-- **Words per scene**: 35-55 words (detailed narration, one focused idea per scene)
+- **Scene count**: exactly ${sceneCount} scenes total (capped for output reliability)
+- **Words per scene**: ${wordsPerScene - 10}-${wordsPerScene + 10} words (detailed narration, one focused idea per scene)
 - **Total word budget**: ~${wordsTarget} words
-- **Structure**: Opening hook (3-5 scenes) → Multiple topic chapters (8-12 scenes each) → Conclusion + CTA (3-5 scenes)
-- **Chapter breaks**: Every 8-12 scenes, use a text_card as a chapter title card
+- **Structure**: Opening hook (2-3 scenes) → Multiple topic chapters (5-8 scenes each) → Conclusion + CTA (2-3 scenes)
+- **Chapter breaks**: Every 5-8 scenes, use a text_card as a chapter title card
 - **DO NOT** apply short-form pacing tiers (fast/moderate/cinematic)
-- **DO NOT** cap at 5-16 scenes — this video needs ${Math.round(wordsTarget / 45)} scenes to reach the target duration`;
+- **DO NOT** exceed ${sceneCount} scenes`;
   }
 
   // Inject full playbook for content strategy guidance
@@ -119,7 +123,9 @@ export async function generateDirectorScore(
 
   const isLongForm = (options?.targetDurationMinutes ?? 0) >= 5;
   const wordsTarget = isLongForm ? Math.round((options!.targetDurationMinutes!) * 150) : null;
-  const sceneTarget = isLongForm ? Math.round(wordsTarget! / 45) : null;
+  const MAX_SCENES = 30;
+  const sceneTarget = isLongForm ? Math.min(Math.round(wordsTarget! / 45), MAX_SCENES) : null;
+  const wordsPerSceneTarget = isLongForm ? Math.round(wordsTarget! / sceneTarget!) : null;
 
   const userMessage = `Topic: ${topic}
 
@@ -139,7 +145,7 @@ ${directionSection}CRITICAL RULE: Never use the same visual_type more than 2 tim
 Every scene MUST have a script_line (the voiceover text).
 The first scene should be a strong hook.
 ${isLongForm
-  ? `MANDATORY: This is a ${options!.targetDurationMinutes!}-minute video. You MUST generate exactly ${sceneTarget} scenes with ~45 words each. Total word count MUST be ~${wordsTarget} words. DO NOT stop at 10-20 scenes — keep going until you reach ${sceneTarget} scenes. If needed, break the topic into multiple chapters separated by text_card chapter titles.`
+  ? `MANDATORY: This is a ${options!.targetDurationMinutes!}-minute video. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total word count MUST be ~${wordsTarget} words. Break topic into chapters separated by text_card chapter titles. Stop at exactly ${sceneTarget} scenes.`
   : "If over budget, cut a scene rather than cramming."
 }`;
 
@@ -206,15 +212,18 @@ export function buildPacingInstruction(archetype?: string, pacingOverride?: stri
   // Path 0: Long-form YouTube horizontal — calculate scenes from target duration
   if (targetDurationMinutes && targetDurationMinutes >= 5) {
     const wordsTarget = Math.round(targetDurationMinutes * 150);
-    const wordsPerScene = 45;
-    const sceneCount = Math.round(wordsTarget / wordsPerScene);
-    console.log(`[creative-director] Long-form pacing: ~${sceneCount} scenes for ${targetDurationMinutes} min (~${wordsTarget} words)`);
+    // Cap scenes at 30 to keep the JSON response within LLM output token limits.
+    // Fewer scenes with more words each is also better pacing for long-form content.
+    const MAX_SCENES = 30;
+    const sceneCount = Math.min(Math.round(wordsTarget / 45), MAX_SCENES);
+    const wordsPerScene = Math.round(wordsTarget / sceneCount);
+    console.log(`[creative-director] Long-form pacing: ~${sceneCount} scenes for ${targetDurationMinutes} min (~${wordsTarget} words, ~${wordsPerScene} words/scene)`);
     return `This is a LONG-FORM YouTube video targeting ${targetDurationMinutes} minutes.
-Create a DirectorScore with approximately ${sceneCount} scenes.
-Per-scene word budget: 35-55 words (detailed narration, one focused idea per scene).
+Create a DirectorScore with exactly ${sceneCount} scenes.
+Per-scene word budget: ${wordsPerScene - 10}-${wordsPerScene + 10} words (detailed narration, one focused idea per scene).
 Total word budget: approximately ${wordsTarget} words at ~150 words/minute.
-Structure: engaging intro (3-5 scenes), multiple topic chapters of 8-12 scenes each, strong conclusion with CTA (2-3 scenes).
-Each chapter must have a clear thematic focus. Vary visual types throughout. Do NOT exceed 200 scenes.`;
+Structure: engaging intro (2-3 scenes), multiple topic chapters of 5-8 scenes each, strong conclusion with CTA (2-3 scenes).
+Each chapter must have a clear thematic focus. Vary visual types throughout.`;
   }
 
   // Path 1: Explicit --pacing override always wins
