@@ -253,7 +253,7 @@ export function createVerificationModel(
     case "vivi": {
       const key = apiKey ?? process.env["VIVI_LLM_API_KEY"];
       if (!key) throw new Error("VIVI_LLM_API_KEY is required for VIVI provider");
-      const vivi = createAnthropic({ apiKey: key, baseURL: "https://api.viviai.cc/v1" });
+      const vivi = createOpenAICompatible({ name: "vivi", baseURL: "https://api.viviai.cc/v1", apiKey: key });
       return vivi(model ?? "claude-sonnet-4-6");
     }
     case "openai-compatible": {

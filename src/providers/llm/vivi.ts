@@ -1,5 +1,4 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
-import type { AnthropicProvider } from "@ai-sdk/anthropic";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
 import { BaseLLM } from "./base.js";
 
@@ -7,7 +6,7 @@ const VIVI_BASE_URL = "https://api.viviai.cc/v1";
 
 export class ViviLLM extends BaseLLM {
   readonly id = "vivi" as const;
-  private provider: AnthropicProvider;
+  private provider: ReturnType<typeof createOpenAICompatible>;
   private model: string;
 
   constructor(
@@ -19,7 +18,11 @@ export class ViviLLM extends BaseLLM {
     this.model = model;
     const key = apiKey ?? process.env["VIVI_LLM_API_KEY"];
     if (!key) throw new Error("VIVI_LLM_API_KEY environment variable is required");
-    this.provider = createAnthropic({ apiKey: key, baseURL: VIVI_BASE_URL });
+    this.provider = createOpenAICompatible({
+      name: "vivi",
+      baseURL: VIVI_BASE_URL,
+      apiKey: key,
+    });
   }
 
   protected createLanguageModel(): LanguageModel {
