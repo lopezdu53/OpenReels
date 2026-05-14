@@ -159,7 +159,7 @@ export abstract class BaseLLM implements LLMProvider {
     throw lastError!;
   }
 
-  private async generateStructured<T extends z.ZodType>(opts: {
+  protected async generateStructured<T extends z.ZodType>(opts: {
     systemPrompt: string;
     userMessage: string;
     schema: T;
