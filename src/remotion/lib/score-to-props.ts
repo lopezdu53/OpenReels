@@ -55,11 +55,22 @@ export function mapScoreToProps(
 
   const scenes: SceneProps[] = score.scenes.map((scene, i) => {
     const words = assets.sceneWords[i] ?? [];
-    // Duration = voiceover duration for this scene, minimum 2 seconds
     const lastWord = words[words.length - 1];
     const firstWord = words[0];
-    const voiceoverDuration = lastWord && firstWord ? lastWord.end - firstWord.start : 3;
-    const durationSeconds = Math.max(voiceoverDuration + 0.5, 2);
+
+    // Scene duration runs until the NEXT scene's first word starts (absorbing inter-scene
+    // pauses into the current scene). For the last scene, extend to the full audio duration.
+    // This prevents a visual gap when TTS adds silence between narration lines.
+    const nextSceneFirstWord = assets.sceneWords[i + 1]?.[0];
+    let durationSeconds: number;
+    if (nextSceneFirstWord && firstWord) {
+      durationSeconds = Math.max(nextSceneFirstWord.start - firstWord.start, 2);
+    } else if (lastWord && firstWord) {
+      const audioEnd = assets.voiceoverDurationSeconds ?? lastWord.end + 0.5;
+      durationSeconds = Math.max(audioEnd - firstWord.start, 2);
+    } else {
+      durationSeconds = 3;
+    }
     const durationInFrames = Math.round(durationSeconds * fps);
 
     // Detect AI fallback: if the score says stock/ai_video but the asset is a PNG,

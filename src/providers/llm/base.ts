@@ -125,27 +125,23 @@ export abstract class BaseLLM implements LLMProvider {
     }
 
     // Pass 2: Structure the search results using the schema.
-    // Retries up to 2 times on failure to avoid re-running Pass 1 (which burns search credits).
+    // Delegates to this.generateStructured so provider subclasses can override
+    // the structured-output strategy (e.g. ViviLLM uses manual JSON extraction).
     const MAX_STRUCTURE_RETRIES = 2;
     let lastError: Error | undefined;
     for (let attempt = 0; attempt <= MAX_STRUCTURE_RETRIES; attempt++) {
       try {
-        const structuredResult = await generateText({
-          model: languageModel,
-          system:
+        const structuredResult = await this.generateStructured({
+          systemPrompt:
             "You are a data extraction assistant. Structure the following research into the exact format requested. Use only the information provided.",
-          prompt: `Based on this research:\n\n${textContent}\n\nStructure this into the required format.`,
-          output: Output.object({ schema: opts.schema }),
+          userMessage: `Based on this research:\n\n${textContent}\n\nStructure this into the required format.`,
+          schema: opts.schema,
         });
 
-        totalUsage.inputTokens += structuredResult.usage.inputTokens ?? 0;
-        totalUsage.outputTokens += structuredResult.usage.outputTokens ?? 0;
+        totalUsage.inputTokens += structuredResult.usage.inputTokens;
+        totalUsage.outputTokens += structuredResult.usage.outputTokens;
 
-        if (structuredResult.output == null) {
-          throw new Error(`${this.id} did not return structured output from search results`);
-        }
-
-        return { data: structuredResult.output as z.infer<T>, usage: totalUsage };
+        return { data: structuredResult.data, usage: totalUsage };
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         if (attempt < MAX_STRUCTURE_RETRIES) {
