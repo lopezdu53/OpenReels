@@ -1,6 +1,22 @@
 import OpenAI from "openai";
 import type { ImageProvider } from "../../schema/providers.js";
 
+const MAX_RETRIES = 5;
+const BASE_DELAY_MS = 3000;
+
+function isRetryable(err: unknown): boolean {
+  const msg = String(err);
+  return (
+    msg.includes("503") ||
+    msg.includes("529") ||
+    msg.includes("429") ||
+    msg.includes("rate_limit") ||
+    msg.includes("overloaded") ||
+    msg.includes("fetch failed") ||
+    msg.includes("ECONNRESET")
+  );
+}
+
 export class OpenAIImage implements ImageProvider {
   private client: OpenAI;
   private model: string;
@@ -17,20 +33,30 @@ export class OpenAIImage implements ImageProvider {
       ? `${prompt}. Style: ${style}. Vertical portrait orientation, 2:3 aspect ratio. No text, no watermarks.`
       : `${prompt}. Vertical portrait orientation, 2:3 aspect ratio. No text, no watermarks.`;
 
-    const response = await this.client.images.generate({
-      model: this.model,
-      prompt: fullPrompt,
-      n: 1,
-      size: "1024x1536",
-      quality: "high",
-      output_format: "png",
-    });
+    let lastError: unknown;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const response = await this.client.images.generate({
+          model: this.model,
+          prompt: fullPrompt,
+          n: 1,
+          size: "1024x1536",
+          quality: "high",
+          output_format: "png",
+        });
 
-    const b64 = response.data?.[0]?.b64_json;
-    if (!b64) {
-      throw new Error("OpenAI returned no image data");
+        const b64 = response.data?.[0]?.b64_json;
+        if (!b64) throw new Error("OpenAI returned no image data");
+        return Buffer.from(b64, "base64");
+      } catch (err) {
+        lastError = err;
+        if (!isRetryable(err) || attempt === MAX_RETRIES - 1) break;
+        const delayMs = BASE_DELAY_MS * Math.pow(2, attempt);
+        console.warn(`[image/openai] Attempt ${attempt + 1} failed (${err}), retrying in ${delayMs / 1000}s...`);
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
     }
 
-    return Buffer.from(b64, "base64");
+    throw lastError;
   }
 }
