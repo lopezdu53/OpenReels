@@ -36,13 +36,46 @@ export interface DirectorScoreOutput {
 }
 
 /** Load the creative director system prompt with playbook injection */
-function loadDirectorSystemPrompt(): string {
+function loadDirectorSystemPrompt(targetDurationMinutes?: number): string {
   let systemPrompt = buildDefaultPrompt();
 
   try {
     systemPrompt = fs.readFileSync(SYSTEM_PROMPT_PATH, "utf-8");
   } catch {
     // Use default
+  }
+
+  // For long-form horizontal video, override the short-form constraints in the system prompt
+  if (targetDurationMinutes && targetDurationMinutes >= 5) {
+    const wordsTarget = Math.round(targetDurationMinutes * 150);
+    systemPrompt = systemPrompt
+      .replace(
+        /You are a Creative Director for short-form vertical video content[^.]*\./,
+        `You are a Creative Director for long-form horizontal YouTube video content (${targetDurationMinutes}-minute videos, 1920x1080).`,
+      )
+      .replace(
+        /Keep total script under \d+ words[^.]*\./g,
+        `Total script target: approximately ${wordsTarget} words (${targetDurationMinutes} minutes at ~150 words/minute).`,
+      )
+      // Remove the short-form CTA enforcement — long-form ends with a proper conclusion + CTA
+      .replace(
+        /\*\*CTA scene \(FINAL scene, REQUIRED\)\*\*:.*?(?=\n-|\n##|\n\n)/gs,
+        `**CTA scene (FINAL scene, REQUIRED)**: 20-40 words. Summarize the key takeaway, then add a call-to-action (like/subscribe/comment prompt). Typically a text_card followed by a closing visual.`,
+      );
+
+    systemPrompt += `
+
+## LONG-FORM VIDEO OVERRIDE
+
+This is a LONG-FORM YouTube video, NOT a Short. Apply these rules instead of the short-form pacing table:
+
+- **Scene count**: approximately ${Math.round(wordsTarget / 45)} scenes total
+- **Words per scene**: 35-55 words (detailed narration, one focused idea per scene)
+- **Total word budget**: ~${wordsTarget} words
+- **Structure**: Opening hook (3-5 scenes) → Multiple topic chapters (8-12 scenes each) → Conclusion + CTA (3-5 scenes)
+- **Chapter breaks**: Every 8-12 scenes, use a text_card as a chapter title card
+- **DO NOT** apply short-form pacing tiers (fast/moderate/cinematic)
+- **DO NOT** cap at 5-16 scenes — this video needs ${Math.round(wordsTarget / 45)} scenes to reach the target duration`;
   }
 
   // Inject full playbook for content strategy guidance
@@ -62,7 +95,7 @@ export async function generateDirectorScore(
   researchContext: ResearchResult,
   options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; direction?: string; targetDurationMinutes?: number },
 ): Promise<DirectorScoreOutput> {
-  const systemPrompt = loadDirectorSystemPrompt();
+  const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes);
 
   const archetypes = listArchetypes();
   const archetypeInstruction = options?.archetype
@@ -84,6 +117,10 @@ export async function generateDirectorScore(
     ? `\n## Creative Direction (from the producer)\n\n${options.direction}\n\nHonor these creative constraints while exercising your judgment on anything not specified.\n`
     : "";
 
+  const isLongForm = (options?.targetDurationMinutes ?? 0) >= 5;
+  const wordsTarget = isLongForm ? Math.round((options!.targetDurationMinutes!) * 150) : null;
+  const sceneTarget = isLongForm ? Math.round(wordsTarget! / 45) : null;
+
   const userMessage = `Topic: ${topic}
 
 Research context:
@@ -101,7 +138,10 @@ Use ${visualTypes}.${videoGuidance}
 ${directionSection}CRITICAL RULE: Never use the same visual_type more than 2 times in a row. With more scenes, plan your visual_type sequence BEFORE writing scenes to ensure variety.
 Every scene MUST have a script_line (the voiceover text).
 The first scene should be a strong hook.
-If over budget, cut a scene rather than cramming.`;
+${isLongForm
+  ? `MANDATORY: This is a ${options!.targetDurationMinutes!}-minute video. You MUST generate exactly ${sceneTarget} scenes with ~45 words each. Total word count MUST be ~${wordsTarget} words. DO NOT stop at 10-20 scenes — keep going until you reach ${sceneTarget} scenes. If needed, break the topic into multiple chapters separated by text_card chapter titles.`
+  : "If over budget, cut a scene rather than cramming."
+}`;
 
   const maxRetries = 3;
   let lastError: Error | null = null;
@@ -217,7 +257,7 @@ export async function reviseDirectorScore(
   critique: CritiqueResult,
   options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; direction?: string; targetDurationMinutes?: number },
 ): Promise<DirectorScoreOutput> {
-  const systemPrompt = loadDirectorSystemPrompt();
+  const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes);
 
   // Build revision instructions from critique, guarding nullable revision_instructions
   const revisionGuidance = critique.revision_instructions
