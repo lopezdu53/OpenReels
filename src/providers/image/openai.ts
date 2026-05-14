@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 import type { ImageProvider } from "../../schema/providers.js";
 
-const MAX_RETRIES = 5;
-const BASE_DELAY_MS = 3000;
+const MAX_RETRIES = 2;
+const BASE_DELAY_MS = 1000;
 
 function isRetryable(err: unknown): boolean {
   const msg = String(err);

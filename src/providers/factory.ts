@@ -19,6 +19,7 @@ import type {
   VideoProvider,
   VideoProviderKey,
 } from "../schema/providers.js";
+import { FallbackImageProvider } from "./image/fallback.js";
 import { GeminiImage } from "./image/gemini.js";
 import { OpenAIImage } from "./image/openai.js";
 import { AnthropicLLM } from "./llm/anthropic.js";
@@ -161,10 +162,23 @@ export function createProviders(config: ProviderConfig): Providers {
       break;
   }
 
-  const imageGen: ImageProvider =
-    config.image === "openai"
-      ? new OpenAIImage(undefined, k["OPENAI_API_KEY"])
-      : new GeminiImage(undefined, k["GOOGLE_API_KEY"]);
+  const googleKey = k["GOOGLE_API_KEY"] ?? process.env["GOOGLE_API_KEY"];
+  const openaiKey = k["OPENAI_API_KEY"] ?? process.env["OPENAI_API_KEY"];
+
+  let imageGen: ImageProvider;
+  if (config.image === "openai") {
+    // OpenAI selected: use OpenAI with Gemini as fallback if both keys available
+    const primary = new OpenAIImage(undefined, openaiKey);
+    imageGen = googleKey
+      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "openai", "gemini")
+      : primary;
+  } else {
+    // Gemini selected (default): use Gemini with OpenAI as fallback if both keys available
+    const primary = new GeminiImage(undefined, googleKey);
+    imageGen = openaiKey
+      ? new FallbackImageProvider(primary, new OpenAIImage(undefined, openaiKey), "gemini", "openai")
+      : primary;
+  }
 
   // Build stock provider array: construct both if both keys are available
   const stock: StockProvider[] = [];
@@ -183,7 +197,6 @@ export function createProviders(config: ProviderConfig): Providers {
 
   // Build video provider array: construct available providers, primary first
   const videoProviders: VideoProvider[] = [];
-  const googleKey = k["GOOGLE_API_KEY"] ?? process.env["GOOGLE_API_KEY"];
   const falKey = k["FAL_API_KEY"] ?? process.env["FAL_API_KEY"];
   const videoPrimary = config.video ?? (googleKey ? "gemini" : falKey ? "fal" : undefined);
 
