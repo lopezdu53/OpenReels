@@ -56,6 +56,7 @@ export class ViviLLM extends BaseLLM {
       model: languageModel,
       system: systemWithJson,
       prompt: opts.userMessage,
+      maxTokens: 32000,
     });
 
     const text = result.text.trim();
