@@ -17,8 +17,8 @@ export class ViviLLM extends BaseLLM {
   ) {
     super(searchTools);
     this.model = model;
-    const key = apiKey ?? process.env["VIVI_API_KEY"];
-    if (!key) throw new Error("VIVI_API_KEY environment variable is required");
+    const key = apiKey ?? process.env["VIVI_LLM_API_KEY"];
+    if (!key) throw new Error("VIVI_LLM_API_KEY environment variable is required");
     this.provider = createAnthropic({ apiKey: key, baseURL: VIVI_BASE_URL });
   }
 

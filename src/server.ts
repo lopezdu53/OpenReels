@@ -63,7 +63,8 @@ app.get("/api/v1/health", async () => {
       INWORLD_TTS_API_KEY: !!process.env["INWORLD_TTS_API_KEY"],
       PEXELS_API_KEY: !!process.env["PEXELS_API_KEY"],
       PIXABAY_API_KEY: !!process.env["PIXABAY_API_KEY"],
-      VIVI_API_KEY: !!process.env["VIVI_API_KEY"],
+      VIVI_LLM_API_KEY: !!process.env["VIVI_LLM_API_KEY"],
+      VIVI_IMAGE_API_KEY: !!process.env["VIVI_IMAGE_API_KEY"],
     },
   };
 });

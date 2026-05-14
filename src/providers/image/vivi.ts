@@ -22,8 +22,8 @@ export class ViviImage implements ImageProvider {
   private model: string;
 
   constructor(model: string = "gemini-3.1-flash-image-preview", apiKey?: string) {
-    const key = apiKey ?? process.env["VIVI_API_KEY"];
-    if (!key) throw new Error("VIVI_API_KEY environment variable is required");
+    const key = apiKey ?? process.env["VIVI_IMAGE_API_KEY"];
+    if (!key) throw new Error("VIVI_IMAGE_API_KEY environment variable is required");
     this.client = new GoogleGenAI({ apiKey: key, baseUrl: VIVI_BASE_URL });
     this.model = model;
   }

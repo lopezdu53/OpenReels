@@ -137,7 +137,7 @@ export function createProviders(config: ProviderConfig): Providers {
       break;
     }
     case "vivi":
-      llm = new ViviLLM(config.llmModel, k["VIVI_API_KEY"], searchTools);
+      llm = new ViviLLM(config.llmModel, k["VIVI_LLM_API_KEY"], searchTools);
       break;
     default:
       llm = new AnthropicLLM(config.llmModel, k["ANTHROPIC_API_KEY"], searchTools);
@@ -170,7 +170,7 @@ export function createProviders(config: ProviderConfig): Providers {
   const googleKey = k["GOOGLE_API_KEY"] ?? process.env["GOOGLE_API_KEY"];
   const openaiKey = k["OPENAI_API_KEY"] ?? process.env["OPENAI_API_KEY"];
 
-  const viviKey = k["VIVI_API_KEY"] ?? process.env["VIVI_API_KEY"];
+  const viviKey = k["VIVI_IMAGE_API_KEY"] ?? process.env["VIVI_IMAGE_API_KEY"];
 
   let imageGen: ImageProvider;
   if (config.image === "openai") {
@@ -251,8 +251,8 @@ export function createVerificationModel(
       return openrouter(model ?? "anthropic/claude-sonnet-4");
     }
     case "vivi": {
-      const key = apiKey ?? process.env["VIVI_API_KEY"];
-      if (!key) throw new Error("VIVI_API_KEY is required for VIVI provider");
+      const key = apiKey ?? process.env["VIVI_LLM_API_KEY"];
+      if (!key) throw new Error("VIVI_LLM_API_KEY is required for VIVI provider");
       const vivi = createAnthropic({ apiKey: key, baseURL: "https://api.viviai.cc/v1" });
       return vivi(model ?? "claude-sonnet-4-6");
     }
