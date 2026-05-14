@@ -1,7 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
 import type { ImageProvider } from "../../schema/providers.js";
 
-const VIVI_BASE_URL = "https://api.viviai.cc/v1beta";
+// VIVI is Gemini-compatible. The base domain is replaced while the SDK
+// appends the /v1beta path automatically via httpOptions.baseUrl.
+const VIVI_BASE_URL = "https://api.viviai.cc";
 const MAX_RETRIES = 2;
 const BASE_DELAY_MS = 1000;
 
@@ -24,7 +26,7 @@ export class ViviImage implements ImageProvider {
   constructor(model: string = "gemini-3.1-flash-image-preview", apiKey?: string) {
     const key = apiKey ?? process.env["VIVI_IMAGE_API_KEY"];
     if (!key) throw new Error("VIVI_IMAGE_API_KEY environment variable is required");
-    this.client = new GoogleGenAI({ apiKey: key, baseUrl: VIVI_BASE_URL });
+    this.client = new GoogleGenAI({ apiKey: key, httpOptions: { baseUrl: VIVI_BASE_URL } });
     this.model = model;
   }
 
