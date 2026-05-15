@@ -179,6 +179,9 @@ ${isLongForm
       totalUsage.inputTokens += result.usage.inputTokens;
       totalUsage.outputTokens += result.usage.outputTokens;
 
+      // Auto-repair golden rule violations before strict validation
+      repairGoldenRule(result.data.scenes, options?.allowedVisualTypes ?? []);
+
       // Validate with full DirectorScore (includes refinements like golden rule)
       const validated = DirectorScore.parse(result.data);
       return { data: validated, usage: totalUsage };
@@ -268,6 +271,34 @@ Per-scene word budget: ${cfg.wordsPerScene} words. Total word budget: ${cfg.tota
 
 export { PACING_CONFIG };
 
+// ── Golden rule auto-repair ───────────────────────────────────────────────────
+
+// When VIVI (or any LLM) violates the golden rule (3+ consecutive same visual_type),
+// auto-fix by rotating the offending scene to a different allowed type.
+function repairGoldenRule(
+  scenes: Array<{ visual_type: string; [key: string]: unknown }>,
+  allowedTypes: string[],
+): void {
+  const fallbackOrder = ["ai_image", "stock_image", "stock_video", "text_card", "ai_video"];
+  const pool = allowedTypes.length > 0 ? allowedTypes : fallbackOrder;
+
+  for (let i = 2; i < scenes.length; i++) {
+    const prev2 = scenes[i - 2]?.visual_type;
+    const prev1 = scenes[i - 1]?.visual_type;
+    const curr = scenes[i]?.visual_type;
+    if (prev2 === prev1 && prev1 === curr) {
+      // Pick a type that differs from prev1
+      const alt = pool.find((t) => t !== prev1) ?? pool[0];
+      if (alt) {
+        console.warn(
+          `[creative-director] Golden rule repair: scene ${i} changed from "${curr}" to "${alt}"`,
+        );
+        scenes[i]!.visual_type = alt;
+      }
+    }
+  }
+}
+
 // ── Revision ─────────────────────────────────────────────────────────────────
 
 export async function reviseDirectorScore(
@@ -339,6 +370,8 @@ Keep the same archetype. Maintain the GOLDEN RULE: never use the same visual_typ
 
       totalUsage.inputTokens += result.usage.inputTokens;
       totalUsage.outputTokens += result.usage.outputTokens;
+
+      repairGoldenRule(result.data.scenes, options?.allowedVisualTypes ?? []);
 
       const validated = DirectorScore.parse(result.data);
 
