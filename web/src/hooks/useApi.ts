@@ -142,6 +142,7 @@ export interface CreateJobRequest {
   pacing?: string;
   platform?: string;
   dryRun?: boolean;
+  noSubtitles?: boolean;
   direction?: string;
   targetDurationMinutes?: number;
   score?: Record<string, unknown>;

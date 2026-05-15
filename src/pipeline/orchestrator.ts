@@ -804,7 +804,7 @@ function buildPipelineWorkflow(
           voiceoverPath: "voiceover.mp3",
           musicPath: musicFilePath ? "music.mp3" : null,
           sceneWords: ttsResult.sceneWords!,
-          allWords: ttsResult.words!,
+          allWords: opts.noSubtitles ? [] : ttsResult.words!,
           sceneSourceDurations: visualsResult.sceneSourceDurations,
           voiceoverDurationSeconds: ttsResult.voiceoverDurationSeconds,
         },

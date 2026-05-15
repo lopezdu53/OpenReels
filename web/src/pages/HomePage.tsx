@@ -99,6 +99,7 @@ export function HomePage() {
   const [pacing, setPacing] = useState("");
   const [targetDurationMinutes, setTargetDurationMinutes] = useState(15);
   const [dryRun, setDryRun] = useState(false);
+  const [noSubtitles, setNoSubtitles] = useState(false);
   const [directionText, setDirectionText] = useState("");
   const [scoreJson, setScoreJson] = useState<Record<string, unknown> | null>(null);
   const [scoreFileName, setScoreFileName] = useState("");
@@ -148,6 +149,7 @@ export function HomePage() {
         pacing: pacing || undefined,
         platform,
         dryRun,
+        ...(noSubtitles ? { noSubtitles: true } : {}),
         ...(platform === "youtube_horizontal" ? { targetDurationMinutes } : {}),
         ...(directionText.trim() ? { direction: directionText.trim() } : {}),
         ...(scoreJson ? { score: scoreJson } : {}),
@@ -477,14 +479,25 @@ export function HomePage() {
                   </p>
                 </div>
 
-                {/* Dry Run */}
-                <div className="mt-4 flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted-foreground">Dry Run</span>
-                  <div className="flex items-center gap-2">
-                    <Switch checked={dryRun} onCheckedChange={setDryRun} size="sm" />
-                    <span className="text-xs text-muted-foreground">
-                      {dryRun ? "On" : "Off"}
-                    </span>
+                {/* Subtitles & Dry Run toggles */}
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">Subtitles</span>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={!noSubtitles} onCheckedChange={(v) => setNoSubtitles(!v)} size="sm" />
+                      <span className="text-xs text-muted-foreground">
+                        {noSubtitles ? "Off" : "On"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">Dry Run</span>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={dryRun} onCheckedChange={setDryRun} size="sm" />
+                      <span className="text-xs text-muted-foreground">
+                        {dryRun ? "On" : "Off"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 

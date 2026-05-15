@@ -185,6 +185,7 @@ interface CreateJobBody {
   dryRun?: boolean;
   noMusic?: boolean;
   noVideo?: boolean;
+  noSubtitles?: boolean;
   allowedVisualTypes?: string[];
   direction?: string;
   targetDurationMinutes?: number;
@@ -205,7 +206,7 @@ interface CreateJobBody {
 }
 
 app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
-  const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, allowedVisualTypes, direction, targetDurationMinutes, score, providers, keys } =
+  const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, providers, keys } =
     request.body ?? {};
 
   if (!topic || typeof topic !== "string" || topic.trim().length === 0) {
@@ -276,6 +277,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     dryRun: dryRun ?? false,
     noMusic: noMusic === true,
     noVideo: noVideo === true,
+    noSubtitles: noSubtitles === true,
     ...(allowedVisualTypes?.length ? { allowedVisualTypes } : {}),
     ...(direction?.trim() ? { direction: direction.trim() } : {}),
     ...(targetDurationMinutes != null ? { targetDurationMinutes: Number(targetDurationMinutes) } : {}),
