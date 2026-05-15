@@ -6,7 +6,7 @@ import type { LLMProvider, LLMUsage } from "../../schema/providers.js";
 // worth breaking an entire provider over.
 const QueryReformSchema = z.object({
   queries: z.array(z.string()),
-  reasoning: z.string(),
+  reasoning: z.string().optional(),
 });
 
 const SYSTEM_PROMPT = `You are a stock footage search expert. Convert the given visual description into 2-3 alternative search queries optimized for stock photo/video APIs like Pexels and Pixabay.
