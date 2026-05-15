@@ -103,6 +103,12 @@ export function HomePage() {
   const [scoreJson, setScoreJson] = useState<Record<string, unknown> | null>(null);
   const [scoreFileName, setScoreFileName] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [allowedVisualTypes, setAllowedVisualTypes] = useState<string[]>([
+    "ai_image",
+    "stock_image",
+    "stock_video",
+    "text_card",
+  ]);
 
   const [archetypes, setArchetypes] = useState<Archetype[]>([]);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
@@ -145,6 +151,7 @@ export function HomePage() {
         ...(platform === "youtube_horizontal" ? { targetDurationMinutes } : {}),
         ...(directionText.trim() ? { direction: directionText.trim() } : {}),
         ...(scoreJson ? { score: scoreJson } : {}),
+        allowedVisualTypes: allowedVisualTypes.length > 0 ? allowedVisualTypes : undefined,
         providers: {
           llm: llmProvider,
           tts: ttsProvider,
@@ -428,6 +435,46 @@ export function HomePage() {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                {/* Visual Types */}
+                <div className="mt-4">
+                  <label className="mb-2 block text-xs font-medium text-muted-foreground">
+                    Visual Types
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: "ai_image", label: "AI Image" },
+                      { key: "stock_image", label: "Stock Image" },
+                      { key: "stock_video", label: "Stock Video" },
+                      { key: "text_card", label: "Text Card" },
+                      { key: "ai_video", label: "AI Video ($$$)" },
+                    ].map(({ key, label }) => {
+                      const checked = allowedVisualTypes.includes(key);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() =>
+                            setAllowedVisualTypes((prev) =>
+                              checked ? prev.filter((t) => t !== key) : [...prev, key],
+                            )
+                          }
+                          className={cn(
+                            "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                            checked
+                              ? "border-primary/40 bg-primary/10 text-primary"
+                              : "border-border bg-transparent text-text-subtle hover:text-foreground",
+                          )}
+                        >
+                          {checked ? "✓ " : ""}{label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    AI Video is expensive (~$0.30/scene) and slow. Uncheck to avoid it.
+                  </p>
                 </div>
 
                 {/* Dry Run */}

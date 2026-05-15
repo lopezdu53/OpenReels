@@ -145,6 +145,7 @@ export interface CreateJobRequest {
   direction?: string;
   targetDurationMinutes?: number;
   score?: Record<string, unknown>;
+  allowedVisualTypes?: string[];
   providers?: {
     llm?: string;
     tts?: string;

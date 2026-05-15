@@ -428,7 +428,11 @@ function buildPipelineWorkflow(
       cb.onStageStart?.("director");
       const start = Date.now();
       const videoEnabled = !opts.noVideo && (opts.videoProviders?.length ?? 0) > 0;
-      const directorOpts = { archetype: opts.archetype, pacing: opts.pacing, videoEnabled, direction: opts.direction, targetDurationMinutes: opts.targetDurationMinutes };
+      // If allowedVisualTypes is set, use it directly; otherwise derive from videoEnabled
+      const allowedVisualTypes = opts.allowedVisualTypes && opts.allowedVisualTypes.length > 0
+        ? opts.allowedVisualTypes.filter((t) => t !== "ai_video" || videoEnabled)
+        : undefined;
+      const directorOpts = { archetype: opts.archetype, pacing: opts.pacing, videoEnabled, allowedVisualTypes, direction: opts.direction, targetDurationMinutes: opts.targetDurationMinutes };
 
       // ── Replay mode: use provided score, skip generation + revision ──
       if (opts.replayScore) {

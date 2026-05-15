@@ -93,11 +93,29 @@ This is a LONG-FORM YouTube video, NOT a Short. Apply these rules instead of the
   return systemPrompt;
 }
 
+const ALL_VISUAL_TYPES = ["ai_image", "stock_image", "stock_video", "text_card", "ai_video"] as const;
+
+function buildVisualTypesInstruction(allowedVisualTypes?: string[], videoEnabled?: boolean): { visualTypes: string; videoGuidance: string } {
+  // Derive allowed set: explicit list wins, else fall back to videoEnabled flag
+  const allowed = allowedVisualTypes && allowedVisualTypes.length > 0
+    ? allowedVisualTypes
+    : videoEnabled
+      ? ["ai_image", "stock_image", "stock_video", "text_card", "ai_video"]
+      : ["ai_image", "stock_image", "stock_video", "text_card"];
+
+  const hasVideo = allowed.includes("ai_video");
+  const visualTypes = `ONLY these visual types: ${allowed.join(", ")}. Do NOT use any other type.`;
+  const videoGuidance = hasVideo
+    ? "\nai_video: Use for 1-3 scenes where MOTION is the story. ai_video costs ~$0.30/scene vs ~$0.04 for ai_image. Use selectively. Set motion to 'static' for ai_video scenes."
+    : "";
+  return { visualTypes, videoGuidance };
+}
+
 export async function generateDirectorScore(
   llm: LLMProvider,
   topic: string,
   researchContext: ResearchResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; direction?: string; targetDurationMinutes?: number },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes);
 
@@ -106,13 +124,7 @@ export async function generateDirectorScore(
     ? `Use the "${options.archetype}" archetype.`
     : `Choose from: ${archetypes.join(", ")}`;
 
-  const videoEnabled = options?.videoEnabled ?? false;
-  const visualTypes = videoEnabled
-    ? "all 5 visual types (ai_image, ai_video, stock_image, stock_video, text_card)"
-    : "all 4 visual types (ai_image, stock_image, stock_video, text_card)";
-  const videoGuidance = videoEnabled
-    ? "\nai_video: Use for 1-3 scenes where MOTION is the story (explosions, flowing water, launches, transformations). ai_video costs ~$0.30/scene vs ~$0.04 for ai_image. Use selectively. Set motion to 'static' for ai_video scenes (the video model handles motion)."
-    : "";
+  const { visualTypes, videoGuidance } = buildVisualTypesInstruction(options?.allowedVisualTypes, options?.videoEnabled);
 
   // Resolve pacing tier: explicit --pacing override > archetype default > lookup table
   const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing, options?.targetDurationMinutes);
@@ -264,7 +276,7 @@ export async function reviseDirectorScore(
   researchContext: ResearchResult,
   originalScore: DirectorScore,
   critique: CritiqueResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; direction?: string; targetDurationMinutes?: number },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes);
 
@@ -274,10 +286,7 @@ export async function reviseDirectorScore(
 
   const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing, options?.targetDurationMinutes);
 
-  const videoEnabled = options?.videoEnabled ?? false;
-  const visualTypes = videoEnabled
-    ? "all 5 visual types (ai_image, ai_video, stock_image, stock_video, text_card)"
-    : "all 4 visual types (ai_image, stock_image, stock_video, text_card)";
+  const { visualTypes } = buildVisualTypesInstruction(options?.allowedVisualTypes, options?.videoEnabled);
 
   const directionSection = options?.direction?.trim()
     ? `\n## Creative Direction (from the producer)\n\n${options.direction}\n\nHonor these creative constraints while exercising your judgment on anything not specified.\n`
