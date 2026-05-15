@@ -18,14 +18,14 @@ const SYSTEM_PROMPT_PATH = path.join(process.cwd(), "prompts", "creative-directo
 const DirectorScoreRaw = z.object({
   emotional_arc: z.string(),
   archetype: z.enum(listArchetypes() as [string, ...string[]]),
-  music_mood: MusicMood,
+  music_mood: MusicMood.catch("epic_cinematic"),
   scenes: z.array(
     z.object({
       visual_type: VisualType,
       visual_prompt: z.string(),
-      motion: Motion,
+      motion: Motion.catch("static"),
       script_line: z.string(),
-      transition: TransitionType.nullable(),
+      transition: TransitionType.nullable().catch(null),
     }),
   ),
 });
