@@ -51,7 +51,7 @@ function loadDirectorSystemPrompt(targetDurationMinutes?: number): string {
     systemPrompt = systemPrompt
       .replace(
         /You are a Creative Director for short-form vertical video content[^.]*\./,
-        `You are a Creative Director for long-form horizontal YouTube video content (${targetDurationMinutes}-minute videos, 1920x1080).`,
+        `You are a Creative Director for long-form vertical video content (${targetDurationMinutes}-minute videos, 1080x1920 portrait).`,
       )
       .replace(
         /Keep total script under \d+ words[^.]*\./g,

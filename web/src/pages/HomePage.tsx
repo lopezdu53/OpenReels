@@ -57,7 +57,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   youtube: "YouTube Shorts",
   tiktok: "TikTok",
   instagram: "Instagram",
-  youtube_horizontal: "YouTube (horizontal)",
+  youtube_horizontal: "Reel Extend",
   // LLM
   anthropic: "Anthropic (Claude)",
   openai: "OpenAI (GPT)",
@@ -97,7 +97,7 @@ export function HomePage() {
   const [imageProvider, setImageProvider] = useState("gemini");
   const [musicProvider, setMusicProvider] = useState("bundled");
   const [pacing, setPacing] = useState("");
-  const [targetDurationMinutes, setTargetDurationMinutes] = useState(15);
+  const [targetDurationMinutes, setTargetDurationMinutes] = useState(5);
   const [dryRun, setDryRun] = useState(false);
   const [noSubtitles, setNoSubtitles] = useState(false);
   const [directionText, setDirectionText] = useState("");
@@ -183,7 +183,7 @@ export function HomePage() {
           </h1>
           <p className="mt-3 text-sm sm:text-base text-muted-foreground">
             {platform === "youtube_horizontal"
-              ? `Describe a topic and we'll turn it into a fully rendered ${targetDurationMinutes}-minute YouTube video.`
+              ? `Describe a topic and we'll turn it into a fully rendered ${targetDurationMinutes}-minute vertical video.`
               : "Describe a topic and we'll turn it into a fully rendered Short."}
           </p>
         </div>
@@ -234,9 +234,9 @@ export function HomePage() {
                   <span className="text-muted-foreground">Duración:</span>
                   <input
                     type="range"
-                    min={15}
-                    max={40}
-                    step={5}
+                    min={2}
+                    max={20}
+                    step={1}
                     value={targetDurationMinutes}
                     onChange={(e) => setTargetDurationMinutes(Number(e.target.value))}
                     className="w-20 accent-primary"
