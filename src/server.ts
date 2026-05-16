@@ -571,7 +571,11 @@ app.delete<{ Params: { id: string } }>("/api/v1/jobs/:id", async (request, reply
     if (state === "active" || state === "waiting") {
       return reply.status(409).send({ error: "Cannot delete an active job" });
     }
-    await job.remove();
+    try {
+      await job.remove();
+    } catch {
+      // Job may already be cleaned from BullMQ — safe to continue deleting files
+    }
   }
 
   fs.rmSync(jobDir, { recursive: true, force: true });

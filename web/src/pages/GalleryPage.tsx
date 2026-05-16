@@ -125,9 +125,9 @@ export function GalleryPage() {
       await api.deleteJob(confirmDeleteId);
       setJobs((prev) => prev.filter((j) => j.id !== confirmDeleteId));
       setTotal((t) => t - 1);
-    } catch {
-      setDeleteError("Failed to delete video. It may still be active.");
-      setTimeout(() => setDeleteError(null), 5000);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete video.");
+      setTimeout(() => setDeleteError(null), 7000);
     }
     setConfirmDeleteId(null);
     setDeleting(false);
