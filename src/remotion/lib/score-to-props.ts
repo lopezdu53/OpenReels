@@ -56,24 +56,38 @@ export function mapScoreToProps(
 ): CompositionProps {
   const archetype = getArchetype(score.archetype);
 
-  const scenes: SceneProps[] = score.scenes.map((scene, i) => {
-    const words = assets.sceneWords[i] ?? [];
-    const lastWord = words[words.length - 1];
-    const firstWord = words[0];
+  // Proportional word-count duration: language-agnostic and reliable regardless of
+  // whether Whisper can accurately transcribe the audio language.
+  // Each scene gets (its word count / total words) × total audio duration.
+  // Falls back to timestamp-based only when voiceoverDurationSeconds is unavailable.
+  const totalAudio = assets.voiceoverDurationSeconds ?? 0;
+  const sceneCounts = score.scenes.map((s) =>
+    s.script_line.split(/\s+/).filter(Boolean).length,
+  );
+  const totalWords = sceneCounts.reduce((a, b) => a + b, 0);
 
-    // Scene duration runs until the NEXT scene's first word starts (absorbing inter-scene
-    // pauses into the current scene). For the last scene, extend to the full audio duration.
-    // This prevents a visual gap when TTS adds silence between narration lines.
-    const nextSceneFirstWord = assets.sceneWords[i + 1]?.[0];
+  const scenes: SceneProps[] = score.scenes.map((scene, i) => {
     let durationSeconds: number;
-    if (nextSceneFirstWord && firstWord) {
-      durationSeconds = Math.max(nextSceneFirstWord.start - firstWord.start, 2);
-    } else if (lastWord && firstWord) {
-      const audioEnd = assets.voiceoverDurationSeconds ?? lastWord.end + 0.5;
-      durationSeconds = Math.max(audioEnd - firstWord.start, 2);
+
+    if (totalAudio > 0 && totalWords > 0) {
+      // Primary: proportional word count — works for any language, any TTS provider
+      const proportion = (sceneCounts[i] ?? 1) / totalWords;
+      durationSeconds = Math.max(proportion * totalAudio, 2);
     } else {
-      durationSeconds = 3;
+      // Fallback: timestamp-based (original approach, requires accurate Whisper)
+      const words = assets.sceneWords[i] ?? [];
+      const lastWord = words[words.length - 1];
+      const firstWord = words[0];
+      const nextSceneFirstWord = assets.sceneWords[i + 1]?.[0];
+      if (nextSceneFirstWord && firstWord) {
+        durationSeconds = Math.max(nextSceneFirstWord.start - firstWord.start, 2);
+      } else if (lastWord && firstWord) {
+        durationSeconds = Math.max(lastWord.end - firstWord.start + 0.5, 2);
+      } else {
+        durationSeconds = 3;
+      }
     }
+
     const durationInFrames = Math.round(durationSeconds * fps);
 
     // Detect AI fallback: if the score says stock/ai_video but the asset is a PNG,
