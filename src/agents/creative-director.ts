@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getArchetype, listArchetypes } from "../config/archetype-registry.js";
 import type { ScenePacing } from "../schema/archetype.js";
 import { loadPlaybook } from "../config/playbook.js";
-import { DirectorScore, Motion, MusicMood, TransitionType, VisualType } from "../schema/director-score.js";
+import { DirectorScore, DirectorScoreBase, Motion, MusicMood, TransitionType, VisualType } from "../schema/director-score.js";
 import type { LLMProvider, LLMUsage } from "../schema/providers.js";
 import type { ResearchResult } from "./research.js";
 import type { CritiqueResult } from "./critic.js";
@@ -179,11 +179,15 @@ ${isLongForm
       totalUsage.inputTokens += result.usage.inputTokens;
       totalUsage.outputTokens += result.usage.outputTokens;
 
-      // Auto-repair golden rule violations before strict validation
-      repairGoldenRule(result.data.scenes, options?.allowedVisualTypes ?? []);
+      // Auto-repair golden rule violations before strict validation.
+      // When only one visual type is allowed, repair is skipped and the
+      // golden rule refinement is bypassed (it can't be satisfied).
+      const allowedTypes = options?.allowedVisualTypes ?? [];
+      repairGoldenRule(result.data.scenes, allowedTypes);
 
-      // Validate with full DirectorScore (includes refinements like golden rule)
-      const validated = DirectorScore.parse(result.data);
+      const validated = isSingleVisualTypeMode(allowedTypes)
+        ? (DirectorScoreBase.parse(result.data) as DirectorScore)
+        : DirectorScore.parse(result.data);
       return { data: validated, usage: totalUsage };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
@@ -273,12 +277,23 @@ export { PACING_CONFIG };
 
 // ── Golden rule auto-repair ───────────────────────────────────────────────────
 
+// Returns true when the user has chosen a single "real" visual type (text_card
+// is structural and doesn't count). In this case the golden rule cannot be
+// satisfied and must be skipped entirely.
+function isSingleVisualTypeMode(allowedTypes: string[]): boolean {
+  const realTypes = allowedTypes.filter((t) => t !== "text_card");
+  return realTypes.length === 1;
+}
+
 // When VIVI (or any LLM) violates the golden rule (3+ consecutive same visual_type),
 // auto-fix by rotating the offending scene to a different allowed type.
+// Skipped entirely when only one visual type is allowed.
 function repairGoldenRule(
   scenes: Array<{ visual_type: string; [key: string]: unknown }>,
   allowedTypes: string[],
 ): void {
+  if (isSingleVisualTypeMode(allowedTypes)) return;
+
   const fallbackOrder = ["ai_image", "stock_image", "stock_video", "text_card", "ai_video"];
   const pool = allowedTypes.length > 0 ? allowedTypes : fallbackOrder;
 
@@ -371,9 +386,12 @@ Keep the same archetype. Maintain the GOLDEN RULE: never use the same visual_typ
       totalUsage.inputTokens += result.usage.inputTokens;
       totalUsage.outputTokens += result.usage.outputTokens;
 
-      repairGoldenRule(result.data.scenes, options?.allowedVisualTypes ?? []);
+      const allowedTypesRev = options?.allowedVisualTypes ?? [];
+      repairGoldenRule(result.data.scenes, allowedTypesRev);
 
-      const validated = DirectorScore.parse(result.data);
+      const validated = isSingleVisualTypeMode(allowedTypesRev)
+        ? (DirectorScoreBase.parse(result.data) as DirectorScore)
+        : DirectorScore.parse(result.data);
 
       // Prevent archetype drift: the LLM may change the archetype during revision
       // despite prompt instructions. Force it back to the original.
