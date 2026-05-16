@@ -1,10 +1,11 @@
 const API_BASE = "/api/v1";
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const hasBody = init?.body != null;
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
     },
   });
