@@ -5,7 +5,7 @@ import { getSceneAssetUrl } from "@/lib/scene-assets";
 import { cn, formatArchetypeName } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { AlertTriangle, Clock, DollarSign, Layers, Star } from "lucide-react";
+import { AlertTriangle, Clock, DollarSign, Layers, Star, Trash2 } from "lucide-react";
 
 /** Archetype visual config: Tailwind badge classes + accent hex for gradient backgrounds */
 const ARCHETYPE_THEME: Record<string, { badge: string; accent: string }> = {
@@ -31,9 +31,10 @@ interface GalleryCardProps {
   selected: boolean;
   onToggleSelect: () => void;
   timeAgo: string;
+  onDelete?: () => void;
 }
 
-export function GalleryCard({ job, bulkMode, selected, onToggleSelect, timeAgo }: GalleryCardProps) {
+export function GalleryCard({ job, bulkMode, selected, onToggleSelect, timeAgo, onDelete }: GalleryCardProps) {
   const isFailed = job.status === "failed";
   const isRunning = job.status === "running" || job.status === "queued";
   const score = job.score as DirectorScore | undefined;
@@ -109,6 +110,17 @@ export function GalleryCard({ job, bulkMode, selected, onToggleSelect, timeAgo }
               <span className="size-1.5 rounded-full bg-status-info animate-pulse" />
               <span className="text-[9px] text-status-info">Running</span>
             </div>
+          )}
+
+          {/* Delete button — hover only, hidden in bulk mode */}
+          {!bulkMode && !isRunning && onDelete && (
+            <button
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
+              className="absolute top-2 right-2 flex size-7 items-center justify-center rounded-full bg-black/60 text-white/70 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive hover:text-white"
+              title="Delete video"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
           )}
         </div>
 

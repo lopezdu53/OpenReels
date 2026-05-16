@@ -70,6 +70,7 @@ export function GalleryPage() {
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -115,6 +116,21 @@ export function GalleryPage() {
       else next.add(jobId);
       return next;
     });
+  };
+
+  const handleSingleDelete = async () => {
+    if (!confirmDeleteId) return;
+    setDeleting(true);
+    try {
+      await api.deleteJob(confirmDeleteId);
+      setJobs((prev) => prev.filter((j) => j.id !== confirmDeleteId));
+      setTotal((t) => t - 1);
+    } catch {
+      setDeleteError("Failed to delete video. It may still be active.");
+      setTimeout(() => setDeleteError(null), 5000);
+    }
+    setConfirmDeleteId(null);
+    setDeleting(false);
   };
 
   const handleBulkDelete = async () => {
@@ -318,6 +334,7 @@ export function GalleryPage() {
               selected={selectedIds.has(job.id)}
               onToggleSelect={() => toggleSelect(job.id)}
               timeAgo={job.createdAt ? timeAgo(job.createdAt) : ""}
+              onDelete={() => setConfirmDeleteId(job.id)}
             />
           ))}
         </div>
@@ -332,6 +349,7 @@ export function GalleryPage() {
               selected={selectedIds.has(job.id)}
               onToggleSelect={() => toggleSelect(job.id)}
               timeAgo={job.createdAt ? timeAgo(job.createdAt) : ""}
+              onDelete={() => setConfirmDeleteId(job.id)}
             />
           ))}
         </div>
@@ -355,28 +373,40 @@ export function GalleryPage() {
         </div>
       )}
 
-      {/* Delete confirmation dialog */}
+      {/* Bulk delete confirmation dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete {selectedIds.size} video{selectedIds.size > 1 ? "s" : ""}?</DialogTitle>
             <DialogDescription>
-              This will permanently delete the selected videos and their artifacts. This action cannot be undone.
+              This will permanently delete the selected videos and all their files from disk. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteDialogOpen(false)}
-              disabled={deleting}
-            >
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleBulkDelete}
-              disabled={deleting}
-            >
+            <Button variant="destructive" onClick={handleBulkDelete} disabled={deleting}>
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Single delete confirmation dialog */}
+      <Dialog open={!!confirmDeleteId} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this video?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete the video and all its files from disk. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDeleteId(null)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleSingleDelete} disabled={deleting}>
               {deleting ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
@@ -394,12 +424,14 @@ function ListCard({
   selected,
   onToggleSelect,
   timeAgo: timeAgoStr,
+  onDelete,
 }: {
   job: JobSummary;
   bulkMode: boolean;
   selected: boolean;
   onToggleSelect: () => void;
   timeAgo: string;
+  onDelete?: () => void;
 }) {
   const isFailed = job.status === "failed";
   const isRunning = job.status === "running" || job.status === "queued";
@@ -418,7 +450,7 @@ function ListCard({
         }
       }}
       className={cn(
-        "flex items-center gap-4 rounded-lg border bg-card px-4 py-3 transition-all hover:border-primary/30",
+        "group flex items-center gap-4 rounded-lg border bg-card px-4 py-3 transition-all hover:border-primary/30",
         isFailed ? "border-destructive/20" : "border-border",
         selected && "ring-2 ring-primary ring-offset-1 ring-offset-background",
       )}
@@ -477,6 +509,15 @@ function ListCard({
           <Clock className="size-3" />
           {timeAgoStr}
         </span>
+        {!bulkMode && !isRunning && onDelete && (
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
+            className="ml-1 flex size-7 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+            title="Delete video"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        )}
       </div>
     </a>
   );
