@@ -31,6 +31,8 @@ export interface CompositionProps {
   captionAccentColor: string;
   captionChunkSize: number;
   captionLingerS: number;
+  // When true, CaptionWrapper is not rendered (but allWords is still used for timing)
+  noSubtitles?: boolean;
   // Actual audio file duration in seconds (from ffprobe). When set, used as the
   // authoritative minimum video length so the voiceover never gets clipped.
   voiceoverDurationSeconds?: number;
@@ -50,6 +52,7 @@ export function mapScoreToProps(
   score: DirectorScore,
   assets: ResolvedAssets,
   fps: number = 30,
+  noSubtitles?: boolean,
 ): CompositionProps {
   const archetype = getArchetype(score.archetype);
 
@@ -117,6 +120,7 @@ export function mapScoreToProps(
     captionAccentColor: archetype.colorPalette.accent,
     captionChunkSize: archetype.captionChunkSize ?? 5,
     captionLingerS: archetype.captionLingerS ?? 0.3,
+    noSubtitles: noSubtitles === true,
     voiceoverDurationSeconds: assets.voiceoverDurationSeconds,
   };
 }

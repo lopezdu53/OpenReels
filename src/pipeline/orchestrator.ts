@@ -804,11 +804,12 @@ function buildPipelineWorkflow(
           voiceoverPath: "voiceover.mp3",
           musicPath: musicFilePath ? "music.mp3" : null,
           sceneWords: ttsResult.sceneWords!,
-          allWords: opts.noSubtitles ? [] : ttsResult.words!,
+          allWords: ttsResult.words!,
           sceneSourceDurations: visualsResult.sceneSourceDurations,
           voiceoverDurationSeconds: ttsResult.voiceoverDurationSeconds,
         },
         platformConfig.fps,
+        opts.noSubtitles,
       );
 
       const totalFrames = getTotalDurationInFrames(compositionProps, platformConfig.fps);
