@@ -67,6 +67,7 @@ export function mapScoreToProps(
   const totalWords = sceneCounts.reduce((a, b) => a + b, 0);
 
   const scenes: SceneProps[] = score.scenes.map((scene, i) => {
+    const words = assets.sceneWords[i] ?? [];
     let durationSeconds: number;
 
     if (totalAudio > 0 && totalWords > 0) {
@@ -75,7 +76,6 @@ export function mapScoreToProps(
       durationSeconds = Math.max(proportion * totalAudio, 2);
     } else {
       // Fallback: timestamp-based (original approach, requires accurate Whisper)
-      const words = assets.sceneWords[i] ?? [];
       const lastWord = words[words.length - 1];
       const firstWord = words[0];
       const nextSceneFirstWord = assets.sceneWords[i + 1]?.[0];
