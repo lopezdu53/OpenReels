@@ -42,32 +42,56 @@ export class MoyuVideo implements VideoProvider {
     // MOYU expects raw base64 string (no data URI prefix)
     const imageBase64 = opts.sourceImage.toString("base64");
 
-    const submitRes = await fetch(`${API_BASE}/video/generations`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
+    const body = JSON.stringify({
+      model: this.model,
+      prompt: opts.prompt,
+      image: imageBase64,
+      duration: durationSeconds,
+      mode: "pro",
+      metadata: {
+        aspect_ratio: aspectRatio,
+        cfg_scale: 0.6,
+        ...(opts.negativePrompt ? { negative_prompt: opts.negativePrompt } : {}),
       },
-      body: JSON.stringify({
-        model: this.model,
-        prompt: opts.prompt,
-        image: imageBase64,
-        duration: durationSeconds,
-        mode: "pro",
-        metadata: {
-          aspect_ratio: aspectRatio,
-          cfg_scale: 0.6,
-          ...(opts.negativePrompt ? { negative_prompt: opts.negativePrompt } : {}),
-        },
-      }),
     });
 
-    if (!submitRes.ok) {
-      const err = await submitRes.json().catch(() => ({}));
+    // Submit with retry on concurrency-limit 403
+    let submitRes: Response;
+    const MAX_SUBMIT_RETRIES = 6;
+    for (let attempt = 0; attempt <= MAX_SUBMIT_RETRIES; attempt++) {
+      submitRes = await fetch(`${API_BASE}/video/generations`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body,
+      });
+
+      if (submitRes.ok) break;
+
+      const err = await submitRes.json().catch(() => ({})) as Record<string, unknown>;
+      const isConcurrencyLimit =
+        submitRes.status === 403 &&
+        typeof err["code"] === "string" &&
+        (err["code"] as string).includes("concurrency");
+
+      if (isConcurrencyLimit && attempt < MAX_SUBMIT_RETRIES) {
+        const waitMs = 15_000 + attempt * 10_000; // 15s, 25s, 35s, 45s, 55s, 65s
+        console.warn(`[moyu] Concurrency limit hit, retrying in ${waitMs / 1000}s (attempt ${attempt + 1}/${MAX_SUBMIT_RETRIES})`);
+        await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+        continue;
+      }
+
       throw new Error(`MOYU submit failed (${submitRes.status}): ${JSON.stringify(err)}`);
     }
 
-    const submitData = (await submitRes.json()) as { task_id?: string; id?: string };
+    if (!submitRes!.ok) {
+      const err = await submitRes!.json().catch(() => ({}));
+      throw new Error(`MOYU submit failed after retries (${submitRes!.status}): ${JSON.stringify(err)}`);
+    }
+
+    const submitData = (await submitRes!.json()) as { task_id?: string; id?: string };
     const taskId = submitData.task_id ?? submitData.id;
     if (!taskId) throw new Error("MOYU did not return a task_id");
 
