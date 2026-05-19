@@ -43,6 +43,7 @@ import { OpenAITTS } from "./tts/openai.js";
 import { WhisperAligner } from "./tts/whisper-aligner.js";
 import { FalVideo } from "./video/fal.js";
 import { GeminiVideo } from "./video/gemini.js";
+import { MoyuVideo } from "./video/moyu.js";
 
 export interface ProviderConfig {
   llm: LLMProviderKey;
@@ -211,14 +212,21 @@ export function createProviders(config: ProviderConfig): Providers {
   // Build video provider array: construct available providers, primary first
   const videoProviders: VideoProvider[] = [];
   const falKey = k["FAL_API_KEY"] ?? process.env["FAL_API_KEY"];
-  const videoPrimary = config.video ?? (googleKey ? "gemini" : falKey ? "fal" : undefined);
+  const moyuKey = k["MOYU_API_KEY"] ?? process.env["MOYU_API_KEY"];
+  const videoPrimary = config.video ?? (googleKey ? "gemini" : falKey ? "fal" : moyuKey ? "moyu" : undefined);
 
-  if (videoPrimary === "fal") {
+  if (videoPrimary === "moyu") {
+    if (moyuKey) videoProviders.push(new MoyuVideo(config.videoModel, moyuKey));
+    if (googleKey) videoProviders.push(new GeminiVideo(undefined, googleKey));
+    else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
+  } else if (videoPrimary === "fal") {
     if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
     if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
+    else if (moyuKey) videoProviders.push(new MoyuVideo(undefined, moyuKey));
   } else if (videoPrimary === "gemini" || videoPrimary === undefined) {
     if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
     if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
+    else if (moyuKey) videoProviders.push(new MoyuVideo(undefined, moyuKey));
   }
 
   // Music provider: lyria requires GOOGLE_API_KEY, bundled is always available

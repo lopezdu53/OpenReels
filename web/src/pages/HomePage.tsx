@@ -78,6 +78,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   lyria: "Lyria 3 Pro",
   // Video
   fal: "fal.ai (Kling)",
+  moyu: "MOYU",
 };
 
 function displayName(key: string): string {

@@ -65,6 +65,7 @@ app.get("/api/v1/health", async () => {
       PIXABAY_API_KEY: !!process.env["PIXABAY_API_KEY"],
       VIVI_LLM_API_KEY: !!process.env["VIVI_LLM_API_KEY"],
       VIVI_IMAGE_API_KEY: !!process.env["VIVI_IMAGE_API_KEY"],
+      MOYU_API_KEY: !!process.env["MOYU_API_KEY"],
     },
   };
 });
@@ -173,6 +174,7 @@ app.get("/api/v1/providers", async () => ({
   video: [
     { key: "gemini", label: "Google Veo" },
     { key: "fal", label: "fal.ai (Kling, Wan, etc.)" },
+    { key: "moyu", label: "MOYU (Kling, SEEDANCE, Doubao...)" },
   ],
 }));
 
