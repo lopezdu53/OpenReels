@@ -215,8 +215,19 @@ export function createProviders(config: ProviderConfig): Providers {
   const moyuKey = k["MOYU_API_KEY"] ?? process.env["MOYU_API_KEY"];
   const videoPrimary = config.video ?? (googleKey ? "gemini" : falKey ? "fal" : moyuKey ? "moyu" : undefined);
 
-  if (videoPrimary === "moyu") {
-    if (moyuKey) videoProviders.push(new MoyuVideo(config.videoModel, moyuKey));
+  // MOYU model IDs per named key
+  const MOYU_MODELS: Record<string, string> = {
+    "moyu-kling":      "kling-v2-6",
+    "moyu-seedance":   "doubao-seedance-2-0-260128",
+    "moyu-happyhorse": "happyhorse-1.0-i2v",
+  };
+
+  const isMoyu = videoPrimary === "moyu" || videoPrimary?.startsWith("moyu-");
+  if (isMoyu) {
+    const modelId = videoPrimary && videoPrimary in MOYU_MODELS
+      ? MOYU_MODELS[videoPrimary]
+      : config.videoModel; // "moyu" generic → use MOYU_VIDEO_MODEL env / constructor default
+    if (moyuKey) videoProviders.push(new MoyuVideo(modelId, moyuKey));
     if (googleKey) videoProviders.push(new GeminiVideo(undefined, googleKey));
     else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
   } else if (videoPrimary === "fal") {

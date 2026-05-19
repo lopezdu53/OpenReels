@@ -173,8 +173,10 @@ app.get("/api/v1/providers", async () => ({
   ],
   video: [
     { key: "gemini", label: "Google Veo" },
-    { key: "fal", label: "fal.ai (Kling, Wan, etc.)" },
-    { key: "moyu", label: "MOYU (Kling, SEEDANCE, Doubao...)" },
+    { key: "fal", label: "fal.ai (Kling 2.6 Pro)" },
+    { key: "moyu-kling", label: "MOYU · Kling v2.6" },
+    { key: "moyu-seedance", label: "MOYU · Seedance 2.0" },
+    { key: "moyu-happyhorse", label: "MOYU · Happy Horse" },
   ],
 }));
 

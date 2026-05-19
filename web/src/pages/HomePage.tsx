@@ -79,6 +79,9 @@ const DISPLAY_NAMES: Record<string, string> = {
   // Video
   fal: "fal.ai (Kling)",
   moyu: "MOYU",
+  "moyu-kling": "MOYU · Kling v2.6",
+  "moyu-seedance": "MOYU · Seedance 2.0",
+  "moyu-happyhorse": "MOYU · Happy Horse",
 };
 
 function displayName(key: string): string {
