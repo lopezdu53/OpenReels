@@ -9,8 +9,11 @@ const POLL_INTERVAL_MS = 5_000;
 const TIMEOUT_MS = 300_000;
 
 // Default model — override via MOYU_VIDEO_MODEL env var.
-// Common MOYU model IDs: kling-v2-pro, kling-v2.1-pro, kling-v2, seedance-v2, doubao, happy-horse
-const DEFAULT_MODEL = "kling-v2-pro";
+// Image-to-video models on MOYU:
+//   Kling:    kling-v2-6 | kling-v2-1-master | kling-v2-5-turbo | kling-v2-master | kling-v2-1 | kling-v2 | kling-video-o1
+//   Seedance: doubao-seedance-2-0-260128 | doubao-seedance-2-0-fast-260128 | doubao-seedance-1-5-pro-251215
+//   Happy:    happyhorse-1.0-i2v
+const DEFAULT_MODEL = "kling-v2-6";
 
 export class MoyuVideo implements VideoProvider {
   private apiKey: string;
