@@ -8,9 +8,9 @@ const API_BASE = "https://www.moyu.info/v1";
 const POLL_INTERVAL_MS = 5_000;
 const TIMEOUT_MS = 300_000;
 
-// Default model — override via constructor or MOYU_VIDEO_MODEL env var.
-// Available on MOYU: kling-v2, seedance-v2, happy-horse, doubao
-const DEFAULT_MODEL = "kling-v2";
+// Default model — override via MOYU_VIDEO_MODEL env var.
+// Common MOYU model IDs: kling-v2-pro, kling-v2.1-pro, kling-v2, seedance-v2, doubao, happy-horse
+const DEFAULT_MODEL = "kling-v2-pro";
 
 export class MoyuVideo implements VideoProvider {
   private apiKey: string;
@@ -36,8 +36,8 @@ export class MoyuVideo implements VideoProvider {
     const durationSeconds = (opts.durationSeconds ?? 5) <= 5 ? 5 : 10;
     const aspectRatio = opts.aspectRatio ?? "9:16";
 
-    // Image-to-video: send image as base64 data URI
-    const imageBase64 = `data:image/png;base64,${opts.sourceImage.toString("base64")}`;
+    // MOYU expects raw base64 string (no data URI prefix)
+    const imageBase64 = opts.sourceImage.toString("base64");
 
     const submitRes = await fetch(`${API_BASE}/video/generations`, {
       method: "POST",
