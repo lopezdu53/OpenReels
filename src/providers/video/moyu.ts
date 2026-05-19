@@ -35,8 +35,9 @@ export class MoyuVideo implements VideoProvider {
     aspectRatio?: string;
     negativePrompt?: string;
   }): Promise<VideoResult> {
-    // MOYU only supports 5 or 10 seconds
-    const durationSeconds = (opts.durationSeconds ?? 5) <= 5 ? 5 : 10;
+    // MOYU supports 5 or 10 seconds. Default to 5s (cheaper) unless scene is very long.
+    // At ~¥1.20/5s vs ¥2.40/10s, defaulting to 5s halves the cost per clip.
+    const durationSeconds = (opts.durationSeconds ?? 5) >= 9 ? 10 : 5;
     const aspectRatio = opts.aspectRatio ?? "9:16";
 
     // MOYU expects raw base64 string (no data URI prefix)
