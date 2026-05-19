@@ -5,8 +5,8 @@ import * as path from "node:path";
 import type { VideoProvider, VideoResult } from "../../schema/providers.js";
 
 const API_BASE = "https://www.moyu.info/v1";
-const POLL_INTERVAL_MS = 5_000;
-const TIMEOUT_MS = 300_000;
+const POLL_INTERVAL_MS = 8_000;
+const TIMEOUT_MS = 720_000; // 12 minutes — Kling v2.6 can take 8-10 min
 
 // Default model — override via MOYU_VIDEO_MODEL env var.
 // Image-to-video models on MOYU:
@@ -100,6 +100,11 @@ export class MoyuVideo implements VideoProvider {
     const deadline = Date.now() + TIMEOUT_MS;
     while (true) {
       if (Date.now() > deadline) {
+        // Cancel the task on MOYU's side to avoid being charged for a video we won't use
+        fetch(`${API_BASE}/videos/${taskId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${this.apiKey}` },
+        }).catch(() => {});
         throw new Error(`MOYU video generation timed out after ${TIMEOUT_MS / 1000}s`);
       }
 
