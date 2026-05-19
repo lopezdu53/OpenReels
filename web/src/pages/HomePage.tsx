@@ -97,6 +97,7 @@ export function HomePage() {
   const [ttsProvider, setTtsProvider] = useState("elevenlabs");
   const [imageProvider, setImageProvider] = useState("gemini");
   const [musicProvider, setMusicProvider] = useState("bundled");
+  const [videoProvider, setVideoProvider] = useState("");
   const [pacing, setPacing] = useState("");
   const [targetDurationMinutes, setTargetDurationMinutes] = useState(5);
   const [dryRun, setDryRun] = useState(false);
@@ -160,6 +161,7 @@ export function HomePage() {
           tts: ttsProvider,
           image: imageProvider,
           music: musicProvider,
+          ...(videoProvider ? { video: videoProvider } : {}),
           ...(llmModel ? { llmModel } : {}),
           ...(llmBaseUrl ? { llmBaseUrl } : {}),
           ...(searchProvider ? { searchProvider } : {}),
@@ -364,6 +366,25 @@ export function HomePage() {
                       <SelectContent>
                         <SelectItem value="bundled">Bundled (Free)</SelectItem>
                         <SelectItem value="lyria">Lyria 3 Pro ($0.08)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                      Video Provider
+                    </label>
+                    <Select value={videoProvider} onValueChange={(v) => setVideoProvider(v ?? "")}>
+                      <SelectTrigger className="h-9 w-full rounded-lg">
+                        <SelectValue placeholder="Auto" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Auto</SelectItem>
+                        {providers?.video?.map((p) => (
+                          <SelectItem key={p.key} value={p.key}>
+                            {p.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
