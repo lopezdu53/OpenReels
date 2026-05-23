@@ -24,6 +24,7 @@ import { FallbackImageProvider } from "./image/fallback.js";
 import { GeminiImage } from "./image/gemini.js";
 import { OpenAIImage } from "./image/openai.js";
 import { ViviImage } from "./image/vivi.js";
+import { AliCloudLLM } from "./llm/alicloud.js";
 import { AnthropicLLM } from "./llm/anthropic.js";
 import { GeminiLLM } from "./llm/gemini.js";
 import { OpenAILLM } from "./llm/openai.js";
@@ -140,6 +141,9 @@ export function createProviders(config: ProviderConfig): Providers {
     }
     case "vivi":
       llm = new ViviLLM(config.llmModel, k["VIVI_LLM_API_KEY"], searchTools);
+      break;
+    case "alicloud":
+      llm = new AliCloudLLM(config.llmModel, k["ALICLOUD_API_KEY"], searchTools);
       break;
     default:
       llm = new AnthropicLLM(config.llmModel, k["ANTHROPIC_API_KEY"], searchTools);

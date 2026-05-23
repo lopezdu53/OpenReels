@@ -1,7 +1,7 @@
 import type { z } from "zod";
 import type { MusicMood } from "./director-score.js";
 
-export type LLMProviderKey = "anthropic" | "openai" | "gemini" | "openrouter" | "openai-compatible" | "vivi";
+export type LLMProviderKey = "anthropic" | "openai" | "gemini" | "openrouter" | "openai-compatible" | "vivi" | "alicloud";
 export type SearchProviderKey = "native" | "tavily" | "none";
 export type TTSProviderKey = "elevenlabs" | "inworld" | "kokoro" | "gemini-tts" | "openai-tts";
 export type ImageProviderKey = "gemini" | "openai" | "vivi" | "alicloud";

@@ -65,6 +65,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   openrouter: "OpenRouter",
   "openai-compatible": "Custom (OpenAI-compatible)",
   vivi: "VIVI AI",
+  alicloud: "Alibaba Cloud",
   // TTS
   elevenlabs: "ElevenLabs",
   inworld: "Inworld",
@@ -78,9 +79,6 @@ const DISPLAY_NAMES: Record<string, string> = {
   lyria: "Lyria 3 Pro",
   // Video
   fal: "fal.ai (Kling)",
-  alicloud: "Alibaba Cloud (Wanx)",
-  "alicloud-wan-turbo": "Alibaba · Wan Turbo",
-  "alicloud-wan-plus": "Alibaba · Wan Plus",
 };
 
 function displayName(key: string): string {

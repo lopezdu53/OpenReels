@@ -153,6 +153,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "openrouter", label: "OpenRouter" },
     { key: "openai-compatible", label: "Custom (OpenAI-compatible)" },
     { key: "vivi", label: "VIVI AI" },
+    { key: "alicloud", label: "Alibaba Cloud" },
   ],
   search: [
     { key: "native", label: "Native (provider built-in)" },
@@ -170,13 +171,11 @@ app.get("/api/v1/providers", async () => ({
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI (GPT Image)" },
     { key: "vivi", label: "VIVI AI" },
-    { key: "alicloud", label: "Alibaba Cloud (Wanx)" },
+    { key: "alicloud", label: "Alibaba Cloud" },
   ],
   video: [
     { key: "gemini", label: "Google Veo" },
     { key: "fal", label: "fal.ai (Kling 2.6 Pro)" },
-    { key: "alicloud-wan-turbo", label: "Alibaba Cloud · Wan Turbo" },
-    { key: "alicloud-wan-plus", label: "Alibaba Cloud · Wan Plus" },
   ],
 }));
 

@@ -6,11 +6,10 @@ const ALICLOUD_BASE_URL =
   process.env["ALICLOUD_BASE_URL"] ??
   "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1";
 
-// Available Wanx image models:
-//   wanx2.1-t2i-turbo  — fast, good quality (default)
-//   wanx2.1-t2i-plus   — higher quality, slower
-//   wanx-v1            — legacy
-const DEFAULT_MODEL = "wanx2.1-t2i-turbo";
+// Available image models on this plan:
+//   Qwen:    qwen-image-2.0 (default) | qwen-image-2.0-pro
+//   Wanxiang: wan2.7-image | wan2.7-image-pro
+const DEFAULT_MODEL = "qwen-image-2.0";
 
 const MAX_RETRIES = 2;
 const BASE_DELAY_MS = 1000;
