@@ -78,10 +78,9 @@ const DISPLAY_NAMES: Record<string, string> = {
   lyria: "Lyria 3 Pro",
   // Video
   fal: "fal.ai (Kling)",
-  moyu: "MOYU",
-  "moyu-kling": "MOYU · Kling v2.6",
-  "moyu-seedance": "MOYU · Seedance 2.0",
-  "moyu-happyhorse": "MOYU · Happy Horse",
+  alicloud: "Alibaba Cloud (Wanx)",
+  "alicloud-wan-turbo": "Alibaba · Wan Turbo",
+  "alicloud-wan-plus": "Alibaba · Wan Plus",
 };
 
 function displayName(key: string): string {

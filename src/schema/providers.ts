@@ -4,9 +4,9 @@ import type { MusicMood } from "./director-score.js";
 export type LLMProviderKey = "anthropic" | "openai" | "gemini" | "openrouter" | "openai-compatible" | "vivi";
 export type SearchProviderKey = "native" | "tavily" | "none";
 export type TTSProviderKey = "elevenlabs" | "inworld" | "kokoro" | "gemini-tts" | "openai-tts";
-export type ImageProviderKey = "gemini" | "openai" | "vivi";
+export type ImageProviderKey = "gemini" | "openai" | "vivi" | "alicloud";
 export type StockProviderKey = "pexels" | "pixabay";
-export type VideoProviderKey = "gemini" | "fal" | "moyu" | "moyu-kling" | "moyu-seedance" | "moyu-happyhorse";
+export type VideoProviderKey = "gemini" | "fal" | "alicloud-wan-turbo" | "alicloud-wan-plus";
 export type MusicProviderKey = "bundled" | "lyria";
 
 export interface LLMUsage {

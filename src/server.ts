@@ -65,7 +65,7 @@ app.get("/api/v1/health", async () => {
       PIXABAY_API_KEY: !!process.env["PIXABAY_API_KEY"],
       VIVI_LLM_API_KEY: !!process.env["VIVI_LLM_API_KEY"],
       VIVI_IMAGE_API_KEY: !!process.env["VIVI_IMAGE_API_KEY"],
-      MOYU_API_KEY: !!process.env["MOYU_API_KEY"],
+      ALICLOUD_API_KEY: !!process.env["ALICLOUD_API_KEY"],
     },
   };
 });
@@ -170,13 +170,13 @@ app.get("/api/v1/providers", async () => ({
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI (GPT Image)" },
     { key: "vivi", label: "VIVI AI" },
+    { key: "alicloud", label: "Alibaba Cloud (Wanx)" },
   ],
   video: [
     { key: "gemini", label: "Google Veo" },
     { key: "fal", label: "fal.ai (Kling 2.6 Pro)" },
-    { key: "moyu-kling", label: "MOYU · Kling v2.6" },
-    { key: "moyu-seedance", label: "MOYU · Seedance 2.0" },
-    { key: "moyu-happyhorse", label: "MOYU · Happy Horse" },
+    { key: "alicloud-wan-turbo", label: "Alibaba Cloud · Wan Turbo" },
+    { key: "alicloud-wan-plus", label: "Alibaba Cloud · Wan Plus" },
   ],
 }));
 

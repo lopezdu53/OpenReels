@@ -19,6 +19,7 @@ import type {
   VideoProvider,
   VideoProviderKey,
 } from "../schema/providers.js";
+import { AliCloudImage } from "./image/alicloud.js";
 import { FallbackImageProvider } from "./image/fallback.js";
 import { GeminiImage } from "./image/gemini.js";
 import { OpenAIImage } from "./image/openai.js";
@@ -41,9 +42,9 @@ import { InworldTTS } from "./tts/inworld.js";
 import { KokoroTTS } from "./tts/kokoro.js";
 import { OpenAITTS } from "./tts/openai.js";
 import { WhisperAligner } from "./tts/whisper-aligner.js";
+import { AliCloudVideo } from "./video/alicloud.js";
 import { FalVideo } from "./video/fal.js";
 import { GeminiVideo } from "./video/gemini.js";
-import { MoyuVideo } from "./video/moyu.js";
 
 export interface ProviderConfig {
   llm: LLMProviderKey;
@@ -172,22 +173,26 @@ export function createProviders(config: ProviderConfig): Providers {
   const openaiKey = k["OPENAI_API_KEY"] ?? process.env["OPENAI_API_KEY"];
 
   const viviKey = k["VIVI_IMAGE_API_KEY"] ?? process.env["VIVI_IMAGE_API_KEY"];
+  const alicloudKey = k["ALICLOUD_API_KEY"] ?? process.env["ALICLOUD_API_KEY"];
 
   let imageGen: ImageProvider;
   if (config.image === "openai") {
-    // OpenAI selected: use OpenAI with Gemini as fallback if both keys available
     const primary = new OpenAIImage(undefined, openaiKey);
     imageGen = googleKey
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "openai", "gemini")
       : primary;
   } else if (config.image === "vivi") {
-    // VIVI selected: use VIVI with Gemini as fallback if Google key available
     const primary = new ViviImage(undefined, viviKey);
     imageGen = googleKey
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "vivi", "gemini")
       : primary;
+  } else if (config.image === "alicloud") {
+    const primary = new AliCloudImage(undefined, alicloudKey);
+    imageGen = googleKey
+      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "alicloud", "gemini")
+      : primary;
   } else {
-    // Gemini selected (default): use Gemini with OpenAI as fallback if both keys available
+    // Gemini selected (default)
     const primary = new GeminiImage(undefined, googleKey);
     imageGen = openaiKey
       ? new FallbackImageProvider(primary, new OpenAIImage(undefined, openaiKey), "gemini", "openai")
@@ -212,32 +217,26 @@ export function createProviders(config: ProviderConfig): Providers {
   // Build video provider array: construct available providers, primary first
   const videoProviders: VideoProvider[] = [];
   const falKey = k["FAL_API_KEY"] ?? process.env["FAL_API_KEY"];
-  const moyuKey = k["MOYU_API_KEY"] ?? process.env["MOYU_API_KEY"];
-  const videoPrimary = config.video ?? (googleKey ? "gemini" : falKey ? "fal" : moyuKey ? "moyu" : undefined);
+  const videoPrimary = config.video ?? (googleKey ? "gemini" : falKey ? "fal" : alicloudKey ? "alicloud-wan-turbo" : undefined);
 
-  // MOYU model IDs per named key
-  const MOYU_MODELS: Record<string, string> = {
-    "moyu-kling":      "kling-v2-6",
-    "moyu-seedance":   "doubao-seedance-2-0-260128",
-    "moyu-happyhorse": "happyhorse-1.0-i2v",
+  const ALICLOUD_VIDEO_MODELS: Record<string, string> = {
+    "alicloud-wan-turbo": "wan2.1-i2v-turbo",
+    "alicloud-wan-plus":  "wan2.1-i2v-plus",
   };
 
-  const isMoyu = videoPrimary === "moyu" || videoPrimary?.startsWith("moyu-");
-  if (isMoyu) {
-    const modelId = videoPrimary && videoPrimary in MOYU_MODELS
-      ? MOYU_MODELS[videoPrimary]
-      : config.videoModel; // "moyu" generic → use MOYU_VIDEO_MODEL env / constructor default
-    if (moyuKey) videoProviders.push(new MoyuVideo(modelId, moyuKey));
+  if (videoPrimary && videoPrimary in ALICLOUD_VIDEO_MODELS) {
+    const modelId = ALICLOUD_VIDEO_MODELS[videoPrimary];
+    if (alicloudKey) videoProviders.push(new AliCloudVideo(modelId, alicloudKey));
     if (googleKey) videoProviders.push(new GeminiVideo(undefined, googleKey));
     else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
   } else if (videoPrimary === "fal") {
     if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
     if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
-    else if (moyuKey) videoProviders.push(new MoyuVideo(undefined, moyuKey));
+    else if (alicloudKey) videoProviders.push(new AliCloudVideo(undefined, alicloudKey));
   } else if (videoPrimary === "gemini" || videoPrimary === undefined) {
     if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
     if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
-    else if (moyuKey) videoProviders.push(new MoyuVideo(undefined, moyuKey));
+    else if (alicloudKey) videoProviders.push(new AliCloudVideo(undefined, alicloudKey));
   }
 
   // Music provider: lyria requires GOOGLE_API_KEY, bundled is always available
