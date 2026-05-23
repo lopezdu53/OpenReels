@@ -1,15 +1,23 @@
 import type { ImageProvider } from "../../schema/providers.js";
 
-// DashScope native image generation API (international region)
-// Can be overridden via ALICLOUD_IMAGE_BASE_URL env var for on-prem/MaaS plans
-const ALICLOUD_IMAGE_BASE_URL =
-  process.env["ALICLOUD_IMAGE_BASE_URL"] ??
-  "https://dashscope-intl.aliyuncs.com";
+// DashScope image API — same host as the MaaS plan, different path.
+// Extract the origin from ALICLOUD_BASE_URL (e.g. https://token-plan.ap-southeast-1.maas.aliyuncs.com)
+// Can be overridden explicitly via ALICLOUD_IMAGE_BASE_URL.
+function resolveImageBaseUrl(): string {
+  if (process.env["ALICLOUD_IMAGE_BASE_URL"]) return process.env["ALICLOUD_IMAGE_BASE_URL"];
+  const maasUrl = process.env["ALICLOUD_BASE_URL"];
+  if (maasUrl) {
+    try { return new URL(maasUrl).origin; } catch {}
+  }
+  return "https://dashscope-intl.aliyuncs.com";
+}
+const ALICLOUD_IMAGE_BASE_URL = resolveImageBaseUrl();
 
 // Available image models on this plan:
-//   Wanxiang: wan2.1-t2i-turbo (fast) | wan2.1-t2i-plus | wan2.7-image | wan2.7-image-pro
+//   Qwen:     qwen-image-2.0 (default) | qwen-image-2.0-pro
+//   Wanxiang: wan2.7-image | wan2.7-image-pro
 const DEFAULT_MODEL =
-  process.env["ALICLOUD_IMAGE_MODEL"] ?? "wan2.1-t2i-turbo";
+  process.env["ALICLOUD_IMAGE_MODEL"] ?? "qwen-image-2.0";
 
 const MAX_RETRIES = 2;
 const BASE_DELAY_MS = 1500;
