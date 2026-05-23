@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { type Job, Worker } from "bullmq";
 import IORedis from "ioredis";
+import { z } from "zod";
 import type { PipelineCallbacks, StageName } from "./pipeline/orchestrator.js";
 import { runPipeline } from "./pipeline/orchestrator.js";
 import { createProviders, createVerificationModel } from "./providers/factory.js";
@@ -90,6 +91,7 @@ interface JobMeta {
     fallback: boolean;
   };
   revisionHistory?: { round: number; score: number }[];
+  tiktokCaption?: { title: string; hashtags: string[]; caption: string };
   error?: string;
 }
 
@@ -311,6 +313,27 @@ const worker = new Worker<JobData>(
       // Store runDir explicitly for frontend artifact fetching
       meta.runDir = path.relative(jobDir, result.outputDir);
     }
+
+    // Generate TikTok caption (title + hashtags) when platform is tiktok
+    if (platform === "tiktok" && !meta.cancelRequested) {
+      try {
+        const captionResult = await providerInstances.llm.generate({
+          systemPrompt:
+            "You are a viral TikTok content strategist. You write hooks and hashtags that maximize reach and monetization for Spanish-language and English-language finance/lifestyle content.",
+          userMessage: `Topic: "${topic}"\n\nGenerate a viral TikTok caption with:\n- title: a punchy hook (max 100 chars, same language as the topic)\n- hashtags: 7 viral hashtags for this niche (include mix of broad and niche tags)\n- caption: the full post caption combining title + hashtags\n\nReturn ONLY valid JSON.`,
+          schema: z.object({
+            title: z.string(),
+            hashtags: z.array(z.string()),
+            caption: z.string(),
+          }),
+        });
+        meta.tiktokCaption = captionResult.data;
+        console.log(`[job:${job.id}] TikTok caption generated: ${captionResult.data.title}`);
+      } catch (err) {
+        console.warn(`[job:${job.id}] TikTok caption generation failed (non-fatal): ${err}`);
+      }
+    }
+
     writeMeta(jobDir, meta);
 
     // Auto-prune old jobs if MAX_JOBS is set

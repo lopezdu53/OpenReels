@@ -58,13 +58,12 @@ const DISPLAY_NAMES: Record<string, string> = {
   tiktok: "TikTok",
   instagram: "Instagram",
   youtube_horizontal: "Reel Extend",
-  // LLM
+  // LLM / shared
   anthropic: "Anthropic (Claude)",
   openai: "OpenAI (GPT)",
   gemini: "Google Gemini",
   openrouter: "OpenRouter",
   "openai-compatible": "Custom (OpenAI-compatible)",
-  vivi: "VIVI AI",
   alicloud: "Alibaba Cloud",
   // TTS
   elevenlabs: "ElevenLabs",
@@ -72,18 +71,20 @@ const DISPLAY_NAMES: Record<string, string> = {
   kokoro: "Kokoro (Local)",
   "gemini-tts": "Gemini TTS",
   "openai-tts": "OpenAI TTS",
-  // Image
-  // gemini/openai already covered above
   // Music
   bundled: "Bundled (Free)",
   lyria: "Lyria 3 Pro",
   // Video
   fal: "fal.ai (Kling)",
-  vivi: "VIVI (Grok Video 3)",
 };
 
 function displayName(key: string): string {
   return DISPLAY_NAMES[key] ?? key;
+}
+
+/** Use the server's label for a provider in a given category (avoids key collisions like "vivi"). */
+function providerLabel(list: { key: string; label: string }[] | undefined, key: string): string {
+  return list?.find((p) => p.key === key)?.label ?? displayName(key);
 }
 
 export function HomePage() {
@@ -308,7 +309,7 @@ export function HomePage() {
                     </label>
                     <Select value={llmProvider} onValueChange={(v) => v && setLlmProvider(v)}>
                       <SelectTrigger className="h-9 w-full rounded-lg">
-                        <SelectValue>{displayName(llmProvider)}</SelectValue>
+                        <SelectValue>{providerLabel(providers?.llm, llmProvider)}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {providers?.llm.map((p) => (
@@ -344,7 +345,7 @@ export function HomePage() {
                     </label>
                     <Select value={imageProvider} onValueChange={(v) => v && setImageProvider(v)}>
                       <SelectTrigger className="h-9 w-full rounded-lg">
-                        <SelectValue>{displayName(imageProvider)}</SelectValue>
+                        <SelectValue>{providerLabel(providers?.image, imageProvider)}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {providers?.image.map((p) => (
@@ -371,24 +372,26 @@ export function HomePage() {
                     </Select>
                   </div>
 
-                  <div>
-                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                      Video Provider
-                    </label>
-                    <Select value={videoProvider} onValueChange={(v) => setVideoProvider(v ?? "")}>
-                      <SelectTrigger className="h-9 w-full rounded-lg">
-                        <SelectValue placeholder="Auto" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">Auto</SelectItem>
-                        {providers?.video?.map((p) => (
-                          <SelectItem key={p.key} value={p.key}>
-                            {p.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {allowedVisualTypes.includes("ai_video") && (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                        Video Provider
+                      </label>
+                      <Select value={videoProvider} onValueChange={(v) => setVideoProvider(v ?? "")}>
+                        <SelectTrigger className="h-9 w-full rounded-lg">
+                          <SelectValue placeholder="Auto" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Auto</SelectItem>
+                          {providers?.video?.map((p) => (
+                            <SelectItem key={p.key} value={p.key}>
+                              {p.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   {/* Conditional LLM config fields */}
                   {(llmProvider === "openrouter" || llmProvider === "openai-compatible") && (
@@ -480,11 +483,13 @@ export function HomePage() {
                         <button
                           key={key}
                           type="button"
-                          onClick={() =>
+                          onClick={() => {
                             setAllowedVisualTypes((prev) =>
                               checked ? prev.filter((t) => t !== key) : [...prev, key],
-                            )
-                          }
+                            );
+                            // Clear video provider selection when ai_video is deselected
+                            if (key === "ai_video" && checked) setVideoProvider("");
+                          }}
                           className={cn(
                             "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
                             checked

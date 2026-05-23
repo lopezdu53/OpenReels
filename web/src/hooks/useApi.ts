@@ -34,6 +34,8 @@ export interface JobSummary {
   researchData?: ResearchData;
   score?: DirectorScore;
   criticReview?: CriticReview;
+  tiktokCaption?: { title: string; hashtags: string[]; caption: string };
+  platform?: string;
 }
 
 export interface Archetype {

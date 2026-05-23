@@ -153,7 +153,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "gemini", label: "Google Gemini" },
     { key: "openrouter", label: "OpenRouter" },
     { key: "openai-compatible", label: "Custom (OpenAI-compatible)" },
-    { key: "vivi", label: "VIVI AI" },
+    { key: "vivi", label: "VIVI (Claude)" },
     { key: "alicloud", label: "Alibaba Cloud" },
   ],
   search: [
@@ -171,7 +171,7 @@ app.get("/api/v1/providers", async () => ({
   image: [
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI (GPT Image)" },
-    { key: "vivi", label: "VIVI AI" },
+    { key: "vivi", label: "VIVI (Gemini)" },
     { key: "alicloud", label: "Alibaba Cloud" },
   ],
   video: [
