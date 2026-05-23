@@ -25,8 +25,8 @@ export class ViviVideo implements VideoProvider {
   readonly supportedDurations = [5, 6, 8, 10];
 
   constructor(model: string = DEFAULT_MODEL, apiKey?: string) {
-    const key = apiKey ?? process.env["VIVI_LLM_API_KEY"];
-    if (!key) throw new Error("VIVI_LLM_API_KEY environment variable is required for VIVI video");
+    const key = apiKey ?? process.env["VIVI_VIDEO_API_KEY"] ?? process.env["VIVI_LLM_API_KEY"];
+    if (!key) throw new Error("VIVI_VIDEO_API_KEY environment variable is required for VIVI video");
     this.apiKey = key;
     this.model = model;
   }

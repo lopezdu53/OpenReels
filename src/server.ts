@@ -65,6 +65,7 @@ app.get("/api/v1/health", async () => {
       PIXABAY_API_KEY: !!process.env["PIXABAY_API_KEY"],
       VIVI_LLM_API_KEY: !!process.env["VIVI_LLM_API_KEY"],
       VIVI_IMAGE_API_KEY: !!process.env["VIVI_IMAGE_API_KEY"],
+      VIVI_VIDEO_API_KEY: !!process.env["VIVI_VIDEO_API_KEY"],
       ALICLOUD_API_KEY: !!process.env["ALICLOUD_API_KEY"],
     },
   };

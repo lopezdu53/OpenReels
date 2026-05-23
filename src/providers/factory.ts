@@ -230,8 +230,8 @@ export function createProviders(config: ProviderConfig): Providers {
   // Build video provider array: construct available providers, primary first
   const videoProviders: VideoProvider[] = [];
   const falKey = k["FAL_API_KEY"] ?? process.env["FAL_API_KEY"];
-  const viviLlmKey = k["VIVI_LLM_API_KEY"] ?? process.env["VIVI_LLM_API_KEY"];
-  const videoPrimary = config.video ?? (googleKey ? "gemini" : viviLlmKey ? "vivi" : falKey ? "fal" : alicloudKey ? "alicloud-wan-turbo" : undefined);
+  const viviVideoKey = k["VIVI_VIDEO_API_KEY"] ?? process.env["VIVI_VIDEO_API_KEY"] ?? k["VIVI_LLM_API_KEY"] ?? process.env["VIVI_LLM_API_KEY"];
+  const videoPrimary = config.video ?? (googleKey ? "gemini" : viviVideoKey ? "vivi" : falKey ? "fal" : alicloudKey ? "alicloud-wan-turbo" : undefined);
 
   const ALICLOUD_VIDEO_MODELS: Record<string, string> = {
     "alicloud-wan-turbo": "wan2.1-i2v-turbo",
@@ -242,20 +242,20 @@ export function createProviders(config: ProviderConfig): Providers {
     const modelId = ALICLOUD_VIDEO_MODELS[videoPrimary];
     if (alicloudKey) videoProviders.push(new AliCloudVideo(modelId, alicloudKey));
     if (googleKey) videoProviders.push(new GeminiVideo(undefined, googleKey));
-    else if (viviLlmKey) videoProviders.push(new ViviVideo(undefined, viviLlmKey));
+    else if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
     else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
   } else if (videoPrimary === "vivi") {
-    if (viviLlmKey) videoProviders.push(new ViviVideo(undefined, viviLlmKey));
+    if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
     if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
     else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
   } else if (videoPrimary === "fal") {
     if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
     if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
-    else if (viviLlmKey) videoProviders.push(new ViviVideo(undefined, viviLlmKey));
+    else if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
     else if (alicloudKey) videoProviders.push(new AliCloudVideo(undefined, alicloudKey));
   } else if (videoPrimary === "gemini" || videoPrimary === undefined) {
     if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
-    if (viviLlmKey) videoProviders.push(new ViviVideo(undefined, viviLlmKey));
+    if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
     else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
     else if (alicloudKey) videoProviders.push(new AliCloudVideo(undefined, alicloudKey));
   }
