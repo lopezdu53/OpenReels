@@ -76,7 +76,8 @@ export class AliCloudImage implements ImageProvider {
       },
       body: JSON.stringify({
         model: this.model,
-        messages: [{ role: "user", content: prompt }],
+        // qwen-image-2.0 requires content as an array of content blocks
+        messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
       }),
     });
 

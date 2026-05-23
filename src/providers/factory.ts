@@ -192,9 +192,17 @@ export function createProviders(config: ProviderConfig): Providers {
       : primary;
   } else if (config.image === "alicloud") {
     const primary = new AliCloudImage(undefined, alicloudKey);
-    imageGen = googleKey
-      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "alicloud", "gemini")
-      : primary;
+    // Fallback chain: alicloud → vivi → gemini
+    if (viviKey && googleKey) {
+      const viviWithGeminiFallback = new FallbackImageProvider(new ViviImage(undefined, viviKey), new GeminiImage(undefined, googleKey), "vivi", "gemini");
+      imageGen = new FallbackImageProvider(primary, viviWithGeminiFallback, "alicloud", "vivi");
+    } else if (viviKey) {
+      imageGen = new FallbackImageProvider(primary, new ViviImage(undefined, viviKey), "alicloud", "vivi");
+    } else if (googleKey) {
+      imageGen = new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "alicloud", "gemini");
+    } else {
+      imageGen = primary;
+    }
   } else {
     // Gemini selected (default)
     const primary = new GeminiImage(undefined, googleKey);
