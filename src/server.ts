@@ -175,6 +175,7 @@ app.get("/api/v1/providers", async () => ({
   ],
   video: [
     { key: "gemini", label: "Google Veo" },
+    { key: "vivi", label: "VIVI (Grok Video 3)" },
     { key: "fal", label: "fal.ai (Kling 2.6 Pro)" },
   ],
 }));
