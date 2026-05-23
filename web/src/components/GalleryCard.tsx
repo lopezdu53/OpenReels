@@ -104,20 +104,23 @@ export function GalleryCard({ job, bulkMode, selected, onToggleSelect, timeAgo, 
             <Layers className="size-8 text-border" />
           )}
 
-          {/* Running pulse badge */}
+          {/* Running pulse badge — shifts left when delete button is visible */}
           {isRunning && (
-            <div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5">
+            <div className={cn(
+              "absolute top-2 flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5",
+              !bulkMode && onDelete ? "right-10" : "right-2"
+            )}>
               <span className="size-1.5 rounded-full bg-status-info animate-pulse" />
               <span className="text-[9px] text-status-info">Running</span>
             </div>
           )}
 
-          {/* Delete button — hover only, hidden in bulk mode */}
-          {!bulkMode && !isRunning && onDelete && (
+          {/* Delete button — hover only, hidden in bulk mode. Always shown (including running jobs) */}
+          {!bulkMode && onDelete && (
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
               className="absolute top-2 right-2 flex size-7 items-center justify-center rounded-full bg-black/60 text-white/70 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive hover:text-white"
-              title="Delete video"
+              title={isRunning ? "Force delete (stuck job)" : "Delete video"}
             >
               <Trash2 className="size-3.5" />
             </button>

@@ -509,11 +509,11 @@ function ListCard({
           <Clock className="size-3" />
           {timeAgoStr}
         </span>
-        {!bulkMode && !isRunning && onDelete && (
+        {!bulkMode && onDelete && (
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
             className="ml-1 flex size-7 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
-            title="Delete video"
+            title={isRunning ? "Force delete (stuck job)" : "Delete video"}
           >
             <Trash2 className="size-3.5" />
           </button>

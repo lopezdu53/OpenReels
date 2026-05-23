@@ -524,34 +524,35 @@ app.post<{ Params: { id: string } }>("/api/v1/jobs/:id/cancel", async (request, 
   if (!isValidJobId(request.params.id)) {
     return reply.status(400).send({ error: "Invalid job ID" });
   }
-  const job = await queue.getJob(request.params.id);
-  if (!job) {
-    return reply.status(404).send({ error: "Job not found" });
-  }
 
-  const state = await job.getState();
-  if (state === "completed" || state === "failed") {
-    return reply.status(409).send({ error: `Job already ${state}` });
-  }
+  const jobId = request.params.id;
+  const jobDir = path.join(JOBS_DIR, jobId);
 
-  // Update meta to mark as cancelling (atomic write: tmp + rename)
-  const jobDir = path.join(JOBS_DIR, request.params.id);
+  // Force-update meta to cancelled regardless of BullMQ state (handles stuck/orphaned jobs)
   const metaPath = path.join(jobDir, "meta.json");
   if (fs.existsSync(metaPath)) {
     try {
       const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
       meta.cancelRequested = true;
+      meta.status = "cancelled";
+      meta.error = "Cancelled by user";
       const tmpPath = path.join(jobDir, ".meta.tmp");
       fs.writeFileSync(tmpPath, JSON.stringify(meta, null, 2));
       fs.renameSync(tmpPath, metaPath);
     } catch {}
   }
 
-  // moveToFailed handles queued jobs; for active jobs the token won't match
-  // the worker's lock, so we catch and rely on cancelRequested flag instead
-  try {
-    await job.moveToFailed(new Error("Cancelled by user"), "0", true);
-  } catch {}
+  // Try to remove from BullMQ — for active/stalled jobs the lock won't match,
+  // so we try moveToFailed first (works for waiting jobs), then obliterate from queue.
+  const job = await queue.getJob(jobId);
+  if (job) {
+    const state = await job.getState();
+    if (state !== "completed" && state !== "failed") {
+      try { await job.moveToFailed(new Error("Cancelled by user"), "0", true); } catch {}
+      try { await job.remove(); } catch {}
+    }
+  }
+
   return { status: "cancelled" };
 });
 
@@ -567,18 +568,12 @@ app.delete<{ Params: { id: string } }>("/api/v1/jobs/:id", async (request, reply
     return reply.status(404).send({ error: "Job not found" });
   }
 
-  // Don't delete active jobs
+  // Force-remove from BullMQ regardless of state (handles orphaned/stuck active jobs).
+  // For truly active jobs the worker will fail gracefully when it can't find the files.
   const job = await queue.getJob(jobId);
   if (job) {
-    const state = await job.getState();
-    if (state === "active" || state === "waiting") {
-      return reply.status(409).send({ error: "Cannot delete an active job" });
-    }
-    try {
-      await job.remove();
-    } catch {
-      // Job may already be cleaned from BullMQ — safe to continue deleting files
-    }
+    try { await job.moveToFailed(new Error("Deleted by user"), "0", true); } catch {}
+    try { await job.remove(); } catch {}
   }
 
   fs.rmSync(jobDir, { recursive: true, force: true });
