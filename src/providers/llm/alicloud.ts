@@ -1,5 +1,8 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { generateText } from "ai";
 import type { LanguageModel } from "ai";
+import type { z } from "zod";
+import type { LLMResult } from "../../schema/providers.js";
 import { BaseLLM } from "./base.js";
 
 const ALICLOUD_BASE_URL =
@@ -37,5 +40,50 @@ export class AliCloudLLM extends BaseLLM {
 
   protected createSearchTools() {
     return {};
+  }
+
+  /**
+   * Qwen models don't support responseFormat / structuredOutputs.
+   * Use prompt-based JSON extraction: instruct model to respond with raw JSON,
+   * then parse and validate with the Zod schema.
+   */
+  protected async generateStructured<T extends z.ZodType>(opts: {
+    systemPrompt: string;
+    userMessage: string;
+    schema: T;
+  }): Promise<LLMResult<z.infer<T>>> {
+    const languageModel = this.createLanguageModel();
+
+    const systemWithJson =
+      opts.systemPrompt +
+      "\n\nCRITICAL: Your entire response MUST be a single valid JSON object. No markdown fences, no explanation, no text before or after. Just the raw JSON.";
+
+    const result = await generateText({
+      model: languageModel,
+      system: systemWithJson,
+      prompt: opts.userMessage,
+      maxTokens: 32000,
+    });
+
+    const text = result.text.trim();
+    const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+
+    const start = stripped.indexOf("{");
+    const end = stripped.lastIndexOf("}");
+    if (start === -1 || end === -1) {
+      throw new Error(`AliCloud did not return a JSON object. Response: ${stripped.slice(0, 200)}`);
+    }
+
+    const jsonStr = stripped.slice(start, end + 1);
+    const parsed: unknown = JSON.parse(jsonStr);
+    const validated = opts.schema.parse(parsed) as z.infer<T>;
+
+    return {
+      data: validated,
+      usage: {
+        inputTokens: result.usage.inputTokens ?? 0,
+        outputTokens: result.usage.outputTokens ?? 0,
+      },
+    };
   }
 }
