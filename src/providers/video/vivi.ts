@@ -86,10 +86,19 @@ export class ViviVideo implements VideoProvider {
     const tmpPath = path.join(os.tmpdir(), `openreels-vivi-${Date.now()}.mp4`);
     const videoRes = await fetch(videoUrl, { signal: AbortSignal.timeout(TIMEOUT_MS) });
     if (!videoRes.ok) throw new Error(`VIVI video download failed: ${videoRes.status}`);
-    await fsp.writeFile(tmpPath, Buffer.from(await videoRes.arrayBuffer()));
 
-    const stat = await fsp.stat(tmpPath);
-    if (stat.size === 0) throw new Error("VIVI video download produced empty file");
+    // Reject non-video content types early (HTML error pages, JSON, etc.)
+    const contentType = videoRes.headers.get("content-type") ?? "";
+    if (contentType && !contentType.includes("video") && !contentType.includes("octet-stream")) {
+      const body = await videoRes.text();
+      throw new Error(`VIVI video: unexpected content-type "${contentType}": ${body.slice(0, 200)}`);
+    }
+
+    const buffer = Buffer.from(await videoRes.arrayBuffer());
+    if (buffer.length < 50_000) {
+      throw new Error(`VIVI video download too small (${buffer.length} bytes) — likely corrupt or error response`);
+    }
+    await fsp.writeFile(tmpPath, buffer);
 
     return { filePath: tmpPath, durationSeconds };
   }
