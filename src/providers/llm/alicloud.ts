@@ -56,7 +56,7 @@ export class AliCloudLLM extends BaseLLM {
 
     const systemWithJson =
       opts.systemPrompt +
-      "\n\nCRITICAL: Your entire response MUST be a single valid JSON object. No markdown fences, no explanation, no text before or after. Just the raw JSON.";
+      "\n\nCRITICAL: Your entire response MUST be valid JSON only. No markdown fences, no explanation, no text before or after. Just the raw JSON (object or array).";
 
     const result = await generateText({
       model: languageModel,
@@ -68,10 +68,19 @@ export class AliCloudLLM extends BaseLLM {
     const text = result.text.trim();
     const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
 
-    const start = stripped.indexOf("{");
-    const end = stripped.lastIndexOf("}");
-    if (start === -1 || end === -1) {
-      throw new Error(`AliCloud did not return a JSON object. Response: ${stripped.slice(0, 200)}`);
+    // Find outermost JSON structure — supports both objects {} and arrays []
+    const objStart = stripped.indexOf("{");
+    const arrStart = stripped.indexOf("[");
+    let start: number;
+    let end: number;
+    if (objStart !== -1 && (arrStart === -1 || objStart < arrStart)) {
+      start = objStart;
+      end = stripped.lastIndexOf("}");
+    } else if (arrStart !== -1) {
+      start = arrStart;
+      end = stripped.lastIndexOf("]");
+    } else {
+      throw new Error(`AliCloud did not return JSON. Response: ${stripped.slice(0, 200)}`);
     }
 
     const jsonStr = stripped.slice(start, end + 1);

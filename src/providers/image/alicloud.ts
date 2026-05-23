@@ -1,39 +1,26 @@
 import type { ImageProvider } from "../../schema/providers.js";
 
-// DashScope image API — same host as the MaaS plan, different path.
-// Extract the origin from ALICLOUD_BASE_URL (e.g. https://token-plan.ap-southeast-1.maas.aliyuncs.com)
-// Can be overridden explicitly via ALICLOUD_IMAGE_BASE_URL.
-function resolveImageBaseUrl(): string {
-  if (process.env["ALICLOUD_IMAGE_BASE_URL"]) return process.env["ALICLOUD_IMAGE_BASE_URL"];
-  const maasUrl = process.env["ALICLOUD_BASE_URL"];
-  if (maasUrl) {
-    try { return new URL(maasUrl).origin; } catch {}
-  }
-  return "https://dashscope-intl.aliyuncs.com";
-}
-const ALICLOUD_IMAGE_BASE_URL = resolveImageBaseUrl();
+// Image generation uses the same compatible-mode chat completions endpoint as LLM.
+// The MaaS plan key only works with this endpoint, not dashscope-intl.aliyuncs.com.
+const ALICLOUD_BASE_URL =
+  process.env["ALICLOUD_BASE_URL"] ??
+  "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1";
 
-// Available image models on this plan:
-//   Qwen:     qwen-image-2.0 (default) | qwen-image-2.0-pro
-//   Wanxiang: wan2.7-image | wan2.7-image-pro
+// Available image generation models on this plan:
+//   qwen-image-2.0 (default) | qwen-image-2.0-pro | wan2.7-image | wan2.7-image-pro
 const DEFAULT_MODEL =
   process.env["ALICLOUD_IMAGE_MODEL"] ?? "qwen-image-2.0";
 
 const MAX_RETRIES = 2;
 const BASE_DELAY_MS = 1500;
-const POLL_INTERVAL_MS = 4000;
-const TIMEOUT_MS = 120_000; // 2 min
 
-interface TaskResponse {
-  output?: {
-    task_id?: string;
-    task_status?: string;
-    results?: Array<{ url?: string; b64_image?: string }>;
-    error_message?: string;
-  };
-  request_id?: string;
-  code?: string;
-  message?: string;
+interface ChatResponse {
+  choices?: Array<{
+    message?: {
+      content?: string | Array<{ type: string; image_url?: { url?: string }; text?: string }>;
+    };
+  }>;
+  error?: { message?: string };
 }
 
 function isRetryable(err: unknown): boolean {
@@ -50,18 +37,20 @@ function isRetryable(err: unknown): boolean {
 export class AliCloudImage implements ImageProvider {
   private apiKey: string;
   private model: string;
+  private baseUrl: string;
 
   constructor(model?: string, apiKey?: string) {
     const key = apiKey ?? process.env["ALICLOUD_API_KEY"];
     if (!key) throw new Error("ALICLOUD_API_KEY environment variable is required");
     this.apiKey = key;
     this.model = model ?? DEFAULT_MODEL;
+    this.baseUrl = ALICLOUD_BASE_URL;
   }
 
   async generate(prompt: string, style?: string): Promise<Buffer> {
     const fullPrompt = style
-      ? `${prompt}. Style: ${style}. Vertical portrait orientation, 9:16 aspect ratio. No text, no watermarks.`
-      : `${prompt}. Vertical portrait orientation, 9:16 aspect ratio. No text, no watermarks.`;
+      ? `Generate an image: ${prompt}. Style: ${style}. Vertical portrait orientation, 9:16 aspect ratio. No text, no watermarks.`
+      : `Generate an image: ${prompt}. Vertical portrait orientation, 9:16 aspect ratio. No text, no watermarks.`;
 
     let lastError: unknown;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -79,73 +68,76 @@ export class AliCloudImage implements ImageProvider {
   }
 
   private async generateOnce(prompt: string): Promise<Buffer> {
-    const submitRes = await fetch(
-      `${ALICLOUD_IMAGE_BASE_URL}/api/v1/services/aigc/text2image/image-synthesis`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
-          "X-DashScope-Async": "enable",
-        },
-        body: JSON.stringify({
-          model: this.model,
-          input: { prompt },
-          parameters: { size: "768*1280", n: 1 },
-        }),
+    const res = await fetch(`${this.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({
+        model: this.model,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
 
-    if (!submitRes.ok) {
-      const body = await submitRes.text().catch(() => "");
-      throw new Error(`AliCloud image submit failed: ${submitRes.status} ${body}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`AliCloud image chat failed: ${res.status} ${body}`);
     }
 
-    const submitData = (await submitRes.json()) as TaskResponse;
-    const taskId = submitData.output?.task_id;
-    if (!taskId) {
-      throw new Error(`AliCloud image: no task_id in response: ${JSON.stringify(submitData)}`);
+    const data = (await res.json()) as ChatResponse;
+
+    if (data.error?.message) {
+      throw new Error(`AliCloud image error: ${data.error.message}`);
     }
 
-    // Poll for result
-    const deadline = Date.now() + TIMEOUT_MS;
-    while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-
-      const pollRes = await fetch(`${ALICLOUD_IMAGE_BASE_URL}/api/v1/tasks/${taskId}`, {
-        headers: { Authorization: `Bearer ${this.apiKey}` },
-      });
-
-      if (!pollRes.ok) {
-        const body = await pollRes.text().catch(() => "");
-        throw new Error(`AliCloud image poll failed: ${pollRes.status} ${body}`);
-      }
-
-      const pollData = (await pollRes.json()) as TaskResponse;
-      const status = pollData.output?.task_status;
-
-      if (status === "SUCCEEDED") {
-        const result = pollData.output?.results?.[0];
-        if (!result) throw new Error("AliCloud image: SUCCEEDED but no results");
-
-        if (result.b64_image) {
-          return Buffer.from(result.b64_image, "base64");
-        }
-        if (result.url) {
-          const imgRes = await fetch(result.url);
-          if (!imgRes.ok) throw new Error(`AliCloud image download failed: ${imgRes.status}`);
-          return Buffer.from(await imgRes.arrayBuffer());
-        }
-        throw new Error("AliCloud image: no url or b64_image in result");
-      }
-
-      if (status === "FAILED") {
-        throw new Error(`AliCloud image task failed: ${pollData.output?.error_message ?? "unknown"}`);
-      }
-
-      // PENDING or RUNNING — keep polling
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error("AliCloud image: no content in response");
     }
 
-    throw new Error(`AliCloud image task timed out after ${TIMEOUT_MS / 1000}s (task: ${taskId})`);
+    // Content can be a string (URL or base64) or an array of content blocks
+    const imageUrl = this.extractImageUrl(content);
+    if (!imageUrl) {
+      const preview = typeof content === "string" ? content.slice(0, 200) : JSON.stringify(content).slice(0, 200);
+      throw new Error(`AliCloud image: could not find image URL in response: ${preview}`);
+    }
+
+    // data URI (base64)
+    if (imageUrl.startsWith("data:")) {
+      const b64 = imageUrl.split(",")[1];
+      if (!b64) throw new Error("AliCloud image: malformed data URI");
+      return Buffer.from(b64, "base64");
+    }
+
+    // Remote URL — download it
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) throw new Error(`AliCloud image download failed: ${imgRes.status}`);
+    return Buffer.from(await imgRes.arrayBuffer());
+  }
+
+  private extractImageUrl(
+    content: string | Array<{ type: string; image_url?: { url?: string }; text?: string }>,
+  ): string | null {
+    if (typeof content === "string") {
+      // Plain URL
+      if (content.startsWith("http") || content.startsWith("data:")) return content.trim();
+      // Might be JSON-encoded array inside a string
+      try {
+        const parsed = JSON.parse(content) as unknown;
+        if (Array.isArray(parsed)) return this.extractImageUrl(parsed as Array<{ type: string; image_url?: { url?: string } }>);
+      } catch {}
+      return null;
+    }
+
+    for (const block of content) {
+      if (block.type === "image_url" && block.image_url?.url) return block.image_url.url;
+      if (block.type === "image" && block.image_url?.url) return block.image_url.url;
+      // Some providers embed the URL directly in text block
+      if (block.type === "text" && block.text) {
+        if (block.text.startsWith("http") || block.text.startsWith("data:")) return block.text.trim();
+      }
+    }
+    return null;
   }
 }
