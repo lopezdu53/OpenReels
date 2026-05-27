@@ -98,8 +98,8 @@ export class ViduVideo implements VideoProvider {
   private clampDuration(target: number): number {
     // viduq1 and viduq1-classic only support 5s
     if (this.model === "viduq1" || this.model === "viduq1-classic") return 5;
-    // vidu2.0 supports 4 or 8
-    if (this.model === "vidu2.0") return target <= 4 ? 4 : 8;
+    // vidu-2.0 supports 4 or 8
+    if (this.model === "vidu-2.0") return target <= 4 ? 4 : 8;
     // q2 models: 1-10
     if (this.model.startsWith("viduq2")) return Math.min(Math.max(target, 1), 10);
     // q3 models: 1-16

@@ -251,7 +251,7 @@ export function createProviders(config: ProviderConfig): Providers {
     "vidu-q2-turbo":  "viduq2-turbo",
     "vidu-q1":        "viduq1",
     "vidu-q1-classic":"viduq1-classic",
-    "vidu-2.0":       "vidu2.0",
+    "vidu-2.0":       "vidu-2.0",
   };
 
   if (videoPrimary && videoPrimary in ALICLOUD_VIDEO_MODELS) {
