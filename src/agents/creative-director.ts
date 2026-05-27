@@ -217,15 +217,15 @@ Keep total script under 140 words — verbose scripts create rushed, unwatchable
 // --- Pacing tier configuration ---
 
 const PACING_CONFIG: Record<ScenePacing, { min: number; max: number; wordsPerScene: string; totalWords: string }> = {
-  fast: { min: 8, max: 12, wordsPerScene: "18-25", totalWords: "210-270" },
-  moderate: { min: 7, max: 10, wordsPerScene: "24-32", totalWords: "215-285" },
-  cinematic: { min: 5, max: 8, wordsPerScene: "30-42", totalWords: "215-290" },
+  fast: { min: 16, max: 22, wordsPerScene: "10-14", totalWords: "210-260" },
+  moderate: { min: 14, max: 18, wordsPerScene: "12-16", totalWords: "210-260" },
+  cinematic: { min: 10, max: 14, wordsPerScene: "16-22", totalWords: "210-265" },
 };
 
 const PACING_TIER_TABLE = `After choosing your archetype, use the matching pacing tier from this table:
-- fast (8-12 scenes, 18-25 words/scene, 210-270 words total): infographic, bold_illustration, comic_book
-- moderate (7-10 scenes, 24-32 words/scene, 215-285 words total): warm_editorial, editorial_caricature, anime_illustration, vintage_snapshot, surreal_dreamscape, gothic_fantasy
-- cinematic (5-8 scenes, 30-42 words/scene, 215-290 words total): cinematic_documentary, moody_cinematic, studio_realism, warm_narrative, pastoral_watercolor`;
+- fast (16-22 scenes, 10-14 words/scene, 210-260 words total): infographic, bold_illustration, comic_book
+- moderate (14-18 scenes, 12-16 words/scene, 210-260 words total): warm_editorial, editorial_caricature, anime_illustration, vintage_snapshot, surreal_dreamscape, gothic_fantasy
+- cinematic (10-14 scenes, 16-22 words/scene, 210-265 words total): cinematic_documentary, moody_cinematic, studio_realism, warm_narrative, pastoral_watercolor`;
 
 export function buildPacingInstruction(archetype?: string, pacingOverride?: string, targetDurationMinutes?: number): string {
   // Path 0: Long-form YouTube horizontal — calculate scenes from target duration
