@@ -549,6 +549,19 @@ function buildPipelineWorkflow(
       // Use the highest-scoring revision
       score = bestScore;
 
+      // When using VIDU, limit ai_video to the first scene only (credits are expensive)
+      if (opts.videoProvider?.startsWith("vidu")) {
+        let firstVideoSeen = false;
+        score = {
+          ...score,
+          scenes: score.scenes.map((s) => {
+            if (s.visual_type !== "ai_video") return s;
+            if (!firstVideoSeen) { firstVideoSeen = true; return s; }
+            return { ...s, visual_type: "ai_image" as const };
+          }),
+        };
+      }
+
       // ── Store final score on shared closure state ──
       directorResult.score = score;
       directorResult.config = getArchetype(score.archetype);
