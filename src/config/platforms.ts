@@ -41,7 +41,7 @@ export const PLATFORMS: Record<string, PlatformConfig> = {
     codec: "h264",
     orientation: "portrait",
   },
-  youtube_horizontal: {
+  reel_extend: {
     width: 1080,
     height: 1920,
     fps: 30,

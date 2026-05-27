@@ -57,7 +57,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   youtube: "YouTube Shorts",
   tiktok: "TikTok",
   instagram: "Instagram",
-  youtube_horizontal: "Reel Extend",
+  reel_extend: "Reel Extend",
   // LLM / shared
   anthropic: "Anthropic (Claude)",
   openai: "OpenAI (GPT)",
@@ -154,7 +154,7 @@ export function HomePage() {
         platform,
         dryRun,
         ...(noSubtitles ? { noSubtitles: true } : {}),
-        ...(platform === "youtube_horizontal" ? { targetDurationMinutes } : {}),
+        ...(platform === "reel_extend" ? { targetDurationMinutes } : {}),
         ...(directionText.trim() ? { direction: directionText.trim() } : {}),
         ...(scoreJson ? { score: scoreJson } : {}),
         allowedVisualTypes: allowedVisualTypes.length > 0 ? allowedVisualTypes : undefined,
@@ -187,7 +187,7 @@ export function HomePage() {
             What story should we tell?
           </h1>
           <p className="mt-3 text-sm sm:text-base text-muted-foreground">
-            {platform === "youtube_horizontal"
+            {platform === "reel_extend"
               ? `Describe a topic and we'll turn it into a fully rendered ${targetDurationMinutes}-minute vertical video.`
               : "Describe a topic and we'll turn it into a fully rendered Short."}
           </p>
@@ -234,7 +234,7 @@ export function HomePage() {
               </Select>
 
               {/* Duration slider — only for YouTube horizontal */}
-              {platform === "youtube_horizontal" && (
+              {platform === "reel_extend" && (
                 <div className="flex items-center gap-1.5 rounded-[8px] border border-border bg-transparent px-3 py-1.5 text-xs font-medium text-text-subtle">
                   <span className="text-muted-foreground">Duración:</span>
                   <input
@@ -251,7 +251,7 @@ export function HomePage() {
               )}
 
               {/* Pacing selector — hidden for long-form (duration controls pacing) */}
-              {platform !== "youtube_horizontal" && (
+              {platform !== "reel_extend" && (
                 <Select value={pacing} onValueChange={(v) => setPacing(v ?? "")}>
                   <SelectTrigger
                     size="sm"
@@ -292,8 +292,8 @@ export function HomePage() {
                   className="gap-2 rounded-[10px] px-6 py-2.5 text-sm font-semibold"
                 >
                   {loading
-                    ? platform === "youtube_horizontal" ? "Generating video..." : "Generating..."
-                    : platform === "youtube_horizontal" ? `Generate ${targetDurationMinutes}min Video` : "Generate"}
+                    ? platform === "reel_extend" ? "Generating video..." : "Generating..."
+                    : platform === "reel_extend" ? `Generate ${targetDurationMinutes}min Video` : "Generate"}
                   {!loading && <ArrowRight className="size-4" />}
                 </Button>
               </div>

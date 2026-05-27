@@ -46,7 +46,7 @@ function loadDirectorSystemPrompt(targetDurationMinutes?: number): string {
   }
 
   // For long-form horizontal video, override the short-form constraints in the system prompt
-  if (targetDurationMinutes && targetDurationMinutes >= 5) {
+  if (targetDurationMinutes && targetDurationMinutes >= 2) {
     const wordsTarget = Math.round(targetDurationMinutes * 150);
     systemPrompt = systemPrompt
       .replace(
@@ -133,7 +133,7 @@ export async function generateDirectorScore(
     ? `\n## Creative Direction (from the producer)\n\n${options.direction}\n\nHonor these creative constraints while exercising your judgment on anything not specified.\n`
     : "";
 
-  const isLongForm = (options?.targetDurationMinutes ?? 0) >= 5;
+  const isLongForm = (options?.targetDurationMinutes ?? 0) >= 2;
   const wordsTarget = isLongForm ? Math.round((options!.targetDurationMinutes!) * 150) : null;
   const MAX_SCENES = 30;
   const sceneTarget = isLongForm ? Math.min(Math.round(wordsTarget! / 45), MAX_SCENES) : null;
@@ -229,7 +229,7 @@ const PACING_TIER_TABLE = `After choosing your archetype, use the matching pacin
 
 export function buildPacingInstruction(archetype?: string, pacingOverride?: string, targetDurationMinutes?: number): string {
   // Path 0: Long-form YouTube horizontal — calculate scenes from target duration
-  if (targetDurationMinutes && targetDurationMinutes >= 5) {
+  if (targetDurationMinutes && targetDurationMinutes >= 2) {
     const wordsTarget = Math.round(targetDurationMinutes * 150);
     // Cap scenes at 30 to keep the JSON response within LLM output token limits.
     // Fewer scenes with more words each is also better pacing for long-form content.
@@ -237,7 +237,7 @@ export function buildPacingInstruction(archetype?: string, pacingOverride?: stri
     const sceneCount = Math.min(Math.round(wordsTarget / 45), MAX_SCENES);
     const wordsPerScene = Math.round(wordsTarget / sceneCount);
     console.log(`[creative-director] Long-form pacing: ~${sceneCount} scenes for ${targetDurationMinutes} min (~${wordsTarget} words, ~${wordsPerScene} words/scene)`);
-    return `This is a LONG-FORM YouTube video targeting ${targetDurationMinutes} minutes.
+    return `This is a Reel Extend vertical video targeting ${targetDurationMinutes} minutes.
 Create a DirectorScore with exactly ${sceneCount} scenes.
 Per-scene word budget: ${wordsPerScene - 10}-${wordsPerScene + 10} words (detailed narration, one focused idea per scene).
 Total word budget: approximately ${wordsTarget} words at ~150 words/minute.
