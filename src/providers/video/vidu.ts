@@ -30,14 +30,16 @@ interface SubmitResponse {
   message?: string;
 }
 
-interface PollResponse {
-  task_id?: string;
-  state?: string; // created | queueing | processing | success | failed
-  error?: string;
-  message?: string;
-  video?: { url?: string };
-  creations?: Array<{ url?: string; cover_url?: string }>;
+interface Creation {
+  url?: string;
+  cover_url?: string;
+  state?: string; // success | failed | processing
+  err_code?: string;
+  err_msg?: string;
 }
+
+// /tasks/{id}/creations returns an array of creations
+type PollResponse = Creation[];
 
 function isRetryable(err: unknown): boolean {
   const msg = String(err);
@@ -136,7 +138,7 @@ export class ViduVideo implements VideoProvider {
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
 
-      const pollRes = await fetch(`${VIDU_BASE_URL}/tasks/${taskId}`, {
+      const pollRes = await fetch(`${VIDU_BASE_URL}/tasks/${taskId}/creations`, {
         headers: { Authorization: `Token ${this.apiKey}` },
       });
 
@@ -145,13 +147,14 @@ export class ViduVideo implements VideoProvider {
         throw new Error(`VIDU poll failed: ${pollRes.status} ${body}`);
       }
 
-      const poll = (await pollRes.json()) as PollResponse;
-      const state = poll.state;
+      const creations = (await pollRes.json()) as PollResponse;
+      const first = Array.isArray(creations) ? creations[0] : undefined;
+      const state = first?.state;
 
       if (state === "success") {
-        const videoUrl = poll.video?.url ?? poll.creations?.[0]?.url;
+        const videoUrl = first?.url;
         if (!videoUrl) {
-          throw new Error(`VIDU: success but no video URL: ${JSON.stringify(poll)}`);
+          throw new Error(`VIDU: success but no video URL: ${JSON.stringify(creations)}`);
         }
 
         // Download video
@@ -170,10 +173,10 @@ export class ViduVideo implements VideoProvider {
       }
 
       if (state === "failed") {
-        throw new Error(`VIDU task failed: ${poll.error ?? poll.message ?? "unknown error"}`);
+        throw new Error(`VIDU task failed: ${first?.err_code ?? first?.err_msg ?? "unknown error"}`);
       }
 
-      // created | queueing | processing — keep polling
+      // no creations yet | processing — keep polling
     }
 
     throw new Error(`VIDU task ${taskId} timed out after ${TIMEOUT_MS / 1000}s`);
