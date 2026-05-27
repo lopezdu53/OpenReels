@@ -31,16 +31,20 @@ interface SubmitResponse {
 }
 
 interface Creation {
+  id?: string;
   url?: string;
   cover_url?: string;
-  state?: string; // success | failed | error | processing | queueing | created
-  err_code?: string;
-  err_msg?: string;
-  message?: string;
 }
 
-// /tasks/{id}/creations may return an array or a single object
-type PollResponse = Creation[] | Creation;
+interface PollResponse {
+  id?: string;
+  state?: string; // created | queueing | processing | success | failed
+  err_code?: string;
+  err_msg?: string;
+  creations?: Creation[];
+  credits?: number;
+  progress?: number;
+}
 
 function isRetryable(err: unknown): boolean {
   const msg = String(err);
@@ -148,20 +152,18 @@ export class ViduVideo implements VideoProvider {
         throw new Error(`VIDU poll failed: ${pollRes.status} ${body}`);
       }
 
-      const creations = (await pollRes.json()) as PollResponse;
-      const first = Array.isArray(creations) ? creations[0] : (creations as Creation | undefined);
-      const state = first?.state;
+      const poll = (await pollRes.json()) as PollResponse;
+      const state = poll.state;
+      const videoUrl = poll.creations?.[0]?.url;
 
-      console.log(`[video/vidu] Task ${taskId} poll — state=${state ?? "none"}, url=${first?.url ? "yes" : "no"}`);
+      console.log(`[video/vidu] Task ${taskId} poll — state=${state ?? "none"}, url=${videoUrl ? "yes" : "no"}`);
 
-      // Accept "success" state OR presence of a url (some API versions omit state when done)
-      const isDone = state === "success" || (!state && !!first?.url);
+      const isDone = state === "success";
       const isFailed = state === "failed" || state === "error";
 
       if (isDone) {
-        const videoUrl = first?.url;
         if (!videoUrl) {
-          throw new Error(`VIDU: done but no video URL: ${JSON.stringify(creations)}`);
+          throw new Error(`VIDU: done but no video URL: ${JSON.stringify(poll)}`);
         }
 
         // Download video
@@ -180,7 +182,7 @@ export class ViduVideo implements VideoProvider {
       }
 
       if (isFailed) {
-        throw new Error(`VIDU task failed: ${first?.err_code ?? first?.err_msg ?? "unknown error"}`);
+        throw new Error(`VIDU task failed: ${poll.err_code ?? poll.err_msg ?? "unknown error"}`);
       }
 
       // no creations yet | processing — keep polling
