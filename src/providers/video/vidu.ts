@@ -33,13 +33,14 @@ interface SubmitResponse {
 interface Creation {
   url?: string;
   cover_url?: string;
-  state?: string; // success | failed | processing
+  state?: string; // success | failed | error | processing | queueing | created
   err_code?: string;
   err_msg?: string;
+  message?: string;
 }
 
-// /tasks/{id}/creations returns an array of creations
-type PollResponse = Creation[];
+// /tasks/{id}/creations may return an array or a single object
+type PollResponse = Creation[] | Creation;
 
 function isRetryable(err: unknown): boolean {
   const msg = String(err);
@@ -148,13 +149,19 @@ export class ViduVideo implements VideoProvider {
       }
 
       const creations = (await pollRes.json()) as PollResponse;
-      const first = Array.isArray(creations) ? creations[0] : undefined;
+      const first = Array.isArray(creations) ? creations[0] : (creations as Creation | undefined);
       const state = first?.state;
 
-      if (state === "success") {
+      console.log(`[video/vidu] Task ${taskId} poll — state=${state ?? "none"}, url=${first?.url ? "yes" : "no"}`);
+
+      // Accept "success" state OR presence of a url (some API versions omit state when done)
+      const isDone = state === "success" || (!state && !!first?.url);
+      const isFailed = state === "failed" || state === "error";
+
+      if (isDone) {
         const videoUrl = first?.url;
         if (!videoUrl) {
-          throw new Error(`VIDU: success but no video URL: ${JSON.stringify(creations)}`);
+          throw new Error(`VIDU: done but no video URL: ${JSON.stringify(creations)}`);
         }
 
         // Download video
@@ -172,7 +179,7 @@ export class ViduVideo implements VideoProvider {
         return { filePath: tmpPath, durationSeconds: duration };
       }
 
-      if (state === "failed") {
+      if (isFailed) {
         throw new Error(`VIDU task failed: ${first?.err_code ?? first?.err_msg ?? "unknown error"}`);
       }
 
