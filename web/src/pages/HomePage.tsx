@@ -454,9 +454,9 @@ export function HomePage() {
                         <SelectItem value="">Auto Style</SelectItem>
                         {archetypes.map((a) => (
                           <SelectItem key={a.name} value={a.name}>
-                            {a.name
+                            {a.label ?? a.name
                               .split(/[-_]/)
-                              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                              .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
                               .join(" ")}
                           </SelectItem>
                         ))}

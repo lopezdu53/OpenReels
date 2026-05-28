@@ -40,6 +40,7 @@ export interface JobSummary {
 
 export interface Archetype {
   name: string;
+  label?: string;
   captionStyle: string;
   artStyle: string;
   mood: string;

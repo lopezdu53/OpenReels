@@ -121,6 +121,7 @@ app.get("/api/v1/archetypes", async () => {
     const config = getArchetype(name);
     return {
       name,
+      label: config.label,
       captionStyle: config.captionStyle,
       artStyle: config.artStyle,
       mood: config.mood,
