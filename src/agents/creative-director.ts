@@ -224,7 +224,7 @@ const PACING_CONFIG: Record<ScenePacing, { min: number; max: number; wordsPerSce
 
 const PACING_TIER_TABLE = `After choosing your archetype, use the matching pacing tier from this table:
 - fast (16-22 scenes, 10-14 words/scene, 210-260 words total): infographic, bold_illustration, comic_book
-- moderate (14-18 scenes, 12-16 words/scene, 210-260 words total): warm_editorial, editorial_caricature, anime_illustration, vintage_snapshot, surreal_dreamscape, gothic_fantasy
+- moderate (14-18 scenes, 12-16 words/scene, 210-260 words total): warm_editorial, editorial_caricature, anime_illustration, vintage_snapshot, surreal_dreamscape, gothic_fantasy, style_override
 - cinematic (10-14 scenes, 16-22 words/scene, 210-265 words total): cinematic_documentary, moody_cinematic, studio_realism, warm_narrative, pastoral_watercolor`;
 
 export function buildPacingInstruction(archetype?: string, pacingOverride?: string, targetDurationMinutes?: number): string {
