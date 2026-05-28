@@ -21,12 +21,35 @@ export class InworldTTS implements TTSProvider {
   }
 
   async generate(text: string): Promise<TTSResult> {
-    if (text.length > MAX_INPUT_CHARS) {
-      throw new Error(
-        `Inworld TTS limit exceeded: script is ${text.length} chars, max ${MAX_INPUT_CHARS}. Shorten the script or use a different TTS provider.`,
-      );
+    if (text.length <= MAX_INPUT_CHARS) {
+      return this.generateChunk(text);
     }
 
+    // Split into sentence-boundary chunks and stitch results together
+    const chunks = splitIntoChunks(text, MAX_INPUT_CHARS);
+    console.log(`[inworld] Script ${text.length} chars — splitting into ${chunks.length} chunks`);
+
+    const audioBuffers: Buffer[] = [];
+    const allWords: WordTimestamp[] = [];
+    let timeOffset = 0;
+
+    for (const chunk of chunks) {
+      const result = await this.generateChunk(chunk);
+      audioBuffers.push(result.audio);
+
+      for (const w of result.words) {
+        allWords.push({ word: w.word, start: w.start + timeOffset, end: w.end + timeOffset });
+      }
+
+      // Advance offset by the end time of the last word in this chunk
+      const lastWord = result.words[result.words.length - 1];
+      if (lastWord) timeOffset = lastWord.end + timeOffset;
+    }
+
+    return { audio: Buffer.concat(audioBuffers), words: allWords };
+  }
+
+  private async generateChunk(text: string): Promise<TTSResult> {
     const response = await fetch(`${INWORLD_BASE}/voice`, {
       method: "POST",
       headers: {
@@ -58,7 +81,6 @@ export class InworldTTS implements TTSProvider {
       throw new Error(`Inworld TTS returned invalid JSON: ${responseText.slice(0, 200)}`);
     }
 
-    // Validate response shape
     if (!data.audioContent) {
       throw new Error("Inworld TTS response missing audioContent");
     }
@@ -77,17 +99,44 @@ export class InworldTTS implements TTSProvider {
       );
     }
 
-    // Map parallel arrays to WordTimestamp[]
     const timestamps: WordTimestamp[] = words.map((word, i) => ({
       word,
       start: wordStartTimeSeconds[i] ?? 0,
       end: wordEndTimeSeconds[i] ?? 0,
     }));
 
-    const audioBuffer = Buffer.from(data.audioContent, "base64");
-
-    return { audio: audioBuffer, words: timestamps };
+    return { audio: Buffer.from(data.audioContent, "base64"), words: timestamps };
   }
+}
+
+/**
+ * Splits text into chunks of at most maxChars, breaking at sentence boundaries
+ * (. ! ?) when possible, otherwise at the last space before the limit.
+ */
+function splitIntoChunks(text: string, maxChars: number): string[] {
+  const chunks: string[] = [];
+  let remaining = text.trim();
+
+  while (remaining.length > maxChars) {
+    // Try to break at the last sentence boundary before the limit
+    const window = remaining.slice(0, maxChars);
+    const sentenceEnd = Math.max(
+      window.lastIndexOf(". "),
+      window.lastIndexOf("! "),
+      window.lastIndexOf("? "),
+    );
+
+    const breakAt = sentenceEnd > maxChars * 0.4
+      ? sentenceEnd + 1  // include the punctuation, split after the space
+      : window.lastIndexOf(" "); // fallback: last word boundary
+
+    const cut = breakAt > 0 ? breakAt : maxChars;
+    chunks.push(remaining.slice(0, cut).trim());
+    remaining = remaining.slice(cut).trim();
+  }
+
+  if (remaining.length > 0) chunks.push(remaining);
+  return chunks;
 }
 
 interface InworldTTSResponse {
