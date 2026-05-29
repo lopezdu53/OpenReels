@@ -55,6 +55,8 @@ export class WhisperAligner {
    */
   async align(audio: Buffer, text: string): Promise<WordTimestamp[]> {
     const float32 = this.audioToFloat32(audio);
+    // Derive actual audio duration from the resampled float32 (always 16kHz after conversion).
+    const audioDurationSeconds = float32.length / 16000;
     const transcriber = await this.getTranscriber();
 
     const result = await transcriber(float32, {
@@ -78,7 +80,26 @@ export class WhisperAligner {
       );
     }
 
-    return this.alignToTranscript(text, whisperWords);
+    const words = this.alignToTranscript(text, whisperWords);
+
+    // Whisper has a 30-second context window. When audio is longer, transformers.js may
+    // not correctly offset word timestamps across chunks, causing all words to appear
+    // compressed into the first ~29s. Detect this by comparing the last word's end time
+    // to the real audio duration and scale proportionally if needed.
+    const lastWordEnd = words[words.length - 1]?.end ?? 0;
+    if (lastWordEnd > 0 && audioDurationSeconds > lastWordEnd * 1.15) {
+      const scale = audioDurationSeconds / lastWordEnd;
+      console.warn(
+        `[whisper-aligner] Timestamps compressed (last word at ${lastWordEnd.toFixed(1)}s, audio is ${audioDurationSeconds.toFixed(1)}s). Scaling by ${scale.toFixed(2)}x.`,
+      );
+      return words.map((w) => ({
+        word: w.word,
+        start: w.start * scale,
+        end: w.end * scale,
+      }));
+    }
+
+    return words;
   }
 
   /**

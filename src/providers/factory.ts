@@ -19,13 +19,18 @@ import type {
   VideoProvider,
   VideoProviderKey,
 } from "../schema/providers.js";
+import { AliCloudImage } from "./image/alicloud.js";
+import { FallbackImageProvider } from "./image/fallback.js";
 import { GeminiImage } from "./image/gemini.js";
 import { OpenAIImage } from "./image/openai.js";
+import { ViviImage } from "./image/vivi.js";
+import { AliCloudLLM } from "./llm/alicloud.js";
 import { AnthropicLLM } from "./llm/anthropic.js";
 import { GeminiLLM } from "./llm/gemini.js";
 import { OpenAILLM } from "./llm/openai.js";
 import { OpenAICompatibleLLM } from "./llm/openai-compatible.js";
 import { OpenRouterLLM } from "./llm/openrouter.js";
+import { ViviLLM } from "./llm/vivi.js";
 import { BundledMusic } from "./music/bundled-adapter.js";
 import { LyriaMusic } from "./music/lyria.js";
 import { createTavilySearchTools } from "./search/tavily.js";
@@ -34,12 +39,17 @@ import { PixabayStock } from "./stock/pixabay.js";
 import { AlignedTTSProvider } from "./tts/aligned-tts-provider.js";
 import { ElevenLabsTTS } from "./tts/elevenlabs.js";
 import { GeminiTTS } from "./tts/gemini.js";
+import { GrokTTS } from "./tts/grok.js";
 import { InworldTTS } from "./tts/inworld.js";
 import { KokoroTTS } from "./tts/kokoro.js";
 import { OpenAITTS } from "./tts/openai.js";
 import { WhisperAligner } from "./tts/whisper-aligner.js";
+import { AliCloudVideo } from "./video/alicloud.js";
 import { FalVideo } from "./video/fal.js";
 import { GeminiVideo } from "./video/gemini.js";
+import { GrokVideo } from "./video/grok.js";
+import { ViduVideo } from "./video/vidu.js";
+import { ViviVideo } from "./video/vivi.js";
 
 export interface ProviderConfig {
   llm: LLMProviderKey;
@@ -50,6 +60,7 @@ export interface ProviderConfig {
   music?: MusicProviderKey;
   videoModel?: string;
   kokoroVoice?: string;
+  inworldVoice?: string;
   keys?: Record<string, string>;
   llmModel?: string;
   llmBaseUrl?: string;
@@ -133,6 +144,12 @@ export function createProviders(config: ProviderConfig): Providers {
       llm = new OpenAICompatibleLLM(baseUrl, model, apiKey, searchTools);
       break;
     }
+    case "vivi":
+      llm = new ViviLLM(config.llmModel, k["VIVI_LLM_API_KEY"], searchTools);
+      break;
+    case "alicloud":
+      llm = new AliCloudLLM(config.llmModel, k["ALICLOUD_API_KEY"], searchTools);
+      break;
     default:
       llm = new AnthropicLLM(config.llmModel, k["ANTHROPIC_API_KEY"], searchTools);
       break;
@@ -153,18 +170,54 @@ export function createProviders(config: ProviderConfig): Providers {
     case "openai-tts":
       tts = new AlignedTTSProvider(new OpenAITTS(undefined, k["OPENAI_API_KEY"]), aligner);
       break;
+    case "grok-tts":
+      tts = new AlignedTTSProvider(new GrokTTS(undefined, undefined, k["XAI_API_KEY"] ?? process.env["XAI_API_KEY"]), aligner);
+      break;
     case "inworld":
-      tts = new InworldTTS(undefined, undefined, k["INWORLD_TTS_API_KEY"]);
+      tts = new InworldTTS(config.inworldVoice ?? "Dennis", undefined, k["INWORLD_TTS_API_KEY"]);
       break;
     default:
       tts = new ElevenLabsTTS(undefined, k["ELEVENLABS_API_KEY"]);
       break;
   }
 
-  const imageGen: ImageProvider =
-    config.image === "openai"
-      ? new OpenAIImage(undefined, k["OPENAI_API_KEY"])
-      : new GeminiImage(undefined, k["GOOGLE_API_KEY"]);
+  const googleKey = k["GOOGLE_API_KEY"] ?? process.env["GOOGLE_API_KEY"];
+  const openaiKey = k["OPENAI_API_KEY"] ?? process.env["OPENAI_API_KEY"];
+
+  const viviKey = k["VIVI_IMAGE_API_KEY"] ?? process.env["VIVI_IMAGE_API_KEY"];
+  const alicloudKey = k["ALICLOUD_API_KEY"] ?? process.env["ALICLOUD_API_KEY"];
+
+  let imageGen: ImageProvider;
+  if (config.image === "openai") {
+    const primary = new OpenAIImage(undefined, openaiKey);
+    imageGen = googleKey
+      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "openai", "gemini")
+      : primary;
+  } else if (config.image === "vivi") {
+    const primary = new ViviImage(undefined, viviKey);
+    imageGen = googleKey
+      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "vivi", "gemini")
+      : primary;
+  } else if (config.image === "alicloud") {
+    const primary = new AliCloudImage(undefined, alicloudKey);
+    // Fallback chain: alicloud → vivi → gemini
+    if (viviKey && googleKey) {
+      const viviWithGeminiFallback = new FallbackImageProvider(new ViviImage(undefined, viviKey), new GeminiImage(undefined, googleKey), "vivi", "gemini");
+      imageGen = new FallbackImageProvider(primary, viviWithGeminiFallback, "alicloud", "vivi");
+    } else if (viviKey) {
+      imageGen = new FallbackImageProvider(primary, new ViviImage(undefined, viviKey), "alicloud", "vivi");
+    } else if (googleKey) {
+      imageGen = new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "alicloud", "gemini");
+    } else {
+      imageGen = primary;
+    }
+  } else {
+    // Gemini selected (default)
+    const primary = new GeminiImage(undefined, googleKey);
+    imageGen = openaiKey
+      ? new FallbackImageProvider(primary, new OpenAIImage(undefined, openaiKey), "gemini", "openai")
+      : primary;
+  }
 
   // Build stock provider array: construct both if both keys are available
   const stock: StockProvider[] = [];
@@ -183,16 +236,70 @@ export function createProviders(config: ProviderConfig): Providers {
 
   // Build video provider array: construct available providers, primary first
   const videoProviders: VideoProvider[] = [];
-  const googleKey = k["GOOGLE_API_KEY"] ?? process.env["GOOGLE_API_KEY"];
   const falKey = k["FAL_API_KEY"] ?? process.env["FAL_API_KEY"];
-  const videoPrimary = config.video ?? (googleKey ? "gemini" : falKey ? "fal" : undefined);
+  const viviVideoKey = k["VIVI_VIDEO_API_KEY"] ?? process.env["VIVI_VIDEO_API_KEY"] ?? k["VIVI_LLM_API_KEY"] ?? process.env["VIVI_LLM_API_KEY"];
+  const viduKey = k["VIDU_API_KEY"] ?? process.env["VIDU_API_KEY"];
+  const xaiKey = k["XAI_API_KEY"] ?? process.env["XAI_API_KEY"];
+  const videoPrimary = config.video ?? (googleKey ? "gemini" : xaiKey ? "grok" : viduKey ? "vidu" : viviVideoKey ? "vivi" : falKey ? "fal" : alicloudKey ? "alicloud-wan-turbo" : undefined);
 
-  if (videoPrimary === "fal") {
+  const ALICLOUD_VIDEO_MODELS: Record<string, string> = {
+    "alicloud-wan-turbo": "wan2.1-i2v-turbo",
+    "alicloud-wan-plus":  "wan2.1-i2v-plus",
+  };
+
+  // VIDU model keys → internal model names
+  const VIDU_MODELS: Record<string, string> = {
+    "vidu":           "viduq2-turbo",
+    "vidu-q3-pro":    "viduq3-pro",
+    "vidu-q3-fast":   "viduq3-pro-fast",
+    "vidu-q3-turbo":  "viduq3-turbo",
+    "vidu-q2-pro":    "viduq2-pro",
+    "vidu-q2-fast":   "viduq2-pro-fast",
+    "vidu-q2-turbo":  "viduq2-turbo",
+    "vidu-q1":        "viduq1",
+    "vidu-q1-classic":"viduq1-classic",
+    "vidu-2.0":       "vidu-2.0",
+  };
+
+  if (videoPrimary && videoPrimary in ALICLOUD_VIDEO_MODELS) {
+    const modelId = ALICLOUD_VIDEO_MODELS[videoPrimary];
+    if (alicloudKey) videoProviders.push(new AliCloudVideo(modelId, alicloudKey));
+    if (googleKey) videoProviders.push(new GeminiVideo(undefined, googleKey));
+    else if (viduKey) videoProviders.push(new ViduVideo(undefined, viduKey));
+    else if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
+    else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
+  } else if (videoPrimary && videoPrimary in VIDU_MODELS) {
+    const modelId = VIDU_MODELS[videoPrimary];
+    if (viduKey) videoProviders.push(new ViduVideo(modelId, viduKey));
+    if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
+    else if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
+    else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
+  } else if (videoPrimary === "grok") {
+    if (xaiKey) videoProviders.push(new GrokVideo(xaiKey));
+    if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
+    else if (viduKey) videoProviders.push(new ViduVideo(undefined, viduKey));
+    else if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
+    else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
+  } else if (videoPrimary === "vivi") {
+    if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
+    if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
+    else if (xaiKey) videoProviders.push(new GrokVideo(xaiKey));
+    else if (viduKey) videoProviders.push(new ViduVideo(undefined, viduKey));
+    else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
+  } else if (videoPrimary === "fal") {
     if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
     if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
+    else if (xaiKey) videoProviders.push(new GrokVideo(xaiKey));
+    else if (viduKey) videoProviders.push(new ViduVideo(undefined, viduKey));
+    else if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
+    else if (alicloudKey) videoProviders.push(new AliCloudVideo(undefined, alicloudKey));
   } else if (videoPrimary === "gemini" || videoPrimary === undefined) {
     if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
-    if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
+    if (xaiKey) videoProviders.push(new GrokVideo(xaiKey));
+    else if (viduKey) videoProviders.push(new ViduVideo(undefined, viduKey));
+    else if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
+    else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
+    else if (alicloudKey) videoProviders.push(new AliCloudVideo(undefined, alicloudKey));
   }
 
   // Music provider: lyria requires GOOGLE_API_KEY, bundled is always available
@@ -223,6 +330,12 @@ export function createVerificationModel(
     case "openrouter": {
       const openrouter = apiKey ? createOpenRouter({ apiKey }) : createOpenRouter();
       return openrouter(model ?? "anthropic/claude-sonnet-4");
+    }
+    case "vivi": {
+      const key = apiKey ?? process.env["VIVI_LLM_API_KEY"];
+      if (!key) throw new Error("VIVI_LLM_API_KEY is required for VIVI provider");
+      const vivi = createOpenAICompatible({ name: "vivi", baseURL: "https://api.viviai.cc/v1", apiKey: key });
+      return vivi(model ?? "claude-sonnet-4-6");
     }
     case "openai-compatible": {
       const baseUrl = process.env["OPENREELS_LLM_BASE_URL"];

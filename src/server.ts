@@ -9,6 +9,7 @@ import { PACING_CONFIG } from "./agents/creative-director.js";
 import { getArchetype, listArchetypes } from "./config/archetype-registry.js";
 import { PLATFORMS } from "./config/platforms.js";
 import { DirectorScore } from "./schema/director-score.js";
+import { INWORLD_VOICES } from "./providers/tts/inworld.js";
 import type { SearchProviderKey } from "./schema/providers.js";
 
 const REDIS_URL = process.env["REDIS_URL"] ?? "redis://localhost:6379";
@@ -63,6 +64,12 @@ app.get("/api/v1/health", async () => {
       INWORLD_TTS_API_KEY: !!process.env["INWORLD_TTS_API_KEY"],
       PEXELS_API_KEY: !!process.env["PEXELS_API_KEY"],
       PIXABAY_API_KEY: !!process.env["PIXABAY_API_KEY"],
+      VIVI_LLM_API_KEY: !!process.env["VIVI_LLM_API_KEY"],
+      VIVI_IMAGE_API_KEY: !!process.env["VIVI_IMAGE_API_KEY"],
+      VIVI_VIDEO_API_KEY: !!process.env["VIVI_VIDEO_API_KEY"],
+      ALICLOUD_API_KEY: !!process.env["ALICLOUD_API_KEY"],
+      VIDU_API_KEY: !!process.env["VIDU_API_KEY"],
+      XAI_API_KEY: !!process.env["XAI_API_KEY"],
     },
   };
 });
@@ -116,6 +123,7 @@ app.get("/api/v1/archetypes", async () => {
     const config = getArchetype(name);
     return {
       name,
+      label: config.label,
       captionStyle: config.captionStyle,
       artStyle: config.artStyle,
       mood: config.mood,
@@ -135,6 +143,9 @@ app.get("/api/v1/platforms", async () => {
     height: config.height,
     fps: config.fps,
     maxDurationSeconds: config.maxDurationSeconds,
+    minDurationSeconds: config.minDurationSeconds,
+    orientation: config.orientation ?? "portrait",
+    longForm: config.longForm ?? false,
   }));
 });
 
@@ -146,6 +157,8 @@ app.get("/api/v1/providers", async () => ({
     { key: "gemini", label: "Google Gemini" },
     { key: "openrouter", label: "OpenRouter" },
     { key: "openai-compatible", label: "Custom (OpenAI-compatible)" },
+    { key: "vivi", label: "VIVI (Claude)" },
+    { key: "alicloud", label: "Alibaba Cloud" },
   ],
   search: [
     { key: "native", label: "Native (provider built-in)" },
@@ -158,14 +171,22 @@ app.get("/api/v1/providers", async () => ({
     { key: "kokoro", label: "Kokoro (Local)" },
     { key: "gemini-tts", label: "Gemini TTS" },
     { key: "openai-tts", label: "OpenAI TTS" },
+    { key: "grok-tts", label: "Grok TTS" },
   ],
+  inworldVoices: INWORLD_VOICES.map((v) => ({ id: v.id, label: v.label, lang: v.lang })),
   image: [
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI (GPT Image)" },
+    { key: "vivi", label: "VIVI (Gemini)" },
+    { key: "alicloud", label: "Alibaba Cloud" },
   ],
   video: [
     { key: "gemini", label: "Google Veo" },
-    { key: "fal", label: "fal.ai (Kling, Wan, etc.)" },
+    { key: "grok", label: "Grok Imagine Video" },
+    { key: "vivi", label: "VIVI (Grok Video 3)" },
+    { key: "fal", label: "fal.ai (Kling 2.6 Pro)" },
+    { key: "vidu-q2-fast", label: "VIDU Q2 Fast (~27cr/5s)" },
+    { key: "vidu-q3-fast", label: "VIDU Q3 Fast" },
   ],
 }));
 
@@ -178,7 +199,10 @@ interface CreateJobBody {
   dryRun?: boolean;
   noMusic?: boolean;
   noVideo?: boolean;
+  noSubtitles?: boolean;
+  allowedVisualTypes?: string[];
   direction?: string;
+  targetDurationMinutes?: number;
   score?: Record<string, unknown>;
   providers?: {
     llm?: string;
@@ -191,12 +215,13 @@ interface CreateJobBody {
     llmModel?: string;
     llmBaseUrl?: string;
     searchProvider?: SearchProviderKey;
+    inworldVoice?: string;
   };
   keys?: Record<string, string>;
 }
 
 app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
-  const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, direction, score, providers, keys } =
+  const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, providers, keys } =
     request.body ?? {};
 
   if (!topic || typeof topic !== "string" || topic.trim().length === 0) {
@@ -267,7 +292,10 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     dryRun: dryRun ?? false,
     noMusic: noMusic === true,
     noVideo: noVideo === true,
+    noSubtitles: noSubtitles === true,
+    ...(allowedVisualTypes?.length ? { allowedVisualTypes } : {}),
     ...(direction?.trim() ? { direction: direction.trim() } : {}),
+    ...(targetDurationMinutes != null ? { targetDurationMinutes: Number(targetDurationMinutes) } : {}),
     ...(validatedScore ? { score: validatedScore } : {}),
     providers: {
       llm: providers?.llm ?? "anthropic",
@@ -280,6 +308,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       llmModel: providers?.llmModel,
       llmBaseUrl: providers?.llmBaseUrl,
       searchProvider: providers?.searchProvider,
+      inworldVoice: providers?.inworldVoice,
     },
     keys: keys ?? {},
     jobsDir: JOBS_DIR,
@@ -508,34 +537,35 @@ app.post<{ Params: { id: string } }>("/api/v1/jobs/:id/cancel", async (request, 
   if (!isValidJobId(request.params.id)) {
     return reply.status(400).send({ error: "Invalid job ID" });
   }
-  const job = await queue.getJob(request.params.id);
-  if (!job) {
-    return reply.status(404).send({ error: "Job not found" });
-  }
 
-  const state = await job.getState();
-  if (state === "completed" || state === "failed") {
-    return reply.status(409).send({ error: `Job already ${state}` });
-  }
+  const jobId = request.params.id;
+  const jobDir = path.join(JOBS_DIR, jobId);
 
-  // Update meta to mark as cancelling (atomic write: tmp + rename)
-  const jobDir = path.join(JOBS_DIR, request.params.id);
+  // Force-update meta to cancelled regardless of BullMQ state (handles stuck/orphaned jobs)
   const metaPath = path.join(jobDir, "meta.json");
   if (fs.existsSync(metaPath)) {
     try {
       const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
       meta.cancelRequested = true;
+      meta.status = "cancelled";
+      meta.error = "Cancelled by user";
       const tmpPath = path.join(jobDir, ".meta.tmp");
       fs.writeFileSync(tmpPath, JSON.stringify(meta, null, 2));
       fs.renameSync(tmpPath, metaPath);
     } catch {}
   }
 
-  // moveToFailed handles queued jobs; for active jobs the token won't match
-  // the worker's lock, so we catch and rely on cancelRequested flag instead
-  try {
-    await job.moveToFailed(new Error("Cancelled by user"), "0", true);
-  } catch {}
+  // Try to remove from BullMQ — for active/stalled jobs the lock won't match,
+  // so we try moveToFailed first (works for waiting jobs), then obliterate from queue.
+  const job = await queue.getJob(jobId);
+  if (job) {
+    const state = await job.getState();
+    if (state !== "completed" && state !== "failed") {
+      try { await job.moveToFailed(new Error("Cancelled by user"), "0", true); } catch {}
+      try { await job.remove(); } catch {}
+    }
+  }
+
   return { status: "cancelled" };
 });
 
@@ -551,14 +581,12 @@ app.delete<{ Params: { id: string } }>("/api/v1/jobs/:id", async (request, reply
     return reply.status(404).send({ error: "Job not found" });
   }
 
-  // Don't delete active jobs
+  // Force-remove from BullMQ regardless of state (handles orphaned/stuck active jobs).
+  // For truly active jobs the worker will fail gracefully when it can't find the files.
   const job = await queue.getJob(jobId);
   if (job) {
-    const state = await job.getState();
-    if (state === "active" || state === "waiting") {
-      return reply.status(409).send({ error: "Cannot delete an active job" });
-    }
-    await job.remove();
+    try { await job.moveToFailed(new Error("Deleted by user"), "0", true); } catch {}
+    try { await job.remove(); } catch {}
   }
 
   fs.rmSync(jobDir, { recursive: true, force: true });

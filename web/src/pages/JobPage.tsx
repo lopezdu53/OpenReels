@@ -1,4 +1,4 @@
-import { AlertTriangle, Download, Plus } from "lucide-react";
+import { AlertTriangle, Copy, Download, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { CompletedPanel } from "@/components/pipeline/CompletedPanel";
@@ -430,6 +430,30 @@ export function JobPage() {
               }
               failedDetail={isCancelled ? "Job was cancelled by user" : failedDetail}
             />
+          )}
+
+          {/* TikTok caption — shown when platform is tiktok and caption is ready */}
+          {isCompleted && job.tiktokCaption && (
+            <div className="rounded-[10px] border border-border bg-card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
+                  TIKTOK CAPTION
+                </span>
+                <button
+                  onClick={() => navigator.clipboard.writeText(job.tiktokCaption!.caption)}
+                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  title="Copy caption"
+                >
+                  <Copy className="size-3" /> Copy
+                </button>
+              </div>
+              <p className="text-sm font-semibold text-foreground mb-2">{job.tiktokCaption.title}</p>
+              <p className="text-xs text-muted-foreground flex flex-wrap gap-1">
+                {job.tiktokCaption.hashtags.map((tag) => (
+                  <span key={tag} className="rounded-full bg-primary/10 px-2 py-0.5 text-primary font-medium">{tag}</span>
+                ))}
+              </p>
+            </div>
           )}
 
           {/* Research card — always visible once available */}

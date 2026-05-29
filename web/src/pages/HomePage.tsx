@@ -54,23 +54,23 @@ const CATEGORY_KEYS = Object.keys(TOPIC_CATEGORIES);
 
 const DISPLAY_NAMES: Record<string, string> = {
   // Platforms
-  youtube: "YouTube",
+  youtube: "YouTube Shorts",
   tiktok: "TikTok",
   instagram: "Instagram",
-  // LLM
+  reel_extend: "Reel Extend",
+  // LLM / shared
   anthropic: "Anthropic (Claude)",
   openai: "OpenAI (GPT)",
   gemini: "Google Gemini",
   openrouter: "OpenRouter",
   "openai-compatible": "Custom (OpenAI-compatible)",
+  alicloud: "Alibaba Cloud",
   // TTS
   elevenlabs: "ElevenLabs",
   inworld: "Inworld",
   kokoro: "Kokoro (Local)",
   "gemini-tts": "Gemini TTS",
   "openai-tts": "OpenAI TTS",
-  // Image
-  // gemini/openai already covered above
   // Music
   bundled: "Bundled (Free)",
   lyria: "Lyria 3 Pro",
@@ -80,6 +80,11 @@ const DISPLAY_NAMES: Record<string, string> = {
 
 function displayName(key: string): string {
   return DISPLAY_NAMES[key] ?? key;
+}
+
+/** Use the server's label for a provider in a given category (avoids key collisions like "vivi"). */
+function providerLabel(list: { key: string; label: string }[] | undefined, key: string): string {
+  return list?.find((p) => p.key === key)?.label ?? displayName(key);
 }
 
 export function HomePage() {
@@ -92,14 +97,24 @@ export function HomePage() {
   const [llmBaseUrl, setLlmBaseUrl] = useState("");
   const [searchProvider, setSearchProvider] = useState("");
   const [ttsProvider, setTtsProvider] = useState("elevenlabs");
+  const [inworldVoice, setInworldVoice] = useState("Pedro");
   const [imageProvider, setImageProvider] = useState("gemini");
   const [musicProvider, setMusicProvider] = useState("bundled");
+  const [videoProvider, setVideoProvider] = useState("");
   const [pacing, setPacing] = useState("");
+  const [targetDurationMinutes, setTargetDurationMinutes] = useState(5);
   const [dryRun, setDryRun] = useState(false);
+  const [noSubtitles, setNoSubtitles] = useState(false);
   const [directionText, setDirectionText] = useState("");
   const [scoreJson, setScoreJson] = useState<Record<string, unknown> | null>(null);
   const [scoreFileName, setScoreFileName] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [allowedVisualTypes, setAllowedVisualTypes] = useState<string[]>([
+    "ai_image",
+    "stock_image",
+    "stock_video",
+    "text_card",
+  ]);
 
   const [archetypes, setArchetypes] = useState<Archetype[]>([]);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
@@ -139,16 +154,21 @@ export function HomePage() {
         pacing: pacing || undefined,
         platform,
         dryRun,
+        ...(noSubtitles ? { noSubtitles: true } : {}),
+        ...(platform === "reel_extend" ? { targetDurationMinutes } : {}),
         ...(directionText.trim() ? { direction: directionText.trim() } : {}),
         ...(scoreJson ? { score: scoreJson } : {}),
+        allowedVisualTypes: allowedVisualTypes.length > 0 ? allowedVisualTypes : undefined,
         providers: {
           llm: llmProvider,
           tts: ttsProvider,
           image: imageProvider,
           music: musicProvider,
+          ...(videoProvider ? { video: videoProvider } : {}),
           ...(llmModel ? { llmModel } : {}),
           ...(llmBaseUrl ? { llmBaseUrl } : {}),
           ...(searchProvider ? { searchProvider } : {}),
+          ...(ttsProvider === "inworld" ? { inworldVoice } : {}),
         },
       });
       navigate(`/jobs/${result.id}`);
@@ -169,7 +189,9 @@ export function HomePage() {
             What story should we tell?
           </h1>
           <p className="mt-3 text-sm sm:text-base text-muted-foreground">
-            Describe a topic and we'll turn it into a fully rendered Short.
+            {platform === "reel_extend"
+              ? `Describe a topic and we'll turn it into a fully rendered ${targetDurationMinutes}-minute vertical video.`
+              : "Describe a topic and we'll turn it into a fully rendered Short."}
           </p>
         </div>
 
@@ -213,22 +235,41 @@ export function HomePage() {
                 </SelectContent>
               </Select>
 
-              {/* Pacing selector */}
-              <Select value={pacing} onValueChange={(v) => setPacing(v ?? "")}>
-                <SelectTrigger
-                  size="sm"
-                  className="h-auto gap-1.5 rounded-[8px] border-border bg-transparent px-3 py-1.5 text-xs font-medium text-text-subtle"
-                >
-                  <Gauge className="size-3.5 text-muted-foreground" />
-                  <SelectValue placeholder="Auto Pace" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Auto Pace</SelectItem>
-                  <SelectItem value="fast">Fast</SelectItem>
-                  <SelectItem value="moderate">Moderate</SelectItem>
-                  <SelectItem value="cinematic">Cinematic</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Duration slider — only for YouTube horizontal */}
+              {platform === "reel_extend" && (
+                <div className="flex items-center gap-1.5 rounded-[8px] border border-border bg-transparent px-3 py-1.5 text-xs font-medium text-text-subtle">
+                  <span className="text-muted-foreground">Duración:</span>
+                  <input
+                    type="range"
+                    min={2}
+                    max={20}
+                    step={1}
+                    value={targetDurationMinutes}
+                    onChange={(e) => setTargetDurationMinutes(Number(e.target.value))}
+                    className="w-20 accent-primary"
+                  />
+                  <span className="min-w-[36px] text-foreground font-semibold">{targetDurationMinutes} min</span>
+                </div>
+              )}
+
+              {/* Pacing selector — hidden for long-form (duration controls pacing) */}
+              {platform !== "reel_extend" && (
+                <Select value={pacing} onValueChange={(v) => setPacing(v ?? "")}>
+                  <SelectTrigger
+                    size="sm"
+                    className="h-auto gap-1.5 rounded-[8px] border-border bg-transparent px-3 py-1.5 text-xs font-medium text-text-subtle"
+                  >
+                    <Gauge className="size-3.5 text-muted-foreground" />
+                    <SelectValue placeholder="Auto Pace" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Auto Pace</SelectItem>
+                    <SelectItem value="fast">Fast</SelectItem>
+                    <SelectItem value="moderate">Moderate</SelectItem>
+                    <SelectItem value="cinematic">Cinematic</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
 
               {/* Advanced toggle */}
               <button
@@ -252,7 +293,9 @@ export function HomePage() {
                   disabled={!hasTopic || loading}
                   className="gap-2 rounded-[10px] px-6 py-2.5 text-sm font-semibold"
                 >
-                  {loading ? "Generating..." : "Generate"}
+                  {loading
+                    ? platform === "reel_extend" ? "Generating video..." : "Generating..."
+                    : platform === "reel_extend" ? `Generate ${targetDurationMinutes}min Video` : "Generate"}
                   {!loading && <ArrowRight className="size-4" />}
                 </Button>
               </div>
@@ -268,7 +311,7 @@ export function HomePage() {
                     </label>
                     <Select value={llmProvider} onValueChange={(v) => v && setLlmProvider(v)}>
                       <SelectTrigger className="h-9 w-full rounded-lg">
-                        <SelectValue>{displayName(llmProvider)}</SelectValue>
+                        <SelectValue>{providerLabel(providers?.llm, llmProvider)}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {providers?.llm.map((p) => (
@@ -298,13 +341,33 @@ export function HomePage() {
                     </Select>
                   </div>
 
+                  {ttsProvider === "inworld" && providers?.inworldVoices && (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                        Inworld Voice
+                      </label>
+                      <Select value={inworldVoice} onValueChange={(v) => v && setInworldVoice(v)}>
+                        <SelectTrigger className="h-9 w-full rounded-lg">
+                          <SelectValue placeholder="Select voice" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {providers.inworldVoices.map((v) => (
+                            <SelectItem key={v.id} value={v.id}>
+                              {v.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                       Image Provider
                     </label>
                     <Select value={imageProvider} onValueChange={(v) => v && setImageProvider(v)}>
                       <SelectTrigger className="h-9 w-full rounded-lg">
-                        <SelectValue>{displayName(imageProvider)}</SelectValue>
+                        <SelectValue>{providerLabel(providers?.image, imageProvider)}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {providers?.image.map((p) => (
@@ -330,6 +393,27 @@ export function HomePage() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {allowedVisualTypes.includes("ai_video") && (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                        Video Provider
+                      </label>
+                      <Select value={videoProvider} onValueChange={(v) => setVideoProvider(v ?? "")}>
+                        <SelectTrigger className="h-9 w-full rounded-lg">
+                          <SelectValue placeholder="Auto" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Auto</SelectItem>
+                          {providers?.video?.map((p) => (
+                            <SelectItem key={p.key} value={p.key}>
+                              {p.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   {/* Conditional LLM config fields */}
                   {(llmProvider === "openrouter" || llmProvider === "openai-compatible") && (
@@ -392,9 +476,9 @@ export function HomePage() {
                         <SelectItem value="">Auto Style</SelectItem>
                         {archetypes.map((a) => (
                           <SelectItem key={a.name} value={a.name}>
-                            {a.name
+                            {a.label ?? a.name
                               .split(/[-_]/)
-                              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                              .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
                               .join(" ")}
                           </SelectItem>
                         ))}
@@ -403,14 +487,67 @@ export function HomePage() {
                   </div>
                 </div>
 
-                {/* Dry Run */}
-                <div className="mt-4 flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted-foreground">Dry Run</span>
-                  <div className="flex items-center gap-2">
-                    <Switch checked={dryRun} onCheckedChange={setDryRun} size="sm" />
-                    <span className="text-xs text-muted-foreground">
-                      {dryRun ? "On" : "Off"}
-                    </span>
+                {/* Visual Types */}
+                <div className="mt-4">
+                  <label className="mb-2 block text-xs font-medium text-muted-foreground">
+                    Visual Types
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: "ai_image", label: "AI Image" },
+                      { key: "stock_image", label: "Stock Image" },
+                      { key: "stock_video", label: "Stock Video" },
+                      { key: "text_card", label: "Text Card" },
+                      { key: "ai_video", label: "AI Video ($$$)" },
+                    ].map(({ key, label }) => {
+                      const checked = allowedVisualTypes.includes(key);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => {
+                            setAllowedVisualTypes((prev) =>
+                              checked ? prev.filter((t) => t !== key) : [...prev, key],
+                            );
+                            // Clear video provider selection when ai_video is deselected
+                            if (key === "ai_video" && checked) setVideoProvider("");
+                          }}
+                          className={cn(
+                            "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                            checked
+                              ? "border-primary/40 bg-primary/10 text-primary"
+                              : "border-border bg-transparent text-text-subtle hover:text-foreground",
+                          )}
+                        >
+                          {checked ? "✓ " : ""}{label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    AI Video is expensive (~$0.30/scene) and slow. Uncheck to avoid it.
+                  </p>
+                </div>
+
+                {/* Subtitles & Dry Run toggles */}
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">Subtitles</span>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={!noSubtitles} onCheckedChange={(v) => setNoSubtitles(!v)} size="sm" />
+                      <span className="text-xs text-muted-foreground">
+                        {noSubtitles ? "Off" : "On"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">Dry Run</span>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={dryRun} onCheckedChange={setDryRun} size="sm" />
+                      <span className="text-xs text-muted-foreground">
+                        {dryRun ? "On" : "Off"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getArchetype, listArchetypes } from "../config/archetype-registry.js";
 import type { ScenePacing } from "../schema/archetype.js";
 import { loadPlaybook } from "../config/playbook.js";
-import { DirectorScore, Motion, MusicMood, TransitionType, VisualType } from "../schema/director-score.js";
+import { DirectorScore, DirectorScoreBase, Motion, MusicMood, TransitionType, VisualType } from "../schema/director-score.js";
 import type { LLMProvider, LLMUsage } from "../schema/providers.js";
 import type { ResearchResult } from "./research.js";
 import type { CritiqueResult } from "./critic.js";
@@ -18,14 +18,14 @@ const SYSTEM_PROMPT_PATH = path.join(process.cwd(), "prompts", "creative-directo
 const DirectorScoreRaw = z.object({
   emotional_arc: z.string(),
   archetype: z.enum(listArchetypes() as [string, ...string[]]),
-  music_mood: MusicMood,
+  music_mood: MusicMood.catch("epic_cinematic"),
   scenes: z.array(
     z.object({
       visual_type: VisualType,
       visual_prompt: z.string(),
-      motion: Motion,
+      motion: Motion.catch("static"),
       script_line: z.string(),
-      transition: TransitionType.nullable(),
+      transition: TransitionType.nullable().catch(null),
     }),
   ),
 });
@@ -36,13 +36,50 @@ export interface DirectorScoreOutput {
 }
 
 /** Load the creative director system prompt with playbook injection */
-function loadDirectorSystemPrompt(): string {
+function loadDirectorSystemPrompt(targetDurationMinutes?: number): string {
   let systemPrompt = buildDefaultPrompt();
 
   try {
     systemPrompt = fs.readFileSync(SYSTEM_PROMPT_PATH, "utf-8");
   } catch {
     // Use default
+  }
+
+  // For long-form horizontal video, override the short-form constraints in the system prompt
+  if (targetDurationMinutes && targetDurationMinutes >= 2) {
+    const wordsTarget = Math.round(targetDurationMinutes * 150);
+    systemPrompt = systemPrompt
+      .replace(
+        /You are a Creative Director for short-form vertical video content[^.]*\./,
+        `You are a Creative Director for long-form vertical video content (${targetDurationMinutes}-minute videos, 1080x1920 portrait).`,
+      )
+      .replace(
+        /Keep total script under \d+ words[^.]*\./g,
+        `Total script target: approximately ${wordsTarget} words (${targetDurationMinutes} minutes at ~150 words/minute).`,
+      )
+      // Remove the short-form CTA enforcement — long-form ends with a proper conclusion + CTA
+      .replace(
+        /\*\*CTA scene \(FINAL scene, REQUIRED\)\*\*:.*?(?=\n-|\n##|\n\n)/gs,
+        `**CTA scene (FINAL scene, REQUIRED)**: 20-40 words. Summarize the key takeaway, then add a call-to-action (like/subscribe/comment prompt). Typically a text_card followed by a closing visual.`,
+      );
+
+    const MAX_SCENES = 60;
+    const sceneCount = Math.min(Math.round(wordsTarget / 12), MAX_SCENES);
+    const wordsPerScene = Math.round(wordsTarget / sceneCount);
+
+    systemPrompt += `
+
+## LONG-FORM VIDEO OVERRIDE
+
+This is a LONG-FORM Reel Extend video, NOT a Short. Apply these rules instead of the short-form pacing table:
+
+- **Scene count**: exactly ${sceneCount} scenes total
+- **Words per scene**: ${wordsPerScene - 2}-${wordsPerScene + 2} words (~5 seconds per scene)
+- **Total word budget**: ~${wordsTarget} words
+- **Structure**: Opening hook (2-3 scenes) → Multiple topic chapters (5-8 scenes each) → Conclusion + CTA (2-3 scenes)
+- **Chapter breaks**: Every 5-8 scenes, use a text_card as a chapter title card
+- **DO NOT** apply short-form pacing tiers (fast/moderate/cinematic)
+- **DO NOT** exceed ${sceneCount} scenes`;
   }
 
   // Inject full playbook for content strategy guidance
@@ -56,33 +93,51 @@ function loadDirectorSystemPrompt(): string {
   return systemPrompt;
 }
 
+const ALL_VISUAL_TYPES = ["ai_image", "stock_image", "stock_video", "text_card", "ai_video"] as const;
+
+function buildVisualTypesInstruction(allowedVisualTypes?: string[], videoEnabled?: boolean): { visualTypes: string; videoGuidance: string } {
+  // Derive allowed set: explicit list wins, else fall back to videoEnabled flag
+  const allowed = allowedVisualTypes && allowedVisualTypes.length > 0
+    ? allowedVisualTypes
+    : videoEnabled
+      ? ["ai_image", "stock_image", "stock_video", "text_card", "ai_video"]
+      : ["ai_image", "stock_image", "stock_video", "text_card"];
+
+  const hasVideo = allowed.includes("ai_video");
+  const visualTypes = `ONLY these visual types: ${allowed.join(", ")}. Do NOT use any other type.`;
+  const videoGuidance = hasVideo
+    ? "\nai_video: Use for 1-3 scenes where MOTION is the story. ai_video costs ~$0.30/scene vs ~$0.04 for ai_image. Use selectively. Set motion to 'static' for ai_video scenes."
+    : "";
+  return { visualTypes, videoGuidance };
+}
+
 export async function generateDirectorScore(
   llm: LLMProvider,
   topic: string,
   researchContext: ResearchResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; direction?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number },
 ): Promise<DirectorScoreOutput> {
-  const systemPrompt = loadDirectorSystemPrompt();
+  const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes);
 
   const archetypes = listArchetypes();
   const archetypeInstruction = options?.archetype
     ? `Use the "${options.archetype}" archetype.`
     : `Choose from: ${archetypes.join(", ")}`;
 
-  const videoEnabled = options?.videoEnabled ?? false;
-  const visualTypes = videoEnabled
-    ? "all 5 visual types (ai_image, ai_video, stock_image, stock_video, text_card)"
-    : "all 4 visual types (ai_image, stock_image, stock_video, text_card)";
-  const videoGuidance = videoEnabled
-    ? "\nai_video: Use for 1-3 scenes where MOTION is the story (explosions, flowing water, launches, transformations). ai_video costs ~$0.30/scene vs ~$0.04 for ai_image. Use selectively. Set motion to 'static' for ai_video scenes (the video model handles motion)."
-    : "";
+  const { visualTypes, videoGuidance } = buildVisualTypesInstruction(options?.allowedVisualTypes, options?.videoEnabled);
 
   // Resolve pacing tier: explicit --pacing override > archetype default > lookup table
-  const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing);
+  const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing, options?.targetDurationMinutes);
 
   const directionSection = options?.direction?.trim()
     ? `\n## Creative Direction (from the producer)\n\n${options.direction}\n\nHonor these creative constraints while exercising your judgment on anything not specified.\n`
     : "";
+
+  const isLongForm = (options?.targetDurationMinutes ?? 0) >= 2;
+  const wordsTarget = isLongForm ? Math.round((options!.targetDurationMinutes!) * 150) : null;
+  const MAX_SCENES = 60;
+  const sceneTarget = isLongForm ? Math.min(Math.round(wordsTarget! / 12), MAX_SCENES) : null;
+  const wordsPerSceneTarget = isLongForm ? Math.round(wordsTarget! / sceneTarget!) : null;
 
   const userMessage = `Topic: ${topic}
 
@@ -101,7 +156,10 @@ Use ${visualTypes}.${videoGuidance}
 ${directionSection}CRITICAL RULE: Never use the same visual_type more than 2 times in a row. With more scenes, plan your visual_type sequence BEFORE writing scenes to ensure variety.
 Every scene MUST have a script_line (the voiceover text).
 The first scene should be a strong hook.
-If over budget, cut a scene rather than cramming.`;
+${isLongForm
+  ? `MANDATORY: This is a ${options!.targetDurationMinutes!}-minute video. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total word count MUST be ~${wordsTarget} words. Break topic into chapters separated by text_card chapter titles. Stop at exactly ${sceneTarget} scenes.`
+  : "If over budget, cut a scene rather than cramming."
+}`;
 
   const maxRetries = 3;
   let lastError: Error | null = null;
@@ -121,8 +179,15 @@ If over budget, cut a scene rather than cramming.`;
       totalUsage.inputTokens += result.usage.inputTokens;
       totalUsage.outputTokens += result.usage.outputTokens;
 
-      // Validate with full DirectorScore (includes refinements like golden rule)
-      const validated = DirectorScore.parse(result.data);
+      // Auto-repair golden rule violations before strict validation.
+      // When only one visual type is allowed, repair is skipped and the
+      // golden rule refinement is bypassed (it can't be satisfied).
+      const allowedTypes = options?.allowedVisualTypes ?? [];
+      repairGoldenRule(result.data.scenes, allowedTypes);
+
+      const validated = isSingleVisualTypeMode(allowedTypes)
+        ? (DirectorScoreBase.parse(result.data) as DirectorScore)
+        : DirectorScore.parse(result.data);
       return { data: validated, usage: totalUsage };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
@@ -152,17 +217,32 @@ Keep total script under 140 words — verbose scripts create rushed, unwatchable
 // --- Pacing tier configuration ---
 
 const PACING_CONFIG: Record<ScenePacing, { min: number; max: number; wordsPerScene: string; totalWords: string }> = {
-  fast: { min: 8, max: 12, wordsPerScene: "8-12", totalWords: "90-120" },
-  moderate: { min: 7, max: 10, wordsPerScene: "10-16", totalWords: "100-140" },
-  cinematic: { min: 5, max: 8, wordsPerScene: "15-22", totalWords: "90-130" },
+  fast: { min: 16, max: 22, wordsPerScene: "10-14", totalWords: "210-260" },
+  moderate: { min: 14, max: 18, wordsPerScene: "12-16", totalWords: "210-260" },
+  cinematic: { min: 10, max: 14, wordsPerScene: "16-22", totalWords: "210-265" },
 };
 
 const PACING_TIER_TABLE = `After choosing your archetype, use the matching pacing tier from this table:
-- fast (8-12 scenes, 8-12 words/scene, 90-120 words total): infographic, bold_illustration, comic_book
-- moderate (7-10 scenes, 10-16 words/scene, 100-140 words total): warm_editorial, editorial_caricature, anime_illustration, vintage_snapshot, surreal_dreamscape, gothic_fantasy
-- cinematic (5-8 scenes, 15-22 words/scene, 90-130 words total): cinematic_documentary, moody_cinematic, studio_realism, warm_narrative, pastoral_watercolor`;
+- fast (16-22 scenes, 10-14 words/scene, 210-260 words total): infographic, bold_illustration, comic_book
+- moderate (14-18 scenes, 12-16 words/scene, 210-260 words total): warm_editorial, editorial_caricature, anime_illustration, vintage_snapshot, surreal_dreamscape, gothic_fantasy, style_override
+- cinematic (10-14 scenes, 16-22 words/scene, 210-265 words total): cinematic_documentary, moody_cinematic, studio_realism, warm_narrative, pastoral_watercolor`;
 
-export function buildPacingInstruction(archetype?: string, pacingOverride?: string): string {
+export function buildPacingInstruction(archetype?: string, pacingOverride?: string, targetDurationMinutes?: number): string {
+  // Path 0: Long-form YouTube horizontal — calculate scenes from target duration
+  if (targetDurationMinutes && targetDurationMinutes >= 2) {
+    const wordsTarget = Math.round(targetDurationMinutes * 150);
+    const MAX_SCENES = 60;
+    const sceneCount = Math.min(Math.round(wordsTarget / 12), MAX_SCENES);
+    const wordsPerScene = Math.round(wordsTarget / sceneCount);
+    console.log(`[creative-director] Reel Extend pacing: ~${sceneCount} scenes for ${targetDurationMinutes} min (~${wordsTarget} words, ~${wordsPerScene} words/scene)`);
+    return `This is a Reel Extend vertical video targeting ${targetDurationMinutes} minutes.
+Create a DirectorScore with exactly ${sceneCount} scenes.
+Per-scene word budget: ${wordsPerScene - 2}-${wordsPerScene + 2} words (~5 seconds per scene at 150 words/minute).
+Total word budget: approximately ${wordsTarget} words at ~150 words/minute.
+Structure: engaging intro (2-3 scenes), multiple topic chapters of 5-8 scenes each, strong conclusion with CTA (2-3 scenes).
+Each chapter must have a clear thematic focus. Vary visual types throughout.`;
+  }
+
   // Path 1: Explicit --pacing override always wins
   if (pacingOverride && pacingOverride in PACING_CONFIG) {
     const tier = pacingOverride as ScenePacing;
@@ -193,6 +273,45 @@ Per-scene word budget: ${cfg.wordsPerScene} words. Total word budget: ${cfg.tota
 
 export { PACING_CONFIG };
 
+// ── Golden rule auto-repair ───────────────────────────────────────────────────
+
+// Returns true when the user has chosen a single "real" visual type (text_card
+// is structural and doesn't count). In this case the golden rule cannot be
+// satisfied and must be skipped entirely.
+function isSingleVisualTypeMode(allowedTypes: string[]): boolean {
+  const realTypes = allowedTypes.filter((t) => t !== "text_card");
+  return realTypes.length === 1;
+}
+
+// When VIVI (or any LLM) violates the golden rule (3+ consecutive same visual_type),
+// auto-fix by rotating the offending scene to a different allowed type.
+// Skipped entirely when only one visual type is allowed.
+function repairGoldenRule(
+  scenes: Array<{ visual_type: string; [key: string]: unknown }>,
+  allowedTypes: string[],
+): void {
+  if (isSingleVisualTypeMode(allowedTypes)) return;
+
+  const fallbackOrder = ["ai_image", "stock_image", "stock_video", "text_card", "ai_video"];
+  const pool = allowedTypes.length > 0 ? allowedTypes : fallbackOrder;
+
+  for (let i = 2; i < scenes.length; i++) {
+    const prev2 = scenes[i - 2]?.visual_type;
+    const prev1 = scenes[i - 1]?.visual_type;
+    const curr = scenes[i]?.visual_type;
+    if (prev2 === prev1 && prev1 === curr) {
+      // Pick a type that differs from prev1
+      const alt = pool.find((t) => t !== prev1) ?? pool[0];
+      if (alt) {
+        console.warn(
+          `[creative-director] Golden rule repair: scene ${i} changed from "${curr}" to "${alt}"`,
+        );
+        scenes[i]!.visual_type = alt;
+      }
+    }
+  }
+}
+
 // ── Revision ─────────────────────────────────────────────────────────────────
 
 export async function reviseDirectorScore(
@@ -201,20 +320,17 @@ export async function reviseDirectorScore(
   researchContext: ResearchResult,
   originalScore: DirectorScore,
   critique: CritiqueResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; direction?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number },
 ): Promise<DirectorScoreOutput> {
-  const systemPrompt = loadDirectorSystemPrompt();
+  const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes);
 
   // Build revision instructions from critique, guarding nullable revision_instructions
   const revisionGuidance = critique.revision_instructions
     ?? `Address these weaknesses: ${critique.weaknesses.join("; ")}`;
 
-  const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing);
+  const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing, options?.targetDurationMinutes);
 
-  const videoEnabled = options?.videoEnabled ?? false;
-  const visualTypes = videoEnabled
-    ? "all 5 visual types (ai_image, ai_video, stock_image, stock_video, text_card)"
-    : "all 4 visual types (ai_image, stock_image, stock_video, text_card)";
+  const { visualTypes } = buildVisualTypesInstruction(options?.allowedVisualTypes, options?.videoEnabled);
 
   const directionSection = options?.direction?.trim()
     ? `\n## Creative Direction (from the producer)\n\n${options.direction}\n\nHonor these creative constraints while exercising your judgment on anything not specified.\n`
@@ -268,7 +384,12 @@ Keep the same archetype. Maintain the GOLDEN RULE: never use the same visual_typ
       totalUsage.inputTokens += result.usage.inputTokens;
       totalUsage.outputTokens += result.usage.outputTokens;
 
-      const validated = DirectorScore.parse(result.data);
+      const allowedTypesRev = options?.allowedVisualTypes ?? [];
+      repairGoldenRule(result.data.scenes, allowedTypesRev);
+
+      const validated = isSingleVisualTypeMode(allowedTypesRev)
+        ? (DirectorScoreBase.parse(result.data) as DirectorScore)
+        : DirectorScore.parse(result.data);
 
       // Prevent archetype drift: the LLM may change the archetype during revision
       // despite prompt instructions. Force it back to the original.

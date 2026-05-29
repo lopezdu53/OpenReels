@@ -1,10 +1,11 @@
 const API_BASE = "/api/v1";
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const hasBody = init?.body != null;
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
     },
   });
@@ -33,10 +34,13 @@ export interface JobSummary {
   researchData?: ResearchData;
   score?: DirectorScore;
   criticReview?: CriticReview;
+  tiktokCaption?: { title: string; hashtags: string[]; caption: string };
+  platform?: string;
 }
 
 export interface Archetype {
   name: string;
+  label?: string;
   captionStyle: string;
   artStyle: string;
   mood: string;
@@ -52,11 +56,20 @@ export interface Platform {
   height: number;
   fps: number;
   maxDurationSeconds: number;
+  minDurationSeconds?: number;
+  orientation?: "portrait" | "landscape";
+  longForm?: boolean;
 }
 
 export interface ProviderOption {
   key: string;
   label: string;
+}
+
+export interface InworldVoice {
+  id: string;
+  label: string;
+  lang: string;
 }
 
 export interface ProviderOptions {
@@ -65,6 +78,7 @@ export interface ProviderOptions {
   image: ProviderOption[];
   video: ProviderOption[];
   search?: ProviderOption[];
+  inworldVoices?: InworldVoice[];
 }
 
 export interface StatsResponse {
@@ -139,13 +153,17 @@ export interface CreateJobRequest {
   pacing?: string;
   platform?: string;
   dryRun?: boolean;
+  noSubtitles?: boolean;
   direction?: string;
+  targetDurationMinutes?: number;
   score?: Record<string, unknown>;
+  allowedVisualTypes?: string[];
   providers?: {
     llm?: string;
     tts?: string;
     image?: string;
     music?: string;
+    inworldVoice?: string;
   };
 }
 

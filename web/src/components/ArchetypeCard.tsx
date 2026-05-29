@@ -75,7 +75,7 @@ export function ArchetypeCard({ archetype, selected, onClick }: ArchetypeCardPro
 
           {/* Name */}
           <span className="text-center text-xs font-semibold text-foreground leading-tight">
-            {formatArchetypeName(archetype.name)}
+            {archetype.label ?? formatArchetypeName(archetype.name)}
           </span>
 
           {/* Mood */}

@@ -55,6 +55,7 @@ import {
   shouldAutoConfirm,
   shouldSkipPreview,
   splitWordsIntoScenes,
+  getVideoDuration,
   confirm,
 } from "./utils.js";
 
@@ -346,6 +347,7 @@ function buildPipelineWorkflow(
     words?: WordTimestamp[];
     voiceoverPath?: string;
     sceneWords?: WordTimestamp[][];
+    voiceoverDurationSeconds?: number;
   } = {};
 
   const visualsResult: {
@@ -426,7 +428,11 @@ function buildPipelineWorkflow(
       cb.onStageStart?.("director");
       const start = Date.now();
       const videoEnabled = !opts.noVideo && (opts.videoProviders?.length ?? 0) > 0;
-      const directorOpts = { archetype: opts.archetype, pacing: opts.pacing, videoEnabled, direction: opts.direction };
+      // If allowedVisualTypes is set, use it directly; otherwise derive from videoEnabled
+      const allowedVisualTypes = opts.allowedVisualTypes && opts.allowedVisualTypes.length > 0
+        ? opts.allowedVisualTypes.filter((t) => t !== "ai_video" || videoEnabled)
+        : undefined;
+      const directorOpts = { archetype: opts.archetype, pacing: opts.pacing, videoEnabled, allowedVisualTypes, direction: opts.direction, targetDurationMinutes: opts.targetDurationMinutes };
 
       // ── Replay mode: use provided score, skip generation + revision ──
       if (opts.replayScore) {
@@ -543,6 +549,19 @@ function buildPipelineWorkflow(
       // Use the highest-scoring revision
       score = bestScore;
 
+      // When using VIDU, limit ai_video to the first scene only (credits are expensive)
+      if (opts.videoProvider?.startsWith("vidu")) {
+        let firstVideoSeen = false;
+        score = {
+          ...score,
+          scenes: score.scenes.map((s) => {
+            if (s.visual_type !== "ai_video") return s;
+            if (!firstVideoSeen) { firstVideoSeen = true; return s; }
+            return { ...s, visual_type: "ai_image" as const };
+          }),
+        };
+      }
+
       // ── Store final score on shared closure state ──
       directorResult.score = score;
       directorResult.config = getArchetype(score.archetype);
@@ -616,6 +635,8 @@ function buildPipelineWorkflow(
       ttsResult.words = result.words;
       ttsResult.voiceoverPath = voiceoverPath;
       ttsResult.sceneWords = splitWordsIntoScenes(score, result.words);
+      // Get actual audio duration so Remotion doesn't clip trailing silence
+      ttsResult.voiceoverDurationSeconds = getVideoDuration(voiceoverPath) ?? undefined;
 
       cb.onStageComplete?.("tts", `${result.words.length} words`, dur);
       log.stages.push({ name: "tts", duration: dur, status: "done" });
@@ -798,8 +819,10 @@ function buildPipelineWorkflow(
           sceneWords: ttsResult.sceneWords!,
           allWords: ttsResult.words!,
           sceneSourceDurations: visualsResult.sceneSourceDurations,
+          voiceoverDurationSeconds: ttsResult.voiceoverDurationSeconds,
         },
         platformConfig.fps,
+        opts.noSubtitles,
       );
 
       const totalFrames = getTotalDurationInFrames(compositionProps, platformConfig.fps);
