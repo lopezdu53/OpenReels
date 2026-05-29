@@ -39,6 +39,7 @@ import { PixabayStock } from "./stock/pixabay.js";
 import { AlignedTTSProvider } from "./tts/aligned-tts-provider.js";
 import { ElevenLabsTTS } from "./tts/elevenlabs.js";
 import { GeminiTTS } from "./tts/gemini.js";
+import { GrokTTS } from "./tts/grok.js";
 import { InworldTTS } from "./tts/inworld.js";
 import { KokoroTTS } from "./tts/kokoro.js";
 import { OpenAITTS } from "./tts/openai.js";
@@ -167,6 +168,9 @@ export function createProviders(config: ProviderConfig): Providers {
       break;
     case "openai-tts":
       tts = new AlignedTTSProvider(new OpenAITTS(undefined, k["OPENAI_API_KEY"]), aligner);
+      break;
+    case "grok-tts":
+      tts = new AlignedTTSProvider(new GrokTTS(undefined, undefined, k["XAI_API_KEY"] ?? process.env["XAI_API_KEY"]), aligner);
       break;
     case "inworld":
       tts = new InworldTTS(undefined, undefined, k["INWORLD_TTS_API_KEY"]);

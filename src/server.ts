@@ -170,6 +170,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "kokoro", label: "Kokoro (Local)" },
     { key: "gemini-tts", label: "Gemini TTS" },
     { key: "openai-tts", label: "OpenAI TTS" },
+    { key: "grok-tts", label: "Grok TTS" },
   ],
   image: [
     { key: "gemini", label: "Google Gemini" },
