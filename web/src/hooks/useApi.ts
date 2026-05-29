@@ -66,12 +66,19 @@ export interface ProviderOption {
   label: string;
 }
 
+export interface InworldVoice {
+  id: string;
+  label: string;
+  lang: string;
+}
+
 export interface ProviderOptions {
   llm: ProviderOption[];
   tts: ProviderOption[];
   image: ProviderOption[];
   video: ProviderOption[];
   search?: ProviderOption[];
+  inworldVoices?: InworldVoice[];
 }
 
 export interface StatsResponse {
@@ -156,6 +163,7 @@ export interface CreateJobRequest {
     tts?: string;
     image?: string;
     music?: string;
+    inworldVoice?: string;
   };
 }
 

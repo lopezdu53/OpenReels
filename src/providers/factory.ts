@@ -60,6 +60,7 @@ export interface ProviderConfig {
   music?: MusicProviderKey;
   videoModel?: string;
   kokoroVoice?: string;
+  inworldVoice?: string;
   keys?: Record<string, string>;
   llmModel?: string;
   llmBaseUrl?: string;
@@ -173,7 +174,7 @@ export function createProviders(config: ProviderConfig): Providers {
       tts = new AlignedTTSProvider(new GrokTTS(undefined, undefined, k["XAI_API_KEY"] ?? process.env["XAI_API_KEY"]), aligner);
       break;
     case "inworld":
-      tts = new InworldTTS(undefined, undefined, k["INWORLD_TTS_API_KEY"]);
+      tts = new InworldTTS(config.inworldVoice ?? "Dennis", undefined, k["INWORLD_TTS_API_KEY"]);
       break;
     default:
       tts = new ElevenLabsTTS(undefined, k["ELEVENLABS_API_KEY"]);

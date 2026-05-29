@@ -3,6 +3,31 @@ import type { TTSProvider, TTSResult, WordTimestamp } from "../../schema/provide
 const INWORLD_BASE = "https://api.inworld.ai/tts/v1";
 const MAX_INPUT_CHARS = 2000;
 
+export const INWORLD_VOICES = [
+  // English (default)
+  { id: "Dennis",    lang: "en-US", label: "Dennis (EN)"        },
+  // Spanish Latin America (es-US)
+  { id: "Pedro",     lang: "es-US", label: "Pedro (ES-US)"      },
+  { id: "Sofia",     lang: "es-US", label: "Sofia (ES-US)"      },
+  { id: "Miguel",    lang: "es-US", label: "Miguel (ES-US)"     },
+  { id: "Valentina", lang: "es-US", label: "Valentina (ES-US)"  },
+  { id: "Carlos",    lang: "es-US", label: "Carlos (ES-US)"     },
+  { id: "Isabella",  lang: "es-US", label: "Isabella (ES-US)"   },
+  // Spanish Mexico (es-MX)
+  { id: "Diego",     lang: "es-MX", label: "Diego (ES-MX)"      },
+  { id: "Camila",    lang: "es-MX", label: "Camila (ES-MX)"     },
+  { id: "Mateo",     lang: "es-MX", label: "Mateo (ES-MX)"      },
+  { id: "Lucia",     lang: "es-MX", label: "Lucia (ES-MX)"      },
+  { id: "Alejandro", lang: "es-MX", label: "Alejandro (ES-MX)"  },
+  { id: "Gabriela",  lang: "es-MX", label: "Gabriela (ES-MX)"   },
+] as const;
+
+export type InworldVoiceId = typeof INWORLD_VOICES[number]["id"];
+
+function getLangForVoice(voiceId: string): string {
+  return INWORLD_VOICES.find((v) => v.id === voiceId)?.lang ?? "en-US";
+}
+
 export class InworldTTS implements TTSProvider {
   private apiKey: string;
   private voiceId: string;
@@ -60,6 +85,7 @@ export class InworldTTS implements TTSProvider {
         text,
         voiceId: this.voiceId,
         modelId: this.modelId,
+        language: getLangForVoice(this.voiceId),
         audioConfig: {
           audioEncoding: "MP3",
         },

@@ -9,6 +9,7 @@ import { PACING_CONFIG } from "./agents/creative-director.js";
 import { getArchetype, listArchetypes } from "./config/archetype-registry.js";
 import { PLATFORMS } from "./config/platforms.js";
 import { DirectorScore } from "./schema/director-score.js";
+import { INWORLD_VOICES } from "./providers/tts/inworld.js";
 import type { SearchProviderKey } from "./schema/providers.js";
 
 const REDIS_URL = process.env["REDIS_URL"] ?? "redis://localhost:6379";
@@ -172,6 +173,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "openai-tts", label: "OpenAI TTS" },
     { key: "grok-tts", label: "Grok TTS" },
   ],
+  inworldVoices: INWORLD_VOICES.map((v) => ({ id: v.id, label: v.label, lang: v.lang })),
   image: [
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI (GPT Image)" },
@@ -213,6 +215,7 @@ interface CreateJobBody {
     llmModel?: string;
     llmBaseUrl?: string;
     searchProvider?: SearchProviderKey;
+    inworldVoice?: string;
   };
   keys?: Record<string, string>;
 }
@@ -305,6 +308,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       llmModel: providers?.llmModel,
       llmBaseUrl: providers?.llmBaseUrl,
       searchProvider: providers?.searchProvider,
+      inworldVoice: providers?.inworldVoice,
     },
     keys: keys ?? {},
     jobsDir: JOBS_DIR,

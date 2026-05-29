@@ -97,6 +97,7 @@ export function HomePage() {
   const [llmBaseUrl, setLlmBaseUrl] = useState("");
   const [searchProvider, setSearchProvider] = useState("");
   const [ttsProvider, setTtsProvider] = useState("elevenlabs");
+  const [inworldVoice, setInworldVoice] = useState("Pedro");
   const [imageProvider, setImageProvider] = useState("gemini");
   const [musicProvider, setMusicProvider] = useState("bundled");
   const [videoProvider, setVideoProvider] = useState("");
@@ -167,6 +168,7 @@ export function HomePage() {
           ...(llmModel ? { llmModel } : {}),
           ...(llmBaseUrl ? { llmBaseUrl } : {}),
           ...(searchProvider ? { searchProvider } : {}),
+          ...(ttsProvider === "inworld" ? { inworldVoice } : {}),
         },
       });
       navigate(`/jobs/${result.id}`);
@@ -338,6 +340,26 @@ export function HomePage() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {ttsProvider === "inworld" && providers?.inworldVoices && (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                        Inworld Voice
+                      </label>
+                      <Select value={inworldVoice} onValueChange={(v) => v && setInworldVoice(v)}>
+                        <SelectTrigger className="h-9 w-full rounded-lg">
+                          <SelectValue placeholder="Select voice" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {providers.inworldVoices.map((v) => (
+                            <SelectItem key={v.id} value={v.id}>
+                              {v.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
