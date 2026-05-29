@@ -68,6 +68,7 @@ app.get("/api/v1/health", async () => {
       VIVI_VIDEO_API_KEY: !!process.env["VIVI_VIDEO_API_KEY"],
       ALICLOUD_API_KEY: !!process.env["ALICLOUD_API_KEY"],
       VIDU_API_KEY: !!process.env["VIDU_API_KEY"],
+      XAI_API_KEY: !!process.env["XAI_API_KEY"],
     },
   };
 });
@@ -178,18 +179,11 @@ app.get("/api/v1/providers", async () => ({
   ],
   video: [
     { key: "gemini", label: "Google Veo" },
+    { key: "grok", label: "Grok Imagine Video" },
     { key: "vivi", label: "VIVI (Grok Video 3)" },
     { key: "fal", label: "fal.ai (Kling 2.6 Pro)" },
-    { key: "vidu", label: "VIDU Q2 Turbo (~27cr/5s)" },
-    { key: "vidu-q3-pro", label: "VIDU Q3 Pro" },
-    { key: "vidu-q3-fast", label: "VIDU Q3 Fast" },
-    { key: "vidu-q3-turbo", label: "VIDU Q3 Turbo" },
-    { key: "vidu-q2-pro", label: "VIDU Q2 Pro" },
     { key: "vidu-q2-fast", label: "VIDU Q2 Fast (~27cr/5s)" },
-    { key: "vidu-q2-turbo", label: "VIDU Q2 Turbo (~27cr/5s)" },
-    { key: "vidu-q1", label: "VIDU Q1 (~80cr/5s)" },
-    { key: "vidu-q1-classic", label: "VIDU Q1 Classic (~80cr/5s)" },
-    { key: "vidu-2.0", label: "VIDU 2.0" },
+    { key: "vidu-q3-fast", label: "VIDU Q3 Fast" },
   ],
 }));
 
