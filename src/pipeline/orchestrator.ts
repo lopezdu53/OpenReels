@@ -147,6 +147,7 @@ async function generateAIImage(
   totalScenes: number,
   archetype: ArchetypeConfig,
   assetsDir: string,
+  referenceImage?: Buffer,
 ): Promise<VisualAssetResult> {
   let prompt = visualPrompt;
   let usage: LLMUsage | null = null;
@@ -166,7 +167,7 @@ async function generateAIImage(
   }
 
   try {
-    const imageBuffer = await opts.imageGen.generate(prompt);
+    const imageBuffer = await opts.imageGen.generate(prompt, undefined, referenceImage);
     const filePath = path.join(assetsDir, `scene-${sceneIndex}-ai.png`);
     fs.writeFileSync(filePath, imageBuffer);
     return { path: filePath, usage, durationSeconds: null };
@@ -198,7 +199,7 @@ async function generateAIImage(
       throw err;
     }
 
-    const imageBuffer = await opts.imageGen.generate(prompt);
+    const imageBuffer = await opts.imageGen.generate(prompt, undefined, referenceImage);
     const filePath = path.join(assetsDir, `scene-${sceneIndex}-ai.png`);
     fs.writeFileSync(filePath, imageBuffer);
     return { path: filePath, usage, durationSeconds: null };
@@ -226,10 +227,11 @@ async function resolveVisualAsset(
   archetype: ArchetypeConfig,
   cb: PipelineCallbacks,
   sceneDurationSeconds?: number,
+  referenceImage?: Buffer,
 ): Promise<VisualAssetResult> {
   switch (scene.visual_type) {
     case "ai_image":
-      return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir);
+      return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage);
 
     case "stock_image":
     case "stock_video": {
@@ -263,11 +265,11 @@ async function resolveVisualAsset(
     case "ai_video": {
       // If no video providers available, fall back to ai_image silently
       if (!opts.videoProviders?.length) {
-        return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir);
+        return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage);
       }
       // Phase 1: Generate AI image (first frame)
       const imageStart = Date.now();
-      const imgResult = await generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir);
+      const imgResult = await generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage);
       const imageGenTimeMs = Date.now() - imageStart;
       const imageBuffer = fs.readFileSync(imgResult.path!);
 
@@ -667,18 +669,55 @@ function buildPipelineWorkflow(
         return first && last ? last.end - first.start + 0.5 : 3;
       });
 
-      // Run visual asset resolution and music generation in parallel
-      const scenePromise = Promise.all(
-        score.scenes.map(async (scene, i) => {
-          try {
-            const sceneDuration = sceneDurations[i];
-            return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration);
-          } catch (err) {
-            cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
-            return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
-          }
-        }),
-      );
+      // Reel Extend stories read better with scene-to-scene visual continuity:
+      // generate scenes sequentially, feeding each scene's image forward as a
+      // reference so characters/setting/style stay consistent across the story.
+      // VIVI is the only active image provider wired up to use the reference.
+      const continuityEnabled = opts.platform === "reel_extend" && opts.imageProvider === "vivi";
+
+      const scenePromise = continuityEnabled
+        ? (async () => {
+            const results: VisualAssetResult[] = [];
+            let previousImage: Buffer | undefined;
+            for (let i = 0; i < score.scenes.length; i++) {
+              const scene = score.scenes[i]!;
+              try {
+                const sceneDuration = sceneDurations[i];
+                const result = await resolveVisualAsset(
+                  scene,
+                  i,
+                  totalScenes,
+                  assetsDir,
+                  opts,
+                  archetype,
+                  cb,
+                  sceneDuration,
+                  previousImage,
+                );
+                results.push(result);
+                try {
+                  previousImage = fs.readFileSync(path.join(assetsDir, `scene-${i}-ai.png`));
+                } catch {
+                  // No AI-generated frame for this scene (stock/text card) — keep the prior reference
+                }
+              } catch (err) {
+                cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
+                results.push({ path: null, usage: null, durationSeconds: null });
+              }
+            }
+            return results;
+          })()
+        : Promise.all(
+            score.scenes.map(async (scene, i) => {
+              try {
+                const sceneDuration = sceneDurations[i];
+                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration);
+              } catch (err) {
+                cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
+                return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
+              }
+            }),
+          );
 
       const musicPromise = resolveMusic(score, sceneDurations, {
         musicProvider: opts.musicProvider!,

@@ -45,7 +45,12 @@ export interface WordTimestamp {
 }
 
 export interface ImageProvider {
-  generate(prompt: string, style?: string): Promise<Buffer>;
+  /**
+   * @param referenceImage Optional previous-scene image used as a visual anchor
+   * for style/character continuity. Providers that don't support reference
+   * images should ignore it.
+   */
+  generate(prompt: string, style?: string, referenceImage?: Buffer): Promise<Buffer>;
 }
 
 export interface StockCandidate {

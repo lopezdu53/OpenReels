@@ -30,17 +30,32 @@ export class ViviImage implements ImageProvider {
     this.model = model;
   }
 
-  async generate(prompt: string, style?: string): Promise<Buffer> {
+  async generate(prompt: string, style?: string, referenceImage?: Buffer): Promise<Buffer> {
+    const continuityHint = referenceImage
+      ? " Keep the same characters, setting, color palette and visual style as the reference image so this scene reads as a continuation of the same story."
+      : "";
     const fullPrompt = style
-      ? `${prompt}. Style: ${style}. Vertical 9:16 aspect ratio, 1080x1920 pixels. No text, no watermarks.`
-      : `${prompt}. Vertical 9:16 aspect ratio, 1080x1920 pixels. No text, no watermarks.`;
+      ? `${prompt}. Style: ${style}.${continuityHint} Vertical 9:16 aspect ratio, 1080x1920 pixels. No text, no watermarks.`
+      : `${prompt}.${continuityHint} Vertical 9:16 aspect ratio, 1080x1920 pixels. No text, no watermarks.`;
+
+    const contents = referenceImage
+      ? [
+          {
+            role: "user",
+            parts: [
+              { inlineData: { mimeType: "image/png", data: referenceImage.toString("base64") } },
+              { text: fullPrompt },
+            ],
+          },
+        ]
+      : fullPrompt;
 
     let lastError: unknown;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         const response = await this.client.models.generateContent({
           model: this.model,
-          contents: fullPrompt,
+          contents,
           config: {
             responseModalities: ["image", "text"],
           },
