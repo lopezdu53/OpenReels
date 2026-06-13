@@ -28,10 +28,12 @@ export class OpenAIImage implements ImageProvider {
     this.model = model;
   }
 
-  async generate(prompt: string, style?: string): Promise<Buffer> {
+  async generate(prompt: string, style?: string, _referenceImage?: Buffer, aspectRatio?: string): Promise<Buffer> {
+    const isLandscape = aspectRatio === "16:9";
+    const orientationDesc = isLandscape ? "Horizontal landscape orientation, 16:9 aspect ratio" : "Vertical portrait orientation, 2:3 aspect ratio";
     const fullPrompt = style
-      ? `${prompt}. Style: ${style}. Vertical portrait orientation, 2:3 aspect ratio. No text, no watermarks.`
-      : `${prompt}. Vertical portrait orientation, 2:3 aspect ratio. No text, no watermarks.`;
+      ? `${prompt}. Style: ${style}. ${orientationDesc}. No text, no watermarks.`
+      : `${prompt}. ${orientationDesc}. No text, no watermarks.`;
 
     let lastError: unknown;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -40,7 +42,7 @@ export class OpenAIImage implements ImageProvider {
           model: this.model,
           prompt: fullPrompt,
           n: 1,
-          size: "1024x1536",
+          size: isLandscape ? "1536x1024" : "1024x1536",
           quality: "high",
           output_format: "png",
         });

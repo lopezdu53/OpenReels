@@ -47,10 +47,13 @@ export class AliCloudImage implements ImageProvider {
     this.baseUrl = ALICLOUD_BASE_URL;
   }
 
-  async generate(prompt: string, style?: string): Promise<Buffer> {
+  async generate(prompt: string, style?: string, _referenceImage?: Buffer, aspectRatio?: string): Promise<Buffer> {
+    const orientationDesc = aspectRatio === "16:9"
+      ? "Horizontal landscape orientation, 16:9 aspect ratio"
+      : "Vertical portrait orientation, 9:16 aspect ratio";
     const fullPrompt = style
-      ? `Generate an image: ${prompt}. Style: ${style}. Vertical portrait orientation, 9:16 aspect ratio. No text, no watermarks.`
-      : `Generate an image: ${prompt}. Vertical portrait orientation, 9:16 aspect ratio. No text, no watermarks.`;
+      ? `Generate an image: ${prompt}. Style: ${style}. ${orientationDesc}. No text, no watermarks.`
+      : `Generate an image: ${prompt}. ${orientationDesc}. No text, no watermarks.`;
 
     let lastError: unknown;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {

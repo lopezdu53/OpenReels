@@ -52,6 +52,7 @@ export async function resolveAIVideo(
     callbacks: PipelineCallbacks;
     sceneDurationSeconds?: number;
     totalScenes?: number;
+    aspectRatio?: string;
   },
 ): Promise<{
   path: string;
@@ -103,7 +104,7 @@ export async function resolveAIVideo(
           sourceImage: imageResult.buffer,
           prompt: motionPrompt,
           durationSeconds: genDuration,
-          aspectRatio: "9:16",
+          aspectRatio: opts.aspectRatio ?? "9:16",
           negativePrompt,
         }),
       );

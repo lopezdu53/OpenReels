@@ -20,7 +20,7 @@ import {
 } from "../cli/cost-estimator.js";
 import { ProgressDisplay } from "../cli/progress.js";
 import { getArchetype } from "../config/archetype-registry.js";
-import { getPlatformConfig } from "../config/platforms.js";
+import { getPlatformAspectRatio, getPlatformConfig } from "../config/platforms.js";
 import { resolveMusic, type MusicResolution } from "./music-resolver.js";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
@@ -148,6 +148,7 @@ async function generateAIImage(
   archetype: ArchetypeConfig,
   assetsDir: string,
   referenceImage?: Buffer,
+  aspectRatio?: string,
 ): Promise<VisualAssetResult> {
   let prompt = visualPrompt;
   let usage: LLMUsage | null = null;
@@ -167,7 +168,7 @@ async function generateAIImage(
   }
 
   try {
-    const imageBuffer = await opts.imageGen.generate(prompt, undefined, referenceImage);
+    const imageBuffer = await opts.imageGen.generate(prompt, undefined, referenceImage, aspectRatio);
     const filePath = path.join(assetsDir, `scene-${sceneIndex}-ai.png`);
     fs.writeFileSync(filePath, imageBuffer);
     return { path: filePath, usage, durationSeconds: null };
@@ -199,7 +200,7 @@ async function generateAIImage(
       throw err;
     }
 
-    const imageBuffer = await opts.imageGen.generate(prompt, undefined, referenceImage);
+    const imageBuffer = await opts.imageGen.generate(prompt, undefined, referenceImage, aspectRatio);
     const filePath = path.join(assetsDir, `scene-${sceneIndex}-ai.png`);
     fs.writeFileSync(filePath, imageBuffer);
     return { path: filePath, usage, durationSeconds: null };
@@ -228,10 +229,11 @@ async function resolveVisualAsset(
   cb: PipelineCallbacks,
   sceneDurationSeconds?: number,
   referenceImage?: Buffer,
+  aspectRatio?: string,
 ): Promise<VisualAssetResult> {
   switch (scene.visual_type) {
     case "ai_image":
-      return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage);
+      return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio);
 
     case "stock_image":
     case "stock_video": {
@@ -265,11 +267,11 @@ async function resolveVisualAsset(
     case "ai_video": {
       // If no video providers available, fall back to ai_image silently
       if (!opts.videoProviders?.length) {
-        return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage);
+        return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio);
       }
       // Phase 1: Generate AI image (first frame)
       const imageStart = Date.now();
-      const imgResult = await generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage);
+      const imgResult = await generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio);
       const imageGenTimeMs = Date.now() - imageStart;
       const imageBuffer = fs.readFileSync(imgResult.path!);
 
@@ -285,6 +287,7 @@ async function resolveVisualAsset(
         callbacks: cb,
         totalScenes,
         sceneDurationSeconds,
+        aspectRatio,
       });
 
       // Adjust imageGenTimeMs in the resolution metadata
@@ -434,7 +437,7 @@ function buildPipelineWorkflow(
       const allowedVisualTypes = opts.allowedVisualTypes && opts.allowedVisualTypes.length > 0
         ? opts.allowedVisualTypes.filter((t) => t !== "ai_video" || videoEnabled)
         : undefined;
-      const directorOpts = { archetype: opts.archetype, pacing: opts.pacing, videoEnabled, allowedVisualTypes, direction: opts.direction, targetDurationMinutes: opts.targetDurationMinutes };
+      const directorOpts = { archetype: opts.archetype, pacing: opts.pacing, videoEnabled, allowedVisualTypes, direction: opts.direction, targetDurationMinutes: opts.targetDurationMinutes, platform: opts.platform };
 
       // ── Replay mode: use provided score, skip generation + revision ──
       if (opts.replayScore) {
@@ -669,11 +672,11 @@ function buildPipelineWorkflow(
         return first && last ? last.end - first.start + 0.5 : 3;
       });
 
-      // Reel Extend stories read better with scene-to-scene visual continuity:
-      // generate scenes sequentially, feeding each scene's image forward as a
-      // reference so characters/setting/style stay consistent across the story.
-      // VIVI is the only active image provider wired up to use the reference.
-      const continuityEnabled = opts.platform === "reel_extend" && opts.imageProvider === "vivi";
+      const aspectRatio = getPlatformAspectRatio(opts.platform);
+
+      // Long-form platforms using VIVI benefit from sequential generation with a
+      // reference image fed forward so characters/setting/style stay consistent.
+      const continuityEnabled = opts.platform !== "youtube" && opts.platform !== "tiktok" && opts.platform !== "instagram" && opts.imageProvider === "vivi";
 
       const scenePromise = continuityEnabled
         ? (async () => {
@@ -693,6 +696,7 @@ function buildPipelineWorkflow(
                   cb,
                   sceneDuration,
                   previousImage,
+                  aspectRatio,
                 );
                 results.push(result);
                 try {
@@ -711,7 +715,7 @@ function buildPipelineWorkflow(
             score.scenes.map(async (scene, i) => {
               try {
                 const sceneDuration = sceneDurations[i];
-                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration);
+                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, undefined, aspectRatio);
               } catch (err) {
                 cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
                 return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;

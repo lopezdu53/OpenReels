@@ -58,6 +58,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   tiktok: "TikTok",
   instagram: "Instagram",
   reel_extend: "Reel Extend",
+  youtube_horizontal: "YouTube (Horizontal)",
   // LLM / shared
   anthropic: "Anthropic (Claude)",
   openai: "OpenAI (GPT)",
@@ -86,6 +87,8 @@ function displayName(key: string): string {
 function providerLabel(list: { key: string; label: string }[] | undefined, key: string): string {
   return list?.find((p) => p.key === key)?.label ?? displayName(key);
 }
+
+const LONG_FORM_PLATFORMS = new Set(["reel_extend", "youtube_horizontal"]);
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -155,7 +158,7 @@ export function HomePage() {
         platform,
         dryRun,
         ...(noSubtitles ? { noSubtitles: true } : {}),
-        ...(platform === "reel_extend" ? { targetDurationMinutes } : {}),
+        ...(LONG_FORM_PLATFORMS.has(platform) ? { targetDurationMinutes } : {}),
         ...(directionText.trim() ? { direction: directionText.trim() } : {}),
         ...(scoreJson ? { score: scoreJson } : {}),
         allowedVisualTypes: allowedVisualTypes.length > 0 ? allowedVisualTypes : undefined,
@@ -189,8 +192,8 @@ export function HomePage() {
             What story should we tell?
           </h1>
           <p className="mt-3 text-sm sm:text-base text-muted-foreground">
-            {platform === "reel_extend"
-              ? `Describe a topic and we'll turn it into a fully rendered ${targetDurationMinutes}-minute vertical video.`
+            {LONG_FORM_PLATFORMS.has(platform)
+              ? `Describe a topic and we'll turn it into a fully rendered ${targetDurationMinutes}-minute ${platform === "youtube_horizontal" ? "horizontal" : "vertical"} video.`
               : "Describe a topic and we'll turn it into a fully rendered Short."}
           </p>
         </div>
@@ -235,8 +238,8 @@ export function HomePage() {
                 </SelectContent>
               </Select>
 
-              {/* Duration slider — only for YouTube horizontal */}
-              {platform === "reel_extend" && (
+              {/* Duration slider — only for long-form platforms */}
+              {LONG_FORM_PLATFORMS.has(platform) && (
                 <div className="flex items-center gap-1.5 rounded-[8px] border border-border bg-transparent px-3 py-1.5 text-xs font-medium text-text-subtle">
                   <span className="text-muted-foreground">Duración:</span>
                   <input
@@ -253,7 +256,7 @@ export function HomePage() {
               )}
 
               {/* Pacing selector — hidden for long-form (duration controls pacing) */}
-              {platform !== "reel_extend" && (
+              {!LONG_FORM_PLATFORMS.has(platform) && (
                 <Select value={pacing} onValueChange={(v) => setPacing(v ?? "")}>
                   <SelectTrigger
                     size="sm"
@@ -294,8 +297,8 @@ export function HomePage() {
                   className="gap-2 rounded-[10px] px-6 py-2.5 text-sm font-semibold"
                 >
                   {loading
-                    ? platform === "reel_extend" ? "Generating video..." : "Generating..."
-                    : platform === "reel_extend" ? `Generate ${targetDurationMinutes}min Video` : "Generate"}
+                    ? LONG_FORM_PLATFORMS.has(platform) ? "Generating video..." : "Generating..."
+                    : LONG_FORM_PLATFORMS.has(platform) ? `Generate ${targetDurationMinutes}min Video` : "Generate"}
                   {!loading && <ArrowRight className="size-4" />}
                 </Button>
               </div>

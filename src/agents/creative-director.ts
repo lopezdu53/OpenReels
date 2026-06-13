@@ -36,7 +36,7 @@ export interface DirectorScoreOutput {
 }
 
 /** Load the creative director system prompt with playbook injection */
-function loadDirectorSystemPrompt(targetDurationMinutes?: number): string {
+function loadDirectorSystemPrompt(targetDurationMinutes?: number, platform?: string): string {
   let systemPrompt = buildDefaultPrompt();
 
   try {
@@ -45,13 +45,16 @@ function loadDirectorSystemPrompt(targetDurationMinutes?: number): string {
     // Use default
   }
 
-  // For long-form horizontal video, override the short-form constraints in the system prompt
   if (targetDurationMinutes && targetDurationMinutes >= 2) {
+    const isLandscape = platform === "youtube_horizontal";
+    const formatDesc = isLandscape
+      ? `long-form horizontal video content (${targetDurationMinutes}-minute videos, 1920x1080 landscape 16:9)`
+      : `long-form vertical video content (${targetDurationMinutes}-minute videos, 1080x1920 portrait)`;
     const wordsTarget = Math.round(targetDurationMinutes * 150);
     systemPrompt = systemPrompt
       .replace(
         /You are a Creative Director for short-form vertical video content[^.]*\./,
-        `You are a Creative Director for long-form vertical video content (${targetDurationMinutes}-minute videos, 1080x1920 portrait).`,
+        `You are a Creative Director for ${formatDesc}.`,
       )
       .replace(
         /Keep total script under \d+ words[^.]*\./g,
@@ -115,9 +118,9 @@ export async function generateDirectorScore(
   llm: LLMProvider,
   topic: string,
   researchContext: ResearchResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string },
 ): Promise<DirectorScoreOutput> {
-  const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes);
+  const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes, options?.platform);
 
   const archetypes = listArchetypes();
   const archetypeInstruction = options?.archetype
@@ -127,7 +130,7 @@ export async function generateDirectorScore(
   const { visualTypes, videoGuidance } = buildVisualTypesInstruction(options?.allowedVisualTypes, options?.videoEnabled);
 
   // Resolve pacing tier: explicit --pacing override > archetype default > lookup table
-  const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing, options?.targetDurationMinutes);
+  const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing, options?.targetDurationMinutes, options?.platform);
 
   const directionSection = options?.direction?.trim()
     ? `\n## Creative Direction (from the producer)\n\n${options.direction}\n\nHonor these creative constraints while exercising your judgment on anything not specified.\n`
@@ -227,15 +230,16 @@ const PACING_TIER_TABLE = `After choosing your archetype, use the matching pacin
 - moderate (14-18 scenes, 12-16 words/scene, 210-260 words total): warm_editorial, editorial_caricature, anime_illustration, vintage_snapshot, surreal_dreamscape, gothic_fantasy, style_override
 - cinematic (10-14 scenes, 16-22 words/scene, 210-265 words total): cinematic_documentary, moody_cinematic, studio_realism, warm_narrative, pastoral_watercolor`;
 
-export function buildPacingInstruction(archetype?: string, pacingOverride?: string, targetDurationMinutes?: number): string {
-  // Path 0: Long-form YouTube horizontal — calculate scenes from target duration
+export function buildPacingInstruction(archetype?: string, pacingOverride?: string, targetDurationMinutes?: number, platform?: string): string {
   if (targetDurationMinutes && targetDurationMinutes >= 2) {
+    const isLandscape = platform === "youtube_horizontal";
+    const formatLabel = isLandscape ? "YouTube Horizontal (landscape 16:9)" : "Reel Extend vertical";
     const wordsTarget = Math.round(targetDurationMinutes * 150);
     const MAX_SCENES = 60;
     const sceneCount = Math.min(Math.round(wordsTarget / 12), MAX_SCENES);
     const wordsPerScene = Math.round(wordsTarget / sceneCount);
-    console.log(`[creative-director] Reel Extend pacing: ~${sceneCount} scenes for ${targetDurationMinutes} min (~${wordsTarget} words, ~${wordsPerScene} words/scene)`);
-    return `This is a Reel Extend vertical video targeting ${targetDurationMinutes} minutes.
+    console.log(`[creative-director] Long-form pacing (${formatLabel}): ~${sceneCount} scenes for ${targetDurationMinutes} min (~${wordsTarget} words, ~${wordsPerScene} words/scene)`);
+    return `This is a ${formatLabel} video targeting ${targetDurationMinutes} minutes.
 Create a DirectorScore with exactly ${sceneCount} scenes.
 Per-scene word budget: ${wordsPerScene - 2}-${wordsPerScene + 2} words (~5 seconds per scene at 150 words/minute).
 Total word budget: approximately ${wordsTarget} words at ~150 words/minute.
@@ -320,15 +324,15 @@ export async function reviseDirectorScore(
   researchContext: ResearchResult,
   originalScore: DirectorScore,
   critique: CritiqueResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string },
 ): Promise<DirectorScoreOutput> {
-  const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes);
+  const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes, options?.platform);
 
   // Build revision instructions from critique, guarding nullable revision_instructions
   const revisionGuidance = critique.revision_instructions
     ?? `Address these weaknesses: ${critique.weaknesses.join("; ")}`;
 
-  const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing, options?.targetDurationMinutes);
+  const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing, options?.targetDurationMinutes, options?.platform);
 
   const { visualTypes } = buildVisualTypesInstruction(options?.allowedVisualTypes, options?.videoEnabled);
 

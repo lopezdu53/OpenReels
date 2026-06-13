@@ -30,13 +30,17 @@ export class ViviImage implements ImageProvider {
     this.model = model;
   }
 
-  async generate(prompt: string, style?: string, referenceImage?: Buffer): Promise<Buffer> {
+  async generate(prompt: string, style?: string, referenceImage?: Buffer, aspectRatio?: string): Promise<Buffer> {
+    const isLandscape = aspectRatio === "16:9";
+    const orientationHint = isLandscape
+      ? "Horizontal 16:9 aspect ratio, 1920x1080 pixels"
+      : "Vertical 9:16 aspect ratio, 1080x1920 pixels";
     const continuityHint = referenceImage
       ? " Keep the same characters, setting, color palette and visual style as the reference image so this scene reads as a continuation of the same story."
       : "";
     const fullPrompt = style
-      ? `${prompt}. Style: ${style}.${continuityHint} Vertical 9:16 aspect ratio, 1080x1920 pixels. No text, no watermarks.`
-      : `${prompt}.${continuityHint} Vertical 9:16 aspect ratio, 1080x1920 pixels. No text, no watermarks.`;
+      ? `${prompt}. Style: ${style}.${continuityHint} ${orientationHint}. No text, no watermarks.`
+      : `${prompt}.${continuityHint} ${orientationHint}. No text, no watermarks.`;
 
     const contents = referenceImage
       ? [

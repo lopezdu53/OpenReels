@@ -52,7 +52,22 @@ export const PLATFORMS: Record<string, PlatformConfig> = {
     orientation: "portrait",
     longForm: true,
   },
+  youtube_horizontal: {
+    width: 1920,
+    height: 1080,
+    fps: 30,
+    maxDurationSeconds: 1200,
+    minDurationSeconds: 120,
+    recommendedDurationSeconds: { min: 120, max: 1200 },
+    codec: "h264",
+    orientation: "landscape",
+    longForm: true,
+  },
 };
+
+export function getPlatformAspectRatio(platform: string): "9:16" | "16:9" {
+  return PLATFORMS[platform]?.orientation === "landscape" ? "16:9" : "9:16";
+}
 
 export function getPlatformConfig(platform: string): PlatformConfig {
   const config = PLATFORMS[platform];
