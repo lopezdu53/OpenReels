@@ -179,6 +179,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "openai", label: "OpenAI (GPT Image)" },
     { key: "vivi", label: "VIVI (Gemini)" },
     { key: "alicloud", label: "Alibaba Cloud" },
+    { key: "runpod", label: "RunPod Serverless" },
   ],
   video: [
     { key: "gemini", label: "Google Veo" },
@@ -187,6 +188,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "fal", label: "fal.ai (Kling 2.6 Pro)" },
     { key: "vidu-q2-fast", label: "VIDU Q2 Fast (~27cr/5s)" },
     { key: "vidu-q3-fast", label: "VIDU Q3 Fast" },
+    { key: "runpod", label: "RunPod Serverless" },
   ],
 }));
 

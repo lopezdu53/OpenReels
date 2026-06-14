@@ -23,6 +23,7 @@ import { AliCloudImage } from "./image/alicloud.js";
 import { FallbackImageProvider } from "./image/fallback.js";
 import { GeminiImage } from "./image/gemini.js";
 import { OpenAIImage } from "./image/openai.js";
+import { RunPodImage } from "./image/runpod.js";
 import { ViviImage } from "./image/vivi.js";
 import { AliCloudLLM } from "./llm/alicloud.js";
 import { AnthropicLLM } from "./llm/anthropic.js";
@@ -48,6 +49,7 @@ import { AliCloudVideo } from "./video/alicloud.js";
 import { FalVideo } from "./video/fal.js";
 import { GeminiVideo } from "./video/gemini.js";
 import { GrokVideo } from "./video/grok.js";
+import { RunPodVideo } from "./video/runpod.js";
 import { ViduVideo } from "./video/vidu.js";
 import { ViviVideo } from "./video/vivi.js";
 
@@ -186,9 +188,17 @@ export function createProviders(config: ProviderConfig): Providers {
 
   const viviKey = k["VIVI_IMAGE_API_KEY"] ?? process.env["VIVI_IMAGE_API_KEY"];
   const alicloudKey = k["ALICLOUD_API_KEY"] ?? process.env["ALICLOUD_API_KEY"];
+  const runpodKey = k["RUNPOD_API_KEY"] ?? process.env["RUNPOD_API_KEY"];
+  const runpodImageEndpoint = k["RUNPOD_IMAGE_ENDPOINT_ID"] ?? process.env["RUNPOD_IMAGE_ENDPOINT_ID"];
+  const runpodVideoEndpoint = k["RUNPOD_VIDEO_ENDPOINT_ID"] ?? process.env["RUNPOD_VIDEO_ENDPOINT_ID"];
 
   let imageGen: ImageProvider;
-  if (config.image === "openai") {
+  if (config.image === "runpod") {
+    const primary = new RunPodImage(runpodImageEndpoint, runpodKey);
+    imageGen = googleKey
+      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "runpod", "gemini")
+      : primary;
+  } else if (config.image === "openai") {
     const primary = new OpenAIImage(undefined, openaiKey);
     imageGen = googleKey
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "openai", "gemini")
@@ -293,6 +303,13 @@ export function createProviders(config: ProviderConfig): Providers {
     else if (viduKey) videoProviders.push(new ViduVideo(undefined, viduKey));
     else if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
     else if (alicloudKey) videoProviders.push(new AliCloudVideo(undefined, alicloudKey));
+  } else if (videoPrimary === "runpod") {
+    if (runpodKey && runpodVideoEndpoint) videoProviders.push(new RunPodVideo(runpodVideoEndpoint, runpodKey));
+    if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
+    else if (xaiKey) videoProviders.push(new GrokVideo(xaiKey));
+    else if (viduKey) videoProviders.push(new ViduVideo(undefined, viduKey));
+    else if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
+    else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
   } else if (videoPrimary === "gemini" || videoPrimary === undefined) {
     if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
     if (xaiKey) videoProviders.push(new GrokVideo(xaiKey));
