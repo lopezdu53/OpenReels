@@ -28,12 +28,15 @@ export class GeminiImage implements ImageProvider {
   }
 
   async generate(prompt: string, style?: string, _referenceImage?: Buffer, aspectRatio?: string): Promise<Buffer> {
-    const orientationHint = aspectRatio === "16:9"
-      ? "Horizontal 16:9 aspect ratio, 1920x1080 pixels"
+    const isLandscape = aspectRatio === "16:9";
+    const orientationHint = isLandscape
+      ? "WIDE HORIZONTAL LANDSCAPE image ONLY. 16:9 widescreen aspect ratio, wider than tall. CRITICAL: Do NOT generate portrait or vertical orientation. Compose as a cinematic widescreen scene filling the full horizontal frame. 1920x1080 pixels"
       : "Vertical 9:16 aspect ratio, 1080x1920 pixels";
-    const fullPrompt = style
-      ? `${prompt}. Style: ${style}. ${orientationHint}. No text, no watermarks.`
-      : `${prompt}. ${orientationHint}. No text, no watermarks.`;
+    const fullPrompt = isLandscape
+      ? `${orientationHint}. ${prompt}.${style ? ` Style: ${style}.` : ""} No text, no watermarks.`
+      : style
+        ? `${prompt}. Style: ${style}. ${orientationHint}. No text, no watermarks.`
+        : `${prompt}. ${orientationHint}. No text, no watermarks.`;
 
     let lastError: unknown;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
