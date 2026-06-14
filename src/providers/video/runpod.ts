@@ -3,7 +3,7 @@ import * as os from "node:path";
 import * as path from "node:path";
 import type { VideoProvider, VideoResult } from "../../schema/providers.js";
 
-const RUNPOD_BASE = "https://api.runpod.io/v2";
+const RUNPOD_BASE = "https://api.runpod.ai/v2";
 const POLL_INTERVAL_MS = 5_000;
 const TIMEOUT_MS = 300_000; // 5 min
 

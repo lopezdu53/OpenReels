@@ -1,6 +1,6 @@
 import type { ImageProvider } from "../../schema/providers.js";
 
-const RUNPOD_BASE = "https://api.runpod.io/v2";
+const RUNPOD_BASE = "https://api.runpod.ai/v2";
 const POLL_INTERVAL_MS = 3_000;
 const TIMEOUT_MS = 120_000;
 
