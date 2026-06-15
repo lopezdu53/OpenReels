@@ -5,10 +5,10 @@ const POLL_INTERVAL_MS = 3_000;
 const TIMEOUT_MS = 180_000;
 
 // Portrait dimensions (9:16) and landscape (16:9) for FLUX-compatible workers
-const DIMENSIONS: Record<string, { width: number; height: number }> = {
+const DIMENSIONS = {
   portrait: { width: 832, height: 1216 },
   landscape: { width: 1216, height: 832 },
-};
+} as const;
 
 interface RunPodStatus {
   id: string;
@@ -149,12 +149,12 @@ async function extractImageBuffer(output: unknown): Promise<Buffer | null> {
   if (raw.startsWith("http://") || raw.startsWith("https://")) {
     const res = await fetch(raw);
     if (!res.ok) throw new Error(`RunPod image URL download failed: ${res.status}`);
-    return Buffer.from(await res.arrayBuffer());
+    return Buffer.from(new Uint8Array(await res.arrayBuffer()));
   }
 
   // data URI → strip prefix
   const dataMatch = raw.match(/^data:image\/\w+;base64,(.+)$/);
-  if (dataMatch) return Buffer.from(dataMatch[1], "base64");
+  if (dataMatch) return Buffer.from(dataMatch[1] ?? "", "base64");
 
   // plain base64
   return Buffer.from(raw, "base64");

@@ -1,5 +1,4 @@
 import * as fsp from "node:fs/promises";
-import * as os from "node:path";
 import * as path from "node:path";
 import type { VideoProvider, VideoResult } from "../../schema/providers.js";
 
