@@ -91,6 +91,22 @@ export class ViviVideo implements VideoProvider {
     const contentType = videoRes.headers.get("content-type") ?? "";
     if (contentType && !contentType.includes("video") && !contentType.includes("octet-stream")) {
       const body = await videoRes.text();
+      // HTML viewer page — try to extract the real video URL from it
+      if (contentType.includes("text/html")) {
+        const realUrl = this.extractVideoUrlFromHtml(body);
+        if (realUrl) {
+          const directRes = await fetch(realUrl, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+          if (!directRes.ok) throw new Error(`VIVI video direct download failed: ${directRes.status}`);
+          const directType = directRes.headers.get("content-type") ?? "";
+          if (directType && !directType.includes("video") && !directType.includes("octet-stream")) {
+            throw new Error(`VIVI video: direct URL also returned non-video content: ${directType}`);
+          }
+          const buffer2 = Buffer.from(await directRes.arrayBuffer());
+          if (buffer2.length < 50_000) throw new Error(`VIVI video direct download too small (${buffer2.length} bytes)`);
+          await fsp.writeFile(tmpPath, buffer2);
+          return { filePath: tmpPath, durationSeconds };
+        }
+      }
       throw new Error(`VIVI video: unexpected content-type "${contentType}": ${body.slice(0, 200)}`);
     }
 
@@ -101,6 +117,20 @@ export class ViviVideo implements VideoProvider {
     await fsp.writeFile(tmpPath, buffer);
 
     return { filePath: tmpPath, durationSeconds };
+  }
+
+  private extractVideoUrlFromHtml(html: string): string | null {
+    // <video src="..."> or <source src="...">
+    const srcMatch = html.match(/<(?:video|source)[^>]+src=["']([^"']+\.mp4[^"']*)["']/i);
+    if (srcMatch?.[1]) return srcMatch[1]!;
+    // og:video meta tag
+    const ogMatch = html.match(/<meta[^>]+property=["']og:video["'][^>]+content=["']([^"']+)["']/i)
+      ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:video["']/i);
+    if (ogMatch?.[1]) return ogMatch[1]!;
+    // Any .mp4 URL in the HTML
+    const mp4Match = html.match(/https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*/i);
+    if (mp4Match?.[0]) return mp4Match[0]!;
+    return null;
   }
 
   private extractVideoUrl(
