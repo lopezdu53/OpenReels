@@ -2,7 +2,7 @@ import type { ImageProvider } from "../../schema/providers.js";
 
 const RUNPOD_BASE = "https://api.runpod.ai/v2";
 const POLL_INTERVAL_MS = 3_000;
-const TIMEOUT_MS = 120_000;
+const TIMEOUT_MS = 180_000;
 
 // Portrait dimensions (9:16) and landscape (16:9) for FLUX-compatible workers
 const DIMENSIONS: Record<string, { width: number; height: number }> = {
@@ -116,9 +116,9 @@ export class RunPodImage implements ImageProvider {
       console.log(`[image/runpod] Job ${jobId} — status=${poll.status}`);
 
       if (poll.status === "COMPLETED") {
-        const b64 = extractBase64Image(poll.output);
-        if (!b64) throw new Error(`RunPod image: completed but no image in output: ${JSON.stringify(poll.output)}`);
-        return Buffer.from(b64, "base64");
+        const buffer = await extractImageBuffer(poll.output);
+        if (!buffer) throw new Error(`RunPod image: completed but no image in output: ${JSON.stringify(poll.output)}`);
+        return buffer;
       }
 
       if (poll.status === "FAILED" || poll.status === "CANCELLED") {
@@ -130,16 +130,32 @@ export class RunPodImage implements ImageProvider {
   }
 }
 
-function extractBase64Image(output: unknown): string | null {
+async function extractImageBuffer(output: unknown): Promise<Buffer | null> {
   if (!output || typeof output !== "object") return null;
   const o = output as Record<string, unknown>;
 
-  // Common FLUX worker formats
-  if (Array.isArray(o["images"]) && typeof o["images"][0] === "string") return o["images"][0];
-  if (typeof o["image"] === "string") return o["image"];
-  if (typeof o["image_base64"] === "string") return o["image_base64"];
-  if (Array.isArray(o["output"]) && typeof o["output"][0] === "string") return o["output"][0];
-  if (typeof o["output"] === "string") return o["output"];
+  // Extract raw string value from common field names
+  const raw: string | null =
+    (Array.isArray(o["images"]) && typeof o["images"][0] === "string" ? o["images"][0] : null) ??
+    (typeof o["image"] === "string" ? o["image"] : null) ??
+    (typeof o["image_base64"] === "string" ? o["image_base64"] : null) ??
+    (Array.isArray(o["output"]) && typeof o["output"][0] === "string" ? o["output"][0] : null) ??
+    (typeof o["output"] === "string" ? o["output"] : null) ??
+    null;
 
-  return null;
+  if (!raw) return null;
+
+  // URL → download
+  if (raw.startsWith("http://") || raw.startsWith("https://")) {
+    const res = await fetch(raw);
+    if (!res.ok) throw new Error(`RunPod image URL download failed: ${res.status}`);
+    return Buffer.from(await res.arrayBuffer());
+  }
+
+  // data URI → strip prefix
+  const dataMatch = raw.match(/^data:image\/\w+;base64,(.+)$/);
+  if (dataMatch) return Buffer.from(dataMatch[1], "base64");
+
+  // plain base64
+  return Buffer.from(raw, "base64");
 }
