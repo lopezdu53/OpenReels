@@ -73,6 +73,7 @@ export interface PipelineOptions {
   direction?: string;
   replayScore?: DirectorScore;
   targetDurationMinutes?: number;
+  videoSceneMode?: string;
 }
 
 export interface PipelineResult {

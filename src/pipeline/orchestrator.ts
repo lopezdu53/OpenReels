@@ -567,6 +567,28 @@ function buildPipelineWorkflow(
         };
       }
 
+      // Apply videoSceneMode filter: controls which ai_video scenes get I2V treatment
+      if (opts.videoSceneMode && opts.videoSceneMode !== "all") {
+        const mode = opts.videoSceneMode;
+        let videoIndex = 0;
+        score = {
+          ...score,
+          scenes: score.scenes.map((s) => {
+            if (s.visual_type !== "ai_video") return s;
+            const idx = videoIndex++;
+            let keep = false;
+            if (mode === "first") {
+              keep = idx === 0;
+            } else if (mode === "first3") {
+              keep = idx < 3;
+            } else if (mode === "first_every2") {
+              keep = idx === 0 || idx % 2 === 0;
+            }
+            return keep ? s : { ...s, visual_type: "ai_image" as const };
+          }),
+        };
+      }
+
       // ── Store final score on shared closure state ──
       directorResult.score = score;
       directorResult.config = getArchetype(score.archetype);

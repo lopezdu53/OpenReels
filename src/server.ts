@@ -28,6 +28,7 @@ import { GeminiImage } from "./providers/image/gemini.js";
 import { OpenAIImage } from "./providers/image/openai.js";
 import { ViviImage } from "./providers/image/vivi.js";
 import { AliCloudImage } from "./providers/image/alicloud.js";
+import { FalImage } from "./providers/image/fal.js";
 import { RunPodImage } from "./providers/image/runpod.js";
 import { GeminiVideo } from "./providers/video/gemini.js";
 import { GrokVideo } from "./providers/video/grok.js";
@@ -203,6 +204,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "vivi", label: "VIVI (Gemini)" },
     { key: "alicloud", label: "Alibaba Cloud" },
     { key: "runpod", label: "RunPod Serverless" },
+    { key: "fal", label: "fal.ai (FLUX)" },
   ],
   video: [
     { key: "gemini", label: "Google Veo" },
@@ -281,6 +283,7 @@ app.post("/api/v1/test/image", async (request, reply) => {
         case "vivi": return new ViviImage();
         case "alicloud": return new AliCloudImage();
         case "runpod": return new RunPodImage();
+        case "fal": return new FalImage();
         default: return new GeminiImage();
       }
     })();
@@ -333,6 +336,7 @@ interface CreateJobBody {
   direction?: string;
   targetDurationMinutes?: number;
   score?: Record<string, unknown>;
+  videoSceneMode?: string;
   providers?: {
     llm?: string;
     tts?: string;
@@ -350,7 +354,7 @@ interface CreateJobBody {
 }
 
 app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
-  const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, providers, keys } =
+  const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, providers, keys } =
     request.body ?? {};
 
   if (!topic || typeof topic !== "string" || topic.trim().length === 0) {
@@ -426,6 +430,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     ...(direction?.trim() ? { direction: direction.trim() } : {}),
     ...(targetDurationMinutes != null ? { targetDurationMinutes: Number(targetDurationMinutes) } : {}),
     ...(validatedScore ? { score: validatedScore } : {}),
+    ...(videoSceneMode ? { videoSceneMode } : {}),
     providers: {
       llm: providers?.llm ?? "anthropic",
       tts: providers?.tts ?? "elevenlabs",

@@ -20,6 +20,7 @@ import type {
   VideoProviderKey,
 } from "../schema/providers.js";
 import { AliCloudImage } from "./image/alicloud.js";
+import { FalImage } from "./image/fal.js";
 import { FallbackImageProvider } from "./image/fallback.js";
 import { GeminiImage } from "./image/gemini.js";
 import { OpenAIImage } from "./image/openai.js";
@@ -186,6 +187,7 @@ export function createProviders(config: ProviderConfig): Providers {
   const googleKey = k["GOOGLE_API_KEY"] ?? process.env["GOOGLE_API_KEY"];
   const openaiKey = k["OPENAI_API_KEY"] ?? process.env["OPENAI_API_KEY"];
 
+  const falKey2 = k["FAL_API_KEY"] ?? process.env["FAL_API_KEY"];
   const viviKey = k["VIVI_IMAGE_API_KEY"] ?? process.env["VIVI_IMAGE_API_KEY"];
   const alicloudKey = k["ALICLOUD_API_KEY"] ?? process.env["ALICLOUD_API_KEY"];
   const runpodKey = k["RUNPOD_API_KEY"] ?? process.env["RUNPOD_API_KEY"];
@@ -193,7 +195,12 @@ export function createProviders(config: ProviderConfig): Providers {
   const runpodVideoEndpoint = k["RUNPOD_VIDEO_ENDPOINT_ID"] ?? process.env["RUNPOD_VIDEO_ENDPOINT_ID"];
 
   let imageGen: ImageProvider;
-  if (config.image === "runpod") {
+  if (config.image === "fal") {
+    const primary = new FalImage(undefined, falKey2);
+    imageGen = googleKey
+      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "fal", "gemini")
+      : primary;
+  } else if (config.image === "runpod") {
     const primary = new RunPodImage(runpodImageEndpoint, runpodKey);
     imageGen = googleKey
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "runpod", "gemini")

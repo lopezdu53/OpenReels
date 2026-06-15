@@ -105,6 +105,7 @@ export function HomePage() {
   const [imageProvider, setImageProvider] = useState("gemini");
   const [musicProvider, setMusicProvider] = useState("bundled");
   const [videoProvider, setVideoProvider] = useState("");
+  const [videoSceneMode, setVideoSceneMode] = useState("all");
   const [pacing, setPacing] = useState("");
   const [targetDurationMinutes, setTargetDurationMinutes] = useState(5);
   const [dryRun, setDryRun] = useState(false);
@@ -163,6 +164,7 @@ export function HomePage() {
         ...(directionText.trim() ? { direction: directionText.trim() } : {}),
         ...(scoreJson ? { score: scoreJson } : {}),
         allowedVisualTypes: allowedVisualTypes.length > 0 ? allowedVisualTypes : undefined,
+        ...(allowedVisualTypes.includes("ai_video") && videoSceneMode !== "all" ? { videoSceneMode } : {}),
         providers: {
           llm: llmProvider,
           tts: ttsProvider,
@@ -419,6 +421,25 @@ export function HomePage() {
                     </div>
                   )}
 
+                  {allowedVisualTypes.includes("ai_video") && (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                        Video Scenes
+                      </label>
+                      <Select value={videoSceneMode} onValueChange={(v) => setVideoSceneMode(v ?? "all")}>
+                        <SelectTrigger className="h-9 w-full rounded-lg">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All scenes</SelectItem>
+                          <SelectItem value="first">Only first scene</SelectItem>
+                          <SelectItem value="first3">First 3 scenes</SelectItem>
+                          <SelectItem value="first_every2">First + every 2 scenes</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   {/* Conditional LLM config fields */}
                   {(llmProvider === "openrouter" || llmProvider === "openai-compatible") && (
                     <div>
@@ -513,8 +534,11 @@ export function HomePage() {
                             setAllowedVisualTypes((prev) =>
                               checked ? prev.filter((t) => t !== key) : [...prev, key],
                             );
-                            // Clear video provider selection when ai_video is deselected
-                            if (key === "ai_video" && checked) setVideoProvider("");
+                            // Clear video provider and scene mode when ai_video is deselected
+                            if (key === "ai_video" && checked) {
+                              setVideoProvider("");
+                              setVideoSceneMode("all");
+                            }
                           }}
                           className={cn(
                             "rounded-full border px-3 py-1 text-xs font-medium transition-colors",

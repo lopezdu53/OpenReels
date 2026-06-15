@@ -158,11 +158,17 @@ export interface CreateJobRequest {
   targetDurationMinutes?: number;
   score?: Record<string, unknown>;
   allowedVisualTypes?: string[];
+  videoSceneMode?: string;
   providers?: {
     llm?: string;
     tts?: string;
     image?: string;
     music?: string;
+    video?: string;
+    videoModel?: string;
+    llmModel?: string;
+    llmBaseUrl?: string;
+    searchProvider?: string;
     inworldVoice?: string;
   };
 }
