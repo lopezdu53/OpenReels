@@ -6,6 +6,7 @@ import { Layout } from "@/components/Layout";
 import { GalleryPage } from "@/pages/GalleryPage";
 import { HomePage } from "@/pages/HomePage";
 import { JobPage } from "@/pages/JobPage";
+import { LabPage } from "@/pages/LabPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -16,6 +17,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/" element={<HomePage />} />
           <Route path="/jobs/:id" element={<JobPage />} />
           <Route path="/gallery" element={<GalleryPage />} />
+          <Route path="/lab" element={<LabPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
       </Routes>

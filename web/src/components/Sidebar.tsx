@@ -9,12 +9,14 @@ import {
   PanelLeft,
   Film,
   DollarSign,
+  FlaskConical,
 } from "lucide-react";
 import type { StatsResponse } from "@/hooks/useApi";
 
 const NAV_ITEMS = [
   { path: "/", label: "New Short", icon: PlusCircle },
   { path: "/gallery", label: "Gallery", icon: LayoutGrid },
+  { path: "/lab", label: "API Lab", icon: FlaskConical },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 

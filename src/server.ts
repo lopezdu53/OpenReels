@@ -1,16 +1,39 @@
 import * as fs from "node:fs";
+import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import { Queue, QueueEvents } from "bullmq";
 import Fastify from "fastify";
 import IORedis from "ioredis";
+import { z } from "zod";
 import { PACING_CONFIG } from "./agents/creative-director.js";
 import { getArchetype, listArchetypes } from "./config/archetype-registry.js";
 import { PLATFORMS } from "./config/platforms.js";
 import { DirectorScore } from "./schema/director-score.js";
 import { INWORLD_VOICES } from "./providers/tts/inworld.js";
 import type { SearchProviderKey } from "./schema/providers.js";
+import { AnthropicLLM } from "./providers/llm/anthropic.js";
+import { GeminiLLM } from "./providers/llm/gemini.js";
+import { OpenAILLM } from "./providers/llm/openai.js";
+import { OpenRouterLLM } from "./providers/llm/openrouter.js";
+import { ViviLLM } from "./providers/llm/vivi.js";
+import { AliCloudLLM } from "./providers/llm/alicloud.js";
+import { ElevenLabsTTS } from "./providers/tts/elevenlabs.js";
+import { GeminiTTS } from "./providers/tts/gemini.js";
+import { OpenAITTS } from "./providers/tts/openai.js";
+import { GrokTTS } from "./providers/tts/grok.js";
+import { KokoroTTS } from "./providers/tts/kokoro.js";
+import { GeminiImage } from "./providers/image/gemini.js";
+import { OpenAIImage } from "./providers/image/openai.js";
+import { ViviImage } from "./providers/image/vivi.js";
+import { AliCloudImage } from "./providers/image/alicloud.js";
+import { RunPodImage } from "./providers/image/runpod.js";
+import { GeminiVideo } from "./providers/video/gemini.js";
+import { GrokVideo } from "./providers/video/grok.js";
+import { ViviVideo } from "./providers/video/vivi.js";
+import { FalVideo } from "./providers/video/fal.js";
+import { RunPodVideo } from "./providers/video/runpod.js";
 
 const REDIS_URL = process.env["REDIS_URL"] ?? "redis://localhost:6379";
 const PORT = Number(process.env["PORT"] ?? 3000);
@@ -191,6 +214,110 @@ app.get("/api/v1/providers", async () => ({
     { key: "runpod", label: "RunPod Serverless" },
   ],
 }));
+
+// --- API Test endpoints ---
+
+app.post("/api/v1/test/llm", async (request, reply) => {
+  const { provider = "anthropic", model, prompt } = request.body as {
+    provider?: string; model?: string; prompt: string;
+  };
+  if (!prompt?.trim()) return reply.status(400).send({ error: "prompt is required" });
+  const start = Date.now();
+  try {
+    const llm = (() => {
+      switch (provider) {
+        case "openai": return new OpenAILLM(model);
+        case "gemini": return new GeminiLLM(model);
+        case "openrouter": return new OpenRouterLLM(model);
+        case "vivi": return new ViviLLM(model);
+        case "alicloud": return new AliCloudLLM(model);
+        default: return new AnthropicLLM(model);
+      }
+    })();
+    const result = await llm.generate({
+      systemPrompt: "You are a helpful assistant. Answer the user's question directly and concisely.",
+      userMessage: prompt,
+      schema: z.object({ answer: z.string().describe("Your complete response") }),
+    });
+    return { text: result.data.answer, durationMs: Date.now() - start, tokens: result.usage };
+  } catch (err) {
+    reply.status(500);
+    return { error: String(err) };
+  }
+});
+
+app.post("/api/v1/test/tts", async (request, reply) => {
+  const { provider = "elevenlabs", text } = request.body as { provider?: string; text: string };
+  if (!text?.trim()) return reply.status(400).send({ error: "text is required" });
+  const start = Date.now();
+  try {
+    const tts = (() => {
+      switch (provider) {
+        case "gemini-tts": return new GeminiTTS();
+        case "openai-tts": return new OpenAITTS();
+        case "grok-tts": return new GrokTTS();
+        case "kokoro": return new KokoroTTS();
+        default: return new ElevenLabsTTS();
+      }
+    })();
+    const result = await tts.generate(text);
+    return { audioBase64: result.audio.toString("base64"), durationMs: Date.now() - start, charCount: text.length };
+  } catch (err) {
+    reply.status(500);
+    return { error: String(err) };
+  }
+});
+
+app.post("/api/v1/test/image", async (request, reply) => {
+  const { provider = "gemini", prompt, style, aspectRatio = "9:16" } = request.body as {
+    provider?: string; prompt: string; style?: string; aspectRatio?: string;
+  };
+  if (!prompt?.trim()) return reply.status(400).send({ error: "prompt is required" });
+  const start = Date.now();
+  try {
+    const imageGen = (() => {
+      switch (provider) {
+        case "openai": return new OpenAIImage();
+        case "vivi": return new ViviImage();
+        case "alicloud": return new AliCloudImage();
+        case "runpod": return new RunPodImage();
+        default: return new GeminiImage();
+      }
+    })();
+    const buffer = await imageGen.generate(prompt, style, undefined, aspectRatio);
+    return { imageBase64: buffer.toString("base64"), durationMs: Date.now() - start };
+  } catch (err) {
+    reply.status(500);
+    return { error: String(err) };
+  }
+});
+
+app.post("/api/v1/test/video", async (request, reply) => {
+  const { provider = "gemini", imageBase64, prompt, durationSeconds = 5, aspectRatio = "9:16" } = request.body as {
+    provider?: string; imageBase64: string; prompt: string; durationSeconds?: number; aspectRatio?: string;
+  };
+  if (!imageBase64 || !prompt?.trim()) return reply.status(400).send({ error: "imageBase64 and prompt are required" });
+  const start = Date.now();
+  try {
+    const videoProvider = (() => {
+      switch (provider) {
+        case "grok": return new GrokVideo();
+        case "vivi": return new ViviVideo();
+        case "fal": return new FalVideo();
+        case "runpod": return new RunPodVideo();
+        default: return new GeminiVideo();
+      }
+    })();
+    const sourceImage = Buffer.from(imageBase64, "base64");
+    const result = await videoProvider.generate({ sourceImage, prompt, durationSeconds, aspectRatio });
+    const videoBuffer = await fsp.readFile(result.filePath);
+    await fsp.unlink(result.filePath).catch(() => {});
+    return { videoBase64: videoBuffer.toString("base64"), durationMs: Date.now() - start, videoSeconds: result.durationSeconds };
+  } catch (err) {
+    reply.status(500);
+    return { error: String(err) };
+  }
+});
 
 // --- Job creation ---
 interface CreateJobBody {

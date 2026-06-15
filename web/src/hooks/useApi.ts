@@ -216,4 +216,28 @@ export const api = {
   getStats() {
     return fetchJson<StatsResponse>("/stats");
   },
+
+  testLLM(data: { provider?: string; model?: string; prompt: string }) {
+    return fetchJson<{ text: string; durationMs: number; tokens: { inputTokens: number; outputTokens: number } }>(
+      "/test/llm", { method: "POST", body: JSON.stringify(data) }
+    );
+  },
+
+  testTTS(data: { provider?: string; text: string }) {
+    return fetchJson<{ audioBase64: string; durationMs: number; charCount: number }>(
+      "/test/tts", { method: "POST", body: JSON.stringify(data) }
+    );
+  },
+
+  testImage(data: { provider?: string; prompt: string; style?: string; aspectRatio?: string }) {
+    return fetchJson<{ imageBase64: string; durationMs: number }>(
+      "/test/image", { method: "POST", body: JSON.stringify(data) }
+    );
+  },
+
+  testVideo(data: { provider?: string; imageBase64: string; prompt: string; durationSeconds?: number; aspectRatio?: string }) {
+    return fetchJson<{ videoBase64: string; durationMs: number; videoSeconds: number }>(
+      "/test/video", { method: "POST", body: JSON.stringify(data) }
+    );
+  },
 };
