@@ -15,6 +15,11 @@ export const GROK_TTS_VOICES_FALLBACK = [
 
 export const GROK_TTS_VOICES = GROK_TTS_VOICES_FALLBACK;
 
+export const GROK_TTS_MODELS = [
+  { id: "grok-tts",      label: "Grok TTS (standard)" },
+  { id: "grok-tts-mini", label: "Grok TTS Mini (fast)" },
+] as const;
+
 export type GrokTTSVoice = typeof GROK_TTS_VOICES[number]["id"];
 
 /** Fetch available built-in voices from xAI API (for dynamic server-side loading) */
