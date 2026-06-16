@@ -105,9 +105,9 @@ export function HomePage() {
   const [ttsProvider, setTtsProvider] = useState("elevenlabs");
   const [inworldVoice, setInworldVoice] = useState("Pedro");
   const [geminiTtsVoice, setGeminiTtsVoice] = useState("Kore");
-  const [grokTtsVoice, setGrokTtsVoice] = useState("bria");
+  const [grokTtsVoice, setGrokTtsVoice] = useState("eve");
   const [grokTtsSpeed, setGrokTtsSpeed] = useState(1.0);
-  const [grokTtsModel, setGrokTtsModel] = useState("grok-tts-mini");
+  const [grokTtsModel] = useState("");
   const [imageProvider, setImageProvider] = useState("gemini");
   const [musicProvider, setMusicProvider] = useState("bundled");
   const [videoProvider, setVideoProvider] = useState("");
@@ -428,29 +428,16 @@ export function HomePage() {
                       </div>
                       <div>
                         <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                          Modelo Grok TTS
-                        </label>
-                        <Select value={grokTtsModel} onValueChange={(v) => v && setGrokTtsModel(v)}>
-                          <SelectTrigger className="h-9 w-full rounded-lg"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {(providers.grokTtsModels ?? []).map((m) => (
-                              <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                           Velocidad: {grokTtsSpeed.toFixed(1)}x
                         </label>
                         <input
-                          type="range" min="0.5" max="2.0" step="0.1"
+                          type="range" min="0.7" max="1.5" step="0.1"
                           value={grokTtsSpeed}
                           onChange={(e) => setGrokTtsSpeed(Number(e.target.value))}
                           className="w-full accent-primary"
                         />
                         <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
-                          <span>0.5x lento</span><span>1.0x normal</span><span>2.0x rápido</span>
+                          <span>0.7x lento</span><span>1.0x normal</span><span>1.5x rápido</span>
                         </div>
                       </div>
                     </>

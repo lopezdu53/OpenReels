@@ -1,28 +1,24 @@
 import type { TTSProvider, TTSResult } from "../../schema/providers.js";
 
 const XAI_BASE_URL = "https://api.x.ai/v1";
-const DEFAULT_VOICE = "bria";
+const DEFAULT_VOICE = "eve";
 
-// Fallback built-in voices (populated from GET /v1/tts/voices at runtime)
 export const GROK_TTS_VOICES_FALLBACK = [
-  { id: "bria",    label: "Bria — Natural (F)",    gender: "female" },
-  { id: "celeste", label: "Celeste — Clara (F)",    gender: "female" },
-  { id: "clio",    label: "Clio — Profesional (F)", gender: "female" },
-  { id: "dan",     label: "Dan — Natural (M)",       gender: "male"   },
-  { id: "archer",  label: "Archer — Profundo (M)",   gender: "male"   },
-  { id: "vale",    label: "Vale — Suave (M)",        gender: "male"   },
+  { id: "eve", label: "Eve — Energetic, upbeat (F)",       gender: "female" },
+  { id: "ara", label: "Ara — Warm, friendly (F)",           gender: "female" },
+  { id: "rex", label: "Rex — Confident, clear (M)",         gender: "male"   },
+  { id: "sal", label: "Sal — Smooth, balanced (M)",         gender: "male"   },
+  { id: "leo", label: "Leo — Authoritative, strong (M)",    gender: "male"   },
 ] as const;
 
 export const GROK_TTS_VOICES = GROK_TTS_VOICES_FALLBACK;
 
-export const GROK_TTS_MODELS = [
-  { id: "grok-tts",      label: "Grok TTS (standard)" },
-  { id: "grok-tts-mini", label: "Grok TTS Mini (fast)" },
-] as const;
+// No model selection in xAI TTS API — kept for API compatibility
+export const GROK_TTS_MODELS: { id: string; label: string }[] = [];
 
 export type GrokTTSVoice = typeof GROK_TTS_VOICES[number]["id"];
 
-/** Fetch available built-in voices from xAI API (for dynamic server-side loading) */
+/** Fetch available voices from xAI API (includes custom voices) */
 export async function fetchGrokTtsVoices(apiKey: string): Promise<Array<{ id: string; label: string; gender: string }>> {
   try {
     const res = await fetch(`${XAI_BASE_URL}/tts/voices`, {
@@ -44,27 +40,32 @@ export async function fetchGrokTtsVoices(apiKey: string): Promise<Array<{ id: st
 export class GrokTTS implements TTSProvider {
   private apiKey: string;
   private voice: string;
+  private speed: number;
 
-  constructor(_model?: string, voice: string = DEFAULT_VOICE, apiKey?: string, _speed?: number) {
+  constructor(_model?: string, voice: string = DEFAULT_VOICE, apiKey?: string, speed?: number) {
     const key = apiKey ?? process.env["XAI_API_KEY"];
     if (!key) throw new Error("XAI_API_KEY environment variable is required for Grok TTS");
     this.apiKey = key;
     this.voice = voice || DEFAULT_VOICE;
+    // Clamp speed to valid range 0.7–1.5
+    this.speed = speed != null ? Math.min(1.5, Math.max(0.7, speed)) : 1.0;
   }
 
   async generate(text: string): Promise<TTSResult> {
-    // xAI native TTS endpoint: POST /v1/tts
+    const body: Record<string, unknown> = {
+      text,
+      voice_id: this.voice,
+      language: "en",
+    };
+    if (this.speed !== 1.0) body["speed"] = this.speed;
+
     const response = await fetch(`${XAI_BASE_URL}/tts`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        text,
-        voice_id: this.voice,
-        language: "en",
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {

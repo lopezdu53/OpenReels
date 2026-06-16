@@ -146,7 +146,7 @@ export function LabPage() {
   const [ttsError, setTtsError] = useState("");
   const [ttsVoice, setTtsVoice] = useState("");
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
-  const [ttsModel, setTtsModel] = useState("grok-tts-mini");
+  const [ttsModel] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Image
@@ -194,7 +194,7 @@ export function LabPage() {
         provider: ttsProvider,
         text: ttsText,
         ...(ttsVoice ? { voice: ttsVoice } : {}),
-        ...(ttsProvider === "grok-tts" ? { speed: ttsSpeed, model: ttsModel } : {}),
+        ...(ttsProvider === "grok-tts" ? { speed: ttsSpeed } : {}),
       });
       setTtsResult(r);
       setTimeout(() => audioRef.current?.play().catch(() => {}), 100);
@@ -372,54 +372,41 @@ export function LabPage() {
             </div>
           )}
 
-          {/* Grok TTS voice + model + speed */}
+          {/* Grok TTS voice + speed */}
           {ttsProvider === "grok-tts" && providers?.grokTtsVoices && (
             <>
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className="mb-1.5 block text-[12px] text-muted-foreground">Voz</label>
-                  <Select value={ttsVoice || "bria"} onValueChange={setTtsVoice}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectLabel>Femeninas</SelectLabel>
-                        {providers.grokTtsVoices.filter(v => v.gender === "female").map(v => (
-                          <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
-                        ))}
-                      </SelectGroup>
-                      <SelectGroup>
-                        <SelectLabel>Masculinas</SelectLabel>
-                        {providers.grokTtsVoices.filter(v => v.gender === "male").map(v => (
-                          <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="w-48">
-                  <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo</label>
-                  <Select value={ttsModel} onValueChange={setTtsModel}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {(providers.grokTtsModels ?? []).map(m => (
-                        <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Voz</label>
+                <Select value={ttsVoice || "eve"} onValueChange={setTtsVoice}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectLabel>Femeninas</SelectLabel>
+                      {providers.grokTtsVoices.filter(v => v.gender === "female").map(v => (
+                        <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>Masculinas</SelectLabel>
+                      {providers.grokTtsVoices.filter(v => v.gender === "male").map(v => (
+                        <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <label className="mb-1.5 block text-[12px] text-muted-foreground">
                   Velocidad: {ttsSpeed.toFixed(1)}x
                 </label>
                 <input
-                  type="range" min="0.5" max="2.0" step="0.1"
+                  type="range" min="0.7" max="1.5" step="0.1"
                   value={ttsSpeed}
                   onChange={e => setTtsSpeed(Number(e.target.value))}
                   className="w-full accent-primary"
                 />
                 <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
-                  <span>0.5x lento</span><span>1.0x normal</span><span>2.0x rápido</span>
+                  <span>0.7x lento</span><span>1.0x normal</span><span>1.5x rápido</span>
                 </div>
               </div>
             </>

@@ -73,6 +73,7 @@ const PRICING = {
     kokoro: 0, // Free — local inference
     "gemini-tts": 0.00002, // ~$0.02/1K chars (Gemini 2.5 Flash TTS: $0.50/1M text in + $10/1M audio out, ~2 audio tokens per char)
     "openai-tts": 0.00005, // ~$0.05 per 1K chars (gpt-4o-mini-tts: $0.60/1M text tokens in + $12/1M audio tokens out)
+    "grok-tts": 0.00005, // ~$0.05 per 1K chars (estimate)
   } satisfies Record<TTSProviderKey, number>,
   // Gemini 3.1 Flash Image Preview: $60/M output tokens
   // 1080x1920 (>1024px, <=2048px) = 1680 tokens = $0.101/image
