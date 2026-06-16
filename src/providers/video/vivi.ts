@@ -77,6 +77,8 @@ export class ViviVideo implements VideoProvider {
     if (!content) throw new Error("VIVI video: no content in response");
 
     const videoUrl = this.extractVideoUrl(content);
+    console.log(`[video/vivi] Raw content from API: ${typeof content === "string" ? content.slice(0, 300) : JSON.stringify(content).slice(0, 300)}`);
+    console.log(`[video/vivi] Extracted video URL: ${videoUrl ?? "null"}`);
     if (!videoUrl) {
       const preview = typeof content === "string" ? content.slice(0, 300) : JSON.stringify(content).slice(0, 300);
       throw new Error(`VIVI video: no video URL found in response: ${preview}`);
@@ -128,21 +130,19 @@ export class ViviVideo implements VideoProvider {
     const srcMatch = html.match(/<(?:video|source)[^>]+src=["']([^"']+)["']/i);
     if (srcMatch?.[1] && srcMatch[1]!.startsWith("http")) return srcMatch[1]!;
     // og:video meta tag
-    const ogMatch = html.match(/<meta[^>]+property=["']og:video["'][^>]+content=["']([^"']+)["']/i)
+    const ogMatch = html.match(/<meta[^>]+property=["']og:video(?::url)?["'][^>]+content=["']([^"']+)["']/i)
       ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:video["']/i);
     if (ogMatch?.[1]) return ogMatch[1]!;
-    // JavaScript variable: videoUrl: "...", video_url: "...", src: "...", url: "..."
-    const jsVarMatch = html.match(/(?:videoUrl|video_url|videoSrc|video_src|playUrl|play_url|src|url)\s*[:=]\s*["']([^"']+\.(?:mp4|m3u8|webm)[^"']*)["']/i);
-    if (jsVarMatch?.[1]) return jsVarMatch[1]!;
-    // JSON object in script: {"url":"..."}
-    const jsonUrlMatch = html.match(/"(?:url|src|video|mp4|videoUrl)"\s*:\s*"([^"]+\.(?:mp4|m3u8|webm)[^"]*)"/i);
-    if (jsonUrlMatch?.[1]) return jsonUrlMatch[1]!.replace(/\\\//g, "/");
-    // Any direct mp4/m3u8 URL anywhere in the HTML
-    const mp4Match = html.match(/https?:\/\/[^\s"'<>\\]+\.(?:mp4|m3u8|webm)[^\s"'<>\\]*/i);
+    // JSON initial state blobs: __NUXT__, __NEXT_DATA__, window.__INIT__, __APP_DATA__ etc.
+    // Look for any video/mp4/m3u8/webm URL in JSON-like strings
+    const jsonVideoMatch = html.match(/"(?:videoUrl|video_url|videoSrc|video_src|playUrl|play_url|mp4Url|mp4_url|fileUrl|file_url|downloadUrl|download_url|src|url)"\s*:\s*"(https?:\/\/[^"]+\.(?:mp4|m3u8|webm)[^"]*)"/i);
+    if (jsonVideoMatch?.[1]) return jsonVideoMatch[1]!.replace(/\\\//g, "/");
+    // JS variable assignment: videoUrl = "...", var src = "..."
+    const jsAssignMatch = html.match(/(?:videoUrl|video_url|videoSrc|video_src|playUrl|play_url)\s*=\s*["'](https?:\/\/[^"']+\.(?:mp4|m3u8|webm)[^"']*)["']/i);
+    if (jsAssignMatch?.[1]) return jsAssignMatch[1]!;
+    // Any https URL ending in .mp4/.m3u8/.webm in the HTML (strict extension match)
+    const mp4Match = html.match(/https?:\/\/[^\s"'<>\\]+\.(?:mp4|m3u8|webm)(?:[?#][^\s"'<>\\]*)?/i);
     if (mp4Match?.[0]) return mp4Match[0]!;
-    // CDN URL patterns common in Chinese platforms (no extension)
-    const cdnMatch = html.match(/https?:\/\/(?:cdn|oss|cos|obs|vod|media|video|static)\.[^\s"'<>\\]+\/[^\s"'<>\\]+/i);
-    if (cdnMatch?.[0]) return cdnMatch[0]!;
     return null;
   }
 
