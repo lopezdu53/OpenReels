@@ -18,6 +18,19 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface JobConfig {
+  llm?: string;
+  tts?: string;
+  image?: string;
+  video?: string;
+  music?: string;
+  platform?: string;
+  pacing?: string;
+  videoSceneMode?: string;
+  noVideo?: boolean;
+  noSubtitles?: boolean;
+}
+
 export interface JobSummary {
   id: string;
   topic: string;
@@ -36,6 +49,7 @@ export interface JobSummary {
   criticReview?: CriticReview;
   tiktokCaption?: { title: string; hashtags: string[]; caption: string };
   platform?: string;
+  config?: JobConfig;
 }
 
 export interface Archetype {

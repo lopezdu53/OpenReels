@@ -464,6 +464,18 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
         { status: "pending" },
       ]),
     ),
+    config: {
+      llm: providers?.llm ?? "anthropic",
+      tts: providers?.tts ?? "elevenlabs",
+      image: providers?.image ?? "gemini",
+      video: providers?.video,
+      music: providers?.music ?? "bundled",
+      platform: platform ?? "youtube",
+      pacing: pacing,
+      videoSceneMode: videoSceneMode,
+      noVideo: noVideo === true || undefined,
+      noSubtitles: noSubtitles === true || undefined,
+    },
   };
   fs.writeFileSync(path.join(jobDir, "meta.json"), JSON.stringify(placeholderMeta, null, 2));
 

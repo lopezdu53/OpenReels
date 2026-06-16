@@ -78,6 +78,18 @@ interface JobMeta {
   completedAt?: string;
   cancelRequested?: boolean;
   stages: Record<string, { status: string; detail?: string; durationSec?: number }>;
+  config?: {
+    llm?: string;
+    tts?: string;
+    image?: string;
+    video?: string;
+    music?: string;
+    platform?: string;
+    pacing?: string;
+    videoSceneMode?: string;
+    noVideo?: boolean;
+    noSubtitles?: boolean;
+  };
   costEstimate?: unknown;
   actualCost?: unknown;
   videoPath?: string;
@@ -119,6 +131,18 @@ const worker = new Worker<JobData>(
       status: "running",
       createdAt: new Date().toISOString(),
       stages: {},
+      config: {
+        llm: providers.llm,
+        tts: providers.tts,
+        image: providers.image,
+        video: providers.video ?? undefined,
+        music: providers.music ?? "bundled",
+        platform,
+        pacing: pacing ?? undefined,
+        videoSceneMode: videoSceneMode ?? undefined,
+        noVideo: noVideo === true || undefined,
+        noSubtitles: noSubtitles === true || undefined,
+      },
     };
 
     // Initialize all stages as pending
