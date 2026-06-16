@@ -567,10 +567,13 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 const VIDEO_SCENE_LABELS: Record<string, string> = {
-  all: "All scenes",
-  first: "1st scene only",
-  first3: "First 3 scenes",
-  first_every2: "1st + every 2nd",
+  all: "All AI scenes",
+  first: "1ª AI scene",
+  first3: "First 3 AI scenes",
+  first_every2: "1st + every 2nd AI",
+  force_first: "Force scene #1",
+  force_first3: "Force #1-#3",
+  force_first_every2: "Force #1, #3, #5…",
 };
 
 function providerLabel(key: string | undefined): string {

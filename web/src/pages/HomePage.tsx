@@ -7,7 +7,9 @@ import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -431,10 +433,19 @@ export function HomePage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All scenes</SelectItem>
-                          <SelectItem value="first">Only first scene</SelectItem>
-                          <SelectItem value="first3">First 3 scenes</SelectItem>
-                          <SelectItem value="first_every2">First + every 2 scenes</SelectItem>
+                          <SelectItem value="all">Todas las escenas AI</SelectItem>
+                          <SelectGroup>
+                            <SelectLabel>Elección de la IA</SelectLabel>
+                            <SelectItem value="first">Solo 1ª escena AI</SelectItem>
+                            <SelectItem value="first3">Primeras 3 escenas AI</SelectItem>
+                            <SelectItem value="first_every2">1ª + cada 2 escenas AI</SelectItem>
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>Forzar posición fija</SelectLabel>
+                            <SelectItem value="force_first">Forzar escena #1</SelectItem>
+                            <SelectItem value="force_first3">Forzar escenas #1, #2, #3</SelectItem>
+                            <SelectItem value="force_first_every2">Forzar #1, #3, #5...</SelectItem>
+                          </SelectGroup>
                         </SelectContent>
                       </Select>
                     </div>
