@@ -89,17 +89,21 @@ export class ViviVideo implements VideoProvider {
 
     // Reject non-video content types early (HTML error pages, JSON, etc.)
     const contentType = videoRes.headers.get("content-type") ?? "";
+    console.log(`[video/vivi] Downloading from: ${videoUrl.slice(0, 120)} — content-type: ${contentType}`);
     if (contentType && !contentType.includes("video") && !contentType.includes("octet-stream")) {
       const body = await videoRes.text();
       // HTML viewer page — try to extract the real video URL from it
       if (contentType.includes("text/html")) {
+        console.log(`[video/vivi] HTML viewer page received. Snippet: ${body.slice(0, 600)}`);
         const realUrl = this.extractVideoUrlFromHtml(body);
+        console.log(`[video/vivi] Extracted real URL: ${realUrl ?? "none found"}`);
         if (realUrl) {
           const directRes = await fetch(realUrl, { signal: AbortSignal.timeout(TIMEOUT_MS) });
           if (!directRes.ok) throw new Error(`VIVI video direct download failed: ${directRes.status}`);
           const directType = directRes.headers.get("content-type") ?? "";
           if (directType && !directType.includes("video") && !directType.includes("octet-stream")) {
-            throw new Error(`VIVI video: direct URL also returned non-video content: ${directType}`);
+            const directBody = await directRes.text();
+            throw new Error(`VIVI video: direct URL also returned non-video content: ${directType}: ${directBody.slice(0, 200)}`);
           }
           const buffer2 = Buffer.from(await directRes.arrayBuffer());
           if (buffer2.length < 50_000) throw new Error(`VIVI video direct download too small (${buffer2.length} bytes)`);
@@ -121,15 +125,24 @@ export class ViviVideo implements VideoProvider {
 
   private extractVideoUrlFromHtml(html: string): string | null {
     // <video src="..."> or <source src="...">
-    const srcMatch = html.match(/<(?:video|source)[^>]+src=["']([^"']+\.mp4[^"']*)["']/i);
-    if (srcMatch?.[1]) return srcMatch[1]!;
+    const srcMatch = html.match(/<(?:video|source)[^>]+src=["']([^"']+)["']/i);
+    if (srcMatch?.[1] && srcMatch[1]!.startsWith("http")) return srcMatch[1]!;
     // og:video meta tag
     const ogMatch = html.match(/<meta[^>]+property=["']og:video["'][^>]+content=["']([^"']+)["']/i)
       ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:video["']/i);
     if (ogMatch?.[1]) return ogMatch[1]!;
-    // Any .mp4 URL in the HTML
-    const mp4Match = html.match(/https?:\/\/[^\s"'<>]+\.mp4[^\s"'<>]*/i);
+    // JavaScript variable: videoUrl: "...", video_url: "...", src: "...", url: "..."
+    const jsVarMatch = html.match(/(?:videoUrl|video_url|videoSrc|video_src|playUrl|play_url|src|url)\s*[:=]\s*["']([^"']+\.(?:mp4|m3u8|webm)[^"']*)["']/i);
+    if (jsVarMatch?.[1]) return jsVarMatch[1]!;
+    // JSON object in script: {"url":"..."}
+    const jsonUrlMatch = html.match(/"(?:url|src|video|mp4|videoUrl)"\s*:\s*"([^"]+\.(?:mp4|m3u8|webm)[^"]*)"/i);
+    if (jsonUrlMatch?.[1]) return jsonUrlMatch[1]!.replace(/\\\//g, "/");
+    // Any direct mp4/m3u8 URL anywhere in the HTML
+    const mp4Match = html.match(/https?:\/\/[^\s"'<>\\]+\.(?:mp4|m3u8|webm)[^\s"'<>\\]*/i);
     if (mp4Match?.[0]) return mp4Match[0]!;
+    // CDN URL patterns common in Chinese platforms (no extension)
+    const cdnMatch = html.match(/https?:\/\/(?:cdn|oss|cos|obs|vod|media|video|static)\.[^\s"'<>\\]+\/[^\s"'<>\\]+/i);
+    if (cdnMatch?.[0]) return cdnMatch[0]!;
     return null;
   }
 
