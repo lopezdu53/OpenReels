@@ -11,11 +11,26 @@ import type { TTSProvider, TTSResult } from "../../schema/providers.js";
  *
  * Reuses the existing GOOGLE_API_KEY. No additional API key needed.
  */
+export const GEMINI_TTS_VOICES = [
+  { id: "Kore",      label: "Kore — Firme (F)",          gender: "female"  },
+  { id: "Aoede",     label: "Aoede — Suave (F)",          gender: "female"  },
+  { id: "Leda",      label: "Leda — Juvenil (F)",         gender: "female"  },
+  { id: "Zephyr",    label: "Zephyr — Brillante (M)",     gender: "male"    },
+  { id: "Puck",      label: "Puck — Animado (M)",         gender: "male"    },
+  { id: "Charon",    label: "Charon — Informativo (M)",   gender: "male"    },
+  { id: "Fenrir",    label: "Fenrir — Excitable (M)",     gender: "male"    },
+  { id: "Orus",      label: "Orus — Serio (M)",           gender: "male"    },
+  { id: "Perseus",   label: "Perseus — Relajado (M)",     gender: "male"    },
+] as const;
+
+export type GeminiTTSVoice = typeof GEMINI_TTS_VOICES[number]["id"];
+
 export class GeminiTTS implements TTSProvider {
   private client: GoogleGenAI;
   private model: string;
+  private voice: string;
 
-  constructor(model: string = "gemini-2.5-flash-preview-tts", apiKey?: string) {
+  constructor(model: string = "gemini-2.5-flash-preview-tts", apiKey?: string, voice: string = "Kore") {
     const key = apiKey ?? process.env["GOOGLE_API_KEY"];
     if (!key)
       throw new Error(
@@ -23,6 +38,7 @@ export class GeminiTTS implements TTSProvider {
       );
     this.client = new GoogleGenAI({ apiKey: key });
     this.model = model;
+    this.voice = voice;
   }
 
   async generate(text: string): Promise<TTSResult> {
@@ -34,7 +50,7 @@ export class GeminiTTS implements TTSProvider {
         config: {
           responseModalities: ["AUDIO"],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: this.voice } },
           },
         },
       });

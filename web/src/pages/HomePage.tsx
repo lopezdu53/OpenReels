@@ -104,6 +104,10 @@ export function HomePage() {
   const [searchProvider, setSearchProvider] = useState("");
   const [ttsProvider, setTtsProvider] = useState("elevenlabs");
   const [inworldVoice, setInworldVoice] = useState("Pedro");
+  const [geminiTtsVoice, setGeminiTtsVoice] = useState("Kore");
+  const [grokTtsVoice, setGrokTtsVoice] = useState("bria");
+  const [grokTtsSpeed, setGrokTtsSpeed] = useState(1.0);
+  const [grokTtsModel, setGrokTtsModel] = useState("grok-tts-mini");
   const [imageProvider, setImageProvider] = useState("gemini");
   const [musicProvider, setMusicProvider] = useState("bundled");
   const [videoProvider, setVideoProvider] = useState("");
@@ -177,6 +181,8 @@ export function HomePage() {
           ...(llmBaseUrl ? { llmBaseUrl } : {}),
           ...(searchProvider ? { searchProvider } : {}),
           ...(ttsProvider === "inworld" ? { inworldVoice } : {}),
+          ...(ttsProvider === "gemini-tts" ? { geminiTtsVoice } : {}),
+          ...(ttsProvider === "grok-tts" ? { grokTtsVoice, grokTtsSpeed, grokTtsModel } : {}),
         },
       });
       navigate(`/jobs/${result.id}`);
@@ -360,13 +366,94 @@ export function HomePage() {
                         </SelectTrigger>
                         <SelectContent>
                           {providers.inworldVoices.map((v) => (
-                            <SelectItem key={v.id} value={v.id}>
-                              {v.label}
-                            </SelectItem>
+                            <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
+                  )}
+
+                  {ttsProvider === "gemini-tts" && providers?.geminiTtsVoices && (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                        Gemini Voice
+                      </label>
+                      <Select value={geminiTtsVoice} onValueChange={(v) => v && setGeminiTtsVoice(v)}>
+                        <SelectTrigger className="h-9 w-full rounded-lg">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectLabel>Femeninas</SelectLabel>
+                            {providers.geminiTtsVoices.filter(v => v.gender === "female").map((v) => (
+                              <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>Masculinas</SelectLabel>
+                            {providers.geminiTtsVoices.filter(v => v.gender === "male").map((v) => (
+                              <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {ttsProvider === "grok-tts" && providers?.grokTtsVoices && (
+                    <>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                          Grok Voice
+                        </label>
+                        <Select value={grokTtsVoice} onValueChange={(v) => v && setGrokTtsVoice(v)}>
+                          <SelectTrigger className="h-9 w-full rounded-lg">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectLabel>Femeninas</SelectLabel>
+                              {providers.grokTtsVoices.filter(v => v.gender === "female").map((v) => (
+                                <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                            <SelectGroup>
+                              <SelectLabel>Masculinas</SelectLabel>
+                              {providers.grokTtsVoices.filter(v => v.gender === "male").map((v) => (
+                                <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                          Modelo Grok TTS
+                        </label>
+                        <Select value={grokTtsModel} onValueChange={(v) => v && setGrokTtsModel(v)}>
+                          <SelectTrigger className="h-9 w-full rounded-lg"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {(providers.grokTtsModels ?? []).map((m) => (
+                              <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                          Velocidad: {grokTtsSpeed.toFixed(1)}x
+                        </label>
+                        <input
+                          type="range" min="0.5" max="2.0" step="0.1"
+                          value={grokTtsSpeed}
+                          onChange={(e) => setGrokTtsSpeed(Number(e.target.value))}
+                          className="w-full accent-primary"
+                        />
+                        <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                          <span>0.5x lento</span><span>1.0x normal</span><span>2.0x rápido</span>
+                        </div>
+                      </div>
+                    </>
                   )}
 
                   <div>

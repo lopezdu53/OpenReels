@@ -7,17 +7,35 @@ const XAI_BASE_URL = "https://api.x.ai/v1";
 const DEFAULT_MODEL = "grok-tts-mini";
 const DEFAULT_VOICE = "bria"; // female, natural
 
+export const GROK_TTS_VOICES = [
+  { id: "bria",    label: "Bria — Natural (F)",      gender: "female" },
+  { id: "celeste", label: "Celeste — Clara (F)",      gender: "female" },
+  { id: "clio",    label: "Clio — Profesional (F)",   gender: "female" },
+  { id: "dan",     label: "Dan — Natural (M)",         gender: "male"   },
+  { id: "archer",  label: "Archer — Profundo (M)",     gender: "male"   },
+  { id: "vale",    label: "Vale — Suave (M)",          gender: "male"   },
+] as const;
+
+export const GROK_TTS_MODELS = [
+  { id: "grok-tts-mini", label: "Grok TTS Mini (rápido)" },
+  { id: "grok-tts",      label: "Grok TTS (alta calidad)" },
+] as const;
+
+export type GrokTTSVoice = typeof GROK_TTS_VOICES[number]["id"];
+
 export class GrokTTS implements TTSProvider {
   private apiKey: string;
   private model: string;
   private voice: string;
+  private speed: number;
 
-  constructor(model: string = DEFAULT_MODEL, voice: string = DEFAULT_VOICE, apiKey?: string) {
+  constructor(model: string = DEFAULT_MODEL, voice: string = DEFAULT_VOICE, apiKey?: string, speed: number = 1.0) {
     const key = apiKey ?? process.env["XAI_API_KEY"];
     if (!key) throw new Error("XAI_API_KEY environment variable is required for Grok TTS");
     this.apiKey = key;
     this.model = model;
     this.voice = voice;
+    this.speed = Math.min(Math.max(speed, 0.5), 2.0);
   }
 
   async generate(text: string): Promise<TTSResult> {
@@ -31,6 +49,7 @@ export class GrokTTS implements TTSProvider {
         model: this.model,
         input: text,
         voice: this.voice,
+        speed: this.speed,
         response_format: "mp3",
       }),
     });

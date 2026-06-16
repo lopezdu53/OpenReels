@@ -12,6 +12,8 @@ import { getArchetype, listArchetypes } from "./config/archetype-registry.js";
 import { PLATFORMS } from "./config/platforms.js";
 import { DirectorScore } from "./schema/director-score.js";
 import { INWORLD_VOICES } from "./providers/tts/inworld.js";
+import { GEMINI_TTS_VOICES } from "./providers/tts/gemini.js";
+import { GROK_TTS_VOICES, GROK_TTS_MODELS } from "./providers/tts/grok.js";
 import type { SearchProviderKey } from "./schema/providers.js";
 import { AnthropicLLM } from "./providers/llm/anthropic.js";
 import { GeminiLLM } from "./providers/llm/gemini.js";
@@ -198,6 +200,9 @@ app.get("/api/v1/providers", async () => ({
     { key: "grok-tts", label: "Grok TTS" },
   ],
   inworldVoices: INWORLD_VOICES.map((v) => ({ id: v.id, label: v.label, lang: v.lang })),
+  geminiTtsVoices: GEMINI_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
+  grokTtsVoices: GROK_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
+  grokTtsModels: GROK_TTS_MODELS.map((m) => ({ id: m.id, label: m.label })),
   image: [
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI (GPT Image)" },
@@ -249,15 +254,17 @@ app.post("/api/v1/test/llm", async (request, reply) => {
 });
 
 app.post("/api/v1/test/tts", async (request, reply) => {
-  const { provider = "elevenlabs", text } = request.body as { provider?: string; text: string };
+  const { provider = "elevenlabs", text, voice, speed, model } = request.body as {
+    provider?: string; text: string; voice?: string; speed?: number; model?: string;
+  };
   if (!text?.trim()) return reply.status(400).send({ error: "text is required" });
   const start = Date.now();
   try {
     const tts = (() => {
       switch (provider) {
-        case "gemini-tts": return new GeminiTTS();
+        case "gemini-tts": return new GeminiTTS(undefined, undefined, voice);
         case "openai-tts": return new OpenAITTS();
-        case "grok-tts": return new GrokTTS();
+        case "grok-tts": return new GrokTTS(model, voice, undefined, speed);
         case "kokoro": return new KokoroTTS();
         default: return new ElevenLabsTTS();
       }
@@ -349,6 +356,10 @@ interface CreateJobBody {
     llmBaseUrl?: string;
     searchProvider?: SearchProviderKey;
     inworldVoice?: string;
+    geminiTtsVoice?: string;
+    grokTtsVoice?: string;
+    grokTtsSpeed?: number;
+    grokTtsModel?: string;
   };
   keys?: Record<string, string>;
 }
@@ -443,6 +454,10 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       llmBaseUrl: providers?.llmBaseUrl,
       searchProvider: providers?.searchProvider,
       inworldVoice: providers?.inworldVoice,
+      geminiTtsVoice: providers?.geminiTtsVoice,
+      grokTtsVoice: providers?.grokTtsVoice,
+      grokTtsSpeed: providers?.grokTtsSpeed,
+      grokTtsModel: providers?.grokTtsModel,
     },
     keys: keys ?? {},
     jobsDir: JOBS_DIR,

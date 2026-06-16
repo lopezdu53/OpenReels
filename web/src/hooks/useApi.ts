@@ -86,6 +86,12 @@ export interface InworldVoice {
   lang: string;
 }
 
+export interface VoiceOption {
+  id: string;
+  label: string;
+  gender?: string;
+}
+
 export interface ProviderOptions {
   llm: ProviderOption[];
   tts: ProviderOption[];
@@ -93,6 +99,9 @@ export interface ProviderOptions {
   video: ProviderOption[];
   search?: ProviderOption[];
   inworldVoices?: InworldVoice[];
+  geminiTtsVoices?: VoiceOption[];
+  grokTtsVoices?: VoiceOption[];
+  grokTtsModels?: { id: string; label: string }[];
 }
 
 export interface StatsResponse {
@@ -184,6 +193,10 @@ export interface CreateJobRequest {
     llmBaseUrl?: string;
     searchProvider?: string;
     inworldVoice?: string;
+    geminiTtsVoice?: string;
+    grokTtsVoice?: string;
+    grokTtsSpeed?: number;
+    grokTtsModel?: string;
   };
 }
 
@@ -243,7 +256,7 @@ export const api = {
     );
   },
 
-  testTTS(data: { provider?: string; text: string }) {
+  testTTS(data: { provider?: string; text: string; voice?: string; speed?: number; model?: string }) {
     return fetchJson<{ audioBase64: string; durationMs: number; charCount: number }>(
       "/test/tts", { method: "POST", body: JSON.stringify(data) }
     );

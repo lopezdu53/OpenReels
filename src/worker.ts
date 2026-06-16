@@ -64,6 +64,10 @@ interface JobData {
     llmBaseUrl?: string;
     searchProvider?: SearchProviderKey;
     inworldVoice?: string;
+    geminiTtsVoice?: string;
+    grokTtsVoice?: string;
+    grokTtsSpeed?: number;
+    grokTtsModel?: string;
   };
   keys: Record<string, string>;
   jobsDir: string;
@@ -165,6 +169,10 @@ const worker = new Worker<JobData>(
       llmBaseUrl: providers.llmBaseUrl,
       searchProvider: providers.searchProvider,
       inworldVoice: providers.inworldVoice,
+      geminiTtsVoice: providers.geminiTtsVoice,
+      grokTtsVoice: providers.grokTtsVoice,
+      grokTtsSpeed: providers.grokTtsSpeed,
+      grokTtsModel: providers.grokTtsModel,
     });
 
     // Build callbacks that emit BullMQ progress events and update meta.json

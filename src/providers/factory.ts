@@ -41,7 +41,8 @@ import { PixabayStock } from "./stock/pixabay.js";
 import { AlignedTTSProvider } from "./tts/aligned-tts-provider.js";
 import { ElevenLabsTTS } from "./tts/elevenlabs.js";
 import { GeminiTTS } from "./tts/gemini.js";
-import { GrokTTS } from "./tts/grok.js";
+import { GrokTTS, GROK_TTS_MODELS, GROK_TTS_VOICES } from "./tts/grok.js";
+export { GROK_TTS_MODELS, GROK_TTS_VOICES };
 import { InworldTTS } from "./tts/inworld.js";
 import { KokoroTTS } from "./tts/kokoro.js";
 import { OpenAITTS } from "./tts/openai.js";
@@ -64,6 +65,10 @@ export interface ProviderConfig {
   videoModel?: string;
   kokoroVoice?: string;
   inworldVoice?: string;
+  geminiTtsVoice?: string;
+  grokTtsVoice?: string;
+  grokTtsSpeed?: number;
+  grokTtsModel?: string;
   keys?: Record<string, string>;
   llmModel?: string;
   llmBaseUrl?: string;
@@ -168,13 +173,21 @@ export function createProviders(config: ProviderConfig): Providers {
       tts = new AlignedTTSProvider(new KokoroTTS(config.kokoroVoice), aligner);
       break;
     case "gemini-tts":
-      tts = new AlignedTTSProvider(new GeminiTTS(undefined, k["GOOGLE_API_KEY"]), aligner);
+      tts = new AlignedTTSProvider(new GeminiTTS(undefined, k["GOOGLE_API_KEY"], config.geminiTtsVoice), aligner);
       break;
     case "openai-tts":
       tts = new AlignedTTSProvider(new OpenAITTS(undefined, k["OPENAI_API_KEY"]), aligner);
       break;
     case "grok-tts":
-      tts = new AlignedTTSProvider(new GrokTTS(undefined, undefined, k["XAI_API_KEY"] ?? process.env["XAI_API_KEY"]), aligner);
+      tts = new AlignedTTSProvider(
+        new GrokTTS(
+          config.grokTtsModel ?? undefined,
+          config.grokTtsVoice ?? undefined,
+          k["XAI_API_KEY"] ?? process.env["XAI_API_KEY"],
+          config.grokTtsSpeed,
+        ),
+        aligner,
+      );
       break;
     case "inworld":
       tts = new InworldTTS(config.inworldVoice ?? "Dennis", undefined, k["INWORLD_TTS_API_KEY"]);

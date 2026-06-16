@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api, type ProviderOptions } from "@/hooks/useApi";
 import { Loader2, FlaskConical, Cpu, Mic, Image, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -144,6 +144,9 @@ export function LabPage() {
   const [ttsResult, setTtsResult] = useState<{ audioBase64: string; durationMs: number; charCount: number } | null>(null);
   const [ttsLoading, setTtsLoading] = useState(false);
   const [ttsError, setTtsError] = useState("");
+  const [ttsVoice, setTtsVoice] = useState("");
+  const [ttsSpeed, setTtsSpeed] = useState(1.0);
+  const [ttsModel, setTtsModel] = useState("grok-tts-mini");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Image
@@ -187,7 +190,12 @@ export function LabPage() {
   const runTTS = async () => {
     setTtsLoading(true); setTtsError(""); setTtsResult(null);
     try {
-      const r = await api.testTTS({ provider: ttsProvider, text: ttsText });
+      const r = await api.testTTS({
+        provider: ttsProvider,
+        text: ttsText,
+        ...(ttsVoice ? { voice: ttsVoice } : {}),
+        ...(ttsProvider === "grok-tts" ? { speed: ttsSpeed, model: ttsModel } : {}),
+      });
       setTtsResult(r);
       setTimeout(() => audioRef.current?.play().catch(() => {}), 100);
     } catch (e) {
@@ -332,13 +340,91 @@ export function LabPage() {
         <TabsContent value="tts" className="space-y-3">
           <div>
             <label className="mb-1.5 block text-[12px] text-muted-foreground">Proveedor</label>
-            <Select value={ttsProvider} onValueChange={setTtsProvider}>
+            <Select value={ttsProvider} onValueChange={(v) => { setTtsProvider(v); setTtsVoice(""); }}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {ttsProviders.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
+
+          {/* Gemini TTS voice selector */}
+          {ttsProvider === "gemini-tts" && providers?.geminiTtsVoices && (
+            <div>
+              <label className="mb-1.5 block text-[12px] text-muted-foreground">Voz</label>
+              <Select value={ttsVoice || "Kore"} onValueChange={setTtsVoice}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Femeninas</SelectLabel>
+                    {providers.geminiTtsVoices.filter(v => v.gender === "female").map(v => (
+                      <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                  <SelectGroup>
+                    <SelectLabel>Masculinas</SelectLabel>
+                    {providers.geminiTtsVoices.filter(v => v.gender === "male").map(v => (
+                      <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Grok TTS voice + model + speed */}
+          {ttsProvider === "grok-tts" && providers?.grokTtsVoices && (
+            <>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="mb-1.5 block text-[12px] text-muted-foreground">Voz</label>
+                  <Select value={ttsVoice || "bria"} onValueChange={setTtsVoice}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Femeninas</SelectLabel>
+                        {providers.grokTtsVoices.filter(v => v.gender === "female").map(v => (
+                          <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel>Masculinas</SelectLabel>
+                        {providers.grokTtsVoices.filter(v => v.gender === "male").map(v => (
+                          <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-48">
+                  <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo</label>
+                  <Select value={ttsModel} onValueChange={setTtsModel}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(providers.grokTtsModels ?? []).map(m => (
+                        <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">
+                  Velocidad: {ttsSpeed.toFixed(1)}x
+                </label>
+                <input
+                  type="range" min="0.5" max="2.0" step="0.1"
+                  value={ttsSpeed}
+                  onChange={e => setTtsSpeed(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                  <span>0.5x lento</span><span>1.0x normal</span><span>2.0x rápido</span>
+                </div>
+              </div>
+            </>
+          )}
+
           <div>
             <label className="mb-1.5 block text-[12px] text-muted-foreground">Texto</label>
             <textarea
