@@ -76,11 +76,29 @@ export class ViviVideo implements VideoProvider {
     const content = data.choices?.[0]?.message?.content;
     if (!content) throw new Error("VIVI video: no content in response");
 
+    const contentStr = typeof content === "string" ? content : JSON.stringify(content);
+    console.log(`[video/vivi] Raw content from API: ${contentStr.slice(0, 300)}`);
+
+    // Detect VIVI content-moderation / generation failure messages (Chinese)
+    if (
+      contentStr.includes("视频生成失败") ||
+      contentStr.includes("生成失败") ||
+      contentStr.includes("不允许生成") ||
+      contentStr.includes("提示词敏感") ||
+      contentStr.includes("内容违规") ||
+      contentStr.includes("generation failed") ||
+      contentStr.includes("failed to generate")
+    ) {
+      throw new Error(
+        `VIVI video generation blocked by content filter. ` +
+        `Try a different prompt or image. VIVI response: ${contentStr.slice(contentStr.lastIndexOf(">") + 1).trim()}`,
+      );
+    }
+
     const videoUrl = this.extractVideoUrl(content);
-    console.log(`[video/vivi] Raw content from API: ${typeof content === "string" ? content.slice(0, 300) : JSON.stringify(content).slice(0, 300)}`);
     console.log(`[video/vivi] Extracted video URL: ${videoUrl ?? "null"}`);
     if (!videoUrl) {
-      const preview = typeof content === "string" ? content.slice(0, 300) : JSON.stringify(content).slice(0, 300);
+      const preview = contentStr.slice(0, 300);
       throw new Error(`VIVI video: no video URL found in response: ${preview}`);
     }
 
