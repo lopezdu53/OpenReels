@@ -56,6 +56,8 @@ export class GrokTTS implements TTSProvider {
       text,
       voice_id: this.voice,
       language: "en",
+      // WAV output so WhisperAligner can parse it (wavefile library requires WAV)
+      output_format: { codec: "wav", sample_rate: 16000 },
     };
     if (this.speed !== 1.0) body["speed"] = this.speed;
 
