@@ -596,6 +596,7 @@ function ConfigBadges({ config }: { config: JobConfig }) {
   }
   if (config.pacing) items.push({ label: "Pacing", value: config.pacing });
   if (config.noSubtitles) items.push({ label: "Subtitles", value: "Off" });
+  if (config.styleReference) items.push({ label: "Style", value: "Custom image", color: "violet" });
 
   if (items.length === 0) return null;
 

@@ -719,11 +719,27 @@ function buildPipelineWorkflow(
 
       const aspectRatio = getPlatformAspectRatio(opts.platform);
 
+      // A user-supplied style reference image takes priority over everything else:
+      // every scene is conditioned on the same image so the whole video shares its look.
+      const styleReferenceImage = opts.styleReferenceImage;
+
       // Long-form platforms using VIVI benefit from sequential generation with a
       // reference image fed forward so characters/setting/style stay consistent.
-      const continuityEnabled = opts.platform !== "youtube" && opts.platform !== "tiktok" && opts.platform !== "instagram" && opts.imageProvider === "vivi";
+      const continuityEnabled = !styleReferenceImage && opts.platform !== "youtube" && opts.platform !== "tiktok" && opts.platform !== "instagram" && opts.imageProvider === "vivi";
 
-      const scenePromise = continuityEnabled
+      const scenePromise = styleReferenceImage
+        ? Promise.all(
+            score.scenes.map(async (scene, i) => {
+              try {
+                const sceneDuration = sceneDurations[i];
+                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, styleReferenceImage, aspectRatio);
+              } catch (err) {
+                cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
+                return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
+              }
+            }),
+          )
+        : continuityEnabled
         ? (async () => {
             const results: VisualAssetResult[] = [];
             let previousImage: Buffer | undefined;

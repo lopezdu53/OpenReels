@@ -29,6 +29,7 @@ export interface JobConfig {
   videoSceneMode?: string;
   noVideo?: boolean;
   noSubtitles?: boolean;
+  styleReference?: boolean;
 }
 
 export interface JobSummary {
@@ -182,6 +183,7 @@ export interface CreateJobRequest {
   score?: Record<string, unknown>;
   allowedVisualTypes?: string[];
   videoSceneMode?: string;
+  styleReferenceImage?: string; // base64
   providers?: {
     llm?: string;
     tts?: string;

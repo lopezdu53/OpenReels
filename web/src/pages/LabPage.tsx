@@ -146,7 +146,6 @@ export function LabPage() {
   const [ttsError, setTtsError] = useState("");
   const [ttsVoice, setTtsVoice] = useState("");
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
-  const [ttsModel] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Image

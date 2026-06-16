@@ -27,23 +27,38 @@ export class GeminiImage implements ImageProvider {
     this.model = model;
   }
 
-  async generate(prompt: string, style?: string, _referenceImage?: Buffer, aspectRatio?: string): Promise<Buffer> {
+  async generate(prompt: string, style?: string, referenceImage?: Buffer, aspectRatio?: string): Promise<Buffer> {
     const isLandscape = aspectRatio === "16:9";
     const orientationHint = isLandscape
       ? "WIDE HORIZONTAL LANDSCAPE image ONLY. 16:9 widescreen aspect ratio, wider than tall. CRITICAL: Do NOT generate portrait or vertical orientation. Compose as a cinematic widescreen scene filling the full horizontal frame. 1920x1080 pixels"
       : "Vertical 9:16 aspect ratio, 1080x1920 pixels";
+    const styleRefHint = referenceImage
+      ? " Match the art style, color palette, lighting and overall visual mood of the reference image exactly — render this new scene as if it belongs to the same set of images."
+      : "";
     const fullPrompt = isLandscape
-      ? `${orientationHint}. ${prompt}.${style ? ` Style: ${style}.` : ""} No text, no watermarks.`
+      ? `${orientationHint}. ${prompt}.${styleRefHint}${style ? ` Style: ${style}.` : ""} No text, no watermarks.`
       : style
-        ? `${prompt}. Style: ${style}. ${orientationHint}. No text, no watermarks.`
-        : `${prompt}. ${orientationHint}. No text, no watermarks.`;
+        ? `${prompt}. Style: ${style}.${styleRefHint} ${orientationHint}. No text, no watermarks.`
+        : `${prompt}.${styleRefHint} ${orientationHint}. No text, no watermarks.`;
+
+    const contents = referenceImage
+      ? [
+          {
+            role: "user",
+            parts: [
+              { inlineData: { mimeType: "image/png", data: referenceImage.toString("base64") } },
+              { text: fullPrompt },
+            ],
+          },
+        ]
+      : fullPrompt;
 
     let lastError: unknown;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
         const response = await this.client.models.generateContent({
           model: this.model,
-          contents: fullPrompt,
+          contents,
           config: {
             responseModalities: ["image", "text"],
           },

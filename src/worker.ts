@@ -52,6 +52,7 @@ interface JobData {
   targetDurationMinutes?: number;
   score?: Record<string, unknown>;
   videoSceneMode?: string;
+  styleReferenceImage?: string; // base64
   providers: {
     llm: string;
     tts: string;
@@ -93,6 +94,7 @@ interface JobMeta {
     videoSceneMode?: string;
     noVideo?: boolean;
     noSubtitles?: boolean;
+    styleReference?: boolean;
   };
   costEstimate?: unknown;
   actualCost?: unknown;
@@ -122,7 +124,7 @@ function writeMeta(jobDir: string, meta: JobMeta) {
 const worker = new Worker<JobData>(
   "openreels",
   async (job: Job<JobData>) => {
-    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, providers, keys } =
+    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, providers, keys } =
       job.data;
     const jobDir = path.join(JOBS_DIR, job.id!);
     fs.mkdirSync(jobDir, { recursive: true });
@@ -146,6 +148,7 @@ const worker = new Worker<JobData>(
         videoSceneMode: videoSceneMode ?? undefined,
         noVideo: noVideo === true || undefined,
         noSubtitles: noSubtitles === true || undefined,
+        styleReference: styleReferenceImage ? true : undefined,
       },
     };
 
@@ -337,6 +340,7 @@ const worker = new Worker<JobData>(
         replayScore,
         targetDurationMinutes,
         videoSceneMode,
+        styleReferenceImage: styleReferenceImage ? Buffer.from(styleReferenceImage, "base64") : undefined,
       },
       callbacks,
     );

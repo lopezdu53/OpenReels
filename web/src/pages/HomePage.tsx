@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { type Archetype, api, type Platform, type ProviderOptions } from "@/hooks/useApi";
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,9 @@ export function HomePage() {
   const navigate = useNavigate();
   const [topic, setTopic] = useState("");
   const [archetype, setArchetype] = useState("");
+  const [styleReferenceMode, setStyleReferenceMode] = useState(false);
+  const [styleReferenceImage, setStyleReferenceImage] = useState<string | undefined>(undefined);
+  const styleImageInputRef = useRef<HTMLInputElement | null>(null);
   const [platform, setPlatform] = useState("youtube");
   const [llmProvider, setLlmProvider] = useState("anthropic");
   const [llmModel, setLlmModel] = useState("");
@@ -154,6 +157,10 @@ export function HomePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!topic.trim() || loading) return;
+    if (styleReferenceMode && !styleReferenceImage) {
+      setError("Sube una imagen de referencia o cambia el Style Override.");
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -171,6 +178,7 @@ export function HomePage() {
         ...(scoreJson ? { score: scoreJson } : {}),
         allowedVisualTypes: allowedVisualTypes.length > 0 ? allowedVisualTypes : undefined,
         ...(allowedVisualTypes.includes("ai_video") && videoSceneMode !== "all" ? { videoSceneMode } : {}),
+        ...(styleReferenceMode && styleReferenceImage ? { styleReferenceImage } : {}),
         providers: {
           llm: llmProvider,
           tts: ttsProvider,
@@ -578,12 +586,25 @@ export function HomePage() {
                     <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                       Style Override
                     </label>
-                    <Select value={archetype} onValueChange={(v) => setArchetype(v ?? "")}>
+                    <Select
+                      value={styleReferenceMode ? "__image__" : archetype}
+                      onValueChange={(v) => {
+                        if (v === "__image__") {
+                          setStyleReferenceMode(true);
+                          setArchetype("");
+                        } else {
+                          setStyleReferenceMode(false);
+                          setStyleReferenceImage(undefined);
+                          setArchetype(v ?? "");
+                        }
+                      }}
+                    >
                       <SelectTrigger className="h-9 w-full rounded-lg">
                         <SelectValue placeholder="Auto" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="">Auto Style</SelectItem>
+                        <SelectItem value="__image__">Personalizado (imagen)</SelectItem>
                         {archetypes.map((a) => (
                           <SelectItem key={a.name} value={a.name}>
                             {a.label ?? a.name
@@ -594,6 +615,46 @@ export function HomePage() {
                         ))}
                       </SelectContent>
                     </Select>
+
+                    {styleReferenceMode && (
+                      <div className="mt-2 flex items-center gap-3">
+                        <input
+                          ref={styleImageInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              const dataUrl = reader.result as string;
+                              setStyleReferenceImage(dataUrl.split(",")[1]);
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => styleImageInputRef.current?.click()}
+                          className="h-9 rounded-lg border border-border bg-secondary px-3 text-xs font-medium text-foreground hover:bg-secondary/80"
+                        >
+                          {styleReferenceImage ? "Cambiar imagen" : "Subir imagen"}
+                        </button>
+                        {styleReferenceImage && (
+                          <img
+                            src={`data:image/png;base64,${styleReferenceImage}`}
+                            alt="Referencia de estilo"
+                            className="h-10 w-10 rounded-lg object-cover"
+                          />
+                        )}
+                      </div>
+                    )}
+                    {styleReferenceMode && (
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        Todas las escenas copiarán el estilo visual (paleta, luz, mood) de esta imagen.
+                      </p>
+                    )}
                   </div>
                 </div>
 

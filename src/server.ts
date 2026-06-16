@@ -344,6 +344,7 @@ interface CreateJobBody {
   targetDurationMinutes?: number;
   score?: Record<string, unknown>;
   videoSceneMode?: string;
+  styleReferenceImage?: string; // base64
   providers?: {
     llm?: string;
     tts?: string;
@@ -365,7 +366,7 @@ interface CreateJobBody {
 }
 
 app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
-  const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, providers, keys } =
+  const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, providers, keys } =
     request.body ?? {};
 
   if (!topic || typeof topic !== "string" || topic.trim().length === 0) {
@@ -398,6 +399,16 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     return reply
       .status(400)
       .send({ error: `Unknown platform: ${platform}. Available: ${validPlatforms.join(", ")}` });
+  }
+
+  // Validate style reference image if provided (base64, capped at ~8MB decoded)
+  if (styleReferenceImage != null) {
+    if (typeof styleReferenceImage !== "string") {
+      return reply.status(400).send({ error: "styleReferenceImage must be a base64 string" });
+    }
+    if (Buffer.byteLength(styleReferenceImage, "base64") > 8 * 1024 * 1024) {
+      return reply.status(400).send({ error: "styleReferenceImage exceeds 8MB limit" });
+    }
   }
 
   // Validate direction text size if provided
@@ -442,6 +453,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     ...(targetDurationMinutes != null ? { targetDurationMinutes: Number(targetDurationMinutes) } : {}),
     ...(validatedScore ? { score: validatedScore } : {}),
     ...(videoSceneMode ? { videoSceneMode } : {}),
+    ...(styleReferenceImage ? { styleReferenceImage } : {}),
     providers: {
       llm: providers?.llm ?? "anthropic",
       tts: providers?.tts ?? "elevenlabs",
@@ -490,6 +502,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       videoSceneMode: videoSceneMode,
       noVideo: noVideo === true || undefined,
       noSubtitles: noSubtitles === true || undefined,
+      styleReference: styleReferenceImage ? true : undefined,
     },
   };
   fs.writeFileSync(path.join(jobDir, "meta.json"), JSON.stringify(placeholderMeta, null, 2));

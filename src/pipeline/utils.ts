@@ -74,6 +74,8 @@ export interface PipelineOptions {
   replayScore?: DirectorScore;
   targetDurationMinutes?: number;
   videoSceneMode?: string;
+  /** Image used as a global style reference — every scene's AI image generation is conditioned on it. */
+  styleReferenceImage?: Buffer;
 }
 
 export interface PipelineResult {
