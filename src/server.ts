@@ -509,6 +509,8 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       noVideo: noVideo === true || undefined,
       noSubtitles: noSubtitles === true || undefined,
       styleReference: styleReferenceImage ? true : undefined,
+      atelierMode: atelierMode === true || undefined,
+      artStyleOverride: artStyleOverride?.trim() || undefined,
     },
   };
   fs.writeFileSync(path.join(jobDir, "meta.json"), JSON.stringify(placeholderMeta, null, 2));
