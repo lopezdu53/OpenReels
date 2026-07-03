@@ -100,6 +100,8 @@ export function HomePage() {
   const [styleReferenceMode, setStyleReferenceMode] = useState(false);
   const [styleReferenceImage, setStyleReferenceImage] = useState<string | undefined>(undefined);
   const styleImageInputRef = useRef<HTMLInputElement | null>(null);
+  const [artStyleOverride, setArtStyleOverride] = useState<string>("");
+  const [atelierMode, setAtelierMode] = useState(false);
   const [platform, setPlatform] = useState("youtube");
   const [llmProvider, setLlmProvider] = useState("anthropic");
   const [llmModel, setLlmModel] = useState("");
@@ -179,6 +181,8 @@ export function HomePage() {
         allowedVisualTypes: allowedVisualTypes.length > 0 ? allowedVisualTypes : undefined,
         ...(allowedVisualTypes.includes("ai_video") && videoSceneMode !== "all" ? { videoSceneMode } : {}),
         ...(styleReferenceMode && styleReferenceImage ? { styleReferenceImage } : {}),
+        ...(atelierMode ? { atelierMode: true } : {}),
+        ...(artStyleOverride ? { artStyleOverride } : {}),
         providers: {
           llm: llmProvider,
           tts: ttsProvider,
@@ -587,14 +591,27 @@ export function HomePage() {
                       Style Override
                     </label>
                     <Select
-                      value={styleReferenceMode ? "__image__" : archetype}
+                      value={
+                        styleReferenceMode ? "__image__"
+                        : artStyleOverride ? (`atelier:${providers?.atelierStyles?.find((s) => s.artStyle === artStyleOverride)?.id ?? ""}`)
+                        : archetype
+                      }
                       onValueChange={(v) => {
                         if (v === "__image__") {
                           setStyleReferenceMode(true);
                           setArchetype("");
+                          setArtStyleOverride("");
+                        } else if (v.startsWith("atelier:")) {
+                          const styleId = v.slice("atelier:".length);
+                          const found = providers?.atelierStyles?.find((s) => s.id === styleId);
+                          setStyleReferenceMode(false);
+                          setStyleReferenceImage(undefined);
+                          setArchetype("");
+                          setArtStyleOverride(found?.artStyle ?? "");
                         } else {
                           setStyleReferenceMode(false);
                           setStyleReferenceImage(undefined);
+                          setArtStyleOverride("");
                           setArchetype(v ?? "");
                         }
                       }}
@@ -605,14 +622,29 @@ export function HomePage() {
                       <SelectContent>
                         <SelectItem value="">Auto Style</SelectItem>
                         <SelectItem value="__image__">Personalizado (imagen)</SelectItem>
-                        {archetypes.map((a) => (
-                          <SelectItem key={a.name} value={a.name}>
-                            {a.label ?? a.name
-                              .split(/[-_]/)
-                              .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
-                              .join(" ")}
-                          </SelectItem>
-                        ))}
+                        {archetypes.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>Archetypes</SelectLabel>
+                            {archetypes.map((a) => (
+                              <SelectItem key={a.name} value={a.name}>
+                                {a.label ?? a.name
+                                  .split(/[-_]/)
+                                  .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                                  .join(" ")}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                        {providers?.atelierStyles && providers.atelierStyles.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>Atelier Styles</SelectLabel>
+                            {providers.atelierStyles.map((s) => (
+                              <SelectItem key={s.id} value={`atelier:${s.id}`}>
+                                {s.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
                       </SelectContent>
                     </Select>
 
@@ -680,7 +712,6 @@ export function HomePage() {
                             setAllowedVisualTypes((prev) =>
                               checked ? prev.filter((t) => t !== key) : [...prev, key],
                             );
-                            // Clear video provider and scene mode when ai_video is deselected
                             if (key === "ai_video" && checked) {
                               setVideoProvider("");
                               setVideoSceneMode("all");
@@ -697,9 +728,23 @@ export function HomePage() {
                         </button>
                       );
                     })}
+                    {/* Atelier mode toggle — chain-of-reference image consistency */}
+                    <button
+                      type="button"
+                      onClick={() => setAtelierMode((prev) => !prev)}
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                        atelierMode
+                          ? "border-violet-500/40 bg-violet-500/10 text-violet-400"
+                          : "border-border bg-transparent text-text-subtle hover:text-foreground",
+                      )}
+                    >
+                      {atelierMode ? "✓ " : ""}Atelier
+                    </button>
                   </div>
                   <p className="mt-1 text-[10px] text-muted-foreground">
                     AI Video is expensive (~$0.30/scene) and slow. Uncheck to avoid it.
+                    {atelierMode && " · Atelier: la escena 1 se usa como referencia para mantener personaje y estilo en todo el video."}
                   </p>
                 </div>
 

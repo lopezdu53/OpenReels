@@ -152,6 +152,8 @@ async function generateAIImage(
 ): Promise<VisualAssetResult> {
   let prompt = visualPrompt;
   let usage: LLMUsage | null = null;
+  const imagePromptOpts = opts.artStyleOverride ? { artStyleOverride: opts.artStyleOverride } : undefined;
+
   try {
     const optimized = await optimizeImagePrompt(
       opts.llm,
@@ -160,6 +162,7 @@ async function generateAIImage(
       sceneIndex,
       totalScenes,
       archetype,
+      imagePromptOpts,
     );
     prompt = optimized.prompt;
     usage = optimized.usage;
@@ -186,6 +189,7 @@ async function generateAIImage(
         totalScenes,
         archetype,
         {
+          ...imagePromptOpts,
           rejectionContext:
             `The previous prompt was rejected by the image provider's safety filter (${String(err).slice(0, 200)}). ` +
             `Rewrite the prompt to convey the same scene mood and composition through atmosphere, lighting, and implication. ` +
@@ -723,9 +727,13 @@ function buildPipelineWorkflow(
       // every scene is conditioned on the same image so the whole video shares its look.
       const styleReferenceImage = opts.styleReferenceImage;
 
+      // Atelier mode: scene 1 generates freely, its image becomes the fixed reference
+      // for ALL subsequent scenes (character + style lock). Scenes 2+ run in parallel.
+      const atelierMode = !styleReferenceImage && opts.atelierMode === true;
+
       // Long-form platforms using VIVI benefit from sequential generation with a
       // reference image fed forward so characters/setting/style stay consistent.
-      const continuityEnabled = !styleReferenceImage && opts.platform !== "youtube" && opts.platform !== "tiktok" && opts.platform !== "instagram" && opts.imageProvider === "vivi";
+      const continuityEnabled = !styleReferenceImage && !atelierMode && opts.platform !== "youtube" && opts.platform !== "tiktok" && opts.platform !== "instagram" && opts.imageProvider === "vivi";
 
       const scenePromise = styleReferenceImage
         ? Promise.all(
@@ -739,6 +747,37 @@ function buildPipelineWorkflow(
               }
             }),
           )
+        : atelierMode
+        ? (async () => {
+            // Step 1: generate scene 0 without reference
+            const firstScene = score.scenes[0]!;
+            let firstResult: VisualAssetResult;
+            try {
+              firstResult = await resolveVisualAsset(firstScene, 0, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[0], undefined, aspectRatio);
+            } catch (err) {
+              cb.onProgress?.("visuals", { type: "asset_failed", scene: 0, error: String(err) });
+              firstResult = { path: null, usage: null, durationSeconds: null };
+            }
+            // Step 2: read scene 0's image as the Atelier reference
+            let atelierRef: Buffer | undefined;
+            try {
+              const refPath = path.join(assetsDir, "scene-0-ai.png");
+              if (fs.existsSync(refPath)) atelierRef = fs.readFileSync(refPath);
+            } catch { /* no ai image for scene 0 — stock/text_card, proceed without ref */ }
+            // Step 3: scenes 1+ in parallel, all receiving scene 0's image as reference
+            const restResults = await Promise.all(
+              score.scenes.slice(1).map(async (scene, idx) => {
+                const i = idx + 1;
+                try {
+                  return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[i], atelierRef, aspectRatio);
+                } catch (err) {
+                  cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
+                  return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
+                }
+              }),
+            );
+            return [firstResult, ...restResults];
+          })()
         : continuityEnabled
         ? (async () => {
             const results: VisualAssetResult[] = [];

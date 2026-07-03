@@ -19,6 +19,7 @@ export interface ImagePromptOutput {
 export interface ImagePromptOptions {
   mode?: "image" | "video";
   rejectionContext?: string;
+  artStyleOverride?: string;
 }
 
 export async function optimizeImagePrompt(
@@ -45,10 +46,11 @@ export async function optimizeImagePrompt(
   }
 
   // Inject style bible from archetype's creative fields
+  const artStyle = opts?.artStyleOverride ?? archetype.artStyle;
   systemPrompt += `
 
 ## STYLE BIBLE (all scenes MUST follow this)
-Art style: ${archetype.artStyle}
+Art style: ${artStyle}
 Color palette: ${archetype.visualColorPalette.join(", ")}
 Lighting: ${archetype.lighting}
 Composition: ${archetype.compositionRules}

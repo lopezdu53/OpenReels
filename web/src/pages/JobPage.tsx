@@ -597,6 +597,8 @@ function ConfigBadges({ config }: { config: JobConfig }) {
   if (config.pacing) items.push({ label: "Pacing", value: config.pacing });
   if (config.noSubtitles) items.push({ label: "Subtitles", value: "Off" });
   if (config.styleReference) items.push({ label: "Style", value: "Custom image", color: "violet" });
+  if (config.atelierMode) items.push({ label: "Mode", value: "Atelier", color: "violet" });
+  if (config.artStyleOverride) items.push({ label: "Art", value: config.artStyleOverride.split(",")[0]?.trim() ?? "Atelier", color: "emerald" });
 
   if (items.length === 0) return null;
 

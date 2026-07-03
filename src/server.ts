@@ -14,6 +14,7 @@ import { DirectorScore } from "./schema/director-score.js";
 import { INWORLD_VOICES } from "./providers/tts/inworld.js";
 import { GEMINI_TTS_VOICES } from "./providers/tts/gemini.js";
 import { GROK_TTS_VOICES, GROK_TTS_MODELS } from "./providers/tts/grok.js";
+import { ATELIER_STYLES } from "./config/atelier-styles.js";
 import type { SearchProviderKey } from "./schema/providers.js";
 import { AnthropicLLM } from "./providers/llm/anthropic.js";
 import { GeminiLLM } from "./providers/llm/gemini.js";
@@ -203,6 +204,7 @@ app.get("/api/v1/providers", async () => ({
   geminiTtsVoices: GEMINI_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
   grokTtsVoices: GROK_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
   grokTtsModels: GROK_TTS_MODELS.map((m) => ({ id: m.id, label: m.label })),
+  atelierStyles: ATELIER_STYLES,
   image: [
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI (GPT Image)" },
@@ -345,6 +347,8 @@ interface CreateJobBody {
   score?: Record<string, unknown>;
   videoSceneMode?: string;
   styleReferenceImage?: string; // base64
+  atelierMode?: boolean;
+  artStyleOverride?: string;
   providers?: {
     llm?: string;
     tts?: string;
@@ -366,7 +370,7 @@ interface CreateJobBody {
 }
 
 app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
-  const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, providers, keys } =
+  const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, atelierMode, artStyleOverride, providers, keys } =
     request.body ?? {};
 
   if (!topic || typeof topic !== "string" || topic.trim().length === 0) {
@@ -454,6 +458,8 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     ...(validatedScore ? { score: validatedScore } : {}),
     ...(videoSceneMode ? { videoSceneMode } : {}),
     ...(styleReferenceImage ? { styleReferenceImage } : {}),
+    ...(atelierMode ? { atelierMode: true } : {}),
+    ...(artStyleOverride?.trim() ? { artStyleOverride: artStyleOverride.trim() } : {}),
     providers: {
       llm: providers?.llm ?? "anthropic",
       tts: providers?.tts ?? "elevenlabs",

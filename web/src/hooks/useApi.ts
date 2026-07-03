@@ -30,6 +30,8 @@ export interface JobConfig {
   noVideo?: boolean;
   noSubtitles?: boolean;
   styleReference?: boolean;
+  atelierMode?: boolean;
+  artStyleOverride?: string;
 }
 
 export interface JobSummary {
@@ -103,6 +105,7 @@ export interface ProviderOptions {
   geminiTtsVoices?: VoiceOption[];
   grokTtsVoices?: VoiceOption[];
   grokTtsModels?: { id: string; label: string }[];
+  atelierStyles?: { id: string; label: string; artStyle: string }[];
 }
 
 export interface StatsResponse {
@@ -184,6 +187,8 @@ export interface CreateJobRequest {
   allowedVisualTypes?: string[];
   videoSceneMode?: string;
   styleReferenceImage?: string; // base64
+  atelierMode?: boolean;
+  artStyleOverride?: string;
   providers?: {
     llm?: string;
     tts?: string;
