@@ -1,15 +1,43 @@
 import * as fs from "node:fs";
+import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import { Queue, QueueEvents } from "bullmq";
 import Fastify from "fastify";
 import IORedis from "ioredis";
+import { z } from "zod";
 import { PACING_CONFIG } from "./agents/creative-director.js";
 import { getArchetype, listArchetypes } from "./config/archetype-registry.js";
 import { PLATFORMS } from "./config/platforms.js";
 import { DirectorScore } from "./schema/director-score.js";
+import { INWORLD_VOICES } from "./providers/tts/inworld.js";
+import { GEMINI_TTS_VOICES } from "./providers/tts/gemini.js";
+import { GROK_TTS_VOICES, GROK_TTS_MODELS } from "./providers/tts/grok.js";
+import { ATELIER_STYLES } from "./config/atelier-styles.js";
 import type { SearchProviderKey } from "./schema/providers.js";
+import { AnthropicLLM } from "./providers/llm/anthropic.js";
+import { GeminiLLM } from "./providers/llm/gemini.js";
+import { OpenAILLM } from "./providers/llm/openai.js";
+import { OpenRouterLLM } from "./providers/llm/openrouter.js";
+import { ViviLLM } from "./providers/llm/vivi.js";
+import { AliCloudLLM } from "./providers/llm/alicloud.js";
+import { ElevenLabsTTS } from "./providers/tts/elevenlabs.js";
+import { GeminiTTS } from "./providers/tts/gemini.js";
+import { OpenAITTS } from "./providers/tts/openai.js";
+import { GrokTTS } from "./providers/tts/grok.js";
+import { KokoroTTS } from "./providers/tts/kokoro.js";
+import { GeminiImage } from "./providers/image/gemini.js";
+import { OpenAIImage } from "./providers/image/openai.js";
+import { ViviImage } from "./providers/image/vivi.js";
+import { AliCloudImage } from "./providers/image/alicloud.js";
+import { FalImage } from "./providers/image/fal.js";
+import { RunPodImage } from "./providers/image/runpod.js";
+import { GeminiVideo } from "./providers/video/gemini.js";
+import { GrokVideo } from "./providers/video/grok.js";
+import { ViviVideo } from "./providers/video/vivi.js";
+import { FalVideo } from "./providers/video/fal.js";
+import { RunPodVideo } from "./providers/video/runpod.js";
 
 const REDIS_URL = process.env["REDIS_URL"] ?? "redis://localhost:6379";
 const PORT = Number(process.env["PORT"] ?? 3000);
@@ -63,6 +91,12 @@ app.get("/api/v1/health", async () => {
       INWORLD_TTS_API_KEY: !!process.env["INWORLD_TTS_API_KEY"],
       PEXELS_API_KEY: !!process.env["PEXELS_API_KEY"],
       PIXABAY_API_KEY: !!process.env["PIXABAY_API_KEY"],
+      VIVI_LLM_API_KEY: !!process.env["VIVI_LLM_API_KEY"],
+      VIVI_IMAGE_API_KEY: !!process.env["VIVI_IMAGE_API_KEY"],
+      VIVI_VIDEO_API_KEY: !!process.env["VIVI_VIDEO_API_KEY"],
+      ALICLOUD_API_KEY: !!process.env["ALICLOUD_API_KEY"],
+      VIDU_API_KEY: !!process.env["VIDU_API_KEY"],
+      XAI_API_KEY: !!process.env["XAI_API_KEY"],
     },
   };
 });
@@ -116,6 +150,7 @@ app.get("/api/v1/archetypes", async () => {
     const config = getArchetype(name);
     return {
       name,
+      label: config.label,
       captionStyle: config.captionStyle,
       artStyle: config.artStyle,
       mood: config.mood,
@@ -135,6 +170,9 @@ app.get("/api/v1/platforms", async () => {
     height: config.height,
     fps: config.fps,
     maxDurationSeconds: config.maxDurationSeconds,
+    minDurationSeconds: config.minDurationSeconds,
+    orientation: config.orientation ?? "portrait",
+    longForm: config.longForm ?? false,
   }));
 });
 
@@ -146,6 +184,8 @@ app.get("/api/v1/providers", async () => ({
     { key: "gemini", label: "Google Gemini" },
     { key: "openrouter", label: "OpenRouter" },
     { key: "openai-compatible", label: "Custom (OpenAI-compatible)" },
+    { key: "vivi", label: "VIVI (Claude)" },
+    { key: "alicloud", label: "Alibaba Cloud" },
   ],
   search: [
     { key: "native", label: "Native (provider built-in)" },
@@ -158,16 +198,138 @@ app.get("/api/v1/providers", async () => ({
     { key: "kokoro", label: "Kokoro (Local)" },
     { key: "gemini-tts", label: "Gemini TTS" },
     { key: "openai-tts", label: "OpenAI TTS" },
+    { key: "grok-tts", label: "Grok TTS" },
   ],
+  inworldVoices: INWORLD_VOICES.map((v) => ({ id: v.id, label: v.label, lang: v.lang })),
+  geminiTtsVoices: GEMINI_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
+  grokTtsVoices: GROK_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
+  grokTtsModels: GROK_TTS_MODELS.map((m) => ({ id: m.id, label: m.label })),
+  atelierStyles: ATELIER_STYLES,
   image: [
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI (GPT Image)" },
+    { key: "vivi", label: "VIVI (Gemini)" },
+    { key: "alicloud", label: "Alibaba Cloud" },
+    { key: "runpod", label: "RunPod Serverless" },
+    { key: "fal", label: "fal.ai (FLUX)" },
   ],
   video: [
     { key: "gemini", label: "Google Veo" },
-    { key: "fal", label: "fal.ai (Kling, Wan, etc.)" },
+    { key: "grok", label: "Grok Imagine Video" },
+    { key: "vivi", label: "VIVI (Grok Video 3)" },
+    { key: "fal", label: "fal.ai (Kling 2.6 Pro)" },
+    { key: "vidu-q2-fast", label: "VIDU Q2 Fast (~27cr/5s)" },
+    { key: "vidu-q3-fast", label: "VIDU Q3 Fast" },
+    { key: "runpod", label: "RunPod Serverless" },
   ],
 }));
+
+// --- API Test endpoints ---
+
+app.post("/api/v1/test/llm", async (request, reply) => {
+  const { provider = "anthropic", model, prompt } = request.body as {
+    provider?: string; model?: string; prompt: string;
+  };
+  if (!prompt?.trim()) return reply.status(400).send({ error: "prompt is required" });
+  const start = Date.now();
+  try {
+    const llm = (() => {
+      switch (provider) {
+        case "openai": return new OpenAILLM(model);
+        case "gemini": return new GeminiLLM(model);
+        case "openrouter": return new OpenRouterLLM(model);
+        case "vivi": return new ViviLLM(model);
+        case "alicloud": return new AliCloudLLM(model);
+        default: return new AnthropicLLM(model);
+      }
+    })();
+    const result = await llm.generate({
+      systemPrompt: "You are a helpful assistant. Answer the user's question directly and concisely.",
+      userMessage: prompt,
+      schema: z.object({ answer: z.string().describe("Your complete response") }),
+    });
+    return { text: result.data.answer, durationMs: Date.now() - start, tokens: result.usage };
+  } catch (err) {
+    reply.status(500);
+    return { error: String(err) };
+  }
+});
+
+app.post("/api/v1/test/tts", async (request, reply) => {
+  const { provider = "elevenlabs", text, voice, speed, model } = request.body as {
+    provider?: string; text: string; voice?: string; speed?: number; model?: string;
+  };
+  if (!text?.trim()) return reply.status(400).send({ error: "text is required" });
+  const start = Date.now();
+  try {
+    const tts = (() => {
+      switch (provider) {
+        case "gemini-tts": return new GeminiTTS(undefined, undefined, voice);
+        case "openai-tts": return new OpenAITTS();
+        case "grok-tts": return new GrokTTS(model, voice, undefined, speed);
+        case "kokoro": return new KokoroTTS();
+        default: return new ElevenLabsTTS();
+      }
+    })();
+    const result = await tts.generate(text);
+    return { audioBase64: result.audio.toString("base64"), durationMs: Date.now() - start, charCount: text.length };
+  } catch (err) {
+    reply.status(500);
+    return { error: String(err) };
+  }
+});
+
+app.post("/api/v1/test/image", async (request, reply) => {
+  const { provider = "gemini", prompt, style, aspectRatio = "9:16" } = request.body as {
+    provider?: string; prompt: string; style?: string; aspectRatio?: string;
+  };
+  if (!prompt?.trim()) return reply.status(400).send({ error: "prompt is required" });
+  const start = Date.now();
+  try {
+    const imageGen = (() => {
+      switch (provider) {
+        case "openai": return new OpenAIImage();
+        case "vivi": return new ViviImage();
+        case "alicloud": return new AliCloudImage();
+        case "runpod": return new RunPodImage();
+        case "fal": return new FalImage();
+        default: return new GeminiImage();
+      }
+    })();
+    const buffer = await imageGen.generate(prompt, style, undefined, aspectRatio);
+    return { imageBase64: buffer.toString("base64"), durationMs: Date.now() - start };
+  } catch (err) {
+    reply.status(500);
+    return { error: String(err) };
+  }
+});
+
+app.post("/api/v1/test/video", async (request, reply) => {
+  const { provider = "gemini", imageBase64, prompt, durationSeconds = 5, aspectRatio = "9:16" } = request.body as {
+    provider?: string; imageBase64: string; prompt: string; durationSeconds?: number; aspectRatio?: string;
+  };
+  if (!imageBase64 || !prompt?.trim()) return reply.status(400).send({ error: "imageBase64 and prompt are required" });
+  const start = Date.now();
+  try {
+    const videoProvider = (() => {
+      switch (provider) {
+        case "grok": return new GrokVideo();
+        case "vivi": return new ViviVideo();
+        case "fal": return new FalVideo();
+        case "runpod": return new RunPodVideo();
+        default: return new GeminiVideo();
+      }
+    })();
+    const sourceImage = Buffer.from(imageBase64, "base64");
+    const result = await videoProvider.generate({ sourceImage, prompt, durationSeconds, aspectRatio });
+    const videoBuffer = await fsp.readFile(result.filePath);
+    await fsp.unlink(result.filePath).catch(() => {});
+    return { videoBase64: videoBuffer.toString("base64"), durationMs: Date.now() - start, videoSeconds: result.durationSeconds };
+  } catch (err) {
+    reply.status(500);
+    return { error: String(err) };
+  }
+});
 
 // --- Job creation ---
 interface CreateJobBody {
@@ -178,8 +340,15 @@ interface CreateJobBody {
   dryRun?: boolean;
   noMusic?: boolean;
   noVideo?: boolean;
+  noSubtitles?: boolean;
+  allowedVisualTypes?: string[];
   direction?: string;
+  targetDurationMinutes?: number;
   score?: Record<string, unknown>;
+  videoSceneMode?: string;
+  styleReferenceImage?: string; // base64
+  atelierMode?: boolean;
+  artStyleOverride?: string;
   providers?: {
     llm?: string;
     tts?: string;
@@ -191,12 +360,17 @@ interface CreateJobBody {
     llmModel?: string;
     llmBaseUrl?: string;
     searchProvider?: SearchProviderKey;
+    inworldVoice?: string;
+    geminiTtsVoice?: string;
+    grokTtsVoice?: string;
+    grokTtsSpeed?: number;
+    grokTtsModel?: string;
   };
   keys?: Record<string, string>;
 }
 
 app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
-  const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, direction, score, providers, keys } =
+  const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, atelierMode, artStyleOverride, providers, keys } =
     request.body ?? {};
 
   if (!topic || typeof topic !== "string" || topic.trim().length === 0) {
@@ -229,6 +403,16 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     return reply
       .status(400)
       .send({ error: `Unknown platform: ${platform}. Available: ${validPlatforms.join(", ")}` });
+  }
+
+  // Validate style reference image if provided (base64, capped at ~8MB decoded)
+  if (styleReferenceImage != null) {
+    if (typeof styleReferenceImage !== "string") {
+      return reply.status(400).send({ error: "styleReferenceImage must be a base64 string" });
+    }
+    if (Buffer.byteLength(styleReferenceImage, "base64") > 8 * 1024 * 1024) {
+      return reply.status(400).send({ error: "styleReferenceImage exceeds 8MB limit" });
+    }
   }
 
   // Validate direction text size if provided
@@ -267,8 +451,15 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     dryRun: dryRun ?? false,
     noMusic: noMusic === true,
     noVideo: noVideo === true,
+    noSubtitles: noSubtitles === true,
+    ...(allowedVisualTypes?.length ? { allowedVisualTypes } : {}),
     ...(direction?.trim() ? { direction: direction.trim() } : {}),
+    ...(targetDurationMinutes != null ? { targetDurationMinutes: Number(targetDurationMinutes) } : {}),
     ...(validatedScore ? { score: validatedScore } : {}),
+    ...(videoSceneMode ? { videoSceneMode } : {}),
+    ...(styleReferenceImage ? { styleReferenceImage } : {}),
+    ...(atelierMode ? { atelierMode: true } : {}),
+    ...(artStyleOverride?.trim() ? { artStyleOverride: artStyleOverride.trim() } : {}),
     providers: {
       llm: providers?.llm ?? "anthropic",
       tts: providers?.tts ?? "elevenlabs",
@@ -280,6 +471,11 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       llmModel: providers?.llmModel,
       llmBaseUrl: providers?.llmBaseUrl,
       searchProvider: providers?.searchProvider,
+      inworldVoice: providers?.inworldVoice,
+      geminiTtsVoice: providers?.geminiTtsVoice,
+      grokTtsVoice: providers?.grokTtsVoice,
+      grokTtsSpeed: providers?.grokTtsSpeed,
+      grokTtsModel: providers?.grokTtsModel,
     },
     keys: keys ?? {},
     jobsDir: JOBS_DIR,
@@ -301,6 +497,21 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
         { status: "pending" },
       ]),
     ),
+    config: {
+      llm: providers?.llm ?? "anthropic",
+      tts: providers?.tts ?? "elevenlabs",
+      image: providers?.image ?? "gemini",
+      video: providers?.video,
+      music: providers?.music ?? "bundled",
+      platform: platform ?? "youtube",
+      pacing: pacing,
+      videoSceneMode: videoSceneMode,
+      noVideo: noVideo === true || undefined,
+      noSubtitles: noSubtitles === true || undefined,
+      styleReference: styleReferenceImage ? true : undefined,
+      atelierMode: atelierMode === true || undefined,
+      artStyleOverride: artStyleOverride?.trim() || undefined,
+    },
   };
   fs.writeFileSync(path.join(jobDir, "meta.json"), JSON.stringify(placeholderMeta, null, 2));
 
@@ -508,34 +719,35 @@ app.post<{ Params: { id: string } }>("/api/v1/jobs/:id/cancel", async (request, 
   if (!isValidJobId(request.params.id)) {
     return reply.status(400).send({ error: "Invalid job ID" });
   }
-  const job = await queue.getJob(request.params.id);
-  if (!job) {
-    return reply.status(404).send({ error: "Job not found" });
-  }
 
-  const state = await job.getState();
-  if (state === "completed" || state === "failed") {
-    return reply.status(409).send({ error: `Job already ${state}` });
-  }
+  const jobId = request.params.id;
+  const jobDir = path.join(JOBS_DIR, jobId);
 
-  // Update meta to mark as cancelling (atomic write: tmp + rename)
-  const jobDir = path.join(JOBS_DIR, request.params.id);
+  // Force-update meta to cancelled regardless of BullMQ state (handles stuck/orphaned jobs)
   const metaPath = path.join(jobDir, "meta.json");
   if (fs.existsSync(metaPath)) {
     try {
       const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
       meta.cancelRequested = true;
+      meta.status = "cancelled";
+      meta.error = "Cancelled by user";
       const tmpPath = path.join(jobDir, ".meta.tmp");
       fs.writeFileSync(tmpPath, JSON.stringify(meta, null, 2));
       fs.renameSync(tmpPath, metaPath);
     } catch {}
   }
 
-  // moveToFailed handles queued jobs; for active jobs the token won't match
-  // the worker's lock, so we catch and rely on cancelRequested flag instead
-  try {
-    await job.moveToFailed(new Error("Cancelled by user"), "0", true);
-  } catch {}
+  // Try to remove from BullMQ — for active/stalled jobs the lock won't match,
+  // so we try moveToFailed first (works for waiting jobs), then obliterate from queue.
+  const job = await queue.getJob(jobId);
+  if (job) {
+    const state = await job.getState();
+    if (state !== "completed" && state !== "failed") {
+      try { await job.moveToFailed(new Error("Cancelled by user"), "0", true); } catch {}
+      try { await job.remove(); } catch {}
+    }
+  }
+
   return { status: "cancelled" };
 });
 
@@ -551,14 +763,12 @@ app.delete<{ Params: { id: string } }>("/api/v1/jobs/:id", async (request, reply
     return reply.status(404).send({ error: "Job not found" });
   }
 
-  // Don't delete active jobs
+  // Force-remove from BullMQ regardless of state (handles orphaned/stuck active jobs).
+  // For truly active jobs the worker will fail gracefully when it can't find the files.
   const job = await queue.getJob(jobId);
   if (job) {
-    const state = await job.getState();
-    if (state === "active" || state === "waiting") {
-      return reply.status(409).send({ error: "Cannot delete an active job" });
-    }
-    await job.remove();
+    try { await job.moveToFailed(new Error("Deleted by user"), "0", true); } catch {}
+    try { await job.remove(); } catch {}
   }
 
   fs.rmSync(jobDir, { recursive: true, force: true });

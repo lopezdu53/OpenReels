@@ -1,6 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
 import type { ImageProvider } from "../../schema/providers.js";
 
+// VIVI is Gemini-compatible. The base domain is replaced while the SDK
+// appends the /v1beta path automatically via httpOptions.baseUrl.
+const VIVI_BASE_URL = "https://api.viviai.cc";
 const MAX_RETRIES = 2;
 const BASE_DELAY_MS = 1000;
 
@@ -16,14 +19,14 @@ function isRetryable(err: unknown): boolean {
   );
 }
 
-export class GeminiImage implements ImageProvider {
+export class ViviImage implements ImageProvider {
   private client: GoogleGenAI;
   private model: string;
 
   constructor(model: string = "gemini-3.1-flash-image-preview", apiKey?: string) {
-    const key = apiKey ?? process.env["GOOGLE_API_KEY"];
-    if (!key) throw new Error("GOOGLE_API_KEY environment variable is required");
-    this.client = new GoogleGenAI({ apiKey: key });
+    const key = apiKey ?? process.env["VIVI_IMAGE_API_KEY"];
+    if (!key) throw new Error("VIVI_IMAGE_API_KEY environment variable is required");
+    this.client = new GoogleGenAI({ apiKey: key, httpOptions: { baseUrl: VIVI_BASE_URL } });
     this.model = model;
   }
 
@@ -32,14 +35,14 @@ export class GeminiImage implements ImageProvider {
     const orientationHint = isLandscape
       ? "WIDE HORIZONTAL LANDSCAPE image ONLY. 16:9 widescreen aspect ratio, wider than tall. CRITICAL: Do NOT generate portrait or vertical orientation. Compose as a cinematic widescreen scene filling the full horizontal frame. 1920x1080 pixels"
       : "Vertical 9:16 aspect ratio, 1080x1920 pixels";
-    const styleRefHint = referenceImage
-      ? " Match the art style, color palette, lighting and overall visual mood of the reference image exactly — render this new scene as if it belongs to the same set of images."
+    const continuityHint = referenceImage
+      ? " Keep the same characters, setting, color palette and visual style as the reference image so this scene reads as a continuation of the same story."
       : "";
     const fullPrompt = isLandscape
-      ? `${orientationHint}. ${prompt}.${styleRefHint}${style ? ` Style: ${style}.` : ""} No text, no watermarks.`
+      ? `${orientationHint}. ${prompt}.${continuityHint}${style ? ` Style: ${style}.` : ""} No text, no watermarks.`
       : style
-        ? `${prompt}. Style: ${style}.${styleRefHint} ${orientationHint}. No text, no watermarks.`
-        : `${prompt}.${styleRefHint} ${orientationHint}. No text, no watermarks.`;
+        ? `${prompt}. Style: ${style}.${continuityHint} ${orientationHint}. No text, no watermarks.`
+        : `${prompt}.${continuityHint} ${orientationHint}. No text, no watermarks.`;
 
     const contents = referenceImage
       ? [
@@ -65,7 +68,7 @@ export class GeminiImage implements ImageProvider {
         });
 
         const parts = response.candidates?.[0]?.content?.parts;
-        if (!parts) throw new Error("Gemini returned no content");
+        if (!parts) throw new Error("VIVI returned no content");
 
         for (const part of parts) {
           if (part.inlineData?.data) {
@@ -73,12 +76,12 @@ export class GeminiImage implements ImageProvider {
           }
         }
 
-        throw new Error("Gemini returned no image data");
+        throw new Error("VIVI returned no image data");
       } catch (err) {
         lastError = err;
         if (!isRetryable(err) || attempt === MAX_RETRIES - 1) break;
         const delayMs = BASE_DELAY_MS * Math.pow(2, attempt);
-        console.warn(`[image/gemini] Attempt ${attempt + 1} failed (${err}), retrying in ${delayMs / 1000}s...`);
+        console.warn(`[image/vivi] Attempt ${attempt + 1} failed (${err}), retrying in ${delayMs / 1000}s...`);
         await new Promise((r) => setTimeout(r, delayMs));
       }
     }

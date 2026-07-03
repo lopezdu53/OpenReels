@@ -20,7 +20,7 @@ import {
 } from "../cli/cost-estimator.js";
 import { ProgressDisplay } from "../cli/progress.js";
 import { getArchetype } from "../config/archetype-registry.js";
-import { getPlatformConfig } from "../config/platforms.js";
+import { getPlatformAspectRatio, getPlatformConfig } from "../config/platforms.js";
 import { resolveMusic, type MusicResolution } from "./music-resolver.js";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
@@ -55,6 +55,7 @@ import {
   shouldAutoConfirm,
   shouldSkipPreview,
   splitWordsIntoScenes,
+  getVideoDuration,
   confirm,
 } from "./utils.js";
 
@@ -146,9 +147,13 @@ async function generateAIImage(
   totalScenes: number,
   archetype: ArchetypeConfig,
   assetsDir: string,
+  referenceImage?: Buffer,
+  aspectRatio?: string,
 ): Promise<VisualAssetResult> {
   let prompt = visualPrompt;
   let usage: LLMUsage | null = null;
+  const imagePromptOpts = opts.artStyleOverride ? { artStyleOverride: opts.artStyleOverride } : undefined;
+
   try {
     const optimized = await optimizeImagePrompt(
       opts.llm,
@@ -157,6 +162,7 @@ async function generateAIImage(
       sceneIndex,
       totalScenes,
       archetype,
+      imagePromptOpts,
     );
     prompt = optimized.prompt;
     usage = optimized.usage;
@@ -165,7 +171,7 @@ async function generateAIImage(
   }
 
   try {
-    const imageBuffer = await opts.imageGen.generate(prompt);
+    const imageBuffer = await opts.imageGen.generate(prompt, undefined, referenceImage, aspectRatio);
     const filePath = path.join(assetsDir, `scene-${sceneIndex}-ai.png`);
     fs.writeFileSync(filePath, imageBuffer);
     return { path: filePath, usage, durationSeconds: null };
@@ -183,6 +189,7 @@ async function generateAIImage(
         totalScenes,
         archetype,
         {
+          ...imagePromptOpts,
           rejectionContext:
             `The previous prompt was rejected by the image provider's safety filter (${String(err).slice(0, 200)}). ` +
             `Rewrite the prompt to convey the same scene mood and composition through atmosphere, lighting, and implication. ` +
@@ -197,7 +204,7 @@ async function generateAIImage(
       throw err;
     }
 
-    const imageBuffer = await opts.imageGen.generate(prompt);
+    const imageBuffer = await opts.imageGen.generate(prompt, undefined, referenceImage, aspectRatio);
     const filePath = path.join(assetsDir, `scene-${sceneIndex}-ai.png`);
     fs.writeFileSync(filePath, imageBuffer);
     return { path: filePath, usage, durationSeconds: null };
@@ -225,10 +232,12 @@ async function resolveVisualAsset(
   archetype: ArchetypeConfig,
   cb: PipelineCallbacks,
   sceneDurationSeconds?: number,
+  referenceImage?: Buffer,
+  aspectRatio?: string,
 ): Promise<VisualAssetResult> {
   switch (scene.visual_type) {
     case "ai_image":
-      return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir);
+      return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio);
 
     case "stock_image":
     case "stock_video": {
@@ -262,11 +271,11 @@ async function resolveVisualAsset(
     case "ai_video": {
       // If no video providers available, fall back to ai_image silently
       if (!opts.videoProviders?.length) {
-        return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir);
+        return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio);
       }
       // Phase 1: Generate AI image (first frame)
       const imageStart = Date.now();
-      const imgResult = await generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir);
+      const imgResult = await generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio);
       const imageGenTimeMs = Date.now() - imageStart;
       const imageBuffer = fs.readFileSync(imgResult.path!);
 
@@ -282,6 +291,7 @@ async function resolveVisualAsset(
         callbacks: cb,
         totalScenes,
         sceneDurationSeconds,
+        aspectRatio,
       });
 
       // Adjust imageGenTimeMs in the resolution metadata
@@ -346,6 +356,7 @@ function buildPipelineWorkflow(
     words?: WordTimestamp[];
     voiceoverPath?: string;
     sceneWords?: WordTimestamp[][];
+    voiceoverDurationSeconds?: number;
   } = {};
 
   const visualsResult: {
@@ -426,7 +437,11 @@ function buildPipelineWorkflow(
       cb.onStageStart?.("director");
       const start = Date.now();
       const videoEnabled = !opts.noVideo && (opts.videoProviders?.length ?? 0) > 0;
-      const directorOpts = { archetype: opts.archetype, pacing: opts.pacing, videoEnabled, direction: opts.direction };
+      // If allowedVisualTypes is set, use it directly; otherwise derive from videoEnabled
+      const allowedVisualTypes = opts.allowedVisualTypes && opts.allowedVisualTypes.length > 0
+        ? opts.allowedVisualTypes.filter((t) => t !== "ai_video" || videoEnabled)
+        : undefined;
+      const directorOpts = { archetype: opts.archetype, pacing: opts.pacing, videoEnabled, allowedVisualTypes, direction: opts.direction, targetDurationMinutes: opts.targetDurationMinutes, platform: opts.platform };
 
       // ── Replay mode: use provided score, skip generation + revision ──
       if (opts.replayScore) {
@@ -543,6 +558,64 @@ function buildPipelineWorkflow(
       // Use the highest-scoring revision
       score = bestScore;
 
+      // When using VIDU, limit ai_video to the first scene only (credits are expensive)
+      if (opts.videoProvider?.startsWith("vidu")) {
+        let firstVideoSeen = false;
+        score = {
+          ...score,
+          scenes: score.scenes.map((s) => {
+            if (s.visual_type !== "ai_video") return s;
+            if (!firstVideoSeen) { firstVideoSeen = true; return s; }
+            return { ...s, visual_type: "ai_image" as const };
+          }),
+        };
+      }
+
+      // Apply videoSceneMode filter: controls which ai_video scenes get I2V treatment
+      if (opts.videoSceneMode && opts.videoSceneMode !== "all") {
+        const mode = opts.videoSceneMode;
+
+        if (mode.startsWith("force_")) {
+          // Option B: force specific scene POSITIONS to ai_video regardless of director
+          score = {
+            ...score,
+            scenes: score.scenes.map((s, posIdx) => {
+              let forceVideo = false;
+              if (mode === "force_first") {
+                forceVideo = posIdx === 0;
+              } else if (mode === "force_first3") {
+                forceVideo = posIdx < 3;
+              } else if (mode === "force_first_every2") {
+                forceVideo = posIdx === 0 || posIdx % 2 === 0;
+              }
+              if (forceVideo) return { ...s, visual_type: "ai_video" as const };
+              // Convert any remaining director-chosen ai_video to ai_image
+              if (s.visual_type === "ai_video") return { ...s, visual_type: "ai_image" as const };
+              return s;
+            }),
+          };
+        } else {
+          // Option A: filter among scenes the director already marked as ai_video
+          let videoIndex = 0;
+          score = {
+            ...score,
+            scenes: score.scenes.map((s) => {
+              if (s.visual_type !== "ai_video") return s;
+              const idx = videoIndex++;
+              let keep = false;
+              if (mode === "first") {
+                keep = idx === 0;
+              } else if (mode === "first3") {
+                keep = idx < 3;
+              } else if (mode === "first_every2") {
+                keep = idx === 0 || idx % 2 === 0;
+              }
+              return keep ? s : { ...s, visual_type: "ai_image" as const };
+            }),
+          };
+        }
+      }
+
       // ── Store final score on shared closure state ──
       directorResult.score = score;
       directorResult.config = getArchetype(score.archetype);
@@ -616,6 +689,8 @@ function buildPipelineWorkflow(
       ttsResult.words = result.words;
       ttsResult.voiceoverPath = voiceoverPath;
       ttsResult.sceneWords = splitWordsIntoScenes(score, result.words);
+      // Get actual audio duration so Remotion doesn't clip trailing silence
+      ttsResult.voiceoverDurationSeconds = getVideoDuration(voiceoverPath) ?? undefined;
 
       cb.onStageComplete?.("tts", `${result.words.length} words`, dur);
       log.stages.push({ name: "tts", duration: dur, status: "done" });
@@ -646,18 +721,107 @@ function buildPipelineWorkflow(
         return first && last ? last.end - first.start + 0.5 : 3;
       });
 
-      // Run visual asset resolution and music generation in parallel
-      const scenePromise = Promise.all(
-        score.scenes.map(async (scene, i) => {
-          try {
-            const sceneDuration = sceneDurations[i];
-            return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration);
-          } catch (err) {
-            cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
-            return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
-          }
-        }),
-      );
+      const aspectRatio = getPlatformAspectRatio(opts.platform);
+
+      // A user-supplied style reference image takes priority over everything else:
+      // every scene is conditioned on the same image so the whole video shares its look.
+      const styleReferenceImage = opts.styleReferenceImage;
+
+      // Atelier mode: scene 1 generates freely, its image becomes the fixed reference
+      // for ALL subsequent scenes (character + style lock). Scenes 2+ run in parallel.
+      const atelierMode = !styleReferenceImage && opts.atelierMode === true;
+
+      // Long-form platforms using VIVI benefit from sequential generation with a
+      // reference image fed forward so characters/setting/style stay consistent.
+      const continuityEnabled = !styleReferenceImage && !atelierMode && opts.platform !== "youtube" && opts.platform !== "tiktok" && opts.platform !== "instagram" && opts.imageProvider === "vivi";
+
+      const scenePromise = styleReferenceImage
+        ? Promise.all(
+            score.scenes.map(async (scene, i) => {
+              try {
+                const sceneDuration = sceneDurations[i];
+                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, styleReferenceImage, aspectRatio);
+              } catch (err) {
+                cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
+                return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
+              }
+            }),
+          )
+        : atelierMode
+        ? (async () => {
+            // Step 1: generate scene 0 without reference
+            const firstScene = score.scenes[0]!;
+            let firstResult: VisualAssetResult;
+            try {
+              firstResult = await resolveVisualAsset(firstScene, 0, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[0], undefined, aspectRatio);
+            } catch (err) {
+              cb.onProgress?.("visuals", { type: "asset_failed", scene: 0, error: String(err) });
+              firstResult = { path: null, usage: null, durationSeconds: null };
+            }
+            // Step 2: read scene 0's image as the Atelier reference
+            let atelierRef: Buffer | undefined;
+            try {
+              const refPath = path.join(assetsDir, "scene-0-ai.png");
+              if (fs.existsSync(refPath)) atelierRef = fs.readFileSync(refPath);
+            } catch { /* no ai image for scene 0 — stock/text_card, proceed without ref */ }
+            // Step 3: scenes 1+ in parallel, all receiving scene 0's image as reference
+            const restResults = await Promise.all(
+              score.scenes.slice(1).map(async (scene, idx) => {
+                const i = idx + 1;
+                try {
+                  return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[i], atelierRef, aspectRatio);
+                } catch (err) {
+                  cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
+                  return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
+                }
+              }),
+            );
+            return [firstResult, ...restResults];
+          })()
+        : continuityEnabled
+        ? (async () => {
+            const results: VisualAssetResult[] = [];
+            let previousImage: Buffer | undefined;
+            for (let i = 0; i < score.scenes.length; i++) {
+              const scene = score.scenes[i]!;
+              try {
+                const sceneDuration = sceneDurations[i];
+                const result = await resolveVisualAsset(
+                  scene,
+                  i,
+                  totalScenes,
+                  assetsDir,
+                  opts,
+                  archetype,
+                  cb,
+                  sceneDuration,
+                  previousImage,
+                  aspectRatio,
+                );
+                results.push(result);
+                try {
+                  previousImage = fs.readFileSync(path.join(assetsDir, `scene-${i}-ai.png`));
+                } catch {
+                  // No AI-generated frame for this scene (stock/text card) — keep the prior reference
+                }
+              } catch (err) {
+                cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
+                results.push({ path: null, usage: null, durationSeconds: null });
+              }
+            }
+            return results;
+          })()
+        : Promise.all(
+            score.scenes.map(async (scene, i) => {
+              try {
+                const sceneDuration = sceneDurations[i];
+                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, undefined, aspectRatio);
+              } catch (err) {
+                cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
+                return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
+              }
+            }),
+          );
 
       const musicPromise = resolveMusic(score, sceneDurations, {
         musicProvider: opts.musicProvider!,
@@ -798,8 +962,10 @@ function buildPipelineWorkflow(
           sceneWords: ttsResult.sceneWords!,
           allWords: ttsResult.words!,
           sceneSourceDurations: visualsResult.sceneSourceDurations,
+          voiceoverDurationSeconds: ttsResult.voiceoverDurationSeconds,
         },
         platformConfig.fps,
+        opts.noSubtitles,
       );
 
       const totalFrames = getTotalDurationInFrames(compositionProps, platformConfig.fps);

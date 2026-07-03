@@ -52,6 +52,7 @@ export async function resolveAIVideo(
     callbacks: PipelineCallbacks;
     sceneDurationSeconds?: number;
     totalScenes?: number;
+    aspectRatio?: string;
   },
 ): Promise<{
   path: string;
@@ -103,7 +104,7 @@ export async function resolveAIVideo(
           sourceImage: imageResult.buffer,
           prompt: motionPrompt,
           durationSeconds: genDuration,
-          aspectRatio: "9:16",
+          aspectRatio: opts.aspectRatio ?? "9:16",
           negativePrompt,
         }),
       );
@@ -111,6 +112,14 @@ export async function resolveAIVideo(
 
       // Copy video to assets dir and clean up temp file
       const videoPath = path.join(assetsDir, `scene-${sceneIndex}-ai-video.mp4`);
+
+      // Validate before using: moov atom missing means truncated/corrupt download
+      const fileSize = fs.statSync(videoResult.filePath).size;
+      if (fileSize < 50_000) {
+        try { fs.unlinkSync(videoResult.filePath); } catch {}
+        throw new Error(`Video file too small (${fileSize} bytes) — likely corrupt or incomplete`);
+      }
+
       fs.copyFileSync(videoResult.filePath, videoPath);
       try {
         fs.unlinkSync(videoResult.filePath);

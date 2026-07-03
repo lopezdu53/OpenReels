@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, type StatsResponse } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
-import { Film, DollarSign, CheckCircle, XCircle, BarChart3 } from "lucide-react";
+import { Film, DollarSign, CheckCircle, XCircle, BarChart3, Tag } from "lucide-react";
+import { DEFAULT_PRICES, PRICING_KEY, loadPrices, type ApiPrices } from "@/pages/LabPage";
 
 const API_KEY_FIELDS = [
   { key: "ANTHROPIC_API_KEY", label: "Anthropic (LLM)" },
@@ -11,6 +12,8 @@ const API_KEY_FIELDS = [
   { key: "INWORLD_TTS_API_KEY", label: "Inworld (TTS)" },
   { key: "PEXELS_API_KEY", label: "Pexels (Stock)" },
   { key: "PIXABAY_API_KEY", label: "Pixabay (Stock)" },
+  { key: "VIVI_LLM_API_KEY", label: "VIVI AI (LLM)" },
+  { key: "VIVI_IMAGE_API_KEY", label: "VIVI AI (Image)" },
 ];
 
 interface HealthData {
@@ -22,17 +25,48 @@ interface HealthData {
 export function SettingsPage() {
   const [health, setHealth] = useState<HealthData | null>(null);
   const [stats, setStats] = useState<StatsResponse | null>(null);
+  const [prices, setPrices] = useState<ApiPrices>(DEFAULT_PRICES);
+  const [pricesSaved, setPricesSaved] = useState(false);
 
   useEffect(() => {
-    api
-      .getHealth()
-      .then((data) => setHealth(data as unknown as HealthData))
-      .catch(() => {});
-    api
-      .getStats()
-      .then(setStats)
-      .catch(() => {});
+    api.getHealth().then((data) => setHealth(data as unknown as HealthData)).catch(() => {});
+    api.getStats().then(setStats).catch(() => {});
+    setPrices(loadPrices());
   }, []);
+
+  const updateLLMPrice = (provider: string, field: "inputPer1M" | "outputPer1M", value: string) => {
+    setPrices(prev => ({
+      ...prev,
+      llm: { ...prev.llm, [provider]: { ...prev.llm[provider], [field]: Number(value) || 0 } },
+    }));
+  };
+  const updateTTSPrice = (provider: string, value: string) => {
+    setPrices(prev => ({
+      ...prev,
+      tts: { ...prev.tts, [provider]: { per1kChars: Number(value) || 0 } },
+    }));
+  };
+  const updateImagePrice = (provider: string, value: string) => {
+    setPrices(prev => ({
+      ...prev,
+      image: { ...prev.image, [provider]: { perImage: Number(value) || 0 } },
+    }));
+  };
+  const updateVideoPrice = (provider: string, value: string) => {
+    setPrices(prev => ({
+      ...prev,
+      video: { ...prev.video, [provider]: { perSecond: Number(value) || 0 } },
+    }));
+  };
+  const savePrices = () => {
+    localStorage.setItem(PRICING_KEY, JSON.stringify(prices));
+    setPricesSaved(true);
+    setTimeout(() => setPricesSaved(false), 2000);
+  };
+  const resetPrices = () => {
+    setPrices(DEFAULT_PRICES);
+    localStorage.removeItem(PRICING_KEY);
+  };
 
   const avgCost =
     stats && stats.completedJobs > 0
@@ -117,6 +151,119 @@ export function SettingsPage() {
                 }
               />
             </div>
+          </div>
+        </section>
+
+        {/* Pricing Configuration */}
+        <section>
+          <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Tag className="size-4 text-muted-foreground" />
+            Precios de API
+          </h2>
+          <p className="mb-4 text-[13px] text-muted-foreground">
+            Configura el costo por unidad de cada proveedor. Se usa en el Laboratorio de API y en las estimaciones de costo.
+          </p>
+
+          {/* LLM */}
+          <div className="mb-4">
+            <p className="mb-2 text-[12px] font-medium text-muted-foreground uppercase tracking-wide">LLM — por 1M tokens</p>
+            <div className="overflow-hidden rounded-[12px] border border-border bg-card divide-y divide-border">
+              {Object.entries(prices.llm).map(([key, val]) => (
+                <div key={key} className="flex items-center justify-between gap-4 px-4 py-2.5">
+                  <span className="text-[13px] w-28 shrink-0">{key}</span>
+                  <div className="flex items-center gap-2 flex-1">
+                    <label className="text-[11px] text-muted-foreground w-14">Entrada $</label>
+                    <input
+                      type="number" step="0.01" min="0"
+                      className="h-7 w-20 rounded border border-input bg-background px-2 text-[12px] font-mono"
+                      value={val.inputPer1M}
+                      onChange={e => updateLLMPrice(key, "inputPer1M", e.target.value)}
+                    />
+                    <label className="text-[11px] text-muted-foreground w-14">Salida $</label>
+                    <input
+                      type="number" step="0.01" min="0"
+                      className="h-7 w-20 rounded border border-input bg-background px-2 text-[12px] font-mono"
+                      value={val.outputPer1M}
+                      onChange={e => updateLLMPrice(key, "outputPer1M", e.target.value)}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* TTS */}
+          <div className="mb-4">
+            <p className="mb-2 text-[12px] font-medium text-muted-foreground uppercase tracking-wide">TTS — por 1K caracteres</p>
+            <div className="overflow-hidden rounded-[12px] border border-border bg-card divide-y divide-border">
+              {Object.entries(prices.tts).map(([key, val]) => (
+                <div key={key} className="flex items-center gap-4 px-4 py-2.5">
+                  <span className="text-[13px] w-28 shrink-0">{key}</span>
+                  <label className="text-[11px] text-muted-foreground">$ por 1K chars</label>
+                  <input
+                    type="number" step="0.001" min="0"
+                    className="h-7 w-24 rounded border border-input bg-background px-2 text-[12px] font-mono"
+                    value={val.per1kChars}
+                    onChange={e => updateTTSPrice(key, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Image */}
+          <div className="mb-4">
+            <p className="mb-2 text-[12px] font-medium text-muted-foreground uppercase tracking-wide">Imagen — por imagen generada</p>
+            <div className="overflow-hidden rounded-[12px] border border-border bg-card divide-y divide-border">
+              {Object.entries(prices.image).map(([key, val]) => (
+                <div key={key} className="flex items-center gap-4 px-4 py-2.5">
+                  <span className="text-[13px] w-28 shrink-0">{key}</span>
+                  <label className="text-[11px] text-muted-foreground">$ por imagen</label>
+                  <input
+                    type="number" step="0.001" min="0"
+                    className="h-7 w-24 rounded border border-input bg-background px-2 text-[12px] font-mono"
+                    value={val.perImage}
+                    onChange={e => updateImagePrice(key, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Video */}
+          <div className="mb-4">
+            <p className="mb-2 text-[12px] font-medium text-muted-foreground uppercase tracking-wide">Video I2V — por segundo</p>
+            <div className="overflow-hidden rounded-[12px] border border-border bg-card divide-y divide-border">
+              {Object.entries(prices.video).map(([key, val]) => (
+                <div key={key} className="flex items-center gap-4 px-4 py-2.5">
+                  <span className="text-[13px] w-28 shrink-0">{key}</span>
+                  <label className="text-[11px] text-muted-foreground">$ por segundo</label>
+                  <input
+                    type="number" step="0.001" min="0"
+                    className="h-7 w-24 rounded border border-input bg-background px-2 text-[12px] font-mono"
+                    value={val.perSecond}
+                    onChange={e => updateVideoPrice(key, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={savePrices}
+              className="rounded-[8px] bg-primary px-4 py-1.5 text-[13px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              {pricesSaved ? "✓ Guardado" : "Guardar precios"}
+            </button>
+            <button
+              type="button"
+              onClick={resetPrices}
+              className="rounded-[8px] border border-border px-4 py-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-muted"
+            >
+              Restaurar defaults
+            </button>
           </div>
         </section>
 

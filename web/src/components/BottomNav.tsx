@@ -1,11 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { PlusCircle, LayoutGrid, Settings } from "lucide-react";
+import { PlusCircle, LayoutGrid, Settings, FlaskConical } from "lucide-react";
 import type { StatsResponse } from "@/hooks/useApi";
 
 const NAV_ITEMS = [
   { path: "/", label: "New", icon: PlusCircle },
   { path: "/gallery", label: "Gallery", icon: LayoutGrid },
+  { path: "/lab", label: "API Lab", icon: FlaskConical },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 

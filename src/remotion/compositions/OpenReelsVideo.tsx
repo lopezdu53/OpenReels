@@ -81,6 +81,7 @@ const Main: React.FC<CompositionProps> = ({
   captionAccentColor,
   captionChunkSize,
   captionLingerS,
+  noSubtitles,
 }) => {
   const style = CAPTION_STYLES[captionStyle] ?? CAPTION_STYLES.clean!;
 
@@ -117,7 +118,7 @@ const Main: React.FC<CompositionProps> = ({
         useCurrentFrame() returns the absolute frame in the full video,
         which matches the absolute word timestamps.
       */}
-      {allWords && allWords.length > 0 && (
+      {!noSubtitles && allWords && allWords.length > 0 && (
         <CaptionWrapper
           words={allWords}
           chunkSize={captionChunkSize}

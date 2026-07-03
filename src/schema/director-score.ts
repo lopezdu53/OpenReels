@@ -44,7 +44,7 @@ export const DirectorScore = z
     emotional_arc: z.string().min(1),
     archetype: z.string().min(1),
     music_mood: MusicMood,
-    scenes: z.array(Scene).min(3).max(16),
+    scenes: z.array(Scene).min(3).max(200),
   })
   .refine(
     (score) => {
@@ -62,3 +62,12 @@ export const DirectorScore = z
     { message: "Golden rule violation: no more than 2 consecutive scenes of the same visual_type" },
   );
 export type DirectorScore = z.infer<typeof DirectorScore>;
+
+// Same as DirectorScore but without the golden rule refinement.
+// Used when only one visual type is allowed — the rule can't be satisfied.
+export const DirectorScoreBase = z.object({
+  emotional_arc: z.string().min(1),
+  archetype: z.string().min(1),
+  music_mood: MusicMood,
+  scenes: z.array(Scene).min(3).max(200),
+});

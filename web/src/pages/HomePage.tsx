@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { type Archetype, api, type Platform, type ProviderOptions } from "@/hooks/useApi";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,9 @@ import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -54,52 +56,81 @@ const CATEGORY_KEYS = Object.keys(TOPIC_CATEGORIES);
 
 const DISPLAY_NAMES: Record<string, string> = {
   // Platforms
-  youtube: "YouTube",
+  youtube: "YouTube Shorts",
   tiktok: "TikTok",
   instagram: "Instagram",
-  // LLM
+  reel_extend: "Reel Extend",
+  youtube_horizontal: "YouTube (Horizontal)",
+  // LLM / shared
   anthropic: "Anthropic (Claude)",
   openai: "OpenAI (GPT)",
   gemini: "Google Gemini",
   openrouter: "OpenRouter",
   "openai-compatible": "Custom (OpenAI-compatible)",
+  alicloud: "Alibaba Cloud",
   // TTS
   elevenlabs: "ElevenLabs",
   inworld: "Inworld",
   kokoro: "Kokoro (Local)",
   "gemini-tts": "Gemini TTS",
   "openai-tts": "OpenAI TTS",
-  // Image
-  // gemini/openai already covered above
   // Music
   bundled: "Bundled (Free)",
   lyria: "Lyria 3 Pro",
   // Video
   fal: "fal.ai (Kling)",
+  runpod: "RunPod Serverless",
 };
 
 function displayName(key: string): string {
   return DISPLAY_NAMES[key] ?? key;
 }
 
+/** Use the server's label for a provider in a given category (avoids key collisions like "vivi"). */
+function providerLabel(list: { key: string; label: string }[] | undefined, key: string): string {
+  return list?.find((p) => p.key === key)?.label ?? displayName(key);
+}
+
+const LONG_FORM_PLATFORMS = new Set(["reel_extend", "youtube_horizontal"]);
+
 export function HomePage() {
   const navigate = useNavigate();
   const [topic, setTopic] = useState("");
   const [archetype, setArchetype] = useState("");
+  const [styleReferenceMode, setStyleReferenceMode] = useState(false);
+  const [styleReferenceImage, setStyleReferenceImage] = useState<string | undefined>(undefined);
+  const styleImageInputRef = useRef<HTMLInputElement | null>(null);
+  const [artStyleOverride, setArtStyleOverride] = useState<string>("");
+  const [atelierMode, setAtelierMode] = useState(false);
   const [platform, setPlatform] = useState("youtube");
   const [llmProvider, setLlmProvider] = useState("anthropic");
   const [llmModel, setLlmModel] = useState("");
   const [llmBaseUrl, setLlmBaseUrl] = useState("");
   const [searchProvider, setSearchProvider] = useState("");
   const [ttsProvider, setTtsProvider] = useState("elevenlabs");
+  const [inworldVoice, setInworldVoice] = useState("Pedro");
+  const [geminiTtsVoice, setGeminiTtsVoice] = useState("Kore");
+  const [grokTtsVoice, setGrokTtsVoice] = useState("eve");
+  const [grokTtsSpeed, setGrokTtsSpeed] = useState(1.0);
+  const [grokTtsModel] = useState("");
   const [imageProvider, setImageProvider] = useState("gemini");
   const [musicProvider, setMusicProvider] = useState("bundled");
+  const [videoProvider, setVideoProvider] = useState("");
+  const [videoSceneMode, setVideoSceneMode] = useState("all");
   const [pacing, setPacing] = useState("");
+  const [targetDurationMinutes, setTargetDurationMinutes] = useState(5);
   const [dryRun, setDryRun] = useState(false);
+  const [noSubtitles, setNoSubtitles] = useState(false);
   const [directionText, setDirectionText] = useState("");
   const [scoreJson, setScoreJson] = useState<Record<string, unknown> | null>(null);
   const [scoreFileName, setScoreFileName] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [allowedVisualTypes, setAllowedVisualTypes] = useState<string[]>([
+    "ai_image",
+    "stock_image",
+    "stock_video",
+    "text_card",
+  ]);
 
   const [archetypes, setArchetypes] = useState<Archetype[]>([]);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
@@ -128,6 +159,10 @@ export function HomePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!topic.trim() || loading) return;
+    if (styleReferenceMode && !styleReferenceImage) {
+      setError("Sube una imagen de referencia o cambia el Style Override.");
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -139,16 +174,27 @@ export function HomePage() {
         pacing: pacing || undefined,
         platform,
         dryRun,
+        ...(noSubtitles ? { noSubtitles: true } : {}),
+        ...(LONG_FORM_PLATFORMS.has(platform) ? { targetDurationMinutes } : {}),
         ...(directionText.trim() ? { direction: directionText.trim() } : {}),
         ...(scoreJson ? { score: scoreJson } : {}),
+        allowedVisualTypes: allowedVisualTypes.length > 0 ? allowedVisualTypes : undefined,
+        ...(allowedVisualTypes.includes("ai_video") && videoSceneMode !== "all" ? { videoSceneMode } : {}),
+        ...(styleReferenceMode && styleReferenceImage ? { styleReferenceImage } : {}),
+        ...(atelierMode ? { atelierMode: true } : {}),
+        ...(artStyleOverride ? { artStyleOverride } : {}),
         providers: {
           llm: llmProvider,
           tts: ttsProvider,
           image: imageProvider,
           music: musicProvider,
+          ...(videoProvider ? { video: videoProvider } : {}),
           ...(llmModel ? { llmModel } : {}),
           ...(llmBaseUrl ? { llmBaseUrl } : {}),
           ...(searchProvider ? { searchProvider } : {}),
+          ...(ttsProvider === "inworld" ? { inworldVoice } : {}),
+          ...(ttsProvider === "gemini-tts" ? { geminiTtsVoice } : {}),
+          ...(ttsProvider === "grok-tts" ? { grokTtsVoice, grokTtsSpeed, grokTtsModel } : {}),
         },
       });
       navigate(`/jobs/${result.id}`);
@@ -169,7 +215,9 @@ export function HomePage() {
             What story should we tell?
           </h1>
           <p className="mt-3 text-sm sm:text-base text-muted-foreground">
-            Describe a topic and we'll turn it into a fully rendered Short.
+            {LONG_FORM_PLATFORMS.has(platform)
+              ? `Describe a topic and we'll turn it into a fully rendered ${targetDurationMinutes}-minute ${platform === "youtube_horizontal" ? "horizontal" : "vertical"} video.`
+              : "Describe a topic and we'll turn it into a fully rendered Short."}
           </p>
         </div>
 
@@ -213,22 +261,41 @@ export function HomePage() {
                 </SelectContent>
               </Select>
 
-              {/* Pacing selector */}
-              <Select value={pacing} onValueChange={(v) => setPacing(v ?? "")}>
-                <SelectTrigger
-                  size="sm"
-                  className="h-auto gap-1.5 rounded-[8px] border-border bg-transparent px-3 py-1.5 text-xs font-medium text-text-subtle"
-                >
-                  <Gauge className="size-3.5 text-muted-foreground" />
-                  <SelectValue placeholder="Auto Pace" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Auto Pace</SelectItem>
-                  <SelectItem value="fast">Fast</SelectItem>
-                  <SelectItem value="moderate">Moderate</SelectItem>
-                  <SelectItem value="cinematic">Cinematic</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Duration slider — only for long-form platforms */}
+              {LONG_FORM_PLATFORMS.has(platform) && (
+                <div className="flex items-center gap-1.5 rounded-[8px] border border-border bg-transparent px-3 py-1.5 text-xs font-medium text-text-subtle">
+                  <span className="text-muted-foreground">Duración:</span>
+                  <input
+                    type="range"
+                    min={2}
+                    max={20}
+                    step={1}
+                    value={targetDurationMinutes}
+                    onChange={(e) => setTargetDurationMinutes(Number(e.target.value))}
+                    className="w-20 accent-primary"
+                  />
+                  <span className="min-w-[36px] text-foreground font-semibold">{targetDurationMinutes} min</span>
+                </div>
+              )}
+
+              {/* Pacing selector — hidden for long-form (duration controls pacing) */}
+              {!LONG_FORM_PLATFORMS.has(platform) && (
+                <Select value={pacing} onValueChange={(v) => setPacing(v ?? "")}>
+                  <SelectTrigger
+                    size="sm"
+                    className="h-auto gap-1.5 rounded-[8px] border-border bg-transparent px-3 py-1.5 text-xs font-medium text-text-subtle"
+                  >
+                    <Gauge className="size-3.5 text-muted-foreground" />
+                    <SelectValue placeholder="Auto Pace" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Auto Pace</SelectItem>
+                    <SelectItem value="fast">Fast</SelectItem>
+                    <SelectItem value="moderate">Moderate</SelectItem>
+                    <SelectItem value="cinematic">Cinematic</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
 
               {/* Advanced toggle */}
               <button
@@ -252,7 +319,9 @@ export function HomePage() {
                   disabled={!hasTopic || loading}
                   className="gap-2 rounded-[10px] px-6 py-2.5 text-sm font-semibold"
                 >
-                  {loading ? "Generating..." : "Generate"}
+                  {loading
+                    ? LONG_FORM_PLATFORMS.has(platform) ? "Generating video..." : "Generating..."
+                    : LONG_FORM_PLATFORMS.has(platform) ? `Generate ${targetDurationMinutes}min Video` : "Generate"}
                   {!loading && <ArrowRight className="size-4" />}
                 </Button>
               </div>
@@ -268,7 +337,7 @@ export function HomePage() {
                     </label>
                     <Select value={llmProvider} onValueChange={(v) => v && setLlmProvider(v)}>
                       <SelectTrigger className="h-9 w-full rounded-lg">
-                        <SelectValue>{displayName(llmProvider)}</SelectValue>
+                        <SelectValue>{providerLabel(providers?.llm, llmProvider)}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {providers?.llm.map((p) => (
@@ -298,13 +367,101 @@ export function HomePage() {
                     </Select>
                   </div>
 
+                  {ttsProvider === "inworld" && providers?.inworldVoices && (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                        Inworld Voice
+                      </label>
+                      <Select value={inworldVoice} onValueChange={(v) => v && setInworldVoice(v)}>
+                        <SelectTrigger className="h-9 w-full rounded-lg">
+                          <SelectValue placeholder="Select voice" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {providers.inworldVoices.map((v) => (
+                            <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {ttsProvider === "gemini-tts" && providers?.geminiTtsVoices && (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                        Gemini Voice
+                      </label>
+                      <Select value={geminiTtsVoice} onValueChange={(v) => v && setGeminiTtsVoice(v)}>
+                        <SelectTrigger className="h-9 w-full rounded-lg">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectLabel>Femeninas</SelectLabel>
+                            {providers.geminiTtsVoices.filter(v => v.gender === "female").map((v) => (
+                              <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>Masculinas</SelectLabel>
+                            {providers.geminiTtsVoices.filter(v => v.gender === "male").map((v) => (
+                              <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {ttsProvider === "grok-tts" && providers?.grokTtsVoices && (
+                    <>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                          Grok Voice
+                        </label>
+                        <Select value={grokTtsVoice} onValueChange={(v) => v && setGrokTtsVoice(v)}>
+                          <SelectTrigger className="h-9 w-full rounded-lg">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectLabel>Femeninas</SelectLabel>
+                              {providers.grokTtsVoices.filter(v => v.gender === "female").map((v) => (
+                                <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                            <SelectGroup>
+                              <SelectLabel>Masculinas</SelectLabel>
+                              {providers.grokTtsVoices.filter(v => v.gender === "male").map((v) => (
+                                <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                          Velocidad: {grokTtsSpeed.toFixed(1)}x
+                        </label>
+                        <input
+                          type="range" min="0.7" max="1.5" step="0.1"
+                          value={grokTtsSpeed}
+                          onChange={(e) => setGrokTtsSpeed(Number(e.target.value))}
+                          className="w-full accent-primary"
+                        />
+                        <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                          <span>0.7x lento</span><span>1.0x normal</span><span>1.5x rápido</span>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                       Image Provider
                     </label>
                     <Select value={imageProvider} onValueChange={(v) => v && setImageProvider(v)}>
                       <SelectTrigger className="h-9 w-full rounded-lg">
-                        <SelectValue>{displayName(imageProvider)}</SelectValue>
+                        <SelectValue>{providerLabel(providers?.image, imageProvider)}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {providers?.image.map((p) => (
@@ -330,6 +487,55 @@ export function HomePage() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {allowedVisualTypes.includes("ai_video") && (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                        Video Provider
+                      </label>
+                      <Select value={videoProvider} onValueChange={(v) => setVideoProvider(v ?? "")}>
+                        <SelectTrigger className="h-9 w-full rounded-lg">
+                          <SelectValue placeholder="Auto" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">Auto</SelectItem>
+                          {providers?.video?.map((p) => (
+                            <SelectItem key={p.key} value={p.key}>
+                              {p.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {allowedVisualTypes.includes("ai_video") && (
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                        Video Scenes
+                      </label>
+                      <Select value={videoSceneMode} onValueChange={(v) => setVideoSceneMode(v ?? "all")}>
+                        <SelectTrigger className="h-9 w-full rounded-lg">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas las escenas AI</SelectItem>
+                          <SelectGroup>
+                            <SelectLabel>Elección de la IA</SelectLabel>
+                            <SelectItem value="first">Solo 1ª escena AI</SelectItem>
+                            <SelectItem value="first3">Primeras 3 escenas AI</SelectItem>
+                            <SelectItem value="first_every2">1ª + cada 2 escenas AI</SelectItem>
+                          </SelectGroup>
+                          <SelectGroup>
+                            <SelectLabel>Forzar posición fija</SelectLabel>
+                            <SelectItem value="force_first">Forzar escena #1</SelectItem>
+                            <SelectItem value="force_first3">Forzar escenas #1, #2, #3</SelectItem>
+                            <SelectItem value="force_first_every2">Forzar #1, #3, #5...</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   {/* Conditional LLM config fields */}
                   {(llmProvider === "openrouter" || llmProvider === "openai-compatible") && (
@@ -384,33 +590,183 @@ export function HomePage() {
                     <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                       Style Override
                     </label>
-                    <Select value={archetype} onValueChange={(v) => setArchetype(v ?? "")}>
+                    <Select
+                      value={
+                        styleReferenceMode ? "__image__"
+                        : artStyleOverride ? (`atelier:${providers?.atelierStyles?.find((s) => s.artStyle === artStyleOverride)?.id ?? ""}`)
+                        : archetype
+                      }
+                      onValueChange={(v) => {
+                        if (v === "__image__") {
+                          setStyleReferenceMode(true);
+                          setArchetype("");
+                          setArtStyleOverride("");
+                        } else if (v.startsWith("atelier:")) {
+                          const styleId = v.slice("atelier:".length);
+                          const found = providers?.atelierStyles?.find((s) => s.id === styleId);
+                          setStyleReferenceMode(false);
+                          setStyleReferenceImage(undefined);
+                          setArchetype("");
+                          setArtStyleOverride(found?.artStyle ?? "");
+                        } else {
+                          setStyleReferenceMode(false);
+                          setStyleReferenceImage(undefined);
+                          setArtStyleOverride("");
+                          setArchetype(v ?? "");
+                        }
+                      }}
+                    >
                       <SelectTrigger className="h-9 w-full rounded-lg">
                         <SelectValue placeholder="Auto" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="">Auto Style</SelectItem>
-                        {archetypes.map((a) => (
-                          <SelectItem key={a.name} value={a.name}>
-                            {a.name
-                              .split(/[-_]/)
-                              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                              .join(" ")}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="__image__">Personalizado (imagen)</SelectItem>
+                        {archetypes.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>Archetypes</SelectLabel>
+                            {archetypes.map((a) => (
+                              <SelectItem key={a.name} value={a.name}>
+                                {a.label ?? a.name
+                                  .split(/[-_]/)
+                                  .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                                  .join(" ")}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
+                        {providers?.atelierStyles && providers.atelierStyles.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>Atelier Styles</SelectLabel>
+                            {providers.atelierStyles.map((s) => (
+                              <SelectItem key={s.id} value={`atelier:${s.id}`}>
+                                {s.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        )}
                       </SelectContent>
                     </Select>
+
+                    {styleReferenceMode && (
+                      <div className="mt-2 flex items-center gap-3">
+                        <input
+                          ref={styleImageInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              const dataUrl = reader.result as string;
+                              setStyleReferenceImage(dataUrl.split(",")[1]);
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => styleImageInputRef.current?.click()}
+                          className="h-9 rounded-lg border border-border bg-secondary px-3 text-xs font-medium text-foreground hover:bg-secondary/80"
+                        >
+                          {styleReferenceImage ? "Cambiar imagen" : "Subir imagen"}
+                        </button>
+                        {styleReferenceImage && (
+                          <img
+                            src={`data:image/png;base64,${styleReferenceImage}`}
+                            alt="Referencia de estilo"
+                            className="h-10 w-10 rounded-lg object-cover"
+                          />
+                        )}
+                      </div>
+                    )}
+                    {styleReferenceMode && (
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        Todas las escenas copiarán el estilo visual (paleta, luz, mood) de esta imagen.
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                {/* Dry Run */}
-                <div className="mt-4 flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted-foreground">Dry Run</span>
-                  <div className="flex items-center gap-2">
-                    <Switch checked={dryRun} onCheckedChange={setDryRun} size="sm" />
-                    <span className="text-xs text-muted-foreground">
-                      {dryRun ? "On" : "Off"}
-                    </span>
+                {/* Visual Types */}
+                <div className="mt-4">
+                  <label className="mb-2 block text-xs font-medium text-muted-foreground">
+                    Visual Types
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: "ai_image", label: "AI Image" },
+                      { key: "stock_image", label: "Stock Image" },
+                      { key: "stock_video", label: "Stock Video" },
+                      { key: "text_card", label: "Text Card" },
+                      { key: "ai_video", label: "AI Video ($$$)" },
+                    ].map(({ key, label }) => {
+                      const checked = allowedVisualTypes.includes(key);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => {
+                            setAllowedVisualTypes((prev) =>
+                              checked ? prev.filter((t) => t !== key) : [...prev, key],
+                            );
+                            if (key === "ai_video" && checked) {
+                              setVideoProvider("");
+                              setVideoSceneMode("all");
+                            }
+                          }}
+                          className={cn(
+                            "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                            checked
+                              ? "border-primary/40 bg-primary/10 text-primary"
+                              : "border-border bg-transparent text-text-subtle hover:text-foreground",
+                          )}
+                        >
+                          {checked ? "✓ " : ""}{label}
+                        </button>
+                      );
+                    })}
+                    {/* Atelier mode toggle — chain-of-reference image consistency */}
+                    <button
+                      type="button"
+                      onClick={() => setAtelierMode((prev) => !prev)}
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                        atelierMode
+                          ? "border-violet-500/40 bg-violet-500/10 text-violet-400"
+                          : "border-border bg-transparent text-text-subtle hover:text-foreground",
+                      )}
+                    >
+                      {atelierMode ? "✓ " : ""}Atelier
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    AI Video is expensive (~$0.30/scene) and slow. Uncheck to avoid it.
+                    {atelierMode && " · Atelier: la escena 1 se usa como referencia para mantener personaje y estilo en todo el video."}
+                  </p>
+                </div>
+
+                {/* Subtitles & Dry Run toggles */}
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">Subtitles</span>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={!noSubtitles} onCheckedChange={(v) => setNoSubtitles(!v)} size="sm" />
+                      <span className="text-xs text-muted-foreground">
+                        {noSubtitles ? "Off" : "On"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-muted-foreground">Dry Run</span>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={dryRun} onCheckedChange={setDryRun} size="sm" />
+                      <span className="text-xs text-muted-foreground">
+                        {dryRun ? "On" : "Off"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 

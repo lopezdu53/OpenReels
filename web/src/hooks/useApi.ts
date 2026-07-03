@@ -1,10 +1,11 @@
 const API_BASE = "/api/v1";
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const hasBody = init?.body != null;
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
     },
   });
@@ -15,6 +16,22 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return res.json() as Promise<T>;
+}
+
+export interface JobConfig {
+  llm?: string;
+  tts?: string;
+  image?: string;
+  video?: string;
+  music?: string;
+  platform?: string;
+  pacing?: string;
+  videoSceneMode?: string;
+  noVideo?: boolean;
+  noSubtitles?: boolean;
+  styleReference?: boolean;
+  atelierMode?: boolean;
+  artStyleOverride?: string;
 }
 
 export interface JobSummary {
@@ -33,10 +50,14 @@ export interface JobSummary {
   researchData?: ResearchData;
   score?: DirectorScore;
   criticReview?: CriticReview;
+  tiktokCaption?: { title: string; hashtags: string[]; caption: string };
+  platform?: string;
+  config?: JobConfig;
 }
 
 export interface Archetype {
   name: string;
+  label?: string;
   captionStyle: string;
   artStyle: string;
   mood: string;
@@ -52,11 +73,26 @@ export interface Platform {
   height: number;
   fps: number;
   maxDurationSeconds: number;
+  minDurationSeconds?: number;
+  orientation?: "portrait" | "landscape";
+  longForm?: boolean;
 }
 
 export interface ProviderOption {
   key: string;
   label: string;
+}
+
+export interface InworldVoice {
+  id: string;
+  label: string;
+  lang: string;
+}
+
+export interface VoiceOption {
+  id: string;
+  label: string;
+  gender?: string;
 }
 
 export interface ProviderOptions {
@@ -65,6 +101,11 @@ export interface ProviderOptions {
   image: ProviderOption[];
   video: ProviderOption[];
   search?: ProviderOption[];
+  inworldVoices?: InworldVoice[];
+  geminiTtsVoices?: VoiceOption[];
+  grokTtsVoices?: VoiceOption[];
+  grokTtsModels?: { id: string; label: string }[];
+  atelierStyles?: { id: string; label: string; artStyle: string }[];
 }
 
 export interface StatsResponse {
@@ -139,13 +180,30 @@ export interface CreateJobRequest {
   pacing?: string;
   platform?: string;
   dryRun?: boolean;
+  noSubtitles?: boolean;
   direction?: string;
+  targetDurationMinutes?: number;
   score?: Record<string, unknown>;
+  allowedVisualTypes?: string[];
+  videoSceneMode?: string;
+  styleReferenceImage?: string; // base64
+  atelierMode?: boolean;
+  artStyleOverride?: string;
   providers?: {
     llm?: string;
     tts?: string;
     image?: string;
     music?: string;
+    video?: string;
+    videoModel?: string;
+    llmModel?: string;
+    llmBaseUrl?: string;
+    searchProvider?: string;
+    inworldVoice?: string;
+    geminiTtsVoice?: string;
+    grokTtsVoice?: string;
+    grokTtsSpeed?: number;
+    grokTtsModel?: string;
   };
 }
 
@@ -197,5 +255,29 @@ export const api = {
 
   getStats() {
     return fetchJson<StatsResponse>("/stats");
+  },
+
+  testLLM(data: { provider?: string; model?: string; prompt: string }) {
+    return fetchJson<{ text: string; durationMs: number; tokens: { inputTokens: number; outputTokens: number } }>(
+      "/test/llm", { method: "POST", body: JSON.stringify(data) }
+    );
+  },
+
+  testTTS(data: { provider?: string; text: string; voice?: string; speed?: number; model?: string }) {
+    return fetchJson<{ audioBase64: string; durationMs: number; charCount: number }>(
+      "/test/tts", { method: "POST", body: JSON.stringify(data) }
+    );
+  },
+
+  testImage(data: { provider?: string; prompt: string; style?: string; aspectRatio?: string }) {
+    return fetchJson<{ imageBase64: string; durationMs: number }>(
+      "/test/image", { method: "POST", body: JSON.stringify(data) }
+    );
+  },
+
+  testVideo(data: { provider?: string; imageBase64: string; prompt: string; durationSeconds?: number; aspectRatio?: string }) {
+    return fetchJson<{ videoBase64: string; durationMs: number; videoSeconds: number }>(
+      "/test/video", { method: "POST", body: JSON.stringify(data) }
+    );
   },
 };

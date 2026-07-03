@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { type Job, Worker } from "bullmq";
 import IORedis from "ioredis";
+import { z } from "zod";
 import type { PipelineCallbacks, StageName } from "./pipeline/orchestrator.js";
 import { runPipeline } from "./pipeline/orchestrator.js";
 import { createProviders, createVerificationModel } from "./providers/factory.js";
@@ -45,8 +46,15 @@ interface JobData {
   dryRun: boolean;
   noMusic?: boolean;
   noVideo?: boolean;
+  noSubtitles?: boolean;
+  allowedVisualTypes?: string[];
   direction?: string;
+  targetDurationMinutes?: number;
   score?: Record<string, unknown>;
+  videoSceneMode?: string;
+  styleReferenceImage?: string; // base64
+  atelierMode?: boolean;
+  artStyleOverride?: string;
   providers: {
     llm: string;
     tts: string;
@@ -58,6 +66,11 @@ interface JobData {
     llmModel?: string;
     llmBaseUrl?: string;
     searchProvider?: SearchProviderKey;
+    inworldVoice?: string;
+    geminiTtsVoice?: string;
+    grokTtsVoice?: string;
+    grokTtsSpeed?: number;
+    grokTtsModel?: string;
   };
   keys: Record<string, string>;
   jobsDir: string;
@@ -72,6 +85,21 @@ interface JobMeta {
   completedAt?: string;
   cancelRequested?: boolean;
   stages: Record<string, { status: string; detail?: string; durationSec?: number }>;
+  config?: {
+    llm?: string;
+    tts?: string;
+    image?: string;
+    video?: string;
+    music?: string;
+    platform?: string;
+    pacing?: string;
+    videoSceneMode?: string;
+    noVideo?: boolean;
+    noSubtitles?: boolean;
+    styleReference?: boolean;
+    atelierMode?: boolean;
+    artStyleOverride?: string;
+  };
   costEstimate?: unknown;
   actualCost?: unknown;
   videoPath?: string;
@@ -87,6 +115,7 @@ interface JobMeta {
     fallback: boolean;
   };
   revisionHistory?: { round: number; score: number }[];
+  tiktokCaption?: { title: string; hashtags: string[]; caption: string };
   error?: string;
 }
 
@@ -99,7 +128,7 @@ function writeMeta(jobDir: string, meta: JobMeta) {
 const worker = new Worker<JobData>(
   "openreels",
   async (job: Job<JobData>) => {
-    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, direction, score, providers, keys } =
+    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, atelierMode, artStyleOverride, providers, keys } =
       job.data;
     const jobDir = path.join(JOBS_DIR, job.id!);
     fs.mkdirSync(jobDir, { recursive: true });
@@ -112,6 +141,21 @@ const worker = new Worker<JobData>(
       status: "running",
       createdAt: new Date().toISOString(),
       stages: {},
+      config: {
+        llm: providers.llm,
+        tts: providers.tts,
+        image: providers.image,
+        video: providers.video ?? undefined,
+        music: providers.music ?? "bundled",
+        platform,
+        pacing: pacing ?? undefined,
+        videoSceneMode: videoSceneMode ?? undefined,
+        noVideo: noVideo === true || undefined,
+        noSubtitles: noSubtitles === true || undefined,
+        styleReference: styleReferenceImage ? true : undefined,
+        atelierMode: atelierMode === true || undefined,
+        artStyleOverride: artStyleOverride ?? undefined,
+      },
     };
 
     // Initialize all stages as pending
@@ -133,6 +177,11 @@ const worker = new Worker<JobData>(
       llmModel: providers.llmModel,
       llmBaseUrl: providers.llmBaseUrl,
       searchProvider: providers.searchProvider,
+      inworldVoice: providers.inworldVoice,
+      geminiTtsVoice: providers.geminiTtsVoice,
+      grokTtsVoice: providers.grokTtsVoice,
+      grokTtsSpeed: providers.grokTtsSpeed,
+      grokTtsModel: providers.grokTtsModel,
     });
 
     // Build callbacks that emit BullMQ progress events and update meta.json
@@ -280,6 +329,8 @@ const worker = new Worker<JobData>(
         videoProviders: noVideo ? [] : providerInstances.videoProviders,
         videoProvider: providers.video as VideoProviderKey | undefined,
         noVideo: noVideo === true,
+        noSubtitles: noSubtitles === true,
+        allowedVisualTypes,
         archetype,
         pacing,
         platform,
@@ -293,6 +344,11 @@ const worker = new Worker<JobData>(
         verifyModel,
         direction: effectiveDirection,
         replayScore,
+        targetDurationMinutes,
+        videoSceneMode,
+        styleReferenceImage: styleReferenceImage ? Buffer.from(styleReferenceImage, "base64") : undefined,
+        atelierMode: atelierMode === true,
+        artStyleOverride: artStyleOverride ?? undefined,
       },
       callbacks,
     );
@@ -305,6 +361,27 @@ const worker = new Worker<JobData>(
       // Store runDir explicitly for frontend artifact fetching
       meta.runDir = path.relative(jobDir, result.outputDir);
     }
+
+    // Generate TikTok caption (title + hashtags) when platform is tiktok
+    if (platform === "tiktok" && !meta.cancelRequested) {
+      try {
+        const captionResult = await providerInstances.llm.generate({
+          systemPrompt:
+            "You are a viral TikTok content strategist. You write hooks and hashtags that maximize reach and monetization for Spanish-language and English-language finance/lifestyle content.",
+          userMessage: `Topic: "${topic}"\n\nGenerate a viral TikTok caption with:\n- title: a punchy hook (max 100 chars, same language as the topic)\n- hashtags: 7 viral hashtags for this niche (include mix of broad and niche tags)\n- caption: the full post caption combining title + hashtags\n\nReturn ONLY valid JSON.`,
+          schema: z.object({
+            title: z.string(),
+            hashtags: z.array(z.string()),
+            caption: z.string(),
+          }),
+        });
+        meta.tiktokCaption = captionResult.data;
+        console.log(`[job:${job.id}] TikTok caption generated: ${captionResult.data.title}`);
+      } catch (err) {
+        console.warn(`[job:${job.id}] TikTok caption generation failed (non-fatal): ${err}`);
+      }
+    }
+
     writeMeta(jobDir, meta);
 
     // Auto-prune old jobs if MAX_JOBS is set

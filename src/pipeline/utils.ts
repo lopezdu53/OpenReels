@@ -68,8 +68,18 @@ export interface PipelineOptions {
   videoProviders?: VideoProvider[];
   videoProvider?: VideoProviderKey;
   noVideo?: boolean;
+  noSubtitles?: boolean;
+  allowedVisualTypes?: string[];
   direction?: string;
   replayScore?: DirectorScore;
+  targetDurationMinutes?: number;
+  videoSceneMode?: string;
+  /** Image used as a global style reference — every scene's AI image generation is conditioned on it. */
+  styleReferenceImage?: Buffer;
+  /** Atelier chain-of-reference mode: scene 1's generated image becomes the reference for all subsequent scenes. */
+  atelierMode?: boolean;
+  /** Overrides archetype.artStyle in the image-prompter style bible. */
+  artStyleOverride?: string;
 }
 
 export interface PipelineResult {
