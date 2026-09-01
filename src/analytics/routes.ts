@@ -1,8 +1,21 @@
 import type { FastifyInstance } from "fastify";
 import type { NicheResearch } from "./research.js";
-import { expandChannel, generateCalendar, generateStrategy, researchNiche } from "./research.js";
+import {
+  cloneChannel,
+  cloneContent,
+  expandChannel,
+  generateCalendar,
+  generateStrategy,
+  researchNiche,
+} from "./research.js";
 import { calendarSchema, strategySchema } from "./schemas.js";
+import { curatedTopNiches, generateTopNiches } from "./top-niches.js";
+import type { AnalyticsChannel, AnalyticsVideo } from "./youtube.js";
 import { youtubeApiKey } from "./youtube.js";
+
+function viviMissing(): string | null {
+  return process.env["VIVI_LLM_API_KEY"] ? null : "VIVI_LLM_API_KEY is required";
+}
 
 export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/v1/analytics/status", async () => ({
@@ -16,6 +29,19 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
     if (!query?.trim()) return reply.status(400).send({ error: "query is required" });
     try {
       return await researchNiche(query);
+    } catch (err) {
+      reply.status(500);
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  app.post("/api/v1/analytics/top-niches", async (request, reply) => {
+    const body = (request.body ?? {}) as { region?: string; seed?: string; refresh?: boolean };
+    try {
+      if (body.refresh === false) {
+        return curatedTopNiches(body.region);
+      }
+      return await generateTopNiches({ region: body.region, seed: body.seed });
     } catch (err) {
       reply.status(500);
       return { error: err instanceof Error ? err.message : String(err) };
@@ -36,12 +62,57 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
   app.post("/api/v1/analytics/strategy", async (request, reply) => {
     const body = (request.body ?? {}) as { research?: NicheResearch; angle?: string };
     if (!body.research?.query) return reply.status(400).send({ error: "research is required" });
-    if (!process.env["VIVI_LLM_API_KEY"]) {
-      return reply.status(400).send({ error: "VIVI_LLM_API_KEY is required to generate strategy" });
-    }
+    const missing = viviMissing();
+    if (missing) return reply.status(400).send({ error: missing });
     try {
       const strategy = await generateStrategy(body.research, body.angle);
       return { strategy };
+    } catch (err) {
+      reply.status(500);
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  app.post("/api/v1/analytics/clone-channel", async (request, reply) => {
+    const body = (request.body ?? {}) as {
+      channel?: AnalyticsChannel;
+      videos?: AnalyticsVideo[];
+      niche?: string;
+      polish?: string;
+    };
+    if (!body.channel?.title) return reply.status(400).send({ error: "channel is required" });
+    const missing = viviMissing();
+    if (missing) return reply.status(400).send({ error: `${missing} to clone a channel` });
+    try {
+      const cloned = await cloneChannel({
+        channel: body.channel,
+        videos: body.videos,
+        niche: body.niche,
+        polish: body.polish,
+      });
+      return { cloned };
+    } catch (err) {
+      reply.status(500);
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  app.post("/api/v1/analytics/clone-content", async (request, reply) => {
+    const body = (request.body ?? {}) as {
+      video?: AnalyticsVideo;
+      niche?: string;
+      polish?: string;
+    };
+    if (!body.video?.title) return reply.status(400).send({ error: "video is required" });
+    const missing = viviMissing();
+    if (missing) return reply.status(400).send({ error: `${missing} to clone content` });
+    try {
+      const cloned = await cloneContent({
+        video: body.video,
+        niche: body.niche,
+        polish: body.polish,
+      });
+      return { cloned };
     } catch (err) {
       reply.status(500);
       return { error: err instanceof Error ? err.message : String(err) };
@@ -59,9 +130,8 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
     if (!body.research?.query) return reply.status(400).send({ error: "research is required" });
     const parsed = strategySchema.safeParse(body.strategy);
     if (!parsed.success) return reply.status(400).send({ error: "strategy is required" });
-    if (!process.env["VIVI_LLM_API_KEY"]) {
-      return reply.status(400).send({ error: "VIVI_LLM_API_KEY is required to generate calendar" });
-    }
+    const missing = viviMissing();
+    if (missing) return reply.status(400).send({ error: missing });
     try {
       const calendar = await generateCalendar({
         research: body.research,

@@ -1,8 +1,12 @@
 import { ViviLLM } from "../providers/llm/vivi.js";
 import {
   type ChannelStrategy,
+  type ClonedChannel,
+  type ClonedContent,
   type ContentCalendar,
   calendarSchema,
+  clonedChannelSchema,
+  clonedContentSchema,
   strategySchema,
 } from "./schemas.js";
 import {
@@ -191,4 +195,94 @@ export async function generateCalendar(opts: {
     items: day.items.slice(0, videosPerDay).map((item, j) => ({ ...item, slot: j + 1 })),
   }));
   return cal;
+}
+
+function packChannelForClone(channel: AnalyticsChannel, videos: AnalyticsVideo[]): string {
+  const vids = videos
+    .slice(0, 10)
+    .map(
+      (v) =>
+        `- ${v.title} [${v.shorts ? "Short" : "long"}] ${v.views.toLocaleString()} views — ${v.description.slice(0, 120)}`,
+    )
+    .join("\n");
+  return [
+    `Canal fuente (referencia, NO copiar nombre ni identidad): ${channel.title}`,
+    channel.handle ? `Handle: ${channel.handle}` : "",
+    `Subs: ${channel.subscribers.toLocaleString()} · views: ${channel.views.toLocaleString()} · videos: ${channel.videoCount}`,
+    `Bio: ${channel.description.slice(0, 400)}`,
+    "",
+    "Videos top:",
+    vids || "(sin lista de videos)",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export async function cloneChannel(opts: {
+  channel: AnalyticsChannel;
+  videos?: AnalyticsVideo[];
+  niche?: string;
+  polish?: string;
+}): Promise<ClonedChannel> {
+  let videos = opts.videos ?? [];
+  if (videos.length === 0 && opts.channel.id) {
+    try {
+      videos = await channelVideos(opts.channel.id, opts.niche ?? opts.channel.title, 8);
+    } catch {
+      videos = [];
+    }
+  }
+  const llm = new ViviLLM();
+  const result = await llm.generate({
+    systemPrompt:
+      "Eres un productor de canales LATAM. Clonas el FORMATO (pilares, ritmo, tipo de hook), nunca la identidad: nombre, cara, eslogan y títulos literales deben ser nuevos. Pulir = más claro, más específico, voz propia. Español. JSON único.",
+    userMessage: [
+      opts.niche ? `Nicho: ${opts.niche}` : "",
+      packChannelForClone(opts.channel, videos),
+      opts.polish?.trim()
+        ? `\nCómo pulirlo: ${opts.polish.trim()}`
+        : "\nPúlelo: tono cercano, títulos propios, diferenciación clara.",
+      "sourceChannel = nombre del canal de referencia.",
+      "polishNotes = qué cambiaste vs el original.",
+      "firstVideos = 5–8 ideas nuevas inspiradas en el formato, no copias.",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    schema: clonedChannelSchema,
+  });
+  return result.data;
+}
+
+export async function cloneContent(opts: {
+  video: AnalyticsVideo;
+  niche?: string;
+  polish?: string;
+}): Promise<ClonedContent> {
+  const v = opts.video;
+  const llm = new ViviLLM();
+  const result = await llm.generate({
+    systemPrompt:
+      "Reescribes un video de referencia para un canal propio. El resultado debe ser publicable y ORIGINAL: no copies el título palabra por palabra ni la descripción. Pulir = hook más fuerte, script hablable en voz alta, hashtags por plataforma. Español LATAM. JSON único.",
+    userMessage: [
+      opts.niche ? `Nicho: ${opts.niche}` : "",
+      `Video fuente: ${v.title}`,
+      v.channelTitle ? `Canal: ${v.channelTitle}` : "",
+      `Formato: ${v.shorts ? "short" : "long"} · ${v.views.toLocaleString()} views`,
+      `Descripción: ${v.description.slice(0, 400)}`,
+      v.tags.length ? `Tags: ${v.tags.join(", ")}` : "",
+      opts.polish?.trim()
+        ? `\nCómo pulirlo: ${opts.polish.trim()}`
+        : "\nPúlelo: más concreto, un solo dato sorprendente, CTA suave.",
+      "script = locución 80–160 palabras si short, o 180–280 si long.",
+      "Packs distintos para youtube, tiktok, bilibili, facebook (title, description, hashtags).",
+      "sourceTitle y sourceChannel recuerdan la referencia; polishNotes explica el cambio.",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    schema: clonedContentSchema,
+  });
+  const data = result.data;
+  if (!data.sourceTitle) data.sourceTitle = v.title;
+  if (!data.sourceChannel) data.sourceChannel = v.channelTitle ?? "";
+  return data;
 }

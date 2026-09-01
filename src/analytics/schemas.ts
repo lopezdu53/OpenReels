@@ -56,5 +56,56 @@ export const calendarSchema = z.object({
   days: z.array(calendarDaySchema).min(1).max(7),
 });
 
+export const demandSchema = z.enum(["alta", "media", "baja"]);
+
+export const topNicheSchema = z.object({
+  rank: z.number().int().min(1).max(10),
+  name: z.string(),
+  query: z.string(),
+  why: z.string(),
+  demand: demandSchema,
+  competition: demandSchema,
+  cpmLongformUsd: z.number(),
+  cpmShortsUsd: z.number(),
+  exampleTopics: z.array(z.string()).max(5),
+  formats: z.array(z.string()).max(4),
+});
+
+export const topNichesSchema = z.object({
+  region: z.string(),
+  source: z.enum(["curated", "vivi", "mixed"]),
+  niches: z.array(topNicheSchema).min(8).max(10),
+  warning: z.string().optional(),
+});
+
+export const clonedVideoIdeaSchema = z.object({
+  title: z.string(),
+  hook: z.string(),
+  format: z.enum(["short", "long"]),
+});
+
+export const clonedChannelSchema = strategySchema.extend({
+  sourceChannel: z.string(),
+  polishNotes: z.string(),
+  firstVideos: z.array(clonedVideoIdeaSchema).min(3).max(10),
+});
+
+export const clonedContentSchema = z.object({
+  sourceTitle: z.string(),
+  sourceChannel: z.string(),
+  polishNotes: z.string(),
+  hook: z.string(),
+  script: z.string(),
+  visualNotes: z.string(),
+  youtube: platformPackSchema,
+  tiktok: platformPackSchema,
+  bilibili: platformPackSchema,
+  facebook: platformPackSchema,
+});
+
 export type ChannelStrategy = z.infer<typeof strategySchema>;
 export type ContentCalendar = z.infer<typeof calendarSchema>;
+export type TopNiche = z.infer<typeof topNicheSchema>;
+export type TopNiches = z.infer<typeof topNichesSchema>;
+export type ClonedChannel = z.infer<typeof clonedChannelSchema>;
+export type ClonedContent = z.infer<typeof clonedContentSchema>;

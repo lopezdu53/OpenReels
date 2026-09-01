@@ -107,8 +107,23 @@ export interface ProviderOptions {
   grokTtsVoices?: VoiceOption[];
   grokTtsModels?: { id: string; label: string }[];
   kokoroVoices?: VoiceOption[];
-  runpodImageModels?: { id: string; label: string; kind: string; costHint: string; defaultSteps?: number; maxSteps?: number; defaultGuidance?: number }[];
-  runpodVideoModels?: { id: string; label: string; kind: string; costHint: string; durations: number[]; resolutions: string[] }[];
+  runpodImageModels?: {
+    id: string;
+    label: string;
+    kind: string;
+    costHint: string;
+    defaultSteps?: number;
+    maxSteps?: number;
+    defaultGuidance?: number;
+  }[];
+  runpodVideoModels?: {
+    id: string;
+    label: string;
+    kind: string;
+    costHint: string;
+    durations: number[];
+    resolutions: string[];
+  }[];
   atelierStyles?: { id: string; label: string; artStyle: string }[];
 }
 
@@ -205,6 +220,60 @@ export interface ContentCalendar {
   channelName: string;
   videosPerDay: number;
   days: { date: string; weekday: string; items: CalendarItem[] }[];
+}
+
+export interface TopNiche {
+  rank: number;
+  name: string;
+  query: string;
+  why: string;
+  demand: "alta" | "media" | "baja";
+  competition: "alta" | "media" | "baja";
+  cpmLongformUsd: number;
+  cpmShortsUsd: number;
+  exampleTopics: string[];
+  formats: string[];
+}
+
+export interface TopNiches {
+  region: string;
+  source: "curated" | "vivi" | "mixed";
+  niches: TopNiche[];
+  warning?: string;
+}
+
+export interface ClonedChannel extends ChannelStrategy {
+  sourceChannel: string;
+  polishNotes: string;
+  firstVideos: { title: string; hook: string; format: "short" | "long" }[];
+}
+
+export interface ClonedContent {
+  sourceTitle: string;
+  sourceChannel: string;
+  polishNotes: string;
+  hook: string;
+  script: string;
+  visualNotes: string;
+  youtube: PlatformPack;
+  tiktok: PlatformPack;
+  bilibili: PlatformPack;
+  facebook: PlatformPack;
+}
+
+export function clonedChannelToStrategy(cloned: ClonedChannel): ChannelStrategy {
+  return {
+    channelName: cloned.channelName,
+    tagline: cloned.tagline,
+    positioning: cloned.positioning,
+    targetAudience: cloned.targetAudience,
+    voiceTone: cloned.voiceTone,
+    contentPillars: cloned.contentPillars,
+    differentiation: cloned.differentiation,
+    monetization: cloned.monetization,
+    firstMonthFocus: cloned.firstMonthFocus,
+    postingCadence: cloned.postingCadence,
+  };
 }
 
 export interface CostBreakdown {
@@ -358,26 +427,53 @@ export const api = {
   },
 
   testLLM(data: { provider?: string; model?: string; prompt: string }) {
-    return fetchJson<{ text: string; durationMs: number; tokens: { inputTokens: number; outputTokens: number } }>(
-      "/test/llm", { method: "POST", body: JSON.stringify(data) }
-    );
+    return fetchJson<{
+      text: string;
+      durationMs: number;
+      tokens: { inputTokens: number; outputTokens: number };
+    }>("/test/llm", { method: "POST", body: JSON.stringify(data) });
   },
 
-  testTTS(data: { provider?: string; text: string; voice?: string; speed?: number; model?: string }) {
-    return fetchJson<{ audioBase64: string; durationMs: number; charCount: number }>(
-      "/test/tts", { method: "POST", body: JSON.stringify(data) }
-    );
+  testTTS(data: {
+    provider?: string;
+    text: string;
+    voice?: string;
+    speed?: number;
+    model?: string;
+  }) {
+    return fetchJson<{ audioBase64: string; durationMs: number; charCount: number }>("/test/tts", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 
-  testImage(data: { provider?: string; prompt: string; style?: string; aspectRatio?: string; model?: string; steps?: number; guidance?: number }) {
-    return fetchJson<{ imageBase64: string; durationMs: number }>(
-      "/test/image", { method: "POST", body: JSON.stringify(data) }
-    );
+  testImage(data: {
+    provider?: string;
+    prompt: string;
+    style?: string;
+    aspectRatio?: string;
+    model?: string;
+    steps?: number;
+    guidance?: number;
+  }) {
+    return fetchJson<{ imageBase64: string; durationMs: number }>("/test/image", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 
-  testVideo(data: { provider?: string; imageBase64: string; prompt: string; durationSeconds?: number; aspectRatio?: string; model?: string; resolution?: string }) {
+  testVideo(data: {
+    provider?: string;
+    imageBase64: string;
+    prompt: string;
+    durationSeconds?: number;
+    aspectRatio?: string;
+    model?: string;
+    resolution?: string;
+  }) {
     return fetchJson<{ videoBase64: string; durationMs: number; videoSeconds: number }>(
-      "/test/video", { method: "POST", body: JSON.stringify(data) }
+      "/test/video",
+      { method: "POST", body: JSON.stringify(data) },
     );
   },
 
@@ -414,6 +510,32 @@ export const api = {
     startDate?: string;
   }) {
     return fetchJson<{ calendar: ContentCalendar }>("/analytics/calendar", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  analyticsTopNiches(data?: { region?: string; seed?: string; refresh?: boolean }) {
+    return fetchJson<TopNiches>("/analytics/top-niches", {
+      method: "POST",
+      body: JSON.stringify(data ?? { refresh: false }),
+    });
+  },
+
+  analyticsCloneChannel(data: {
+    channel: AnalyticsChannel;
+    videos?: AnalyticsVideo[];
+    niche?: string;
+    polish?: string;
+  }) {
+    return fetchJson<{ cloned: ClonedChannel }>("/analytics/clone-channel", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  analyticsCloneContent(data: { video: AnalyticsVideo; niche?: string; polish?: string }) {
+    return fetchJson<{ cloned: ClonedContent }>("/analytics/clone-content", {
       method: "POST",
       body: JSON.stringify(data),
     });

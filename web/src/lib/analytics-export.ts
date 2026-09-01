@@ -1,4 +1,11 @@
-import type { ChannelStrategy, ContentCalendar, NicheResearch } from "@/hooks/useApi";
+import type {
+  ChannelStrategy,
+  ClonedChannel,
+  ClonedContent,
+  ContentCalendar,
+  NicheResearch,
+  TopNiches,
+} from "@/hooks/useApi";
 
 function strategyMarkdown(strategy: ChannelStrategy): string[] {
   const lines = [
@@ -66,6 +73,60 @@ export function researchToMarkdown(
   }
   if (strategy) lines.push(...strategyMarkdown(strategy));
   if (calendar) lines.push(...calendarMarkdown(calendar));
+  return lines.join("\n");
+}
+
+export function topNichesToMarkdown(list: TopNiches): string {
+  const lines = [`# Top 10 nichos — ${list.region}`, `Fuente: ${list.source}`, ""];
+  for (const n of list.niches) {
+    lines.push(`## ${n.rank}. ${n.name}`);
+    lines.push(`- Query: ${n.query}`);
+    lines.push(`- Por qué: ${n.why}`);
+    lines.push(`- Demanda: ${n.demand} · Competencia: ${n.competition}`);
+    lines.push(`- CPM long $${n.cpmLongformUsd} / Shorts $${n.cpmShortsUsd}`);
+    lines.push(`- Temas: ${n.exampleTopics.join(", ")}`);
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+export function clonedChannelToMarkdown(cloned: ClonedChannel): string {
+  return [
+    `# Clon pulido — ${cloned.channelName}`,
+    `Referencia: ${cloned.sourceChannel}`,
+    "",
+    cloned.polishNotes,
+    ...strategyMarkdown(cloned),
+    "",
+    "## Primeros videos",
+    ...cloned.firstVideos.map((v) => `- **${v.title}** (${v.format}) — ${v.hook}`),
+  ].join("\n");
+}
+
+export function clonedContentToMarkdown(cloned: ClonedContent): string {
+  const lines = [
+    `# Contenido pulido`,
+    `Referencia: ${cloned.sourceTitle} — ${cloned.sourceChannel}`,
+    "",
+    cloned.polishNotes,
+    "",
+    `Hook: ${cloned.hook}`,
+    "",
+    "## Script",
+    cloned.script,
+    "",
+    `Visuales: ${cloned.visualNotes}`,
+    "",
+  ];
+  for (const [name, pack] of [
+    ["YouTube", cloned.youtube],
+    ["TikTok", cloned.tiktok],
+    ["Bilibili", cloned.bilibili],
+    ["Facebook", cloned.facebook],
+  ] as const) {
+    lines.push(`## ${name}`);
+    lines.push(pack.title, pack.description, pack.hashtags.join(" "), "");
+  }
   return lines.join("\n");
 }
 
