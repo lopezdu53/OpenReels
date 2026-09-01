@@ -10,8 +10,6 @@
  *   Output: WAV file written to outputPath
  *   Exit:   0 = success, 1 = error (message on stderr)
  */
-import { createRequire } from "node:module";
-import { pathToFileURL } from "node:url";
 import { readFileSync, writeFileSync } from "node:fs";
 import { phonemizeForKokoro } from "./kokoro-espeak.js";
 import {
@@ -54,17 +52,17 @@ async function resolveVoiceData(spec: string): Promise<Float32Array | null> {
 
 type KokoroTensor = new (type: string, data: Float32Array | number[], dims: number[]) => unknown;
 
-let kokoroTensorCtor: KokoroTensor | undefined;
-
-/** Same Tensor class kokoro-js uses (transformers 3 / ORT 1.21), not the app's transformers 4. */
-async function loadKokoroTensor(): Promise<KokoroTensor> {
-  if (kokoroTensorCtor) return kokoroTensorCtor;
-  const require = createRequire(import.meta.url);
-  const fromKokoro = createRequire(require.resolve("kokoro-js"));
-  const transformersPath = fromKokoro.resolve("@huggingface/transformers");
-  const mod = (await import(pathToFileURL(transformersPath).href)) as { Tensor: KokoroTensor };
-  kokoroTensorCtor = mod.Tensor;
-  return kokoroTensorCtor;
+/**
+ * transformers.js checks `instanceof Tensor` from its own module.
+ * A Tensor imported via CJS/createRequire is a different class, so style/speed
+ * were dropped as "missing inputs". Reuse the constructor of tokenizer input_ids.
+ */
+function tensorCtorOf(inputIds: { dims: number[] }): KokoroTensor {
+  const ctor = (inputIds as { constructor: KokoroTensor }).constructor;
+  if (typeof ctor !== "function") {
+    throw new Error("Kokoro input_ids is not a Tensor");
+  }
+  return ctor;
 }
 
 type KokoroRuntime = {
@@ -87,10 +85,8 @@ async function generateWavFromIds(
     return new Uint8Array(audio.toWav());
   }
 
-  // Tensor MUST come from kokoro-js's transformers@3 (onnxruntime 1.21).
-  // Importing the app's @huggingface/transformers@4 loads onnxruntime 1.24 into
-  // the same process and crashes: VERS_1.24.3 not found in libonnxruntime.so.1.
-  const Tensor = await loadKokoroTensor();
+  // Reuse tokenizer Tensor class so `instanceof Tensor` inside kokoro-js passes.
+  const Tensor = tensorCtorOf(inputIds);
   const seq = Number(inputIds.dims.at(-1) ?? 0);
   const offset = 256 * Math.min(Math.max(seq - 2, 0), 509);
   const style = mixedData.slice(offset, offset + 256);
