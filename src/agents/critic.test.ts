@@ -41,7 +41,7 @@ describe("evaluate pacing tier derivation", () => {
     const llm = mockLLM();
     await evaluate(llm, baseScore, "test topic");
     expect(llm.lastUserMessage).toContain("**fast** pacing");
-    expect(llm.lastUserMessage).toContain("8-12 scenes");
+    expect(llm.lastUserMessage).toContain("16-22 scenes");
   });
 
   it("derives cinematic tier from warm_narrative archetype", async () => {
@@ -49,7 +49,7 @@ describe("evaluate pacing tier derivation", () => {
     const score = { ...baseScore, archetype: "warm_narrative" };
     await evaluate(llm, score, "test topic");
     expect(llm.lastUserMessage).toContain("**cinematic** pacing");
-    expect(llm.lastUserMessage).toContain("5-8 scenes");
+    expect(llm.lastUserMessage).toContain("10-14 scenes");
   });
 
   it("explicit pacing override wins over archetype", async () => {

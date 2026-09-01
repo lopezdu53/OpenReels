@@ -133,6 +133,7 @@ export function HomePage() {
     "stock_video",
     "text_card",
   ]);
+  const [stockAvailable, setStockAvailable] = useState(true);
 
   const [archetypes, setArchetypes] = useState<Archetype[]>([]);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
@@ -148,6 +149,15 @@ export function HomePage() {
     api.listArchetypes().then(setArchetypes).catch(() => {});
     api.listPlatforms().then(setPlatforms).catch(() => {});
     api.listProviders().then(setProviders).catch(() => {});
+    api.getHealth().then((h) => {
+      const hasStock = Boolean(h.keys?.PEXELS_API_KEY || h.keys?.PIXABAY_API_KEY);
+      setStockAvailable(hasStock);
+      if (!hasStock) {
+        setAllowedVisualTypes((prev) =>
+          prev.filter((t) => t !== "stock_image" && t !== "stock_video"),
+        );
+      }
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -712,11 +722,20 @@ export function HomePage() {
                       { key: "ai_video", label: "AI Video ($$$)" },
                     ].map(({ key, label }) => {
                       const checked = allowedVisualTypes.includes(key);
+                      const stockDisabled =
+                        !stockAvailable && (key === "stock_image" || key === "stock_video");
                       return (
                         <button
                           key={key}
                           type="button"
+                          disabled={stockDisabled}
+                          title={
+                            stockDisabled
+                              ? "Set PEXELS_API_KEY or PIXABAY_API_KEY in EasyPanel to enable stock"
+                              : undefined
+                          }
                           onClick={() => {
+                            if (stockDisabled) return;
                             setAllowedVisualTypes((prev) =>
                               checked ? prev.filter((t) => t !== key) : [...prev, key],
                             );
@@ -727,6 +746,7 @@ export function HomePage() {
                           }}
                           className={cn(
                             "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                            stockDisabled && "cursor-not-allowed opacity-50",
                             checked
                               ? "border-primary/40 bg-primary/10 text-primary"
                               : "border-border bg-transparent text-text-subtle hover:text-foreground",

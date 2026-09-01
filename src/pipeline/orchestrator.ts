@@ -22,6 +22,7 @@ import { ProgressDisplay } from "../cli/progress.js";
 import { getArchetype } from "../config/archetype-registry.js";
 import { getPlatformAspectRatio, getPlatformConfig } from "../config/platforms.js";
 import { resolveMusic, type MusicResolution } from "./music-resolver.js";
+import { resolveAllowedVisualTypes } from "./visual-types.js";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { getTotalDurationInFrames, mapScoreToProps } from "../remotion/lib/score-to-props.js";
@@ -409,7 +410,7 @@ function buildPipelineWorkflow(
         return output.data;
       } catch (err) {
         const dur = (Date.now() - start) / 1000;
-        cb.onStageSkip?.("research", `web search failed: ${err instanceof Error ? err.message : String(err)}`);
+        cb.onStageSkip?.("research", `research failed: ${err instanceof Error ? err.message : String(err)}`);
         log.stages.push({ name: "research", duration: dur, status: "skipped", error: String(err) });
         return {
           summary: `Topic: ${inputData.topic}`,
@@ -437,10 +438,14 @@ function buildPipelineWorkflow(
       cb.onStageStart?.("director");
       const start = Date.now();
       const videoEnabled = !opts.noVideo && (opts.videoProviders?.length ?? 0) > 0;
-      // If allowedVisualTypes is set, use it directly; otherwise derive from videoEnabled
-      const allowedVisualTypes = opts.allowedVisualTypes && opts.allowedVisualTypes.length > 0
-        ? opts.allowedVisualTypes.filter((t) => t !== "ai_video" || videoEnabled)
-        : undefined;
+      const stockEnabled = opts.stock.length > 0;
+      // Drop stock/ai_video when the corresponding providers are missing so the
+      // director cannot request scenes that would render as blank frames.
+      const allowedVisualTypes = resolveAllowedVisualTypes({
+        requested: opts.allowedVisualTypes,
+        videoEnabled,
+        stockEnabled,
+      });
       const directorOpts = { archetype: opts.archetype, pacing: opts.pacing, videoEnabled, allowedVisualTypes, direction: opts.direction, targetDurationMinutes: opts.targetDurationMinutes, platform: opts.platform };
 
       // ── Replay mode: use provided score, skip generation + revision ──

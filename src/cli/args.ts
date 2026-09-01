@@ -97,6 +97,8 @@ export function parseArgs(): CLIOptions {
           "google",
           "local",
           "grok",
+          "vivi",
+          "alicloud",
         ])
         .default("anthropic"),
     )
@@ -116,7 +118,7 @@ export function parseArgs(): CLIOptions {
     )
     .addOption(
       new Option("-i, --image-provider <provider>", "Image generation provider")
-        .choices(["gemini", "openai", "grok"])
+        .choices(["gemini", "openai", "grok", "vivi", "alicloud", "runpod", "fal"])
         .default("gemini"),
     )
     .addOption(
@@ -164,6 +166,20 @@ export function parseArgs(): CLIOptions {
         "gemini",
         "fal",
         "grok",
+        "vivi",
+        "runpod",
+        "vidu",
+        "vidu-q3-pro",
+        "vidu-q3-fast",
+        "vidu-q3-turbo",
+        "vidu-q2-pro",
+        "vidu-q2-fast",
+        "vidu-q2-turbo",
+        "vidu-q1",
+        "vidu-q1-classic",
+        "vidu-2.0",
+        "alicloud-wan-turbo",
+        "alicloud-wan-plus",
       ]),
     )
     .option(

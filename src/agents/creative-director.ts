@@ -182,10 +182,12 @@ ${isLongForm
       totalUsage.inputTokens += result.usage.inputTokens;
       totalUsage.outputTokens += result.usage.outputTokens;
 
-      // Auto-repair golden rule violations before strict validation.
+      // Remap types the current run cannot produce (e.g. stock with no Pexels key),
+      // then auto-repair golden rule violations before strict validation.
       // When only one visual type is allowed, repair is skipped and the
       // golden rule refinement is bypassed (it can't be satisfied).
       const allowedTypes = options?.allowedVisualTypes ?? [];
+      remapDisallowedVisualTypes(result.data.scenes, allowedTypes);
       repairGoldenRule(result.data.scenes, allowedTypes);
 
       const validated = isSingleVisualTypeMode(allowedTypes)
@@ -287,17 +289,34 @@ function isSingleVisualTypeMode(allowedTypes: string[]): boolean {
   return realTypes.length === 1;
 }
 
+/** Force scenes onto the allowed palette when the LLM ignores type constraints. */
+export function remapDisallowedVisualTypes(
+  scenes: Array<{ visual_type: string; [key: string]: unknown }>,
+  allowedTypes: string[],
+): void {
+  if (allowedTypes.length === 0) return;
+  const allowed = new Set(allowedTypes);
+  const fallback = allowedTypes.find((t) => t !== "text_card") ?? allowedTypes[0]!;
+  for (const scene of scenes) {
+    if (!allowed.has(scene.visual_type)) {
+      console.warn(
+        `[creative-director] Remapped visual_type "${scene.visual_type}" → "${fallback}"`,
+      );
+      scene.visual_type = fallback;
+    }
+  }
+}
+
 // When VIVI (or any LLM) violates the golden rule (3+ consecutive same visual_type),
 // auto-fix by rotating the offending scene to a different allowed type.
 // Skipped entirely when only one visual type is allowed.
-function repairGoldenRule(
+export function repairGoldenRule(
   scenes: Array<{ visual_type: string; [key: string]: unknown }>,
   allowedTypes: string[],
 ): void {
   if (isSingleVisualTypeMode(allowedTypes)) return;
 
-  const fallbackOrder = ["ai_image", "stock_image", "stock_video", "text_card", "ai_video"];
-  const pool = allowedTypes.length > 0 ? allowedTypes : fallbackOrder;
+  const pool = allowedTypes.length > 0 ? allowedTypes : [...ALL_VISUAL_TYPES];
 
   for (let i = 2; i < scenes.length; i++) {
     const prev2 = scenes[i - 2]?.visual_type;
@@ -389,6 +408,7 @@ Keep the same archetype. Maintain the GOLDEN RULE: never use the same visual_typ
       totalUsage.outputTokens += result.usage.outputTokens;
 
       const allowedTypesRev = options?.allowedVisualTypes ?? [];
+      remapDisallowedVisualTypes(result.data.scenes, allowedTypesRev);
       repairGoldenRule(result.data.scenes, allowedTypesRev);
 
       const validated = isSingleVisualTypeMode(allowedTypesRev)

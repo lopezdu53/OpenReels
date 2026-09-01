@@ -14,6 +14,11 @@ const API_KEY_FIELDS = [
   { key: "PIXABAY_API_KEY", label: "Pixabay (Stock)" },
   { key: "VIVI_LLM_API_KEY", label: "VIVI AI (LLM)" },
   { key: "VIVI_IMAGE_API_KEY", label: "VIVI AI (Image)" },
+  { key: "VIVI_VIDEO_API_KEY", label: "VIVI AI (Video)" },
+  { key: "ALICLOUD_API_KEY", label: "Alibaba Cloud (LLM/Image/Video)" },
+  { key: "VIDU_API_KEY", label: "VIDU (Video)" },
+  { key: "FAL_API_KEY", label: "fal.ai (Image/Video)" },
+  { key: "RUNPOD_API_KEY", label: "RunPod (Image/Video)" },
   { key: "XAI_API_KEY", label: "xAI Grok (LLM/TTS/Image/Video)" },
   { key: "TAVILY_API_KEY", label: "Tavily (Web Search)" },
 ];

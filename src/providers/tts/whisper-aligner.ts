@@ -10,7 +10,7 @@ type TranscriberPipeline = (
  * Extracts word-level timestamps from audio using Whisper forced alignment.
  *
  * Lazy-loads the Whisper model on first call and caches the pipeline instance.
- * Uses whisper-small.en_timestamped for best accuracy (98.9% coverage in staging tests).
+ * Uses whisper-small (multilingual) so Spanish and other non-English voiceovers align.
  *
  *   audio (WAV/PCM) ──► resample 16kHz ──► Whisper ASR ──► raw words
  *                                                              │
@@ -19,7 +19,8 @@ type TranscriberPipeline = (
  *                                                        WordTimestamp[]
  */
 export class WhisperAligner {
-  private static MODEL_ID = "onnx-community/whisper-small.en_timestamped";
+  /** Multilingual small model — `.en_timestamped` drops Spanish/other languages. */
+  static readonly MODEL_ID = "onnx-community/whisper-small";
   private transcriber: TranscriberPipeline | null = null;
   private loadingPromise: Promise<TranscriberPipeline> | null = null;
 
@@ -108,7 +109,12 @@ export class WhisperAligner {
    * for missed words.
    */
   alignToTranscript(text: string, hyp: WordTimestamp[]): WordTimestamp[] {
-    const norm = (w: string) => w.toLowerCase().replace(/[^a-z0-9']/g, "");
+    const norm = (w: string) =>
+      w
+        .normalize("NFD")
+        .replace(/\p{M}/gu, "")
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}']/gu, "");
     const refWords = text.split(/\s+/).filter((w) => norm(w).length > 0);
     const result: WordTimestamp[] = [];
     let hi = 0;

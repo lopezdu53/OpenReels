@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildPacingInstruction, PACING_CONFIG, reviseDirectorScore } from "./creative-director.js";
+import { buildPacingInstruction, PACING_CONFIG, remapDisallowedVisualTypes, repairGoldenRule, reviseDirectorScore } from "./creative-director.js";
 import type { DirectorScore } from "../schema/director-score.js";
 import type { LLMProvider } from "../schema/providers.js";
 import type { CritiqueResult } from "./critic.js";
@@ -10,20 +10,20 @@ describe("buildPacingInstruction", () => {
   it("returns single tier instruction for known archetype (fast)", () => {
     const result = buildPacingInstruction("infographic");
     expect(result).toContain("fast");
-    expect(result).toContain("8-12");
+    expect(result).toContain("16-22");
     expect(result).not.toContain("After choosing your archetype");
   });
 
   it("returns single tier instruction for known archetype (moderate)", () => {
     const result = buildPacingInstruction("editorial_caricature");
     expect(result).toContain("moderate");
-    expect(result).toContain("7-10");
+    expect(result).toContain("14-18");
   });
 
   it("returns single tier instruction for known archetype (cinematic)", () => {
     const result = buildPacingInstruction("cinematic_documentary");
     expect(result).toContain("cinematic");
-    expect(result).toContain("5-8");
+    expect(result).toContain("10-14");
   });
 
   // Path 3: no archetype — full tier lookup table
@@ -48,14 +48,14 @@ describe("buildPacingInstruction", () => {
   it("uses explicit pacing override regardless of archetype", () => {
     const result = buildPacingInstruction("cinematic_documentary", "fast");
     expect(result).toContain("fast");
-    expect(result).toContain("8-12");
+    expect(result).toContain("16-22");
     expect(result).not.toContain("cinematic");
   });
 
   it("uses explicit pacing override without archetype", () => {
     const result = buildPacingInstruction(undefined, "cinematic");
     expect(result).toContain("cinematic");
-    expect(result).toContain("5-8");
+    expect(result).toContain("10-14");
     expect(result).not.toContain("After choosing your archetype");
   });
 
@@ -63,20 +63,20 @@ describe("buildPacingInstruction", () => {
     const result = buildPacingInstruction("infographic", "turbo");
     // Invalid pacing is not in PACING_CONFIG, so falls through to archetype
     expect(result).toContain("fast");
-    expect(result).toContain("8-12");
+    expect(result).toContain("16-22");
   });
 
   // Word budget inclusion
   it("includes word budget in tier instruction", () => {
     const result = buildPacingInstruction("infographic");
-    expect(result).toContain("90-120");
-    expect(result).toContain("8-12 words");
+    expect(result).toContain("210-260");
+    expect(result).toContain("10-14 words");
   });
 
   it("includes word budget for moderate tier", () => {
     const result = buildPacingInstruction("warm_editorial");
-    expect(result).toContain("100-140");
-    expect(result).toContain("10-16");
+    expect(result).toContain("210-260");
+    expect(result).toContain("12-16");
   });
 });
 
@@ -88,7 +88,7 @@ describe("PACING_CONFIG", () => {
   });
 
   it("fast tier has fewer max scenes than schema allows", () => {
-    expect(PACING_CONFIG.fast.max).toBeLessThanOrEqual(16);
+    expect(PACING_CONFIG.fast.max).toBeLessThanOrEqual(200);
     expect(PACING_CONFIG.fast.min).toBeGreaterThanOrEqual(3);
   });
 
@@ -182,5 +182,49 @@ describe("reviseDirectorScore", () => {
     };
     await reviseDirectorScore(llm, "test topic", baseResearch, baseScore, critique);
     expect(llm.lastUserMessage).toContain("weak pacing; repetitive visuals");
+  });
+});
+
+describe("remapDisallowedVisualTypes", () => {
+  it("remaps stock types to ai_image when stock is not allowed", () => {
+    const scenes = [
+      { visual_type: "stock_video" },
+      { visual_type: "stock_image" },
+      { visual_type: "text_card" },
+    ];
+    remapDisallowedVisualTypes(scenes, ["ai_image", "text_card"]);
+    expect(scenes[0]!.visual_type).toBe("ai_image");
+    expect(scenes[1]!.visual_type).toBe("ai_image");
+    expect(scenes[2]!.visual_type).toBe("text_card");
+  });
+
+  it("is a no-op when allowedTypes is empty", () => {
+    const scenes = [{ visual_type: "stock_video" }];
+    remapDisallowedVisualTypes(scenes, []);
+    expect(scenes[0]!.visual_type).toBe("stock_video");
+  });
+});
+
+describe("repairGoldenRule", () => {
+  it("does not repair to stock types when they are not allowed", () => {
+    const scenes = [
+      { visual_type: "ai_image" },
+      { visual_type: "ai_image" },
+      { visual_type: "ai_image" },
+    ];
+    repairGoldenRule(scenes, ["ai_image", "text_card", "ai_video"]);
+    expect(scenes[2]!.visual_type).toBe("text_card");
+    expect(scenes[2]!.visual_type).not.toBe("stock_image");
+    expect(scenes[2]!.visual_type).not.toBe("stock_video");
+  });
+
+  it("skips repair when only one real visual type is allowed", () => {
+    const scenes = [
+      { visual_type: "ai_image" },
+      { visual_type: "ai_image" },
+      { visual_type: "ai_image" },
+    ];
+    repairGoldenRule(scenes, ["ai_image", "text_card"]);
+    expect(scenes.map((s) => s.visual_type)).toEqual(["ai_image", "ai_image", "ai_image"]);
   });
 });

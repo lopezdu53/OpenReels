@@ -83,17 +83,74 @@ export function validateEnv(opts: {
         opts.ttsProvider === "grok-tts" ||
         opts.videoProvider === "grok",
     },
+    {
+      key: "VIVI_LLM_API_KEY",
+      provider: "VIVI AI (LLM)",
+      signupUrl: "https://viviai.cc/",
+      required: opts.provider === "vivi",
+    },
+    {
+      key: "VIVI_IMAGE_API_KEY",
+      provider: "VIVI AI (Image)",
+      signupUrl: "https://viviai.cc/",
+      required: opts.imageProvider === "vivi",
+    },
+    {
+      key: "VIVI_VIDEO_API_KEY",
+      provider: "VIVI AI (Video)",
+      signupUrl: "https://viviai.cc/",
+      required: opts.videoProvider === "vivi" && !process.env["VIVI_LLM_API_KEY"],
+    },
+    {
+      key: "ALICLOUD_API_KEY",
+      provider: "Alibaba Cloud (LLM/Image/Video)",
+      signupUrl: "https://www.alibabacloud.com/",
+      required:
+        opts.provider === "alicloud" ||
+        opts.imageProvider === "alicloud" ||
+        (opts.videoProvider?.startsWith("alicloud-") ?? false),
+    },
+    {
+      key: "FAL_API_KEY",
+      provider: "fal.ai (Image/Video)",
+      signupUrl: "https://fal.ai/",
+      required: opts.imageProvider === "fal" || opts.videoProvider === "fal",
+    },
+    {
+      key: "RUNPOD_API_KEY",
+      provider: "RunPod (Image/Video)",
+      signupUrl: "https://www.runpod.io/",
+      required: opts.imageProvider === "runpod" || opts.videoProvider === "runpod",
+    },
+    {
+      key: "RUNPOD_IMAGE_ENDPOINT_ID",
+      provider: "RunPod image endpoint",
+      signupUrl: "https://www.runpod.io/",
+      required: opts.imageProvider === "runpod",
+    },
+    {
+      key: "RUNPOD_VIDEO_ENDPOINT_ID",
+      provider: "RunPod video endpoint",
+      signupUrl: "https://www.runpod.io/",
+      required: opts.videoProvider === "runpod",
+    },
+    {
+      key: "VIDU_API_KEY",
+      provider: "VIDU (Video)",
+      signupUrl: "https://platform.vidu.com/",
+      required: opts.videoProvider?.startsWith("vidu") ?? false,
+    },
   ];
 
   const missing = requirements.filter((r) => r.required && !process.env[r.key]);
 
-  // Stock keys are optional — the pipeline degrades gracefully (black frames) — but
-  // warn upfront so users aren't surprised by missing visuals on stock_image/stock_video scenes.
+  // Stock keys are optional — the director skips stock scenes when they are missing —
+  // but warn upfront so users know how to enable Pexels/Pixabay.
   const hasStockKey = process.env["PEXELS_API_KEY"] || process.env["PIXABAY_API_KEY"];
   if (!hasStockKey) {
     console.warn(
       "\nWarning: No stock media API key found (PEXELS_API_KEY or PIXABAY_API_KEY).\n" +
-        "Scenes using stock_image or stock_video will render as blank frames.\n" +
+        "The director will not request stock_image or stock_video scenes.\n" +
         "Get a free key: https://www.pexels.com/api/ or https://pixabay.com/api/docs/\n",
     );
   }

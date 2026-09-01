@@ -100,6 +100,8 @@ app.get("/api/v1/health", async () => {
       VIDU_API_KEY: !!process.env["VIDU_API_KEY"],
       TAVILY_API_KEY: !!process.env["TAVILY_API_KEY"],
       XAI_API_KEY: !!process.env["XAI_API_KEY"],
+      FAL_API_KEY: !!process.env["FAL_API_KEY"],
+      RUNPOD_API_KEY: !!process.env["RUNPOD_API_KEY"],
     },
   };
 });
