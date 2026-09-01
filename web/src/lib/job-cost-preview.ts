@@ -1,5 +1,5 @@
 import type { ApiPrices } from "@/pages/LabPage";
-import { VIVI_IMAGE_CNY, VIVI_LLM_CNY } from "@/lib/vivi-prices";
+import { VIVI_IMAGE_CNY, VIVI_LLM_CNY, VIVI_VIDEO_CNY } from "@/lib/vivi-prices";
 
 export interface JobCostPreviewInput {
   llm: string;
@@ -130,7 +130,16 @@ export function estimateJobCost(input: JobCostPreviewInput, prices: ApiPrices): 
         ? `${aiImages} IA × ¥${VIVI_IMAGE_CNY.perImage}`
         : `${aiImages} IA × $${perImage.toFixed(3)}`,
     },
-    { id: "video", label: "Video IA", usd: videoCost, detail: hasVideo ? `${aiVideos} clips × 6s` : "sin AI video" },
+    {
+      id: "video",
+      label: "Video IA",
+      usd: videoCost,
+      detail: !hasVideo
+        ? "sin AI video"
+        : input.video === "vivi"
+          ? `${aiVideos} clips × ¥${VIVI_VIDEO_CNY.perClip}`
+          : `${aiVideos} clips × 6s`,
+    },
     { id: "music", label: "Música", usd: musicCost, detail: input.music === "lyria" ? "Lyria 3 Pro" : "bundled (gratis)" },
   ];
 

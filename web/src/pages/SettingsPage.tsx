@@ -168,7 +168,7 @@ export function SettingsPage() {
             Precios de API
           </h2>
           <p className="mb-4 text-[13px] text-muted-foreground">
-            Configura el costo por unidad de cada proveedor (USD). Vivi se cobra en yuanes: 20 ¥ = $2.98 USD; Claude ¥3/¥15 por 1M tokens e imagen ¥0.15/call, convertidos a dólares.
+            Configura el costo por unidad de cada proveedor (USD). Vivi se cobra en yuanes según https://api.viviai.cc/pricing: 20 ¥ = $2.98 USD. Claude Sonnet 4.6 ¥3/¥15 por 1M; imagen Nano Banana ¥0.135/call; Grok Video ¥0.30/clip.
           </p>
 
           {/* LLM */}

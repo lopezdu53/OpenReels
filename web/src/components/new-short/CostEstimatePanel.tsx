@@ -36,7 +36,7 @@ export function CostEstimatePanel({ preview, usdToCop, rateNote, dryRun, usesViv
 
       {usesVivi && !dryRun ? (
         <p className="mb-4 rounded-lg border border-primary/20 bg-primary/10 px-3 py-2 text-[11px] text-muted-foreground">
-          {formatViviRateNote()}. LLM ¥3/¥15 por 1M tokens; imagen ¥0.15/call.
+          {formatViviRateNote()}. Claude Sonnet 4.6 ¥3/¥15 por 1M · imagen ¥0.135/call (0.15×0.9) · video Grok ¥0.30/clip.
         </p>
       ) : null}
 
