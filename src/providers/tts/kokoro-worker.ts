@@ -59,7 +59,8 @@ async function main() {
     splitter.push(config.text);
     splitter.close();
     for await (const sentence of splitter) {
-      const phonemeStr = await phonemizeForKokoro(sentence, lang);
+      const clause = /[.!?…]\s*$/.test(sentence) ? sentence : `${sentence.trimEnd()}.`;
+      const phonemeStr = await phonemizeForKokoro(clause, lang);
       const { input_ids } = tts.tokenizer(phonemeStr, { truncation: true });
       const audio = await tts.generate_from_ids(input_ids, { voice: voice as "af_heart", speed });
       wavChunks.push(new Uint8Array(audio.toWav()));

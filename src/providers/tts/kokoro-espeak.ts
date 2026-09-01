@@ -31,6 +31,9 @@ const TIE_TO_KOKORO: [string, string][] = [
   ["ɔ͡ɪ", "Y"],
 ];
 
+/** Same punctuation class kokoro-js keeps as pause tokens (not sent to eSpeak). */
+const PUNCT_CHARS = ";:,.!?¡¿—…\"«»“”(){}[]'";
+
 export function prepareEspeakText(text: string): string {
   return text
     .replaceAll("«", "\u201C")
@@ -44,22 +47,43 @@ export function applyKokoroEspeakFixups(ipa: string): string {
   for (const [from, to] of TIE_TO_KOKORO) {
     ps = ps.replaceAll(from, to);
   }
-  ps = ps.replaceAll("^", "").replaceAll("-", "");
+  ps = ps.replaceAll("^", "").replaceAll("\u200D", "").replaceAll("-", "");
   ps = ps.replaceAll("«", "(").replaceAll("»", ")");
-  return ps.trim();
+  return ps.replace(/\s+/g, " ").trim();
 }
 
 /**
- * IPA for a Kokoro non-English voice via system espeak-ng.
- * phonemizer.js (bundled by kokoro-js) only ships English voice data, so
- * passing "es" throws Invalid language identifier.
+ * Strip thousand separators so espeak-ng reads quantities as words.
+ * Spanish treats `,` as decimal ("400,000" → "cuatrocientos coma cero…")
+ * and `.` as thousands ("400.000" → "cuatrocientos mil").
+ * Leaves true decimals like "1,5" alone (not groups of three).
  */
-export async function phonemizeForKokoro(text: string, lang: string): Promise<string> {
-  const prepared = prepareEspeakText(text);
-  const ipa = await new Promise<string>((resolve, reject) => {
+export function normalizeEspeakNumerals(text: string): string {
+  return text
+    .replace(/\d{1,3}(?:,\d{3})+\b/g, (m) => m.replaceAll(",", ""))
+    .replace(/\d{1,3}(?:\.\d{3})+\b/g, (m) => m.replaceAll(".", ""));
+}
+
+export function splitKeepingPunctuation(text: string): { punct: boolean; text: string }[] {
+  const escaped = PUNCT_CHARS.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`(\\s*[${escaped}]+\\s*)+`, "g");
+  const parts: { punct: boolean; text: string }[] = [];
+  let last = 0;
+  for (const match of text.matchAll(re)) {
+    const idx = match.index ?? 0;
+    if (last < idx) parts.push({ punct: false, text: text.slice(last, idx) });
+    if (match[0]!.length > 0) parts.push({ punct: true, text: match[0]! });
+    last = idx + match[0]!.length;
+  }
+  if (last < text.length) parts.push({ punct: false, text: text.slice(last) });
+  return parts;
+}
+
+function runEspeakIpa(text: string, lang: string): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
     execFile(
       "espeak-ng",
-      ["-q", "-b", "1", "--ipa=3", "-v", lang, "--", prepared],
+      ["-q", "-b", "1", "--ipa", "--tie=^", "-v", lang, "--", text],
       { timeout: 20_000, maxBuffer: 2 * 1024 * 1024, encoding: "utf8" },
       (err, stdout) => {
         if (err) {
@@ -78,8 +102,34 @@ export async function phonemizeForKokoro(text: string, lang: string): Promise<st
     }
     throw err;
   });
-  if (!ipa) {
+}
+
+/**
+ * IPA for a Kokoro non-English voice via system espeak-ng.
+ * phonemizer.js (bundled by kokoro-js) only ships English voice data, so
+ * passing "es" throws Invalid language identifier.
+ *
+ * Matches hexgrad/misaki EspeakG2P: tie=^, preserve punctuation, with stress.
+ */
+export async function phonemizeForKokoro(text: string, lang: string): Promise<string> {
+  const prepared = prepareEspeakText(normalizeEspeakNumerals(text));
+  const segments = splitKeepingPunctuation(prepared);
+  const parts: string[] = [];
+
+  for (const seg of segments) {
+    if (seg.punct) {
+      parts.push(seg.text);
+      continue;
+    }
+    if (!seg.text.trim()) continue;
+    const ipa = await runEspeakIpa(seg.text, lang);
+    if (!ipa) continue;
+    parts.push(applyKokoroEspeakFixups(ipa));
+  }
+
+  const joined = parts.join("").replace(/\s+/g, " ").trim();
+  if (!joined) {
     throw new Error(`espeak-ng produced no phonemes for lang=${lang}`);
   }
-  return applyKokoroEspeakFixups(ipa);
+  return joined;
 }
