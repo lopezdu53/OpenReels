@@ -39,6 +39,48 @@ function sizeFor(aspectRatio: string | undefined, resolution: string): string {
   return landscape ? "1280*720" : "720*1280";
 }
 
+/** Build the `/run` input object for a public or custom RunPod video endpoint. */
+export function buildRunPodVideoJobInput(opts: {
+  modelId: string;
+  prompt: string;
+  imageDataUri: string;
+  duration: number;
+  aspectRatio?: string;
+  resolution: string;
+  negativePrompt?: string;
+}): Record<string, unknown> {
+  const spec = getRunPodVideoModel(opts.modelId);
+  const fields: Record<string, unknown> = {
+    prompt: opts.prompt,
+    image: opts.imageDataUri,
+    duration: opts.duration,
+    aspect_ratio: opts.aspectRatio ?? "9:16",
+  };
+
+  if (spec.sizeParam === "resolution") {
+    fields["resolution"] = opts.resolution;
+  } else if (spec.sizeParam === "size") {
+    fields["size"] = sizeFor(opts.aspectRatio, opts.resolution);
+  }
+
+  // p-video's WaveSpeed schema rejects unknown keys (negative_prompt, seed: -1)
+  // with a misleading "property input is required" 400.
+  if (!spec.nestedInput) {
+    fields["negative_prompt"] = opts.negativePrompt ?? "";
+    fields["seed"] = -1;
+  }
+
+  if (opts.modelId === "wan-2-6-i2v" || spec.kind === "custom") {
+    fields["shot_type"] = "single";
+  }
+  if (spec.kind === "custom") {
+    fields["num_frames"] = Math.round(opts.duration * 16);
+    fields["fps"] = 16;
+  }
+
+  return spec.nestedInput ? { input: fields } : fields;
+}
+
 export class RunPodVideo implements VideoProvider {
   private apiKey: string;
   private endpointId: string;
@@ -110,31 +152,16 @@ export class RunPodVideo implements VideoProvider {
     aspectRatio?: string,
     negativePrompt?: string,
   ): Promise<VideoResult> {
-    const spec = getRunPodVideoModel(this.modelId);
     const dataUri = `data:image/png;base64,${sourceImage.toString("base64")}`;
-
-    const input: Record<string, unknown> = {
+    const input = buildRunPodVideoJobInput({
+      modelId: this.modelId,
       prompt,
-      image: dataUri,
-      negative_prompt: negativePrompt ?? "",
+      imageDataUri: dataUri,
       duration,
-      aspect_ratio: aspectRatio ?? "9:16",
-      seed: -1,
-    };
-
-    if (spec.sizeParam === "resolution") {
-      input["resolution"] = this.resolution;
-    } else if (spec.sizeParam === "size") {
-      input["size"] = sizeFor(aspectRatio, this.resolution);
-    }
-
-    if (this.modelId === "wan-2-6-i2v" || spec.kind === "custom") {
-      input["shot_type"] = "single";
-    }
-    if (spec.kind === "custom") {
-      input["num_frames"] = Math.round(duration * 16);
-      input["fps"] = 16;
-    }
+      aspectRatio,
+      resolution: this.resolution,
+      negativePrompt,
+    });
 
     const output = await runPodJob({
       endpointId: this.endpointId,

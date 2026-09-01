@@ -18,6 +18,11 @@ export interface RunPodVideoModel {
   resolutions: string[];
   /** How the public endpoint expects output size. */
   sizeParam: "size" | "resolution" | "none";
+  /**
+   * WaveSpeed proxies (Pruna / p-video) validate `{ input: { prompt, image, ... } }`
+   * after RunPod unwraps the top-level `{ input: ... }` envelope.
+   */
+  nestedInput?: boolean;
 }
 
 const UUID_RE =
@@ -108,6 +113,7 @@ export const RUNPOD_VIDEO_MODELS: RunPodVideoModel[] = [
     durations: [5, 8, 10],
     resolutions: ["720p", "1080p"],
     sizeParam: "resolution",
+    nestedInput: true,
   },
   {
     id: "seedance-v1-5-pro-i2v",

@@ -81,22 +81,51 @@ function firstString(...values: unknown[]): string | null {
   return null;
 }
 
-export async function extractMediaBuffer(output: unknown, kind: "image" | "video"): Promise<Buffer | null> {
-  if (!output || typeof output !== "object") return null;
-  const o = output as Record<string, unknown>;
-  const nested = o["output"] && typeof o["output"] === "object" ? (o["output"] as Record<string, unknown>) : o;
+function isHttpUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value.trim());
+}
 
-  const url = firstString(
+async function downloadMedia(url: string, kind: "image" | "video"): Promise<Buffer> {
+  const res = await fetch(url.trim());
+  if (!res.ok) throw new Error(`RunPod ${kind} URL download failed: ${res.status}`);
+  return Buffer.from(new Uint8Array(await res.arrayBuffer()));
+}
+
+/**
+ * WaveSpeed-backed public endpoints often return `{ cost, result: "https://..." }`
+ * instead of the documented `image_url` / `video_url` keys.
+ */
+function mediaUrlFrom(output: unknown, kind: "image" | "video"): string | null {
+  if (typeof output === "string" && isHttpUrl(output)) return output.trim();
+  if (!output || typeof output !== "object") return null;
+
+  const o = output as Record<string, unknown>;
+  const nested =
+    o["output"] && typeof o["output"] === "object" ? (o["output"] as Record<string, unknown>) : o;
+
+  const candidate = firstString(
     nested["image_url"],
     nested["video_url"],
     nested["url"],
+    nested["result"],
+    nested["image"],
+    nested["video"],
+    nested["output"],
     kind === "image" ? nested["images"] : nested["videos"],
+    o["result"],
+    o["image_url"],
+    o["video_url"],
   );
-  if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`RunPod ${kind} URL download failed: ${res.status}`);
-    return Buffer.from(new Uint8Array(await res.arrayBuffer()));
-  }
+  return candidate && isHttpUrl(candidate) ? candidate.trim() : null;
+}
+
+export async function extractMediaBuffer(output: unknown, kind: "image" | "video"): Promise<Buffer | null> {
+  const url = mediaUrlFrom(output, kind);
+  if (url) return downloadMedia(url, kind);
+
+  if (!output || typeof output !== "object") return null;
+  const o = output as Record<string, unknown>;
+  const nested = o["output"] && typeof o["output"] === "object" ? (o["output"] as Record<string, unknown>) : o;
 
   const raw = firstString(
     nested["image"],
@@ -104,15 +133,12 @@ export async function extractMediaBuffer(output: unknown, kind: "image" | "video
     nested["video"],
     nested["video_base64"],
     nested["output"],
+    nested["result"],
     nested["images"],
   );
   if (!raw) return null;
 
-  if (raw.startsWith("http://") || raw.startsWith("https://")) {
-    const res = await fetch(raw);
-    if (!res.ok) throw new Error(`RunPod ${kind} URL download failed: ${res.status}`);
-    return Buffer.from(new Uint8Array(await res.arrayBuffer()));
-  }
+  if (isHttpUrl(raw)) return downloadMedia(raw, kind);
 
   const dataMatch = raw.match(/^data:(?:image|video)\/[\w+.-]+;base64,(.+)$/);
   if (dataMatch) return Buffer.from(dataMatch[1] ?? "", "base64");

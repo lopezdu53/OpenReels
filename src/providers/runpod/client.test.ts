@@ -28,6 +28,43 @@ describe("extractMediaBuffer", () => {
     const buf = await extractMediaBuffer({ output: { image: payload } }, "image");
     expect(buf?.toString()).toBe("fake-png-bytes");
   });
+
+  it("downloads WaveSpeed-style result URLs from Flux Schnell", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      arrayBuffer: async () => new Uint8Array(32).buffer,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const buf = await extractMediaBuffer(
+      {
+        cost: 0.003,
+        result: "https://image.runpod.ai/wavespeed-flux-schnell/abc/result.png",
+      },
+      "image",
+    );
+    expect(buf).toBeInstanceOf(Buffer);
+    expect(buf?.length).toBe(32);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://image.runpod.ai/wavespeed-flux-schnell/abc/result.png",
+    );
+  });
+
+  it("downloads a result URL nested under output", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: async () => new Uint8Array(8).buffer,
+      }),
+    );
+
+    const buf = await extractMediaBuffer(
+      { output: { result: "https://video.runpod.ai/p-video/out.mp4", cost: 0.1 } },
+      "video",
+    );
+    expect(buf?.length).toBe(8);
+  });
 });
 
 describe("isRunPodRetryable", () => {

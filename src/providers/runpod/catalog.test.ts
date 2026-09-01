@@ -45,4 +45,9 @@ describe("RunPod catalog", () => {
     expect(ids).toContain("seedance-v1-5-pro-i2v");
     expect(RUNPOD_IMAGE_MODELS.some((m) => m.id === "qwen-image-t2i")).toBe(true);
   });
+
+  it("marks p-video as needing a nested WaveSpeed input object", () => {
+    expect(getRunPodVideoModel("p-video").nestedInput).toBe(true);
+    expect(getRunPodVideoModel("wan-2-6-i2v").nestedInput).toBeUndefined();
+  });
 });
