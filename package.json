@@ -37,13 +37,6 @@
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "onnxruntime-node",
-      "sharp"
-    ]
-  },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.66",
     "@ai-sdk/google": "^3.0.58",
