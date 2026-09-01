@@ -136,6 +136,7 @@ export function formatCop(n: number): string {
   return new Intl.NumberFormat("es-CO", {
     style: "currency",
     currency: "COP",
+    currencyDisplay: "code",
     maximumFractionDigits: 0,
   }).format(n);
 }

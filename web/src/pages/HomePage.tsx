@@ -99,6 +99,51 @@ function providerLabel(list: { key: string; label: string }[] | undefined, key: 
   return list?.find((p) => p.key === key)?.label ?? displayName(key);
 }
 
+const FALLBACK = {
+  llm: [
+    { key: "anthropic", label: "Anthropic (Claude)" },
+    { key: "openai", label: "OpenAI (GPT)" },
+    { key: "gemini", label: "Google Gemini" },
+    { key: "openrouter", label: "OpenRouter" },
+    { key: "grok", label: "Grok (xAI)" },
+    { key: "alicloud", label: "Alibaba Cloud" },
+  ],
+  tts: [
+    { key: "elevenlabs", label: "ElevenLabs" },
+    { key: "kokoro", label: "Kokoro (Local)" },
+    { key: "gemini-tts", label: "Gemini TTS" },
+    { key: "openai-tts", label: "OpenAI TTS" },
+    { key: "grok-tts", label: "Grok TTS" },
+    { key: "inworld", label: "Inworld" },
+  ],
+  image: [
+    { key: "gemini", label: "Google Gemini" },
+    { key: "openai", label: "OpenAI" },
+    { key: "grok", label: "Grok Imagine" },
+    { key: "runpod", label: "RunPod (público)" },
+  ],
+  video: [
+    { key: "gemini", label: "Veo (Gemini)" },
+    { key: "fal", label: "fal.ai (Kling)" },
+    { key: "grok", label: "Grok Imagine Video" },
+    { key: "runpod", label: "RunPod (público)" },
+  ],
+  search: [
+    { key: "tavily", label: "Tavily" },
+  ],
+};
+
+const FALLBACK_KOKORO_VOICES = [
+  { id: "ef_dora", label: "Dora — Español (F)", language: "es" },
+  { id: "em_alex", label: "Alex — Español (M)", language: "es" },
+  { id: "em_santa", label: "Santa — Español (M)", language: "es" },
+  { id: "af_heart", label: "Heart — English US (F)", language: "en-us" },
+  { id: "af_bella", label: "Bella — English US (F)", language: "en-us" },
+  { id: "am_michael", label: "Michael — English US (M)", language: "en-us" },
+  { id: "bf_emma", label: "Emma — English UK (F)", language: "en-gb" },
+  { id: "bm_george", label: "George — English UK (M)", language: "en-gb" },
+];
+
 const LONG_FORM_PLATFORMS = new Set(["reel_extend", "youtube_horizontal"]);
 
 export function HomePage() {
@@ -282,6 +327,12 @@ export function HomePage() {
 
   const hasTopic = topic.trim().length > 0;
   const field = "h-9 w-full rounded-lg";
+  const llmList = providers?.llm?.length ? providers.llm : FALLBACK.llm;
+  const ttsList = providers?.tts?.length ? providers.tts : FALLBACK.tts;
+  const imageList = providers?.image?.length ? providers.image : FALLBACK.image;
+  const videoList = providers?.video?.length ? providers.video : FALLBACK.video;
+  const searchList = providers?.search?.length ? providers.search : FALLBACK.search;
+  const kokoroVoices = providers?.kokoroVoices?.length ? providers.kokoroVoices : FALLBACK_KOKORO_VOICES;
 
   return (
     <div className="px-4 sm:px-6 lg:px-10 py-8 lg:py-10">
@@ -373,9 +424,9 @@ export function HomePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="LLM">
                   <Select value={llmProvider} onValueChange={(v) => v && setLlmProvider(v)}>
-                    <SelectTrigger className={field}><SelectValue>{providerLabel(providers?.llm, llmProvider)}</SelectValue></SelectTrigger>
+                    <SelectTrigger className={field}><SelectValue>{providerLabel(llmList, llmProvider)}</SelectValue></SelectTrigger>
                     <SelectContent>
-                      {providers?.llm.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
+                      {llmList.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </Field>
@@ -384,7 +435,7 @@ export function HomePage() {
                     <SelectTrigger className={field}><SelectValue placeholder="Auto" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">Auto</SelectItem>
-                      {providers?.search?.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
+                      {searchList.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </Field>
@@ -435,7 +486,7 @@ export function HomePage() {
                   <Select value={ttsProvider} onValueChange={(v) => v && setTtsProvider(v)}>
                     <SelectTrigger className={field}><SelectValue>{displayName(ttsProvider)}</SelectValue></SelectTrigger>
                     <SelectContent>
-                      {providers?.tts.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
+                      {ttsList.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </Field>
@@ -476,10 +527,10 @@ export function HomePage() {
                   </>
                 )}
               </div>
-              {ttsProvider === "kokoro" && providers?.kokoroVoices && (
+              {ttsProvider === "kokoro" && (
                 <div className="mt-4">
                   <KokoroVoiceMixer
-                    voices={providers.kokoroVoices}
+                    voices={kokoroVoices}
                     value={kokoroVoice}
                     onChange={setKokoroVoice}
                     speed={kokoroSpeed}
@@ -497,9 +548,9 @@ export function HomePage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Imagen">
                   <Select value={imageProvider} onValueChange={(v) => v && setImageProvider(v)}>
-                    <SelectTrigger className={field}><SelectValue>{providerLabel(providers?.image, imageProvider)}</SelectValue></SelectTrigger>
+                    <SelectTrigger className={field}><SelectValue>{providerLabel(imageList, imageProvider)}</SelectValue></SelectTrigger>
                     <SelectContent>
-                      {providers?.image.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
+                      {imageList.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </Field>
@@ -509,7 +560,7 @@ export function HomePage() {
                       <SelectTrigger className={field}><SelectValue placeholder="Auto" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="">Auto</SelectItem>
-                        {providers?.video?.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
+                        {videoList.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </Field>
