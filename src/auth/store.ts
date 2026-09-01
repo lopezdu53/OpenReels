@@ -1,6 +1,6 @@
+import { randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { randomBytes } from "node:crypto";
 import { hashPassword, verifyPassword } from "./password.js";
 
 export const DATA_DIR = process.env["DATA_DIR"] ?? path.join(process.cwd(), "data");

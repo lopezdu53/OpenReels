@@ -7,20 +7,20 @@ import {
   createSessionId,
   deleteSession,
   getSession,
+  putSession,
   readCookie,
   SESSION_COOKIE,
-  putSession,
 } from "./session.js";
 import {
   authenticate,
   createUser,
   getUserById,
-  saveUser,
-  todayKey,
-  toPublic,
   type PublicUser,
   type StoredCloneChannel,
   type StoredCloneContent,
+  saveUser,
+  todayKey,
+  toPublic,
   type UserRecord,
 } from "./store.js";
 
@@ -33,10 +33,7 @@ function setSid(reply: FastifyReply, sid: string | null): void {
   reply.header("Set-Cookie", cookieHeader(sid ?? "", sid == null));
 }
 
-export async function registerAuth(
-  app: FastifyInstance,
-  redis: IORedis | null,
-): Promise<void> {
+export async function registerAuth(app: FastifyInstance, redis: IORedis | null): Promise<void> {
   app.addHook("onRequest", async (request: AuthedRequest) => {
     const sid = readCookie(request.headers.cookie, SESSION_COOKIE);
     if (!sid) return;
@@ -94,7 +91,8 @@ export async function registerAuth(
   app.get("/api/v1/learning/ypp", async () => ({
     ...YPP,
     countdown: countdownToYpp(),
-    source: "https://blog.youtube/news-and-events/youtube-partner-program-updates-2027-new-opportunities-earn/",
+    source:
+      "https://blog.youtube/news-and-events/youtube-partner-program-updates-2027-new-opportunities-earn/",
     announced: "2026-08-10",
     changeDate: "2027-02-01",
   }));
@@ -153,7 +151,8 @@ export async function registerAuth(
     const record = request.userRecord;
     if (!record) return reply.status(401).send({ error: "Inicia sesión" });
     const body = (request.body ?? {}) as Omit<StoredCloneChannel, "id" | "savedAt">;
-    if (!body.channelName?.trim()) return reply.status(400).send({ error: "channelName is required" });
+    if (!body.channelName?.trim())
+      return reply.status(400).send({ error: "channelName is required" });
     const row: StoredCloneChannel = {
       ...body,
       id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,

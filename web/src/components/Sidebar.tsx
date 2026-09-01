@@ -112,12 +112,7 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
         </div>
       )}
 
-      <div
-        className={cn(
-          "border-t border-border py-3",
-          collapsed ? "px-2" : "px-5",
-        )}
-      >
+      <div className={cn("border-t border-border py-3", collapsed ? "px-2" : "px-5")}>
         {!collapsed && user ? (
           <p className="mb-2 truncate text-[11px] text-muted-foreground" title={user.email}>
             {user.name}

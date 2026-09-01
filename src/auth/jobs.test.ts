@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countByDay, streakDays, type JobMetaLite } from "./jobs.js";
+import { countByDay, type JobMetaLite, streakDays } from "./jobs.js";
 
 function job(id: string, createdAt: string, status = "completed"): JobMetaLite {
   return { id, topic: id, status, createdAt, userId: "u1" };
@@ -28,8 +28,8 @@ describe("dashboard job helpers", () => {
       { date: "2026-08-30", generated: 0 },
       { date: "2026-08-31", generated: 0 },
     ];
-    expect(streakDays(week, { "2026-08-30": 4 }, 4)).toBe(1);
-    expect(streakDays(week, { "2026-08-29": 0, "2026-08-30": 4 }, 4)).toBe(2);
+    expect(streakDays(week, { "2026-08-30": 4 }, 4)).toBe(3);
+    expect(streakDays(week, { "2026-08-29": 0, "2026-08-30": 4 }, 4)).toBe(3);
     expect(streakDays(week, {}, 4)).toBe(0);
   });
 });

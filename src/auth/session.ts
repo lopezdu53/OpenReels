@@ -9,7 +9,11 @@ export function createSessionId(): string {
   return randomBytes(24).toString("hex");
 }
 
-export async function putSession(redis: IORedis | null, sid: string, userId: string): Promise<void> {
+export async function putSession(
+  redis: IORedis | null,
+  sid: string,
+  userId: string,
+): Promise<void> {
   memory.set(sid, { userId, exp: Date.now() + TTL_SEC * 1000 });
   if (!redis) return;
   try {

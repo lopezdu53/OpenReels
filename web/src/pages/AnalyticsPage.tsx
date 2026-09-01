@@ -911,6 +911,7 @@ function ChannelCard({
   onClone: () => void;
   onCloneVideo: (video: AnalyticsVideo) => void;
 }) {
+  const founded = foundedLabel(channel.publishedAt);
   return (
     <div className="rounded-xl border border-border bg-card p-3.5">
       <div className="flex gap-3">

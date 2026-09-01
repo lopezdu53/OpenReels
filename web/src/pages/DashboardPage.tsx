@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   Check,
   Clapperboard,
@@ -11,6 +9,8 @@ import {
   Target,
   Video,
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { api, type DashboardData } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,6 +22,15 @@ export function DashboardPage() {
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(false);
 
+  useEffect(() => {
+    void api
+      .dashboard()
+      .then(setData)
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+  }, []);
+
   async function load() {
     try {
       setData(await api.dashboard());
@@ -29,10 +38,6 @@ export function DashboardPage() {
       setError(err instanceof Error ? err.message : String(err));
     }
   }
-
-  useEffect(() => {
-    void load();
-  }, []);
 
   async function bumpGoal(next: number) {
     await api.setDailyGoal(next);
@@ -66,7 +71,6 @@ export function DashboardPage() {
   if (!data) return null;
 
   const { today, dailyGoal, week, streak, totals, clonedChannels, recentJobs, countdown } = data;
-  const slots = Array.from({ length: dailyGoal }, (_, i) => i < today.progress);
 
   return (
     <div className="py-8 px-4 sm:px-10 max-w-[1100px] space-y-6">
@@ -84,7 +88,9 @@ export function DashboardPage() {
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Target className="size-4 text-primary" />
-            <p className="text-sm font-semibold">Hoy · {today.progress}/{dailyGoal}</p>
+            <p className="text-sm font-semibold">
+              Hoy · {today.progress}/{dailyGoal}
+            </p>
           </div>
           <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
             <Flame className="size-3.5 text-status-warning" />
@@ -92,17 +98,21 @@ export function DashboardPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {slots.map((filled, i) => (
+          {Array.from({ length: dailyGoal }, (_, n) => ({
+            id: `video-${n + 1}`,
+            filled: n < today.progress,
+            n: n + 1,
+          })).map((slot) => (
             <div
-              key={i}
+              key={slot.id}
               className={cn(
                 "flex size-12 items-center justify-center rounded-xl border text-sm font-semibold",
-                filled
+                slot.filled
                   ? "border-primary bg-primary text-primary-foreground"
                   : "border-border bg-surface-inset text-muted-foreground",
               )}
             >
-              {filled ? <Check className="size-5" /> : i + 1}
+              {slot.filled ? <Check className="size-5" /> : slot.n}
             </div>
           ))}
         </div>
@@ -118,7 +128,10 @@ export function DashboardPage() {
             <Plus className="size-4" />
             Crear Short
           </Link>
-          <label htmlFor="dash-goal" className="ml-auto flex items-center gap-2 text-[12px] text-muted-foreground">
+          <label
+            htmlFor="dash-goal"
+            className="ml-auto flex items-center gap-2 text-[12px] text-muted-foreground"
+          >
             Meta/día
             <select
               id="dash-goal"
@@ -181,7 +194,10 @@ export function DashboardPage() {
         ) : (
           <ul className="grid gap-2 md:grid-cols-2">
             {clonedChannels.map((ch) => (
-              <li key={ch.channelName + ch.tagline} className="rounded-xl border border-border bg-card p-3">
+              <li
+                key={ch.channelName + ch.tagline}
+                className="rounded-xl border border-border bg-card p-3"
+              >
                 <p className="font-medium">{ch.channelName}</p>
                 <p className="text-[12px] text-muted-foreground">{ch.tagline}</p>
                 <p className="mt-1 text-[11px] text-muted-foreground">Ref. {ch.sourceChannel}</p>
@@ -194,7 +210,9 @@ export function DashboardPage() {
       <section>
         <h2 className="mb-2 text-sm font-semibold">Videos generados</h2>
         {recentJobs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Cuando renders un Short, aparece en tu galería.</p>
+          <p className="text-sm text-muted-foreground">
+            Cuando renders un Short, aparece en tu galería.
+          </p>
         ) : (
           <ul className="space-y-1.5">
             {recentJobs.map((j) => (
@@ -215,15 +233,7 @@ export function DashboardPage() {
   );
 }
 
-function Stat({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  icon: typeof Video;
-}) {
+function Stat({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Video }) {
   return (
     <div className="rounded-[10px] border border-border bg-card px-3.5 py-3">
       <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">

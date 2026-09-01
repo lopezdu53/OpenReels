@@ -1,7 +1,7 @@
+import { BookOpen, Clock, Coins, HelpCircle, Sparkles, Target, Tv } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { BookOpen, Clock, Coins, HelpCircle, Sparkles, Target, Youtube } from "lucide-react";
-import { useApi } from "@/hooks/useApi";
+import { api, type YppInfo } from "@/hooks/useApi";
 import { formatCop, formatUsd } from "@/lib/job-cost-preview";
 import { cn } from "@/lib/utils";
 
@@ -84,7 +84,6 @@ const QUIZ = [
 ];
 
 export function LearningPage() {
-  const api = useApi();
   const [changeAt, setChangeAt] = useState(() => Date.UTC(2027, 1, 1, 0, 0, 0));
   const [now, setNow] = useState(Date.now());
   const [openTerm, setOpenTerm] = useState("cpm");
@@ -98,12 +97,12 @@ export function LearningPage() {
   useEffect(() => {
     api
       .learningYpp()
-      .then((d) => {
+      .then((d: YppInfo) => {
         const iso = d.countdown?.targetIso ?? d.changeDate;
         if (iso) setChangeAt(new Date(iso).getTime());
       })
       .catch(() => {});
-  }, [api]);
+  }, []);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
@@ -119,17 +118,22 @@ export function LearningPage() {
     const start = Date.UTC(2026, 7, 10);
     return Math.max(1, Math.round((changeAt - start) / 86_400_000));
   }, [changeAt]);
-  const daysGone = Math.min(daysTotal, Math.max(0, Math.round((now - Date.UTC(2026, 7, 10)) / 86_400_000)));
+  const daysGone = Math.min(
+    daysTotal,
+    Math.max(0, Math.round((now - Date.UTC(2026, 7, 10)) / 86_400_000)),
+  );
   const pct = Math.round((daysGone / daysTotal) * 100);
 
   return (
     <div className="space-y-8 py-8 px-4 sm:px-10 max-w-[1100px]">
       <header>
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Learning</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+          Learning
+        </p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight">Cómo te paga YouTube</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Nada de copy-paste. Toca, calcula y cuenta atrás hasta el 1 de febrero de 2027 — el día en que
-          cambian las reglas del Partner Program.
+          Nada de copy-paste. Toca, calcula y cuenta atrás hasta el 1 de febrero de 2027 — el día en
+          que cambian las reglas del Partner Program.
         </p>
       </header>
 
@@ -153,9 +157,14 @@ export function LearningPage() {
               [left.s, "seg"],
             ] as const
           ).map(([n, label]) => (
-            <div key={label} className="rounded-xl border border-border/60 bg-background/80 px-2 py-4 text-center">
+            <div
+              key={label}
+              className="rounded-xl border border-border/60 bg-background/80 px-2 py-4 text-center"
+            >
               <p className="text-3xl font-bold tabular-nums sm:text-5xl">{pad(n)}</p>
-              <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
+              <p className="mt-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                {label}
+              </p>
             </div>
           ))}
         </div>
@@ -165,7 +174,10 @@ export function LearningPage() {
             <span>{Math.min(100, pct)}% del camino a feb 2027</span>
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.min(100, pct)}%` }} />
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${Math.min(100, pct)}%` }}
+            />
           </div>
         </div>
         <a
@@ -222,27 +234,27 @@ export function LearningPage() {
             </table>
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            Quien ya está en YPP no lo echan por el umbral nuevo. Tiene hasta el 31 ene 2027 para aceptar los
-            términos. Quien aplique después, juega con las cifras altas.
+            Quien ya está en YPP no lo echan por el umbral nuevo. Tiene hasta el 31 ene 2027 para
+            aceptar los términos. Quien aplique después, juega con las cifras altas.
           </p>
         </div>
 
         <div className="rounded-xl border border-border/60 bg-card p-5">
           <h2 className="flex items-center gap-2 text-lg font-semibold">
-            <Youtube className="h-4 w-4 text-primary" /> De dónde sale la plata
+            <Tv className="h-4 w-4 text-primary" /> De dónde sale la plata
           </h2>
           <ol className="mt-4 space-y-3 text-sm">
             <li className="rounded-lg bg-muted/40 p-3">
-              <span className="font-semibold">1. Anuncios.</span> YouTube cobra al brand → se queda un corte → tú
-              recibes ~55% (largo) o ~45% (Shorts del pozo).
+              <span className="font-semibold">1. Anuncios.</span> YouTube cobra al brand → se queda
+              un corte → tú recibes ~55% (largo) o ~45% (Shorts del pozo).
             </li>
             <li className="rounded-lg bg-muted/40 p-3">
-              <span className="font-semibold">2. Premium.</span> La cuota del suscriptor entra a un pozo (30% Premium
-              / 60% Lite) y se reparte según watch time, otra vez 55/45.
+              <span className="font-semibold">2. Premium.</span> La cuota del suscriptor entra a un
+              pozo (30% Premium / 60% Lite) y se reparte según watch time, otra vez 55/45.
             </li>
             <li className="rounded-lg bg-muted/40 p-3">
-              <span className="font-semibold">3. Fans.</span> Super Thanks, members, Shopping. Umbral bajo (500). No
-              depende del CPM.
+              <span className="font-semibold">3. Fans.</span> Super Thanks, members, Shopping.
+              Umbral bajo (500). No depende del CPM.
             </li>
           </ol>
           <Link to="/dashboard" className="mt-4 inline-flex text-sm text-primary hover:underline">
@@ -270,7 +282,9 @@ export function LearningPage() {
             >
               <p className="text-lg font-bold">{t.title}</p>
               <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{t.sub}</p>
-              {openTerm === t.id && <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{t.body}</p>}
+              {openTerm === t.id && (
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{t.body}</p>
+              )}
             </button>
           ))}
         </div>
@@ -281,38 +295,45 @@ export function LearningPage() {
           <Coins className="h-4 w-4 text-primary" /> Calculadora CPM → tu bolsillo
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Misma fórmula que Analytic: (vistas / 1.000) × CPM × 55%. Es una cota alta: asume que cada vista “vale”
-          una impresión de anuncio.
+          Misma fórmula que Analytic: (vistas / 1.000) × CPM × 55%. Es una cota alta: asume que cada
+          vista “vale” una impresión de anuncio.
         </p>
         <div className="mt-5 grid gap-6 md:grid-cols-2">
           <div>
-            <label className="text-xs text-muted-foreground">Vistas del video · {views.toLocaleString()}</label>
-            <input
-              type="range"
-              min={1000}
-              max={5_000_000}
-              step={1000}
-              value={views}
-              onChange={(e) => setViews(Number(e.target.value))}
-              className="mt-2 w-full accent-primary"
-            />
-            <label className="mt-4 block text-xs text-muted-foreground">CPM de nicho · ${cpm.toFixed(2)}</label>
-            <input
-              type="range"
-              min={0.5}
-              max={18}
-              step={0.1}
-              value={cpm}
-              onChange={(e) => setCpm(Number(e.target.value))}
-              className="mt-2 w-full accent-primary"
-            />
+            <label className="text-xs text-muted-foreground">
+              Vistas del video · {views.toLocaleString()}
+              <input
+                type="range"
+                min={1000}
+                max={5_000_000}
+                step={1000}
+                value={views}
+                onChange={(e) => setViews(Number(e.target.value))}
+                className="mt-2 w-full accent-primary"
+              />
+            </label>
+            <label className="mt-4 block text-xs text-muted-foreground">
+              CPM de nicho · ${cpm.toFixed(2)}
+              <input
+                type="range"
+                min={0.5}
+                max={18}
+                step={0.1}
+                value={cpm}
+                onChange={(e) => setCpm(Number(e.target.value))}
+                className="mt-2 w-full accent-primary"
+              />
+            </label>
           </div>
           <div className="flex flex-col justify-center rounded-xl bg-muted/40 p-5 text-center">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Estimado creador (55%)</p>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Estimado creador (55%)
+            </p>
             <p className="mt-1 text-4xl font-bold">{formatUsd(est)}</p>
             <p className="text-sm text-muted-foreground">{formatCop(est * USD_COP)}</p>
             <p className="mt-3 text-xs text-muted-foreground">
-              YouTube se queda ≈ {formatUsd((views / 1000) * cpm * 0.45)} en este modelo de long-form.
+              YouTube se queda ≈ {formatUsd((views / 1000) * cpm * 0.45)} en este modelo de
+              long-form.
             </p>
           </div>
         </div>
@@ -400,7 +421,8 @@ export function LearningPage() {
 
       <p className="flex items-center gap-2 text-xs text-muted-foreground">
         <BookOpen className="h-3.5 w-3.5" />
-        Cifras de umbrales: YouTube, 10 de agosto de 2026. CPM de Analytic es heurística de nicho, no un dato de Studio.
+        Cifras de umbrales: YouTube, 10 de agosto de 2026. CPM de Analytic es heurística de nicho,
+        no un dato de Studio.
       </p>
     </div>
   );

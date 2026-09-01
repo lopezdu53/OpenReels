@@ -1,12 +1,12 @@
+import { Loader2, LogOut, Settings } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Outlet } from "react-router-dom";
-import { Loader2, LogOut, Settings } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { api, type StatsResponse } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
 import { AuthPage } from "@/pages/AuthPage";
-import { Sidebar } from "./Sidebar";
 import { BottomNav } from "./BottomNav";
+import { Sidebar } from "./Sidebar";
 
 const COLLAPSED_KEY = "openreels_sidebar_collapsed";
 

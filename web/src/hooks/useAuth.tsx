@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api, type AuthUser } from "@/hooks/useApi";
+import { type AuthUser, api } from "@/hooks/useApi";
 
 interface AuthState {
   user: AuthUser | null;
