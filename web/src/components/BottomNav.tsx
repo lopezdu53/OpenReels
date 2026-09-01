@@ -1,9 +1,10 @@
+import { BarChart3, FlaskConical, LayoutGrid, PlusCircle, Settings } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
-import { PlusCircle, LayoutGrid, Settings, FlaskConical } from "lucide-react";
 import type { StatsResponse } from "@/hooks/useApi";
+import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
+  { path: "/analytic", label: "Analytic", icon: BarChart3 },
   { path: "/", label: "New", icon: PlusCircle },
   { path: "/gallery", label: "Gallery", icon: LayoutGrid },
   { path: "/lab", label: "API Lab", icon: FlaskConical },
@@ -18,8 +19,7 @@ export function BottomNav({ stats }: BottomNavProps) {
   const location = useLocation();
 
   const isActive = (path: string) => {
-    if (path === "/")
-      return location.pathname === "/" || location.pathname.startsWith("/jobs");
+    if (path === "/") return location.pathname === "/" || location.pathname.startsWith("/jobs");
     return location.pathname.startsWith(path);
   };
 
@@ -33,9 +33,7 @@ export function BottomNav({ stats }: BottomNavProps) {
             to={item.path}
             className={cn(
               "flex flex-col items-center gap-0.5 px-4 py-1 relative",
-              active
-                ? "text-primary"
-                : "text-muted-foreground hover:text-foreground",
+              active ? "text-primary" : "text-muted-foreground hover:text-foreground",
             )}
           >
             <item.icon className="size-5" />

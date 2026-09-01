@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import "./index.css";
 import { Layout } from "@/components/Layout";
+import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { GalleryPage } from "@/pages/GalleryPage";
 import { HomePage } from "@/pages/HomePage";
 import { JobPage } from "@/pages/JobPage";
@@ -15,6 +16,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<HomePage />} />
+          <Route path="/analytic" element={<AnalyticsPage />} />
           <Route path="/jobs/:id" element={<JobPage />} />
           <Route path="/gallery" element={<GalleryPage />} />
           <Route path="/lab" element={<LabPage />} />

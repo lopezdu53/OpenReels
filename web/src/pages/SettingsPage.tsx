@@ -21,6 +21,7 @@ const API_KEY_FIELDS = [
   { key: "RUNPOD_API_KEY", label: "RunPod — endpoints públicos (solo esta clave; no hace falta GPU propia)" },
   { key: "XAI_API_KEY", label: "xAI Grok (LLM/TTS/Image/Video)" },
   { key: "TAVILY_API_KEY", label: "Tavily (Web Search)" },
+  { key: "YOUTUBE_API_KEY", label: "YouTube Data API v3 (Analytic)" },
 ];
 
 interface HealthData {

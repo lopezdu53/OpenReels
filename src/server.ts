@@ -42,6 +42,7 @@ import { GrokVideo } from "./providers/video/grok.js";
 import { ViviVideo } from "./providers/video/vivi.js";
 import { FalVideo } from "./providers/video/fal.js";
 import { RunPodVideo } from "./providers/video/runpod.js";
+import { registerAnalyticsRoutes } from "./analytics/routes.js";
 
 const REDIS_URL = process.env["REDIS_URL"] ?? "redis://localhost:6379";
 const PORT = Number(process.env["PORT"] ?? 3000);
@@ -104,6 +105,7 @@ app.get("/api/v1/health", async () => {
       XAI_API_KEY: !!process.env["XAI_API_KEY"],
       FAL_API_KEY: !!process.env["FAL_API_KEY"],
       RUNPOD_API_KEY: !!process.env["RUNPOD_API_KEY"],
+      YOUTUBE_API_KEY: !!process.env["YOUTUBE_API_KEY"],
     },
   };
 });
@@ -240,6 +242,8 @@ app.get("/api/v1/providers", async () => ({
     { key: "runpod", label: "RunPod (Wan / Kling / Seedance)" },
   ],
 }));
+
+await registerAnalyticsRoutes(app);
 
 // --- API Test endpoints ---
 

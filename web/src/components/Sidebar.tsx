@@ -1,19 +1,21 @@
-import { Link, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
 import {
+  BarChart3,
   Clapperboard,
-  PlusCircle,
-  LayoutGrid,
-  Settings,
-  PanelLeftClose,
-  PanelLeft,
-  Film,
   DollarSign,
+  Film,
   FlaskConical,
+  LayoutGrid,
+  PanelLeft,
+  PanelLeftClose,
+  PlusCircle,
+  Settings,
 } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
 import type { StatsResponse } from "@/hooks/useApi";
+import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
+  { path: "/analytic", label: "Analytic", icon: BarChart3 },
   { path: "/", label: "New Short", icon: PlusCircle },
   { path: "/gallery", label: "Gallery", icon: LayoutGrid },
   { path: "/lab", label: "API Lab", icon: FlaskConical },
@@ -30,8 +32,7 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
   const location = useLocation();
 
   const isActive = (path: string) => {
-    if (path === "/")
-      return location.pathname === "/" || location.pathname.startsWith("/jobs");
+    if (path === "/") return location.pathname === "/" || location.pathname.startsWith("/jobs");
     return location.pathname.startsWith(path);
   };
 
@@ -51,9 +52,7 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
       >
         <Clapperboard className="size-6 shrink-0 text-primary" />
         {!collapsed && (
-          <span className="text-lg font-semibold tracking-tight text-foreground">
-            OpenReels
-          </span>
+          <span className="text-lg font-semibold tracking-tight text-foreground">OpenReels</span>
         )}
       </div>
 
@@ -68,9 +67,7 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
               title={collapsed ? item.label : undefined}
               className={cn(
                 "flex items-center rounded-[10px] text-sm font-medium transition-colors relative",
-                collapsed
-                  ? "justify-center px-0 py-2.5"
-                  : "gap-2.5 px-3.5 py-2.5",
+                collapsed ? "justify-center px-0 py-2.5" : "gap-2.5 px-3.5 py-2.5",
                 active
                   ? "bg-sidebar-accent text-sidebar-accent-foreground"
                   : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
@@ -101,8 +98,7 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
             <Film className="size-3.5" />
             <span>
-              {stats.completedJobs} video{stats.completedJobs !== 1 ? "s" : ""}{" "}
-              created
+              {stats.completedJobs} video{stats.completedJobs !== 1 ? "s" : ""} created
             </span>
           </div>
           {stats.totalCost > 0 && (

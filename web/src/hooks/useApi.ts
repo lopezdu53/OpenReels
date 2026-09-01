@@ -120,6 +120,93 @@ export interface StatsResponse {
   totalCost: number;
 }
 
+export interface AnalyticsChannel {
+  id: string;
+  title: string;
+  handle?: string;
+  description: string;
+  thumbnail?: string;
+  country?: string;
+  subscribers: number;
+  views: number;
+  videoCount: number;
+  estimatedRevenueUsd: number;
+  cpmUsd: number;
+  url: string;
+}
+
+export interface AnalyticsVideo {
+  id: string;
+  title: string;
+  description: string;
+  channelId?: string;
+  channelTitle?: string;
+  publishedAt?: string;
+  thumbnail?: string;
+  views: number;
+  likes: number;
+  comments: number;
+  durationSeconds: number;
+  shorts: boolean;
+  estimatedRevenueUsd: number;
+  tags: string[];
+  url: string;
+}
+
+export interface AnalyticsWebHit {
+  title: string;
+  url: string;
+  content: string;
+}
+
+export interface NicheResearch {
+  query: string;
+  source: "youtube" | "tavily" | "mixed";
+  cpmLongformUsd: number;
+  cpmShortsUsd: number;
+  channels: AnalyticsChannel[];
+  videos: AnalyticsVideo[];
+  webHits: AnalyticsWebHit[];
+  ideas: string[];
+  warning?: string;
+}
+
+export interface PlatformPack {
+  title: string;
+  description: string;
+  hashtags: string[];
+}
+
+export interface ChannelStrategy {
+  channelName: string;
+  tagline: string;
+  positioning: string;
+  targetAudience: string;
+  voiceTone: string;
+  contentPillars: { name: string; description: string; exampleTopics: string[] }[];
+  differentiation: string[];
+  monetization: { youtube: string; tiktok: string; facebook: string; bilibili: string };
+  firstMonthFocus: string;
+  postingCadence: string;
+}
+
+export interface CalendarItem {
+  slot: number;
+  topic: string;
+  pillar: string;
+  format: "short" | "long";
+  youtube: PlatformPack;
+  tiktok: PlatformPack;
+  bilibili: PlatformPack;
+  facebook: PlatformPack;
+}
+
+export interface ContentCalendar {
+  channelName: string;
+  videosPerDay: number;
+  days: { date: string; weekday: string; items: CalendarItem[] }[];
+}
+
 export interface CostBreakdown {
   llmCost: number;
   ttsCost: number;
@@ -292,5 +379,43 @@ export const api = {
     return fetchJson<{ videoBase64: string; durationMs: number; videoSeconds: number }>(
       "/test/video", { method: "POST", body: JSON.stringify(data) }
     );
+  },
+
+  analyticsStatus() {
+    return fetchJson<{ youtube: boolean; tavily: boolean; vivi: boolean }>("/analytics/status");
+  },
+
+  analyticsResearch(query: string) {
+    return fetchJson<NicheResearch>("/analytics/research", {
+      method: "POST",
+      body: JSON.stringify({ query }),
+    });
+  },
+
+  analyticsChannelVideos(channelId: string, niche: string) {
+    return fetchJson<{ videos: AnalyticsVideo[] }>("/analytics/channel-videos", {
+      method: "POST",
+      body: JSON.stringify({ channelId, niche }),
+    });
+  },
+
+  analyticsStrategy(research: NicheResearch, angle?: string) {
+    return fetchJson<{ strategy: ChannelStrategy }>("/analytics/strategy", {
+      method: "POST",
+      body: JSON.stringify({ research, angle }),
+    });
+  },
+
+  analyticsCalendar(data: {
+    research: NicheResearch;
+    strategy: ChannelStrategy;
+    videosPerDay: number;
+    days?: number;
+    startDate?: string;
+  }) {
+    return fetchJson<{ calendar: ContentCalendar }>("/analytics/calendar", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 };
