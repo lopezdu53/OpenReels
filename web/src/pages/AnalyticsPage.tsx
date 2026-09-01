@@ -46,6 +46,7 @@ import {
 } from "@/lib/analytics-export";
 import { fetchUsdToCopRate } from "@/lib/cop-rate";
 import { formatCop, formatUsd } from "@/lib/job-cost-preview";
+import { CURATED_TOP_NICHES } from "@/lib/top-niches-seed";
 import { cn } from "@/lib/utils";
 
 const NICHE_CHIPS = [
@@ -128,7 +129,7 @@ export function AnalyticsPage() {
   const [tab, setTab] = useState("top");
   const [copied, setCopied] = useState<"md" | "json" | "csv" | null>(null);
   const [polish, setPolish] = useState("");
-  const [topNiches, setTopNiches] = useState<TopNiches | null>(null);
+  const [topNiches, setTopNiches] = useState<TopNiches | null>(CURATED_TOP_NICHES);
   const [topLoading, setTopLoading] = useState(false);
   const [topError, setTopError] = useState("");
   const [clonedChannel, setClonedChannel] = useState<ClonedChannel | null>(null);
@@ -148,7 +149,9 @@ export function AnalyticsPage() {
     void api
       .analyticsTopNiches({ refresh: false })
       .then(setTopNiches)
-      .catch(() => setTopError("No se pudo cargar el Top 10 curado."));
+      .catch(() => {
+        /* keep CURATED_TOP_NICHES */
+      });
   }, []);
 
   const totals = useMemo(() => {
@@ -252,6 +255,7 @@ export function AnalyticsPage() {
       setTab("top");
     } catch (err) {
       setTopError(err instanceof Error ? err.message : String(err));
+      if (!topNiches) setTopNiches(CURATED_TOP_NICHES);
     } finally {
       setTopLoading(false);
     }
