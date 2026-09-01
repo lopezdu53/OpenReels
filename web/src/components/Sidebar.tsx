@@ -1,10 +1,13 @@
 import {
   BarChart3,
+  BookOpen,
   Clapperboard,
   DollarSign,
   Film,
   FlaskConical,
+  LayoutDashboard,
   LayoutGrid,
+  LogOut,
   PanelLeft,
   PanelLeftClose,
   PlusCircle,
@@ -12,10 +15,13 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { StatsResponse } from "@/hooks/useApi";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
+  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { path: "/analytic", label: "Analytic", icon: BarChart3 },
+  { path: "/learning", label: "Learning", icon: BookOpen },
   { path: "/", label: "New Short", icon: PlusCircle },
   { path: "/gallery", label: "Gallery", icon: LayoutGrid },
   { path: "/lab", label: "API Lab", icon: FlaskConical },
@@ -30,6 +36,7 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
   const location = useLocation();
+  const { user, logout } = useAuth();
 
   const isActive = (path: string) => {
     if (path === "/") return location.pathname === "/" || location.pathname.startsWith("/jobs");
@@ -43,7 +50,6 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
         collapsed ? "w-16" : "w-[240px]",
       )}
     >
-      {/* Logo */}
       <div
         className={cn(
           "flex items-center gap-2.5 pt-8 pb-0 transition-[padding] duration-200",
@@ -56,7 +62,6 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
         )}
       </div>
 
-      {/* Navigation */}
       <nav className={cn("mt-8 flex flex-col gap-1", collapsed ? "px-2" : "px-5")}>
         {NAV_ITEMS.map((item) => {
           const active = isActive(item.path);
@@ -75,7 +80,6 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
             >
               <item.icon className="size-5 shrink-0" />
               {!collapsed && item.label}
-              {/* Active job pulse on "New Short" */}
               {item.path === "/" && stats && stats.activeJobs > 0 && (
                 <span
                   className={cn(
@@ -89,10 +93,8 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
         })}
       </nav>
 
-      {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Stats footer */}
       {!collapsed && stats && stats.totalJobs > 0 && (
         <div className="mx-5 mb-4 rounded-[10px] border border-border bg-surface-inset px-3.5 py-3">
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -110,7 +112,31 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
         </div>
       )}
 
-      {/* Collapse toggle */}
+      <div
+        className={cn(
+          "border-t border-border py-3",
+          collapsed ? "px-2" : "px-5",
+        )}
+      >
+        {!collapsed && user ? (
+          <p className="mb-2 truncate text-[11px] text-muted-foreground" title={user.email}>
+            {user.name}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => void logout()}
+          title="Salir"
+          className={cn(
+            "flex w-full items-center rounded-[10px] text-sm text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground",
+            collapsed ? "justify-center py-2" : "gap-2 px-2 py-1.5",
+          )}
+        >
+          <LogOut className="size-4 shrink-0" />
+          {!collapsed && <span>Salir</span>}
+        </button>
+      </div>
+
       <button
         type="button"
         onClick={onToggle}

@@ -78,6 +78,35 @@ export function isShortsDuration(seconds: number): boolean {
   return seconds > 0 && seconds <= 180;
 }
 
+export function channelAgeDays(publishedAt: string | undefined, now = Date.now()): number {
+  if (!publishedAt) return 0;
+  const t = new Date(publishedAt).getTime();
+  if (!Number.isFinite(t) || t <= 0) return 0;
+  return Math.max(0, Math.floor((now - t) / 86_400_000));
+}
+
+export function uploadsPerWeek(
+  videoCount: number,
+  publishedAt: string | undefined,
+  now = Date.now(),
+): number {
+  if (videoCount <= 0) return 0;
+  const days = Math.max(1, channelAgeDays(publishedAt, now));
+  return videoCount / (days / 7);
+}
+
+export function cadenceLabel(perWeek: number): string {
+  if (perWeek <= 0) return "sin datos de subida";
+  if (perWeek >= 6.5) {
+    const perDay = perWeek / 7;
+    const n = Math.round(perDay * 10) / 10;
+    return n >= 1.5 ? `${n} videos / día` : "casi 1 video / día";
+  }
+  if (perWeek >= 0.9) return `${Math.round(perWeek * 10) / 10} videos / semana`;
+  const everyDays = Math.max(2, Math.round(7 / perWeek));
+  return `1 video cada ${everyDays} días`;
+}
+
 export function youtubeApiKey(): string | undefined {
   return process.env["YOUTUBE_API_KEY"] || process.env["GOOGLE_API_KEY"] || undefined;
 }
@@ -122,6 +151,7 @@ interface YtChannelItem {
     description?: string;
     customUrl?: string;
     thumbnails?: { medium?: { url?: string }; high?: { url?: string } };
+    publishedAt?: string;
     country?: string;
   };
   statistics?: {
@@ -164,6 +194,10 @@ export interface AnalyticsChannel {
   estimatedRevenueUsd: number;
   cpmUsd: number;
   url: string;
+  publishedAt?: string;
+  ageDays?: number;
+  uploadsPerWeek?: number;
+  cadenceLabel?: string;
 }
 
 export interface AnalyticsVideo {
@@ -216,6 +250,8 @@ export async function hydrateChannels(
   return (data.items ?? []).map((ch) => {
     const views = num(ch.statistics?.viewCount);
     const id = ch.id ?? "";
+    const publishedAt = ch.snippet?.publishedAt;
+    const perWeek = uploadsPerWeek(num(ch.statistics?.videoCount), publishedAt);
     return {
       id,
       title: ch.snippet?.title ?? "",
@@ -229,6 +265,10 @@ export async function hydrateChannels(
       estimatedRevenueUsd: estimateAdRevenueUsd(views, cpm),
       cpmUsd: cpm,
       url: `https://www.youtube.com/channel/${id}`,
+      publishedAt,
+      ageDays: channelAgeDays(publishedAt),
+      uploadsPerWeek: Math.round(perWeek * 10) / 10,
+      cadenceLabel: cadenceLabel(perWeek),
     };
   });
 }

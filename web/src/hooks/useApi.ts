@@ -4,6 +4,7 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const hasBody = init?.body != null;
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
+    credentials: "include",
     headers: {
       ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
@@ -148,6 +149,10 @@ export interface AnalyticsChannel {
   estimatedRevenueUsd: number;
   cpmUsd: number;
   url: string;
+  publishedAt?: string;
+  ageDays?: number;
+  uploadsPerWeek?: number;
+  cadenceLabel?: string;
 }
 
 export interface AnalyticsVideo {
@@ -540,4 +545,113 @@ export const api = {
       body: JSON.stringify(data),
     });
   },
+
+  me() {
+    return fetchJson<{ user: AuthUser }>("/auth/me");
+  },
+
+  register(data: { email: string; name: string; password: string }) {
+    return fetchJson<{ user: AuthUser }>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  login(data: { email: string; password: string }) {
+    return fetchJson<{ user: AuthUser }>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  logout() {
+    return fetchJson<{ ok: boolean }>("/auth/logout", { method: "POST" });
+  },
+
+  dashboard() {
+    return fetchJson<DashboardData>("/me/dashboard");
+  },
+
+  saveCloneChannel(cloned: ClonedChannel) {
+    return fetchJson<{ cloned: unknown }>("/me/clones/channel", {
+      method: "POST",
+      body: JSON.stringify(cloned),
+    });
+  },
+
+  saveCloneContent(cloned: ClonedContent) {
+    return fetchJson<{ cloned: unknown }>("/me/clones/content", {
+      method: "POST",
+      body: JSON.stringify(cloned),
+    });
+  },
+
+  setDailyGoal(dailyGoal: number) {
+    return fetchJson<{ user: AuthUser }>("/me/goal", {
+      method: "POST",
+      body: JSON.stringify({ dailyGoal }),
+    });
+  },
+
+  checkin() {
+    return fetchJson<{ date: string; count: number; dailyGoal: number }>("/me/checkin", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  },
+
+  learningYpp() {
+    return fetchJson<YppInfo>("/learning/ypp");
+  },
 };
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  createdAt: string;
+  dailyGoal: number;
+}
+
+export interface DashboardDay {
+  date: string;
+  generated: number;
+  posted: number;
+  hit: boolean;
+}
+
+export interface DashboardData {
+  user: AuthUser;
+  dailyGoal: number;
+  today: { date: string; generated: number; posted: number; progress: number; goal: number };
+  week: DashboardDay[];
+  streak: number;
+  clonedChannels: ClonedChannel[];
+  clonedVideos: ClonedContent[];
+  recentJobs: JobSummary[];
+  totals: { videos: number; clones: number; scripts: number };
+  countdown: {
+    targetIso: string;
+    expired: boolean;
+    days: number;
+    hours: number;
+    minutes: number;
+    seconds: number;
+  };
+}
+
+export interface YppInfo {
+  subscribers: number;
+  fanFundingSubscribers: number;
+  watchHoursNow: number;
+  watchHours2027: number;
+  shortsViewsNow: number;
+  shortsViews2027: number;
+  shortsPoolViews90d: number;
+  longformShare: number;
+  shortsShare: number;
+  countdown: DashboardData["countdown"];
+  source: string;
+  announced: string;
+  changeDate: string;
+}

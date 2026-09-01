@@ -38,7 +38,9 @@ COPY . .
 RUN cd web && npx vite build
 
 # Create directories
-RUN mkdir -p /output /app/jobs
+RUN mkdir -p /output /app/jobs /app/data
+ENV DATA_DIR=/app/data
+ENV JOBS_DIR=/app/jobs
 
 # Default: CLI mode (backwards compatible)
 ENTRYPOINT ["npx", "tsx", "src/index.ts", "--yes", "-o", "/output"]

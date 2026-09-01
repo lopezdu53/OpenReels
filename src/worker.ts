@@ -81,6 +81,7 @@ interface JobData {
     runpodImageEndpointId?: string;
     runpodVideoEndpointId?: string;
   };
+  userId?: string;
   keys: Record<string, string>;
   jobsDir: string;
 }
@@ -112,6 +113,7 @@ interface JobMeta {
   costEstimate?: unknown;
   actualCost?: unknown;
   videoPath?: string;
+  userId?: string;
   runDir?: string;
   researchData?: { summary: string; key_facts: string[]; mood: string };
   score?: unknown; // DirectorScore
@@ -137,7 +139,7 @@ function writeMeta(jobDir: string, meta: JobMeta) {
 const worker = new Worker<JobData>(
   "openreels",
   async (job: Job<JobData>) => {
-    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, atelierMode, artStyleOverride, providers, keys } =
+    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, atelierMode, artStyleOverride, providers, keys, userId } =
       job.data;
     const jobDir = path.join(JOBS_DIR, job.id!);
     fs.mkdirSync(jobDir, { recursive: true });
@@ -146,6 +148,7 @@ const worker = new Worker<JobData>(
     const meta: JobMeta = {
       id: job.id!,
       topic,
+      userId,
       archetype,
       status: "running",
       createdAt: new Date().toISOString(),

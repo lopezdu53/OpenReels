@@ -75,6 +75,14 @@ function compact(n: number): string {
   return new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 }
 
+function foundedLabel(publishedAt?: string): string | null {
+  if (!publishedAt) return null;
+  const t = new Date(publishedAt);
+  if (!Number.isFinite(t.getTime())) return null;
+  const stamp = t.toLocaleDateString("es", { month: "short", year: "numeric" });
+  return `Fundado ${stamp}`;
+}
+
 function Money({ usd, rate }: { usd: number; rate: number | null }) {
   return (
     <div className="text-right">
@@ -280,6 +288,7 @@ export function AnalyticsPage() {
       setClonedChannel(cloned);
       setStrategy(clonedChannelToStrategy(cloned));
       setTab("clones");
+      await api.saveCloneChannel(cloned).catch(() => {});
     } catch (err) {
       setCloneError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -298,6 +307,7 @@ export function AnalyticsPage() {
       });
       setClonedContent(cloned);
       setTab("clones");
+      await api.saveCloneContent(cloned).catch(() => {});
     } catch (err) {
       setCloneError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -936,6 +946,17 @@ function ChannelCard({
           <p className="mt-1 text-[11px] text-muted-foreground">
             {compact(channel.views)} views lifetime
           </p>
+          {(founded || channel.cadenceLabel) && (
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-muted-foreground">
+              {founded ? (
+                <span className="inline-flex items-center gap-1">
+                  <CalendarDays className="size-3" />
+                  {founded}
+                </span>
+              ) : null}
+              {channel.cadenceLabel ? <span>Sube {channel.cadenceLabel}</span> : null}
+            </p>
+          )}
         </div>
       </div>
       <div className="mt-2 flex flex-wrap gap-1">

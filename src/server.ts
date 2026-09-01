@@ -43,6 +43,7 @@ import { ViviVideo } from "./providers/video/vivi.js";
 import { FalVideo } from "./providers/video/fal.js";
 import { RunPodVideo } from "./providers/video/runpod.js";
 import { registerAnalyticsRoutes } from "./analytics/routes.js";
+import { type AuthedRequest, registerAuth, requireUser } from "./auth/plugin.js";
 
 const REDIS_URL = process.env["REDIS_URL"] ?? "redis://localhost:6379";
 const PORT = Number(process.env["PORT"] ?? 3000);
@@ -59,13 +60,27 @@ function isValidJobId(id: string): boolean {
   return /^[\w-]+$/.test(id);
 }
 
+function assertJobOwner(
+  meta: { userId?: string },
+  request: AuthedRequest,
+  reply: { status: (n: number) => { send: (b: unknown) => unknown } },
+): boolean {
+  if (!request.user || meta.userId !== request.user.id) {
+    reply.status(404).send({ error: "Job not found" });
+    return false;
+  }
+  return true;
+}
+
 const redis = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
 const queue = new Queue("openreels", { connection: redis });
 const queueEvents = new QueueEvents("openreels", { connection: redis.duplicate() });
 
 const app = Fastify({ logger: true });
 
-await app.register(cors, { origin: true });
+await app.register(cors, { origin: true, credentials: true });
+
+await registerAuth(app, redis);
 
 // Serve job artifacts from the jobs directory
 await app.register(fastifyStatic, {
@@ -111,8 +126,8 @@ app.get("/api/v1/health", async () => {
 });
 
 // --- Aggregate stats ---
-app.get("/api/v1/stats", async () => {
-  if (!fs.existsSync(JOBS_DIR)) {
+app.get("/api/v1/stats", async (request: AuthedRequest) => {
+  if (!fs.existsSync(JOBS_DIR) || !request.user) {
     return { totalJobs: 0, completedJobs: 0, failedJobs: 0, activeJobs: 0, totalCost: 0 };
   }
 
@@ -129,6 +144,7 @@ app.get("/api/v1/stats", async () => {
       try {
         const raw = await fs.promises.readFile(metaPath, "utf-8");
         const meta = JSON.parse(raw);
+        if (meta.userId !== request.user?.id) return;
         totalJobs++;
         if (meta.status === "completed") {
           completedJobs++;
@@ -404,6 +420,9 @@ interface CreateJobBody {
 }
 
 app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
+  const user = requireUser(request as AuthedRequest, reply);
+  if (!user) return;
+
   const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, atelierMode, artStyleOverride, providers, keys } =
     request.body ?? {};
 
@@ -479,6 +498,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
 
   const job = await queue.add("render", {
     topic: topic.trim(),
+    userId: user.id,
     archetype,
     pacing,
     platform: platform ?? "youtube",
@@ -530,6 +550,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
   const placeholderMeta = {
     id: job.id,
     topic: topic.trim(),
+    userId: user.id,
     archetype,
     pacing,
     status: "queued",
@@ -567,12 +588,12 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
 });
 
 // --- Job listing ---
-app.get("/api/v1/jobs", async (request) => {
+app.get("/api/v1/jobs", async (request: AuthedRequest) => {
   const { limit = "20", offset = "0" } = request.query as Record<string, string>;
   const limitNum = Math.min(Number(limit) || 20, 100);
   const offsetNum = Number(offset) || 0;
 
-  if (!fs.existsSync(JOBS_DIR)) return { jobs: [], total: 0 };
+  if (!fs.existsSync(JOBS_DIR) || !request.user) return { jobs: [], total: 0 };
 
   const dirents = fs.readdirSync(JOBS_DIR, { withFileTypes: true }).filter((d) => d.isDirectory());
   const entries = await Promise.all(
@@ -581,17 +602,19 @@ app.get("/api/v1/jobs", async (request) => {
       try {
         const raw = await fs.promises.readFile(metaPath, "utf-8");
         const meta = JSON.parse(raw);
+        if (meta.userId !== request.user?.id) return null;
         return { id: d.name, ...meta };
       } catch {
-        return { id: d.name, status: "unknown" };
+        return null;
       }
     }),
   );
-  entries.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  const owned = entries.filter((e): e is NonNullable<typeof e> => e != null);
+  owned.sort((a, b) => ((b as { createdAt?: string }).createdAt ?? "").localeCompare((a as { createdAt?: string }).createdAt ?? ""));
 
   return {
-    jobs: entries.slice(offsetNum, offsetNum + limitNum),
-    total: entries.length,
+    jobs: owned.slice(offsetNum, offsetNum + limitNum),
+    total: owned.length,
   };
 });
 
@@ -608,6 +631,7 @@ app.get<{ Params: { id: string } }>("/api/v1/jobs/:id", async (request, reply) =
   }
 
   const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+  if (!assertJobOwner(meta, request as AuthedRequest, reply)) return;
   return meta;
 });
 
@@ -771,6 +795,7 @@ app.post<{ Params: { id: string } }>("/api/v1/jobs/:id/cancel", async (request, 
   if (fs.existsSync(metaPath)) {
     try {
       const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+      if (!assertJobOwner(meta, request as AuthedRequest, reply)) return;
       meta.cancelRequested = true;
       meta.status = "cancelled";
       meta.error = "Cancelled by user";
@@ -804,6 +829,17 @@ app.delete<{ Params: { id: string } }>("/api/v1/jobs/:id", async (request, reply
 
   if (!fs.existsSync(jobDir)) {
     return reply.status(404).send({ error: "Job not found" });
+  }
+  const metaPath = path.join(jobDir, "meta.json");
+  if (fs.existsSync(metaPath)) {
+    try {
+      const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+      if (!assertJobOwner(meta, request as AuthedRequest, reply)) return;
+    } catch {
+      return reply.status(404).send({ error: "Job not found" });
+    }
+  } else if (!(request as AuthedRequest).user) {
+    return reply.status(401).send({ error: "Inicia sesión" });
   }
 
   // Force-remove from BullMQ regardless of state (handles orphaned/stuck active jobs).

@@ -1,14 +1,14 @@
-import { BarChart3, FlaskConical, LayoutGrid, PlusCircle, Settings } from "lucide-react";
+import { BarChart3, BookOpen, LayoutDashboard, LayoutGrid, PlusCircle } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { StatsResponse } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
+  { path: "/dashboard", label: "Dash", icon: LayoutDashboard },
   { path: "/analytic", label: "Analytic", icon: BarChart3 },
+  { path: "/learning", label: "Learn", icon: BookOpen },
   { path: "/", label: "New", icon: PlusCircle },
   { path: "/gallery", label: "Gallery", icon: LayoutGrid },
-  { path: "/lab", label: "API Lab", icon: FlaskConical },
-  { path: "/settings", label: "Settings", icon: Settings },
 ];
 
 interface BottomNavProps {
@@ -32,15 +32,14 @@ export function BottomNav({ stats }: BottomNavProps) {
             key={item.path}
             to={item.path}
             className={cn(
-              "flex flex-col items-center gap-0.5 px-4 py-1 relative",
+              "flex flex-col items-center gap-0.5 px-2 py-1 relative",
               active ? "text-primary" : "text-muted-foreground hover:text-foreground",
             )}
           >
             <item.icon className="size-5" />
             <span className="text-[10px] font-medium">{item.label}</span>
-            {/* Active job pulse */}
             {item.path === "/" && stats && stats.activeJobs > 0 && (
-              <span className="absolute top-0.5 right-2 size-2 rounded-full bg-status-info animate-pulse" />
+              <span className="absolute top-0.5 right-0 size-2 rounded-full bg-status-info animate-pulse" />
             )}
           </Link>
         );
