@@ -1,6 +1,11 @@
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { serializeKokoroVoiceSpec, parseKokoroVoiceSpec } from "@/lib/kokoro-voice";
+import {
+  KOKORO_DEFAULT_CONNECT_MIX,
+  KOKORO_SPANISH_MIX_PRESETS,
+  parseKokoroVoiceSpec,
+  serializeKokoroVoiceSpec,
+} from "@/lib/kokoro-voice";
 import type { VoiceOption } from "@/hooks/useApi";
 
 const SPANISH_IDS = ["ef_dora", "em_alex", "em_santa"] as const;
@@ -40,8 +45,9 @@ export function KokoroVoiceMixer({ voices, value, onChange, speed, onSpeedChange
     );
   };
 
-  const selectPreset = (id: string) => {
-    onChange(id);
+  const applyPreset = (spec: string, presetSpeed: number) => {
+    onChange(spec);
+    onSpeedChange(presetSpeed);
   };
 
   return (
@@ -54,10 +60,10 @@ export function KokoroVoiceMixer({ voices, value, onChange, speed, onSpeedChange
             value={value.includes("+") ? "__mix__" : value}
             onChange={(e) => {
               if (e.target.value === "__mix__") {
-                onChange("ef_dora:70+em_alex:30");
+                applyPreset(KOKORO_DEFAULT_CONNECT_MIX, 1.1);
                 return;
               }
-              selectPreset(e.target.value);
+              onChange(e.target.value);
             }}
           >
             <optgroup label="Español">
@@ -105,6 +111,27 @@ export function KokoroVoiceMixer({ voices, value, onChange, speed, onSpeedChange
               Combina los tres presets oficiales. No clona una persona: interpola Dora, Alex y Santa.
             </p>
           </div>
+          <div className="flex flex-wrap gap-1.5">
+            {KOKORO_SPANISH_MIX_PRESETS.map((preset) => {
+              const active = value === preset.spec;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => applyPreset(preset.spec, preset.speed)}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-left",
+                    active
+                      ? "border-primary/50 bg-primary/15 text-primary"
+                      : "border-border text-text-subtle hover:border-primary/30 hover:text-foreground",
+                  )}
+                >
+                  <span className="block text-[11px] font-semibold leading-tight">{preset.label}</span>
+                  <span className="block text-[9px] opacity-80">{preset.hint}</span>
+                </button>
+              );
+            })}
+          </div>
           {spanish.map((v) => (
             <div key={v.id}>
               <div className="mb-1 flex items-center justify-between text-xs">
@@ -129,12 +156,10 @@ export function KokoroVoiceMixer({ voices, value, onChange, speed, onSpeedChange
       {isSpanish && !value.includes("+") && (
         <button
           type="button"
-          onClick={() => onChange("ef_dora:70+em_alex:30")}
-          className={cn(
-            "text-xs text-primary hover:underline",
-          )}
+          onClick={() => applyPreset(KOKORO_DEFAULT_CONNECT_MIX, 1.1)}
+          className="text-xs text-primary hover:underline"
         >
-          Crear voz personalizada mezclando Dora / Alex / Santa
+          Mezcla recomendada para conectar (Dora 60 / Alex 30 / Santa 10)
         </button>
       )}
     </div>
