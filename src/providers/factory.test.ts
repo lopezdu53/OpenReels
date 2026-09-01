@@ -22,6 +22,8 @@ import { OpenAITTS } from "./tts/openai.js";
 import { GrokTTS } from "./tts/grok.js";
 import { GrokLLM } from "./llm/grok.js";
 import { GrokImage } from "./image/grok.js";
+import { RunPodImage } from "./image/runpod.js";
+import { RunPodVideo } from "./video/runpod.js";
 
 vi.mock("./llm/anthropic.js", () => ({
   AnthropicLLM: vi.fn().mockImplementation(() => ({ id: "anthropic", generate: vi.fn() })),
@@ -105,6 +107,12 @@ vi.mock("./video/fal.js", () => ({
 }));
 vi.mock("./video/grok.js", () => ({
   GrokVideo: vi.fn().mockImplementation(() => ({ supportedDurations: [5, 6, 8, 10], generate: vi.fn() })),
+}));
+vi.mock("./image/runpod.js", () => ({
+  RunPodImage: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
+}));
+vi.mock("./video/runpod.js", () => ({
+  RunPodVideo: vi.fn().mockImplementation(() => ({ supportedDurations: [5, 8, 10], generate: vi.fn() })),
 }));
 
 describe("createProviders", () => {
@@ -243,7 +251,57 @@ describe("createProviders", () => {
       kokoroVoice: "bf_emma",
     });
 
-    expect(KokoroTTS).toHaveBeenCalledWith("bf_emma");
+    expect(KokoroTTS).toHaveBeenCalledWith("bf_emma", undefined);
+  });
+
+  it("passes kokoroSpeed to KokoroTTS constructor", () => {
+    createProviders({
+      llm: "anthropic",
+      tts: "kokoro",
+      image: "gemini",
+      kokoroVoice: "ef_dora",
+      kokoroSpeed: 1.2,
+    });
+
+    expect(KokoroTTS).toHaveBeenCalledWith("ef_dora", 1.2);
+  });
+
+  it("constructs RunPod image from API key without a custom endpoint", () => {
+    createProviders({
+      llm: "anthropic",
+      tts: "elevenlabs",
+      image: "runpod",
+      runpodImageModel: "black-forest-labs-flux-1-schnell",
+      runpodImageSteps: 4,
+      keys: { RUNPOD_API_KEY: "rp-key" },
+    });
+
+    expect(RunPodImage).toHaveBeenCalledWith({
+      model: "black-forest-labs-flux-1-schnell",
+      endpointId: undefined,
+      apiKey: "rp-key",
+      steps: 4,
+      guidance: undefined,
+    });
+  });
+
+  it("constructs RunPod video from API key without a custom endpoint", () => {
+    createProviders({
+      llm: "anthropic",
+      tts: "elevenlabs",
+      image: "gemini",
+      video: "runpod",
+      runpodVideoModel: "p-video",
+      runpodVideoResolution: "720p",
+      keys: { RUNPOD_API_KEY: "rp-key" },
+    });
+
+    expect(RunPodVideo).toHaveBeenCalledWith({
+      model: "p-video",
+      endpointId: undefined,
+      apiKey: "rp-key",
+      resolution: "720p",
+    });
   });
 
   it("wraps GeminiTTS in AlignedTTSProvider", () => {

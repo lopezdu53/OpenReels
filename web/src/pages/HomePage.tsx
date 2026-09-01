@@ -81,7 +81,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   lyria: "Lyria 3 Pro",
   // Video
   fal: "fal.ai (Kling)",
-  runpod: "RunPod Serverless",
+  runpod: "RunPod (público)",
 };
 
 function displayName(key: string): string {
@@ -115,9 +115,18 @@ export function HomePage() {
   const [grokTtsVoice, setGrokTtsVoice] = useState("eve");
   const [grokTtsSpeed, setGrokTtsSpeed] = useState(1.0);
   const [grokTtsModel] = useState("");
+  const [kokoroVoice, setKokoroVoice] = useState("ef_dora");
+  const [kokoroSpeed, setKokoroSpeed] = useState(1.0);
   const [imageProvider, setImageProvider] = useState("gemini");
   const [musicProvider, setMusicProvider] = useState("bundled");
   const [videoProvider, setVideoProvider] = useState("");
+  const [runpodImageModel, setRunpodImageModel] = useState("black-forest-labs-flux-1-schnell");
+  const [runpodVideoModel, setRunpodVideoModel] = useState("p-video");
+  const [runpodImageSteps, setRunpodImageSteps] = useState(4);
+  const [runpodImageGuidance, setRunpodImageGuidance] = useState(1);
+  const [runpodVideoResolution, setRunpodVideoResolution] = useState("720p");
+  const [runpodImageEndpointId, setRunpodImageEndpointId] = useState("");
+  const [runpodVideoEndpointId, setRunpodVideoEndpointId] = useState("");
   const [videoSceneMode, setVideoSceneMode] = useState("all");
   const [pacing, setPacing] = useState("");
   const [targetDurationMinutes, setTargetDurationMinutes] = useState(5);
@@ -207,6 +216,26 @@ export function HomePage() {
           ...(ttsProvider === "inworld" ? { inworldVoice } : {}),
           ...(ttsProvider === "gemini-tts" ? { geminiTtsVoice } : {}),
           ...(ttsProvider === "grok-tts" ? { grokTtsVoice, grokTtsSpeed, grokTtsModel } : {}),
+          ...(ttsProvider === "kokoro" ? { kokoroVoice, kokoroSpeed } : {}),
+          ...(imageProvider === "runpod"
+            ? {
+                runpodImageModel,
+                runpodImageSteps,
+                runpodImageGuidance,
+                ...(runpodImageModel === "custom" && runpodImageEndpointId
+                  ? { runpodImageEndpointId }
+                  : {}),
+              }
+            : {}),
+          ...(videoProvider === "runpod"
+            ? {
+                runpodVideoModel,
+                runpodVideoResolution,
+                ...(runpodVideoModel === "custom" && runpodVideoEndpointId
+                  ? { runpodVideoEndpointId }
+                  : {}),
+              }
+            : {}),
         },
       });
       navigate(`/jobs/${result.id}`);
@@ -467,6 +496,52 @@ export function HomePage() {
                     </>
                   )}
 
+                  {ttsProvider === "kokoro" && providers?.kokoroVoices && (
+                    <>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                          Kokoro Voice
+                        </label>
+                        <Select value={kokoroVoice} onValueChange={(v) => v && setKokoroVoice(v)}>
+                          <SelectTrigger className="h-9 w-full rounded-lg">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              <SelectLabel>Español</SelectLabel>
+                              {providers.kokoroVoices.filter((v) => v.language === "es").map((v) => (
+                                <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                            <SelectGroup>
+                              <SelectLabel>English US</SelectLabel>
+                              {providers.kokoroVoices.filter((v) => v.language === "en-us").map((v) => (
+                                <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                            <SelectGroup>
+                              <SelectLabel>English UK</SelectLabel>
+                              {providers.kokoroVoices.filter((v) => v.language === "en-gb").map((v) => (
+                                <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                          Velocidad: {kokoroSpeed.toFixed(1)}x
+                        </label>
+                        <input
+                          type="range" min="0.7" max="1.5" step="0.1"
+                          value={kokoroSpeed}
+                          onChange={(e) => setKokoroSpeed(Number(e.target.value))}
+                          className="w-full accent-primary"
+                        />
+                      </div>
+                    </>
+                  )}
+
                   <div>
                     <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                       Image Provider
@@ -546,6 +621,153 @@ export function HomePage() {
                           </SelectGroup>
                         </SelectContent>
                       </Select>
+                    </div>
+                  )}
+
+                  {(imageProvider === "runpod" || videoProvider === "runpod") && (
+                    <div className="col-span-2 sm:col-span-3 rounded-[12px] border border-primary/30 bg-primary/5 p-4 space-y-3">
+                      <div>
+                        <p className="text-xs font-semibold text-foreground">Opciones RunPod</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Endpoints públicos (solo API key, sin GPU propia). FLUX Schnell y Pruna Video son los más baratos.
+                        </p>
+                      </div>
+                      {imageProvider === "runpod" && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                              Modelo de imagen
+                            </label>
+                            <Select
+                              value={runpodImageModel}
+                              onValueChange={(v) => {
+                                if (!v) return;
+                                setRunpodImageModel(v);
+                                const spec = providers?.runpodImageModels?.find((m) => m.id === v);
+                                if (spec?.defaultSteps) setRunpodImageSteps(spec.defaultSteps);
+                                if (spec?.defaultGuidance != null) setRunpodImageGuidance(spec.defaultGuidance);
+                              }}
+                            >
+                              <SelectTrigger className="h-9 w-full rounded-lg">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(providers?.runpodImageModels ?? []).map((m) => (
+                                  <SelectItem key={m.id} value={m.id}>
+                                    {m.label}{m.costHint ? ` · ${m.costHint}` : ""}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {runpodImageModel === "custom" ? (
+                            <div>
+                              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                                Endpoint ID (imagen)
+                              </label>
+                              <Input
+                                className="h-9 rounded-lg font-mono text-xs"
+                                placeholder="xxxxxxxx-xxxx-xxxx-xxxx"
+                                value={runpodImageEndpointId}
+                                onChange={(e) => setRunpodImageEndpointId(e.target.value)}
+                              />
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {typeof providers?.runpodImageModels?.find((m) => m.id === runpodImageModel)?.maxSteps === "number" && (
+                                <div>
+                                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                                    Pasos: {runpodImageSteps}
+                                  </label>
+                                  <input
+                                    type="range"
+                                    min={1}
+                                    max={providers?.runpodImageModels?.find((m) => m.id === runpodImageModel)?.maxSteps ?? 28}
+                                    step={1}
+                                    value={runpodImageSteps}
+                                    onChange={(e) => setRunpodImageSteps(Number(e.target.value))}
+                                    className="w-full accent-primary mt-2"
+                                  />
+                                </div>
+                              )}
+                              {providers?.runpodImageModels?.find((m) => m.id === runpodImageModel)?.defaultGuidance != null && (
+                                <div>
+                                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                                    Guidance: {runpodImageGuidance}
+                                  </label>
+                                  <input
+                                    type="range"
+                                    min={0}
+                                    max={10}
+                                    step={0.5}
+                                    value={runpodImageGuidance}
+                                    onChange={(e) => setRunpodImageGuidance(Number(e.target.value))}
+                                    className="w-full accent-primary mt-2"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {videoProvider === "runpod" && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                              Modelo de video I2V
+                            </label>
+                            <Select
+                              value={runpodVideoModel}
+                              onValueChange={(v) => {
+                                if (!v) return;
+                                setRunpodVideoModel(v);
+                                const spec = providers?.runpodVideoModels?.find((m) => m.id === v);
+                                if (spec?.resolutions[0]) setRunpodVideoResolution(spec.resolutions[0]);
+                              }}
+                            >
+                              <SelectTrigger className="h-9 w-full rounded-lg">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(providers?.runpodVideoModels ?? []).map((m) => (
+                                  <SelectItem key={m.id} value={m.id}>
+                                    {m.label}{m.costHint ? ` · ${m.costHint}` : ""}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {runpodVideoModel === "custom" ? (
+                            <div>
+                              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                                Endpoint ID (video)
+                              </label>
+                              <Input
+                                className="h-9 rounded-lg font-mono text-xs"
+                                placeholder="xxxxxxxx-xxxx-xxxx-xxxx"
+                                value={runpodVideoEndpointId}
+                                onChange={(e) => setRunpodVideoEndpointId(e.target.value)}
+                              />
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                                Resolución
+                              </label>
+                              <Select value={runpodVideoResolution} onValueChange={(v) => v && setRunpodVideoResolution(v)}>
+                                <SelectTrigger className="h-9 w-full rounded-lg">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(providers?.runpodVideoModels?.find((m) => m.id === runpodVideoModel)?.resolutions ?? ["720p"]).map((r) => (
+                                    <SelectItem key={r} value={r}>{r}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 

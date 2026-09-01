@@ -118,7 +118,7 @@ export function validateEnv(opts: {
     },
     {
       key: "RUNPOD_API_KEY",
-      provider: "RunPod (Image/Video)",
+      provider: "RunPod (public image/video endpoints — API key only)",
       signupUrl: "https://www.runpod.io/",
       required: opts.imageProvider === "runpod" || opts.videoProvider === "runpod",
     },
@@ -126,13 +126,13 @@ export function validateEnv(opts: {
       key: "RUNPOD_IMAGE_ENDPOINT_ID",
       provider: "RunPod image endpoint",
       signupUrl: "https://www.runpod.io/",
-      required: opts.imageProvider === "runpod",
+      required: false,
     },
     {
       key: "RUNPOD_VIDEO_ENDPOINT_ID",
       provider: "RunPod video endpoint",
       signupUrl: "https://www.runpod.io/",
-      required: opts.videoProvider === "runpod",
+      required: false,
     },
     {
       key: "VIDU_API_KEY",

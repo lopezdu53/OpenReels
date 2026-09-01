@@ -93,9 +93,14 @@ async function main(): Promise<void> {
     videoModel: opts.videoModel,
     music: opts.musicProvider,
     kokoroVoice: opts.kokoroVoice,
+    kokoroSpeed: opts.kokoroSpeed,
     llmModel: opts.llmModel,
     llmBaseUrl: opts.llmBaseUrl,
     searchProvider: opts.searchProvider,
+    runpodImageModel: opts.runpodImageModel,
+    runpodVideoModel: opts.runpodVideoModel,
+    runpodImageSteps: opts.runpodImageSteps,
+    runpodVideoResolution: opts.runpodVideoResolution,
   });
 
   // Create CLI callbacks for terminal progress display

@@ -18,7 +18,7 @@ const API_KEY_FIELDS = [
   { key: "ALICLOUD_API_KEY", label: "Alibaba Cloud (LLM/Image/Video)" },
   { key: "VIDU_API_KEY", label: "VIDU (Video)" },
   { key: "FAL_API_KEY", label: "fal.ai (Image/Video)" },
-  { key: "RUNPOD_API_KEY", label: "RunPod (Image/Video)" },
+  { key: "RUNPOD_API_KEY", label: "RunPod — endpoints públicos (solo esta clave; no hace falta GPU propia)" },
   { key: "XAI_API_KEY", label: "xAI Grok (LLM/TTS/Image/Video)" },
   { key: "TAVILY_API_KEY", label: "Tavily (Web Search)" },
 ];
@@ -280,7 +280,7 @@ export function SettingsPage() {
             API Keys
           </h2>
           <p className="mb-4 text-[13px] text-muted-foreground">
-            API keys are configured server-side via environment variables.
+            API keys are configured server-side via environment variables. RunPod public endpoints only need RUNPOD_API_KEY.
           </p>
           <div className="overflow-hidden rounded-[12px] border border-border bg-card">
             {API_KEY_FIELDS.map((field, i) => {

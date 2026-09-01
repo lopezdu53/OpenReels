@@ -6,15 +6,17 @@
  * passed as argv[2], generates audio, writes a WAV file, then exits.
  *
  * IPC protocol:
- *   Input:  JSON file at argv[2] → { text: string, voice: string, outputPath: string }
+ *   Input:  JSON file at argv[2] → { text: string, voice: string, speed?: number, outputPath: string }
  *   Output: WAV file written to outputPath
  *   Exit:   0 = success, 1 = error (message on stderr)
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import { isKokoroEnglishVoice, KOKORO_LANG_TO_PHONEME } from "./kokoro-voices.js";
 
 interface KokoroConfig {
   text: string;
   voice: string;
+  speed?: number;
   outputPath: string;
 }
 
@@ -32,25 +34,37 @@ async function main() {
     dtype: "q8",
   });
 
+  const voice = config.voice;
+  const speed = config.speed ?? 1;
+
   // Use stream() instead of generate() to avoid 511-token truncation.
   // generate() silently truncates at ~511 tokens via tokenizer({truncation:true}).
   // stream() splits by sentence and generates each chunk within the token limit.
   const splitter = new TextSplitterStream();
-  const stream = tts.stream(splitter, { voice: config.voice as "af_heart" });
-
-  // Push text and signal no more input
-  splitter.push(config.text);
-  splitter.close();
-
-  // Collect all audio chunks and concatenate raw PCM
   const wavChunks: Uint8Array[] = [];
-  for await (const { audio } of stream) {
-    // Each chunk is a RawAudio with toWav() — extract just the first chunk's
-    // WAV as the base, then we'll concatenate all chunks differently.
-    // Actually, the simplest correct approach: save each chunk as WAV,
-    // we'll write the last one and concat using raw approach below.
-    const wavBytes = audio.toWav();
-    wavChunks.push(new Uint8Array(wavBytes));
+
+  if (isKokoroEnglishVoice(voice)) {
+    const stream = tts.stream(splitter, { voice: voice as "af_heart", speed });
+    splitter.push(config.text);
+    splitter.close();
+    for await (const { audio } of stream) {
+      wavChunks.push(new Uint8Array(audio.toWav()));
+    }
+  } else {
+    // kokoro-js 1.2.1 only catalogs en-US/en-GB, but the ONNX repo ships
+    // Spanish (and other) .bin files. Phonemize with the matching eSpeak lang
+    // and call generate_from_ids so we skip the frozen VOICES check.
+    const { phonemize } = await import("phonemizer");
+    const lang = KOKORO_LANG_TO_PHONEME[voice.at(0) ?? "e"] ?? "es";
+    splitter.push(config.text);
+    splitter.close();
+    for await (const sentence of splitter) {
+      const phones = await phonemize(sentence, lang);
+      const phonemeStr = Array.isArray(phones) ? phones.join(" ") : String(phones);
+      const { input_ids } = tts.tokenizer(phonemeStr, { truncation: true });
+      const audio = await tts.generate_from_ids(input_ids, { voice: voice as "af_heart", speed });
+      wavChunks.push(new Uint8Array(audio.toWav()));
+    }
   }
 
   if (wavChunks.length === 0) {

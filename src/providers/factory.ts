@@ -45,6 +45,10 @@ import { ElevenLabsTTS } from "./tts/elevenlabs.js";
 import { GeminiTTS } from "./tts/gemini.js";
 import { GrokTTS, GROK_TTS_MODELS, GROK_TTS_VOICES } from "./tts/grok.js";
 export { GROK_TTS_MODELS, GROK_TTS_VOICES };
+import { KOKORO_VOICES } from "./tts/kokoro-voices.js";
+export { KOKORO_VOICES };
+import { RUNPOD_IMAGE_MODELS, RUNPOD_VIDEO_MODELS } from "./runpod/catalog.js";
+export { RUNPOD_IMAGE_MODELS, RUNPOD_VIDEO_MODELS };
 import { InworldTTS } from "./tts/inworld.js";
 import { KokoroTTS } from "./tts/kokoro.js";
 import { OpenAITTS } from "./tts/openai.js";
@@ -66,6 +70,7 @@ export interface ProviderConfig {
   music?: MusicProviderKey;
   videoModel?: string;
   kokoroVoice?: string;
+  kokoroSpeed?: number;
   inworldVoice?: string;
   geminiTtsVoice?: string;
   grokTtsVoice?: string;
@@ -75,6 +80,11 @@ export interface ProviderConfig {
   llmModel?: string;
   llmBaseUrl?: string;
   searchProvider?: SearchProviderKey;
+  runpodImageModel?: string;
+  runpodVideoModel?: string;
+  runpodImageSteps?: number;
+  runpodImageGuidance?: number;
+  runpodVideoResolution?: string;
 }
 
 export interface Providers {
@@ -175,7 +185,7 @@ export function createProviders(config: ProviderConfig): Providers {
   let tts: TTSProvider;
   switch (config.tts) {
     case "kokoro":
-      tts = new AlignedTTSProvider(new KokoroTTS(config.kokoroVoice), aligner);
+      tts = new AlignedTTSProvider(new KokoroTTS(config.kokoroVoice, config.kokoroSpeed), aligner);
       break;
     case "gemini-tts":
       tts = new AlignedTTSProvider(new GeminiTTS(undefined, k["GOOGLE_API_KEY"], config.geminiTtsVoice), aligner);
@@ -220,7 +230,13 @@ export function createProviders(config: ProviderConfig): Providers {
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "fal", "gemini")
       : primary;
   } else if (config.image === "runpod") {
-    const primary = new RunPodImage(runpodImageEndpoint, runpodKey);
+    const primary = new RunPodImage({
+      model: config.runpodImageModel,
+      endpointId: runpodImageEndpoint,
+      apiKey: runpodKey,
+      steps: config.runpodImageSteps,
+      guidance: config.runpodImageGuidance,
+    });
     imageGen = googleKey
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "runpod", "gemini")
       : primary;
@@ -334,7 +350,16 @@ export function createProviders(config: ProviderConfig): Providers {
     else if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
     else if (alicloudKey) videoProviders.push(new AliCloudVideo(undefined, alicloudKey));
   } else if (videoPrimary === "runpod") {
-    if (runpodKey && runpodVideoEndpoint) videoProviders.push(new RunPodVideo(runpodVideoEndpoint, runpodKey));
+    if (runpodKey) {
+      videoProviders.push(
+        new RunPodVideo({
+          model: config.runpodVideoModel,
+          endpointId: runpodVideoEndpoint,
+          apiKey: runpodKey,
+          resolution: config.runpodVideoResolution,
+        }),
+      );
+    }
     if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
     else if (xaiKey) videoProviders.push(new GrokVideo(xaiKey));
     else if (viduKey) videoProviders.push(new ViduVideo(undefined, viduKey));

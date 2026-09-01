@@ -14,6 +14,8 @@ import { DirectorScore } from "./schema/director-score.js";
 import { INWORLD_VOICES } from "./providers/tts/inworld.js";
 import { GEMINI_TTS_VOICES } from "./providers/tts/gemini.js";
 import { GROK_TTS_VOICES, GROK_TTS_MODELS } from "./providers/tts/grok.js";
+import { KOKORO_VOICES } from "./providers/tts/kokoro-voices.js";
+import { RUNPOD_IMAGE_MODELS, RUNPOD_VIDEO_MODELS } from "./providers/runpod/catalog.js";
 import { ATELIER_STYLES } from "./config/atelier-styles.js";
 import type { SearchProviderKey } from "./schema/providers.js";
 import { AnthropicLLM } from "./providers/llm/anthropic.js";
@@ -210,6 +212,14 @@ app.get("/api/v1/providers", async () => ({
   geminiTtsVoices: GEMINI_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
   grokTtsVoices: GROK_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
   grokTtsModels: GROK_TTS_MODELS.map((m) => ({ id: m.id, label: m.label })),
+  kokoroVoices: KOKORO_VOICES.map((v) => ({
+    id: v.id,
+    label: v.label,
+    gender: v.gender,
+    language: v.language,
+  })),
+  runpodImageModels: RUNPOD_IMAGE_MODELS,
+  runpodVideoModels: RUNPOD_VIDEO_MODELS,
   atelierStyles: ATELIER_STYLES,
   image: [
     { key: "gemini", label: "Google Gemini" },
@@ -217,7 +227,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "grok", label: "Grok Imagine Image" },
     { key: "vivi", label: "VIVI (Gemini)" },
     { key: "alicloud", label: "Alibaba Cloud" },
-    { key: "runpod", label: "RunPod Serverless" },
+    { key: "runpod", label: "RunPod (FLUX / Wan públicos)" },
     { key: "fal", label: "fal.ai (FLUX)" },
   ],
   video: [
@@ -227,7 +237,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "fal", label: "fal.ai (Kling 2.6 Pro)" },
     { key: "vidu-q2-fast", label: "VIDU Q2 Fast (~27cr/5s)" },
     { key: "vidu-q3-fast", label: "VIDU Q3 Fast" },
-    { key: "runpod", label: "RunPod Serverless" },
+    { key: "runpod", label: "RunPod (Wan / Kling / Seedance)" },
   ],
 }));
 
@@ -275,7 +285,7 @@ app.post("/api/v1/test/tts", async (request, reply) => {
         case "gemini-tts": return new GeminiTTS(undefined, undefined, voice);
         case "openai-tts": return new OpenAITTS();
         case "grok-tts": return new GrokTTS(model, voice, undefined, speed);
-        case "kokoro": return new KokoroTTS();
+        case "kokoro": return new KokoroTTS(voice, speed);
         default: return new ElevenLabsTTS();
       }
     })();
@@ -288,8 +298,9 @@ app.post("/api/v1/test/tts", async (request, reply) => {
 });
 
 app.post("/api/v1/test/image", async (request, reply) => {
-  const { provider = "gemini", prompt, style, aspectRatio = "9:16" } = request.body as {
+  const { provider = "gemini", prompt, style, aspectRatio = "9:16", model, steps, guidance } = request.body as {
     provider?: string; prompt: string; style?: string; aspectRatio?: string;
+    model?: string; steps?: number; guidance?: number;
   };
   if (!prompt?.trim()) return reply.status(400).send({ error: "prompt is required" });
   const start = Date.now();
@@ -300,7 +311,7 @@ app.post("/api/v1/test/image", async (request, reply) => {
         case "grok": return new GrokImage();
         case "vivi": return new ViviImage();
         case "alicloud": return new AliCloudImage();
-        case "runpod": return new RunPodImage();
+        case "runpod": return new RunPodImage({ model, steps, guidance });
         case "fal": return new FalImage();
         default: return new GeminiImage();
       }
@@ -314,8 +325,9 @@ app.post("/api/v1/test/image", async (request, reply) => {
 });
 
 app.post("/api/v1/test/video", async (request, reply) => {
-  const { provider = "gemini", imageBase64, prompt, durationSeconds = 5, aspectRatio = "9:16" } = request.body as {
+  const { provider = "gemini", imageBase64, prompt, durationSeconds = 5, aspectRatio = "9:16", model, resolution } = request.body as {
     provider?: string; imageBase64: string; prompt: string; durationSeconds?: number; aspectRatio?: string;
+    model?: string; resolution?: string;
   };
   if (!imageBase64 || !prompt?.trim()) return reply.status(400).send({ error: "imageBase64 and prompt are required" });
   const start = Date.now();
@@ -325,7 +337,7 @@ app.post("/api/v1/test/video", async (request, reply) => {
         case "grok": return new GrokVideo();
         case "vivi": return new ViviVideo();
         case "fal": return new FalVideo();
-        case "runpod": return new RunPodVideo();
+        case "runpod": return new RunPodVideo({ model, resolution });
         default: return new GeminiVideo();
       }
     })();
@@ -374,6 +386,15 @@ interface CreateJobBody {
     grokTtsVoice?: string;
     grokTtsSpeed?: number;
     grokTtsModel?: string;
+    kokoroVoice?: string;
+    kokoroSpeed?: number;
+    runpodImageModel?: string;
+    runpodVideoModel?: string;
+    runpodImageSteps?: number;
+    runpodImageGuidance?: number;
+    runpodVideoResolution?: string;
+    runpodImageEndpointId?: string;
+    runpodVideoEndpointId?: string;
   };
   keys?: Record<string, string>;
 }
@@ -485,6 +506,15 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       grokTtsVoice: providers?.grokTtsVoice,
       grokTtsSpeed: providers?.grokTtsSpeed,
       grokTtsModel: providers?.grokTtsModel,
+      kokoroVoice: providers?.kokoroVoice,
+      kokoroSpeed: providers?.kokoroSpeed,
+      runpodImageModel: providers?.runpodImageModel,
+      runpodVideoModel: providers?.runpodVideoModel,
+      runpodImageSteps: providers?.runpodImageSteps,
+      runpodImageGuidance: providers?.runpodImageGuidance,
+      runpodVideoResolution: providers?.runpodVideoResolution,
+      runpodImageEndpointId: providers?.runpodImageEndpointId,
+      runpodVideoEndpointId: providers?.runpodVideoEndpointId,
     },
     keys: keys ?? {},
     jobsDir: JOBS_DIR,

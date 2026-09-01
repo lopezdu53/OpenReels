@@ -71,6 +71,15 @@ interface JobData {
     grokTtsVoice?: string;
     grokTtsSpeed?: number;
     grokTtsModel?: string;
+    kokoroVoice?: string;
+    kokoroSpeed?: number;
+    runpodImageModel?: string;
+    runpodVideoModel?: string;
+    runpodImageSteps?: number;
+    runpodImageGuidance?: number;
+    runpodVideoResolution?: string;
+    runpodImageEndpointId?: string;
+    runpodVideoEndpointId?: string;
   };
   keys: Record<string, string>;
   jobsDir: string;
@@ -173,7 +182,15 @@ const worker = new Worker<JobData>(
       video: providers.video as VideoProviderKey | undefined,
       videoModel: providers.videoModel,
       music: (providers.music as MusicProviderKey) ?? "bundled",
-      keys,
+      keys: {
+        ...keys,
+        ...(providers.runpodImageEndpointId
+          ? { RUNPOD_IMAGE_ENDPOINT_ID: providers.runpodImageEndpointId }
+          : {}),
+        ...(providers.runpodVideoEndpointId
+          ? { RUNPOD_VIDEO_ENDPOINT_ID: providers.runpodVideoEndpointId }
+          : {}),
+      },
       llmModel: providers.llmModel,
       llmBaseUrl: providers.llmBaseUrl,
       searchProvider: providers.searchProvider,
@@ -182,6 +199,13 @@ const worker = new Worker<JobData>(
       grokTtsVoice: providers.grokTtsVoice,
       grokTtsSpeed: providers.grokTtsSpeed,
       grokTtsModel: providers.grokTtsModel,
+      kokoroVoice: providers.kokoroVoice,
+      kokoroSpeed: providers.kokoroSpeed,
+      runpodImageModel: providers.runpodImageModel,
+      runpodVideoModel: providers.runpodVideoModel,
+      runpodImageSteps: providers.runpodImageSteps,
+      runpodImageGuidance: providers.runpodImageGuidance,
+      runpodVideoResolution: providers.runpodVideoResolution,
     });
 
     // Build callbacks that emit BullMQ progress events and update meta.json

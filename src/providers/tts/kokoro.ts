@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { TTSProvider, TTSResult } from "../../schema/providers.js";
+import { DEFAULT_KOKORO_VOICE } from "./kokoro-voices.js";
 
 const WORKER_PATH = fileURLToPath(new URL("./kokoro-worker.ts", import.meta.url));
 
@@ -19,9 +20,11 @@ const WORKER_PATH = fileURLToPath(new URL("./kokoro-worker.ts", import.meta.url)
  */
 export class KokoroTTS implements TTSProvider {
   private voice: string;
+  private speed: number;
 
-  constructor(voice: string = "af_heart") {
+  constructor(voice: string = DEFAULT_KOKORO_VOICE, speed: number = 1) {
     this.voice = voice;
+    this.speed = speed;
   }
 
   async generate(text: string): Promise<TTSResult> {
@@ -33,7 +36,7 @@ export class KokoroTTS implements TTSProvider {
 
       await writeFile(
         configPath,
-        JSON.stringify({ text, voice: this.voice, outputPath }),
+        JSON.stringify({ text, voice: this.voice, speed: this.speed, outputPath }),
       );
 
       await new Promise<void>((resolve, reject) => {

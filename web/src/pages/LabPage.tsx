@@ -40,14 +40,14 @@ export const DEFAULT_PRICES: ApiPrices = {
     grok:     { perImage: 0.04 },
     vivi:     { perImage: 0.04 },
     alicloud: { perImage: 0.05 },
-    runpod:   { perImage: 0.02 },
+    runpod:   { perImage: 0.003 },
   },
   video: {
     gemini: { perSecond: 0.05 },
     grok:   { perSecond: 0.08 },
     vivi:   { perSecond: 0.08 },
     fal:    { perSecond: 0.12 },
-    runpod: { perSecond: 0.03 },
+    runpod: { perSecond: 0.02 },
   },
 };
 
@@ -154,6 +154,8 @@ export function LabPage() {
   const [imgProvider, setImgProvider] = useState("gemini");
   const [imgPrompt, setImgPrompt] = useState("A futuristic city at sunset with flying cars and neon lights.");
   const [imgAspect, setImgAspect] = useState("9:16");
+  const [imgModel, setImgModel] = useState("black-forest-labs-flux-1-schnell");
+  const [imgSteps, setImgSteps] = useState(4);
   const [imgResult, setImgResult] = useState<{ imageBase64: string; durationMs: number } | null>(null);
   const [imgLoading, setImgLoading] = useState(false);
   const [imgError, setImgError] = useState("");
@@ -164,6 +166,8 @@ export function LabPage() {
   const [vidPrompt, setVidPrompt] = useState("Camera slowly zooms in with cinematic motion.");
   const [vidDuration, setVidDuration] = useState(5);
   const [vidAspect, setVidAspect] = useState("9:16");
+  const [vidModel, setVidModel] = useState("p-video");
+  const [vidResolution, setVidResolution] = useState("720p");
   const [vidResult, setVidResult] = useState<{ videoBase64: string; durationMs: number; videoSeconds: number } | null>(null);
   const [vidLoading, setVidLoading] = useState(false);
   const [vidError, setVidError] = useState("");
@@ -195,7 +199,7 @@ export function LabPage() {
         provider: ttsProvider,
         text: ttsText,
         ...(ttsVoice ? { voice: ttsVoice } : {}),
-        ...(ttsProvider === "grok-tts" ? { speed: ttsSpeed } : {}),
+        ...(ttsProvider === "grok-tts" || ttsProvider === "kokoro" ? { speed: ttsSpeed } : {}),
       });
       setTtsResult(r);
       setTimeout(() => audioRef.current?.play().catch(() => {}), 100);
@@ -210,7 +214,12 @@ export function LabPage() {
   const runImage = async () => {
     setImgLoading(true); setImgError(""); setImgResult(null);
     try {
-      const r = await api.testImage({ provider: imgProvider, prompt: imgPrompt, aspectRatio: imgAspect });
+      const r = await api.testImage({
+        provider: imgProvider,
+        prompt: imgPrompt,
+        aspectRatio: imgAspect,
+        ...(imgProvider === "runpod" ? { model: imgModel, steps: imgSteps } : {}),
+      });
       setImgResult(r);
     } catch (e) {
       setImgError(String(e));
@@ -242,6 +251,7 @@ export function LabPage() {
         prompt: vidPrompt,
         durationSeconds: vidDuration,
         aspectRatio: vidAspect,
+        ...(vidProvider === "runpod" ? { model: vidModel, resolution: vidResolution } : {}),
       });
       setVidResult(r);
     } catch (e) {
@@ -413,6 +423,48 @@ export function LabPage() {
             </>
           )}
 
+          {ttsProvider === "kokoro" && providers?.kokoroVoices && (
+            <>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Voz</label>
+                <Select value={ttsVoice || "ef_dora"} onValueChange={setTtsVoice}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectLabel>Español</SelectLabel>
+                      {providers.kokoroVoices.filter(v => v.language === "es").map(v => (
+                        <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>English US</SelectLabel>
+                      {providers.kokoroVoices.filter(v => v.language === "en-us").map(v => (
+                        <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>English UK</SelectLabel>
+                      {providers.kokoroVoices.filter(v => v.language === "en-gb").map(v => (
+                        <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">
+                  Velocidad: {ttsSpeed.toFixed(1)}x
+                </label>
+                <input
+                  type="range" min="0.7" max="1.5" step="0.1"
+                  value={ttsSpeed}
+                  onChange={e => setTtsSpeed(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+            </>
+          )}
+
           <div>
             <label className="mb-1.5 block text-[12px] text-muted-foreground">Texto</label>
             <textarea
@@ -467,6 +519,45 @@ export function LabPage() {
               </Select>
             </div>
           </div>
+          {imgProvider === "runpod" && (
+            <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <p className="text-[11px] text-muted-foreground">Opciones RunPod — endpoints públicos (solo API key)</p>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo</label>
+                <Select
+                  value={imgModel}
+                  onValueChange={(v) => {
+                    setImgModel(v);
+                    const spec = providers?.runpodImageModels?.find((m) => m.id === v);
+                    if (spec?.defaultSteps) setImgSteps(spec.defaultSteps);
+                  }}
+                >
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.runpodImageModels ?? []).filter((m) => m.id !== "custom").map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label}{m.costHint ? ` · ${m.costHint}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {typeof providers?.runpodImageModels?.find((m) => m.id === imgModel)?.maxSteps === "number" && (
+                <div>
+                  <label className="mb-1.5 block text-[12px] text-muted-foreground">Pasos: {imgSteps}</label>
+                  <input
+                    type="range"
+                    min={1}
+                    max={providers?.runpodImageModels?.find((m) => m.id === imgModel)?.maxSteps ?? 28}
+                    step={1}
+                    value={imgSteps}
+                    onChange={(e) => setImgSteps(Number(e.target.value))}
+                    className="w-full accent-primary"
+                  />
+                </div>
+              )}
+            </div>
+          )}
           <div>
             <label className="mb-1.5 block text-[12px] text-muted-foreground">Prompt</label>
             <textarea
@@ -525,11 +616,51 @@ export function LabPage() {
               <Select value={String(vidDuration)} onValueChange={v => setVidDuration(Number(v))}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {[3, 5, 8].map(s => <SelectItem key={s} value={String(s)}>{s}s</SelectItem>)}
+                  {(vidProvider === "runpod"
+                    ? (providers?.runpodVideoModels?.find((m) => m.id === vidModel)?.durations ?? [5, 8, 10])
+                    : [3, 5, 8]
+                  ).map(s => <SelectItem key={s} value={String(s)}>{s}s</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           </div>
+          {vidProvider === "runpod" && (
+            <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <p className="text-[11px] text-muted-foreground">Opciones RunPod — endpoints públicos (solo API key)</p>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo I2V</label>
+                <Select
+                  value={vidModel}
+                  onValueChange={(v) => {
+                    setVidModel(v);
+                    const spec = providers?.runpodVideoModels?.find((m) => m.id === v);
+                    if (spec?.resolutions[0]) setVidResolution(spec.resolutions[0]);
+                    if (spec?.durations[0]) setVidDuration(spec.durations[0]);
+                  }}
+                >
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.runpodVideoModels ?? []).filter((m) => m.id !== "custom").map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label}{m.costHint ? ` · ${m.costHint}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Resolución</label>
+                <Select value={vidResolution} onValueChange={setVidResolution}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.runpodVideoModels?.find((m) => m.id === vidModel)?.resolutions ?? ["720p"]).map((r) => (
+                      <SelectItem key={r} value={r}>{r}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="mb-1.5 block text-[12px] text-muted-foreground">Imagen fuente</label>

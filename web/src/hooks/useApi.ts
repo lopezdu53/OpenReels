@@ -93,6 +93,7 @@ export interface VoiceOption {
   id: string;
   label: string;
   gender?: string;
+  language?: string;
 }
 
 export interface ProviderOptions {
@@ -105,6 +106,9 @@ export interface ProviderOptions {
   geminiTtsVoices?: VoiceOption[];
   grokTtsVoices?: VoiceOption[];
   grokTtsModels?: { id: string; label: string }[];
+  kokoroVoices?: VoiceOption[];
+  runpodImageModels?: { id: string; label: string; kind: string; costHint: string; defaultSteps?: number; maxSteps?: number; defaultGuidance?: number }[];
+  runpodVideoModels?: { id: string; label: string; kind: string; costHint: string; durations: number[]; resolutions: string[] }[];
   atelierStyles?: { id: string; label: string; artStyle: string }[];
 }
 
@@ -204,6 +208,15 @@ export interface CreateJobRequest {
     grokTtsVoice?: string;
     grokTtsSpeed?: number;
     grokTtsModel?: string;
+    kokoroVoice?: string;
+    kokoroSpeed?: number;
+    runpodImageModel?: string;
+    runpodVideoModel?: string;
+    runpodImageSteps?: number;
+    runpodImageGuidance?: number;
+    runpodVideoResolution?: string;
+    runpodImageEndpointId?: string;
+    runpodVideoEndpointId?: string;
   };
 }
 
@@ -269,13 +282,13 @@ export const api = {
     );
   },
 
-  testImage(data: { provider?: string; prompt: string; style?: string; aspectRatio?: string }) {
+  testImage(data: { provider?: string; prompt: string; style?: string; aspectRatio?: string; model?: string; steps?: number; guidance?: number }) {
     return fetchJson<{ imageBase64: string; durationMs: number }>(
       "/test/image", { method: "POST", body: JSON.stringify(data) }
     );
   },
 
-  testVideo(data: { provider?: string; imageBase64: string; prompt: string; durationSeconds?: number; aspectRatio?: string }) {
+  testVideo(data: { provider?: string; imageBase64: string; prompt: string; durationSeconds?: number; aspectRatio?: string; model?: string; resolution?: string }) {
     return fetchJson<{ videoBase64: string; durationMs: number; videoSeconds: number }>(
       "/test/video", { method: "POST", body: JSON.stringify(data) }
     );

@@ -22,6 +22,11 @@ export interface CLIOptions {
   videoModel?: string;
   musicProvider: MusicProviderKey;
   kokoroVoice?: string;
+  kokoroSpeed?: number;
+  runpodImageModel?: string;
+  runpodVideoModel?: string;
+  runpodImageSteps?: number;
+  runpodVideoResolution?: string;
   llmModel?: string;
   llmBaseUrl?: string;
   searchProvider?: SearchProviderKey;
@@ -128,9 +133,20 @@ export function parseArgs(): CLIOptions {
     )
     .option(
       "--kokoro-voice <voice>",
-      "Kokoro voice preset (e.g. af_heart, bf_emma, am_fenrir)",
-      "af_heart",
+      "Kokoro voice (ef_dora/em_alex/em_santa español; af_heart, bf_emma inglés)",
+      "ef_dora",
     )
+    .option("--kokoro-speed <n>", "Kokoro speaking speed (0.7–1.5)", parseFloat)
+    .option(
+      "--runpod-image-model <model>",
+      "RunPod public image endpoint (default: black-forest-labs-flux-1-schnell)",
+    )
+    .option(
+      "--runpod-video-model <model>",
+      "RunPod public I2V endpoint (default: p-video)",
+    )
+    .option("--runpod-image-steps <n>", "RunPod image inference steps", parseInt)
+    .option("--runpod-video-resolution <res>", "RunPod video resolution (720p, 1080p, 480p)")
     .option("-a, --archetype <archetype>", "Visual archetype override")
     .addOption(
       new Option("--pacing <tier>", "Pacing tier override (overrides archetype default)").choices(
@@ -253,6 +269,11 @@ export function parseArgs(): CLIOptions {
     videoModel: opts["videoModel"] as string | undefined,
     musicProvider: opts["musicProvider"] as MusicProviderKey,
     kokoroVoice: opts["kokoroVoice"] as string | undefined,
+    kokoroSpeed: opts["kokoroSpeed"] as number | undefined,
+    runpodImageModel: opts["runpodImageModel"] as string | undefined,
+    runpodVideoModel: opts["runpodVideoModel"] as string | undefined,
+    runpodImageSteps: opts["runpodImageSteps"] as number | undefined,
+    runpodVideoResolution: opts["runpodVideoResolution"] as string | undefined,
     llmModel: opts["llmModel"] as string | undefined,
     llmBaseUrl: opts["llmBaseUrl"] as string | undefined,
     searchProvider: opts["searchProvider"] as SearchProviderKey | undefined,
