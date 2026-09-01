@@ -18,6 +18,7 @@ describe("KOKORO_VOICES", () => {
 
   it("maps Spanish voice prefix to eSpeak es", () => {
     expect(KOKORO_LANG_TO_PHONEME["e"]).toBe("es");
+    expect(KOKORO_LANG_TO_PHONEME["p"]).toBe("pt-br");
     expect(isKokoroEnglishVoice("ef_dora")).toBe(false);
     expect(isKokoroEnglishVoice("af_heart")).toBe(true);
     expect(isKokoroEnglishVoice("bf_emma")).toBe(true);

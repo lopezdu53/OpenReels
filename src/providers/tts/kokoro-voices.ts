@@ -20,7 +20,7 @@ export type KokoroVoiceId = (typeof KOKORO_VOICES)[number]["id"];
 
 export const DEFAULT_KOKORO_VOICE: KokoroVoiceId = "ef_dora";
 
-/** eSpeak language passed to phonemizer.js for non-English Kokoro voices. */
+/** eSpeak-ng voice id for non-English Kokoro voices (not phonemizer.js — that build is English-only). */
 export const KOKORO_LANG_TO_PHONEME: Record<string, string> = {
   a: "en-us",
   b: "en",
@@ -29,7 +29,7 @@ export const KOKORO_LANG_TO_PHONEME: Record<string, string> = {
   h: "hi",
   i: "it",
   j: "ja",
-  p: "pt",
+  p: "pt-br",
   z: "cmn",
 };
 

@@ -11,6 +11,7 @@
  *   Exit:   0 = success, 1 = error (message on stderr)
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import { phonemizeForKokoro } from "./kokoro-espeak.js";
 import { isKokoroEnglishVoice, KOKORO_LANG_TO_PHONEME } from "./kokoro-voices.js";
 
 interface KokoroConfig {
@@ -51,16 +52,14 @@ async function main() {
       wavChunks.push(new Uint8Array(audio.toWav()));
     }
   } else {
-    // kokoro-js 1.2.1 only catalogs en-US/en-GB, but the ONNX repo ships
-    // Spanish (and other) .bin files. Phonemize with the matching eSpeak lang
-    // and call generate_from_ids so we skip the frozen VOICES check.
-    const { phonemize } = await import("phonemizer");
+    // kokoro-js 1.2.1 only catalogs en-US/en-GB and its phonemizer.js WASM is
+    // English-only ("es" throws). Use multilingual espeak-ng, then skip the
+    // frozen VOICES check via generate_from_ids (ONNX ships ef_dora.bin etc.).
     const lang = KOKORO_LANG_TO_PHONEME[voice.at(0) ?? "e"] ?? "es";
     splitter.push(config.text);
     splitter.close();
     for await (const sentence of splitter) {
-      const phones = await phonemize(sentence, lang);
-      const phonemeStr = Array.isArray(phones) ? phones.join(" ") : String(phones);
+      const phonemeStr = await phonemizeForKokoro(sentence, lang);
       const { input_ids } = tts.tokenizer(phonemeStr, { truncation: true });
       const audio = await tts.generate_from_ids(input_ids, { voice: voice as "af_heart", speed });
       wavChunks.push(new Uint8Array(audio.toWav()));

@@ -3,6 +3,7 @@ FROM node:22-bookworm-slim
 # Install system dependencies: ffmpeg (includes ffprobe) and Chrome Headless Shell shared libs
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    espeak-ng \
     libnss3 \
     libdbus-1-3 \
     libatk1.0-0 \

@@ -50,7 +50,7 @@ export class KokoroTTS implements TTSProvider {
               reject(
                 new Error(
                   `Kokoro TTS failed: ${msg}. ` +
-                    "Ensure kokoro-js is installed (pnpm install). " +
+                    "Spanish voices need espeak-ng (included in the Docker image). " +
                     "The Kokoro model (~86MB) downloads from HuggingFace on first run.",
                 ),
               );
