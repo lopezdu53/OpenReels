@@ -12,13 +12,77 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { phonemizeForKokoro } from "./kokoro-espeak.js";
-import { isKokoroEnglishVoice, KOKORO_LANG_TO_PHONEME } from "./kokoro-voices.js";
+import {
+  isKokoroEnglishVoice,
+  KOKORO_LANG_TO_PHONEME,
+  mixVoiceEmbeddings,
+  parseKokoroVoiceSpec,
+} from "./kokoro-voices.js";
+
+const VOICE_BIN_URL =
+  "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/voices";
+
+const voiceBinCache = new Map<string, Float32Array>();
 
 interface KokoroConfig {
   text: string;
   voice: string;
   speed?: number;
   outputPath: string;
+}
+
+async function loadVoiceBin(id: string): Promise<Float32Array> {
+  const cached = voiceBinCache.get(id);
+  if (cached) return cached;
+  const res = await fetch(`${VOICE_BIN_URL}/${id}.bin`);
+  if (!res.ok) throw new Error(`Failed to download Kokoro voice "${id}": ${res.status}`);
+  const data = new Float32Array(await res.arrayBuffer());
+  voiceBinCache.set(id, data);
+  return data;
+}
+
+async function resolveVoiceData(spec: string): Promise<Float32Array | null> {
+  const blend = parseKokoroVoiceSpec(spec);
+  if (blend.parts.length <= 1) return null;
+  const loaded = await Promise.all(
+    blend.parts.map(async (p) => ({ data: await loadVoiceBin(p.id), weight: p.weight })),
+  );
+  return mixVoiceEmbeddings(loaded);
+}
+
+type KokoroRuntime = {
+  generate_from_ids: (
+    ids: { dims: number[] },
+    opts?: { voice?: string; speed?: number },
+  ) => Promise<{ toWav: () => ArrayBuffer }>;
+  model: (inputs: unknown) => Promise<{ waveform: { data: Float32Array } }>;
+};
+
+async function generateWavFromIds(
+  tts: KokoroRuntime,
+  inputIds: { dims: number[] },
+  voiceSpec: string,
+  mixedData: Float32Array | null,
+  speed: number,
+): Promise<Uint8Array> {
+  if (!mixedData) {
+    const audio = await tts.generate_from_ids(inputIds, { voice: voiceSpec, speed });
+    return new Uint8Array(audio.toWav());
+  }
+
+  const { Tensor } = await import("@huggingface/transformers");
+  const seq = Number(inputIds.dims.at(-1) ?? 0);
+  const offset = 256 * Math.min(Math.max(seq - 2, 0), 509);
+  const style = mixedData.slice(offset, offset + 256);
+  const { waveform } = (await tts.model({
+    input_ids: inputIds,
+    style: new Tensor("float32", style, [1, 256]),
+    speed: new Tensor("float32", [speed], [1]),
+  })) as { waveform: { data: Float32Array } };
+
+  const pcm = Buffer.from(waveform.data.buffer, waveform.data.byteOffset, waveform.data.byteLength);
+  const header = buildWavHeader(pcm.length, 24000, 1, 32, 3);
+  return new Uint8Array(Buffer.concat([header, pcm]));
 }
 
 async function main() {
@@ -37,6 +101,9 @@ async function main() {
 
   const voice = config.voice;
   const speed = config.speed ?? 1;
+  const blend = parseKokoroVoiceSpec(voice);
+  const primaryId = blend.primaryId;
+  const mixedData = await resolveVoiceData(voice);
 
   // Use stream() instead of generate() to avoid 511-token truncation.
   // generate() silently truncates at ~511 tokens via tokenizer({truncation:true}).
@@ -44,8 +111,8 @@ async function main() {
   const splitter = new TextSplitterStream();
   const wavChunks: Uint8Array[] = [];
 
-  if (isKokoroEnglishVoice(voice)) {
-    const stream = tts.stream(splitter, { voice: voice as "af_heart", speed });
+  if (isKokoroEnglishVoice(primaryId) && !mixedData) {
+    const stream = tts.stream(splitter, { voice: primaryId as "af_heart", speed });
     splitter.push(config.text);
     splitter.close();
     for await (const { audio } of stream) {
@@ -55,15 +122,14 @@ async function main() {
     // kokoro-js 1.2.1 only catalogs en-US/en-GB and its phonemizer.js WASM is
     // English-only ("es" throws). Use multilingual espeak-ng, then skip the
     // frozen VOICES check via generate_from_ids (ONNX ships ef_dora.bin etc.).
-    const lang = KOKORO_LANG_TO_PHONEME[voice.at(0) ?? "e"] ?? "es";
+    const lang = KOKORO_LANG_TO_PHONEME[primaryId.at(0) ?? "e"] ?? "es";
     splitter.push(config.text);
     splitter.close();
     for await (const sentence of splitter) {
       const clause = /[.!?…]\s*$/.test(sentence) ? sentence : `${sentence.trimEnd()}.`;
       const phonemeStr = await phonemizeForKokoro(clause, lang);
       const { input_ids } = tts.tokenizer(phonemeStr, { truncation: true });
-      const audio = await tts.generate_from_ids(input_ids, { voice: voice as "af_heart", speed });
-      wavChunks.push(new Uint8Array(audio.toWav()));
+      wavChunks.push(await generateWavFromIds(tts as unknown as KokoroRuntime, input_ids, primaryId, mixedData, speed));
     }
   }
 

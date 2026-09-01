@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api, type ProviderOptions } from "@/hooks/useApi";
 import { Loader2, FlaskConical, Cpu, Mic, Image, Video } from "lucide-react";
+import { KokoroVoiceMixer } from "@/components/new-short/KokoroVoiceMixer";
 import { cn } from "@/lib/utils";
 
 // ─── Pricing types & defaults ─────────────────────────────────────────────────
@@ -299,7 +300,7 @@ export function LabPage() {
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Proveedor</label>
-              <Select value={llmProvider} onValueChange={setLlmProvider}>
+              <Select value={llmProvider} onValueChange={(v) => v && setLlmProvider(v)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {llmProviders.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
@@ -351,7 +352,7 @@ export function LabPage() {
         <TabsContent value="tts" className="space-y-3">
           <div>
             <label className="mb-1.5 block text-[12px] text-muted-foreground">Proveedor</label>
-            <Select value={ttsProvider} onValueChange={(v) => { setTtsProvider(v); setTtsVoice(""); }}>
+            <Select value={ttsProvider} onValueChange={(v) => { if (v) { setTtsProvider(v); setTtsVoice(""); } }}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {ttsProviders.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
@@ -363,7 +364,7 @@ export function LabPage() {
           {ttsProvider === "gemini-tts" && providers?.geminiTtsVoices && (
             <div>
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Voz</label>
-              <Select value={ttsVoice || "Kore"} onValueChange={setTtsVoice}>
+              <Select value={ttsVoice || "Kore"} onValueChange={(v) => v && setTtsVoice(v)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
@@ -388,7 +389,7 @@ export function LabPage() {
             <>
               <div>
                 <label className="mb-1.5 block text-[12px] text-muted-foreground">Voz</label>
-                <Select value={ttsVoice || "eve"} onValueChange={setTtsVoice}>
+                <Select value={ttsVoice || "eve"} onValueChange={(v) => v && setTtsVoice(v)}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
@@ -424,45 +425,13 @@ export function LabPage() {
           )}
 
           {ttsProvider === "kokoro" && providers?.kokoroVoices && (
-            <>
-              <div>
-                <label className="mb-1.5 block text-[12px] text-muted-foreground">Voz</label>
-                <Select value={ttsVoice || "ef_dora"} onValueChange={setTtsVoice}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectLabel>Español</SelectLabel>
-                      {providers.kokoroVoices.filter(v => v.language === "es").map(v => (
-                        <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
-                      ))}
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel>English US</SelectLabel>
-                      {providers.kokoroVoices.filter(v => v.language === "en-us").map(v => (
-                        <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
-                      ))}
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel>English UK</SelectLabel>
-                      {providers.kokoroVoices.filter(v => v.language === "en-gb").map(v => (
-                        <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-[12px] text-muted-foreground">
-                  Velocidad: {ttsSpeed.toFixed(1)}x
-                </label>
-                <input
-                  type="range" min="0.7" max="1.5" step="0.1"
-                  value={ttsSpeed}
-                  onChange={e => setTtsSpeed(Number(e.target.value))}
-                  className="w-full accent-primary"
-                />
-              </div>
-            </>
+            <KokoroVoiceMixer
+              voices={providers.kokoroVoices}
+              value={ttsVoice || "ef_dora"}
+              onChange={setTtsVoice}
+              speed={ttsSpeed}
+              onSpeedChange={setTtsSpeed}
+            />
           )}
 
           <div>
@@ -500,7 +469,7 @@ export function LabPage() {
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Proveedor</label>
-              <Select value={imgProvider} onValueChange={setImgProvider}>
+              <Select value={imgProvider} onValueChange={(v) => v && setImgProvider(v)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {imgProviders.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
@@ -509,7 +478,7 @@ export function LabPage() {
             </div>
             <div className="w-32">
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Proporción</label>
-              <Select value={imgAspect} onValueChange={setImgAspect}>
+              <Select value={imgAspect} onValueChange={(v) => v && setImgAspect(v)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="9:16">9:16 Vertical</SelectItem>
@@ -527,6 +496,7 @@ export function LabPage() {
                 <Select
                   value={imgModel}
                   onValueChange={(v) => {
+                    if (!v) return;
                     setImgModel(v);
                     const spec = providers?.runpodImageModels?.find((m) => m.id === v);
                     if (spec?.defaultSteps) setImgSteps(spec.defaultSteps);
@@ -594,7 +564,7 @@ export function LabPage() {
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Proveedor</label>
-              <Select value={vidProvider} onValueChange={setVidProvider}>
+              <Select value={vidProvider} onValueChange={(v) => v && setVidProvider(v)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {vidProviders.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
@@ -603,7 +573,7 @@ export function LabPage() {
             </div>
             <div className="w-32">
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Proporción</label>
-              <Select value={vidAspect} onValueChange={setVidAspect}>
+              <Select value={vidAspect} onValueChange={(v) => v && setVidAspect(v)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="9:16">9:16 Vertical</SelectItem>
@@ -632,6 +602,7 @@ export function LabPage() {
                 <Select
                   value={vidModel}
                   onValueChange={(v) => {
+                    if (!v) return;
                     setVidModel(v);
                     const spec = providers?.runpodVideoModels?.find((m) => m.id === v);
                     if (spec?.resolutions[0]) setVidResolution(spec.resolutions[0]);
@@ -650,7 +621,7 @@ export function LabPage() {
               </div>
               <div>
                 <label className="mb-1.5 block text-[12px] text-muted-foreground">Resolución</label>
-                <Select value={vidResolution} onValueChange={setVidResolution}>
+                <Select value={vidResolution} onValueChange={(v) => v && setVidResolution(v)}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {(providers?.runpodVideoModels?.find((m) => m.id === vidModel)?.resolutions ?? ["720p"]).map((r) => (
