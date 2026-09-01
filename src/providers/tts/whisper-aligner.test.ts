@@ -203,8 +203,34 @@ describe("WhisperAligner", () => {
       });
     });
 
-    it("uses the multilingual whisper-small model", () => {
-      expect(WhisperAligner.MODEL_ID).toBe("onnx-community/whisper-small");
+    it("uses the multilingual timestamped whisper-small model", () => {
+      expect(WhisperAligner.MODEL_ID).toBe("onnx-community/whisper-small_timestamped");
+    });
+
+    it("falls back to duration timestamps when the model lacks cross attentions", async () => {
+      mockTranscriber.mockRejectedValueOnce(
+        new Error(
+          "Model outputs must contain cross attentions to extract timestamps. This is most likely because the model was not exported with `output_attentions=True`.",
+        ),
+      );
+      const audio = Buffer.from("fake audio data");
+      const result = await aligner.align(audio, "Hola mundo");
+      expect(result).toHaveLength(2);
+      expect(result[0]!.word).toBe("Hola");
+      expect(result[1]!.word).toBe("mundo");
+      expect(result[1]!.end).toBeGreaterThan(0);
+    });
+
+    it("hints Spanish to Whisper when the transcript has accents", async () => {
+      const audio = Buffer.from("fake audio data");
+      await aligner.align(audio, "Hola información");
+      expect(mockTranscriber).toHaveBeenCalledWith(
+        expect.any(Float32Array),
+        expect.objectContaining({
+          return_timestamps: "word",
+          language: "spanish",
+        }),
+      );
     });
   });
 });
