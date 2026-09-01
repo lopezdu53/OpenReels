@@ -73,6 +73,16 @@ export function validateEnv(opts: {
       signupUrl: "https://tavily.com/",
       required: opts.searchProvider === "tavily",
     },
+    {
+      key: "XAI_API_KEY",
+      provider: "xAI Grok (LLM/TTS/Image/Video)",
+      signupUrl: "https://console.x.ai/",
+      required:
+        opts.provider === "grok" ||
+        opts.imageProvider === "grok" ||
+        opts.ttsProvider === "grok-tts" ||
+        opts.videoProvider === "grok",
+    },
   ];
 
   const missing = requirements.filter((r) => r.required && !process.env[r.key]);
@@ -90,7 +100,9 @@ export function validateEnv(opts: {
 
   // Warn when openrouter/openai-compatible without explicit search provider and no Tavily key
   const needsSearchWarning =
-    (opts.provider === "openrouter" || opts.provider === "openai-compatible") &&
+    (opts.provider === "openrouter" ||
+      opts.provider === "openai-compatible" ||
+      opts.provider === "grok") &&
     !opts.searchProvider &&
     !process.env["TAVILY_API_KEY"];
   if (needsSearchWarning) {

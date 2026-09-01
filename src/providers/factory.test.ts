@@ -19,6 +19,9 @@ import { GeminiTTS } from "./tts/gemini.js";
 import { InworldTTS } from "./tts/inworld.js";
 import { KokoroTTS } from "./tts/kokoro.js";
 import { OpenAITTS } from "./tts/openai.js";
+import { GrokTTS } from "./tts/grok.js";
+import { GrokLLM } from "./llm/grok.js";
+import { GrokImage } from "./image/grok.js";
 
 vi.mock("./llm/anthropic.js", () => ({
   AnthropicLLM: vi.fn().mockImplementation(() => ({ id: "anthropic", generate: vi.fn() })),
@@ -43,6 +46,17 @@ vi.mock("./tts/gemini.js", () => ({
 }));
 vi.mock("./tts/openai.js", () => ({
   OpenAITTS: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
+}));
+vi.mock("./tts/grok.js", () => ({
+  GrokTTS: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
+  GROK_TTS_VOICES: [],
+  GROK_TTS_MODELS: [],
+}));
+vi.mock("./llm/grok.js", () => ({
+  GrokLLM: vi.fn().mockImplementation(() => ({ id: "grok", generate: vi.fn() })),
+}));
+vi.mock("./image/grok.js", () => ({
+  GrokImage: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
 }));
 vi.mock("./tts/aligned-tts-provider.js", () => ({
   AlignedTTSProvider: vi.fn().mockImplementation((inner) => ({ generate: vi.fn(), _inner: inner })),
@@ -88,6 +102,9 @@ vi.mock("./video/gemini.js", () => ({
 }));
 vi.mock("./video/fal.js", () => ({
   FalVideo: vi.fn().mockImplementation(() => ({ supportedDurations: [5, 10], generate: vi.fn() })),
+}));
+vi.mock("./video/grok.js", () => ({
+  GrokVideo: vi.fn().mockImplementation(() => ({ supportedDurations: [5, 6, 8, 10], generate: vi.fn() })),
 }));
 
 describe("createProviders", () => {
@@ -470,5 +487,38 @@ describe("createProviders", () => {
     process.env["FAL_API_KEY"] = origFal ?? "";
     if (!origGoogle) delete process.env["GOOGLE_API_KEY"];
     if (!origFal) delete process.env["FAL_API_KEY"];
+  });
+
+  it("creates GrokLLM when llm config is grok", () => {
+    createProviders({
+      llm: "grok",
+      tts: "elevenlabs",
+      image: "gemini",
+      keys: { XAI_API_KEY: "test-xai-key" },
+    });
+    expect(GrokLLM).toHaveBeenCalledWith(undefined, "test-xai-key", {});
+  });
+
+  it("wraps GrokTTS in AlignedTTSProvider", () => {
+    createProviders({
+      llm: "anthropic",
+      tts: "grok-tts",
+      image: "gemini",
+      grokTtsVoice: "ara",
+      grokTtsSpeed: 1.2,
+      keys: { XAI_API_KEY: "test-xai-key" },
+    });
+    expect(GrokTTS).toHaveBeenCalledWith(undefined, "ara", "test-xai-key", 1.2);
+    expect(AlignedTTSProvider).toHaveBeenCalled();
+  });
+
+  it("creates GrokImage when image config is grok", () => {
+    createProviders({
+      llm: "anthropic",
+      tts: "elevenlabs",
+      image: "grok",
+      keys: { XAI_API_KEY: "test-xai-key" },
+    });
+    expect(GrokImage).toHaveBeenCalledWith(undefined, "test-xai-key");
   });
 });

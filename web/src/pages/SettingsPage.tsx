@@ -14,6 +14,8 @@ const API_KEY_FIELDS = [
   { key: "PIXABAY_API_KEY", label: "Pixabay (Stock)" },
   { key: "VIVI_LLM_API_KEY", label: "VIVI AI (LLM)" },
   { key: "VIVI_IMAGE_API_KEY", label: "VIVI AI (Image)" },
+  { key: "XAI_API_KEY", label: "xAI Grok (LLM/TTS/Image/Video)" },
+  { key: "TAVILY_API_KEY", label: "Tavily (Web Search)" },
 ];
 
 interface HealthData {

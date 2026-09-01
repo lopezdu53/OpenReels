@@ -96,6 +96,7 @@ export function parseArgs(): CLIOptions {
           "openai-compatible",
           "google",
           "local",
+          "grok",
         ])
         .default("anthropic"),
     )
@@ -115,12 +116,12 @@ export function parseArgs(): CLIOptions {
     )
     .addOption(
       new Option("-i, --image-provider <provider>", "Image generation provider")
-        .choices(["gemini", "openai"])
+        .choices(["gemini", "openai", "grok"])
         .default("gemini"),
     )
     .addOption(
       new Option("--tts-provider <provider>", "TTS provider")
-        .choices(["elevenlabs", "inworld", "kokoro", "gemini-tts", "openai-tts"])
+        .choices(["elevenlabs", "inworld", "kokoro", "gemini-tts", "openai-tts", "grok-tts"])
         .default("elevenlabs"),
     )
     .option(
@@ -162,6 +163,7 @@ export function parseArgs(): CLIOptions {
       new Option("--video-provider <provider>", "Video generation provider").choices([
         "gemini",
         "fal",
+        "grok",
       ]),
     )
     .option(

@@ -409,7 +409,7 @@ function buildPipelineWorkflow(
         return output.data;
       } catch (err) {
         const dur = (Date.now() - start) / 1000;
-        cb.onStageSkip?.("research", "web search failed");
+        cb.onStageSkip?.("research", `web search failed: ${err instanceof Error ? err.message : String(err)}`);
         log.stages.push({ name: "research", duration: dur, status: "skipped", error: String(err) });
         return {
           summary: `Topic: ${inputData.topic}`,

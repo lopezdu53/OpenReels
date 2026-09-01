@@ -68,12 +68,14 @@ const DISPLAY_NAMES: Record<string, string> = {
   openrouter: "OpenRouter",
   "openai-compatible": "Custom (OpenAI-compatible)",
   alicloud: "Alibaba Cloud",
+  grok: "Grok (xAI)",
   // TTS
   elevenlabs: "ElevenLabs",
   inworld: "Inworld",
   kokoro: "Kokoro (Local)",
   "gemini-tts": "Gemini TTS",
   "openai-tts": "OpenAI TTS",
+  "grok-tts": "Grok TTS",
   // Music
   bundled: "Bundled (Free)",
   lyria: "Lyria 3 Pro",
@@ -538,14 +540,20 @@ export function HomePage() {
                   )}
 
                   {/* Conditional LLM config fields */}
-                  {(llmProvider === "openrouter" || llmProvider === "openai-compatible") && (
+                  {(llmProvider === "openrouter" || llmProvider === "openai-compatible" || llmProvider === "grok") && (
                     <div>
                       <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                         Model ID
                       </label>
                       <Input
                         className="h-9 rounded-lg text-sm"
-                        placeholder={llmProvider === "openrouter" ? "anthropic/claude-sonnet-4" : "llama3:8b"}
+                        placeholder={
+                          llmProvider === "openrouter"
+                            ? "anthropic/claude-sonnet-4"
+                            : llmProvider === "grok"
+                              ? "grok-4"
+                              : "llama3:8b"
+                        }
                         value={llmModel}
                         onChange={(e) => setLlmModel(e.target.value)}
                       />

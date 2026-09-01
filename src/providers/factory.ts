@@ -23,12 +23,14 @@ import { AliCloudImage } from "./image/alicloud.js";
 import { FalImage } from "./image/fal.js";
 import { FallbackImageProvider } from "./image/fallback.js";
 import { GeminiImage } from "./image/gemini.js";
+import { GrokImage } from "./image/grok.js";
 import { OpenAIImage } from "./image/openai.js";
 import { RunPodImage } from "./image/runpod.js";
 import { ViviImage } from "./image/vivi.js";
 import { AliCloudLLM } from "./llm/alicloud.js";
 import { AnthropicLLM } from "./llm/anthropic.js";
 import { GeminiLLM } from "./llm/gemini.js";
+import { GrokLLM } from "./llm/grok.js";
 import { OpenAILLM } from "./llm/openai.js";
 import { OpenAICompatibleLLM } from "./llm/openai-compatible.js";
 import { OpenRouterLLM } from "./llm/openrouter.js";
@@ -158,6 +160,9 @@ export function createProviders(config: ProviderConfig): Providers {
     case "alicloud":
       llm = new AliCloudLLM(config.llmModel, k["ALICLOUD_API_KEY"], searchTools);
       break;
+    case "grok":
+      llm = new GrokLLM(config.llmModel, k["XAI_API_KEY"], searchTools);
+      break;
     default:
       llm = new AnthropicLLM(config.llmModel, k["ANTHROPIC_API_KEY"], searchTools);
       break;
@@ -206,6 +211,7 @@ export function createProviders(config: ProviderConfig): Providers {
   const runpodKey = k["RUNPOD_API_KEY"] ?? process.env["RUNPOD_API_KEY"];
   const runpodImageEndpoint = k["RUNPOD_IMAGE_ENDPOINT_ID"] ?? process.env["RUNPOD_IMAGE_ENDPOINT_ID"];
   const runpodVideoEndpoint = k["RUNPOD_VIDEO_ENDPOINT_ID"] ?? process.env["RUNPOD_VIDEO_ENDPOINT_ID"];
+  const xaiKey = k["XAI_API_KEY"] ?? process.env["XAI_API_KEY"];
 
   let imageGen: ImageProvider;
   if (config.image === "fal") {
@@ -227,6 +233,11 @@ export function createProviders(config: ProviderConfig): Providers {
     const primary = new ViviImage(undefined, viviKey);
     imageGen = googleKey
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "vivi", "gemini")
+      : primary;
+  } else if (config.image === "grok") {
+    const primary = new GrokImage(undefined, xaiKey);
+    imageGen = googleKey
+      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "grok", "gemini")
       : primary;
   } else if (config.image === "alicloud") {
     const primary = new AliCloudImage(undefined, alicloudKey);
@@ -269,7 +280,6 @@ export function createProviders(config: ProviderConfig): Providers {
   const falKey = k["FAL_API_KEY"] ?? process.env["FAL_API_KEY"];
   const viviVideoKey = k["VIVI_VIDEO_API_KEY"] ?? process.env["VIVI_VIDEO_API_KEY"] ?? k["VIVI_LLM_API_KEY"] ?? process.env["VIVI_LLM_API_KEY"];
   const viduKey = k["VIDU_API_KEY"] ?? process.env["VIDU_API_KEY"];
-  const xaiKey = k["XAI_API_KEY"] ?? process.env["XAI_API_KEY"];
   const videoPrimary = config.video ?? (googleKey ? "gemini" : xaiKey ? "grok" : viduKey ? "vidu" : viviVideoKey ? "vivi" : falKey ? "fal" : alicloudKey ? "alicloud-wan-turbo" : undefined);
 
   const ALICLOUD_VIDEO_MODELS: Record<string, string> = {
@@ -373,6 +383,21 @@ export function createVerificationModel(
       if (!key) throw new Error("VIVI_LLM_API_KEY is required for VIVI provider");
       const vivi = createOpenAICompatible({ name: "vivi", baseURL: "https://api.viviai.cc/v1", apiKey: key });
       return vivi(model ?? "claude-sonnet-4-6");
+    }
+    case "grok": {
+      const key = apiKey ?? process.env["XAI_API_KEY"];
+      if (!key) throw new Error("XAI_API_KEY is required for Grok provider");
+      const grok = createOpenAICompatible({ name: "grok", baseURL: "https://api.x.ai/v1", apiKey: key });
+      return grok(model ?? "grok-4");
+    }
+    case "alicloud": {
+      const key = apiKey ?? process.env["ALICLOUD_API_KEY"];
+      const baseUrl =
+        process.env["ALICLOUD_BASE_URL"] ??
+        "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1";
+      if (!key) throw new Error("ALICLOUD_API_KEY is required for AliCloud provider");
+      const alicloud = createOpenAICompatible({ name: "alicloud", baseURL: baseUrl, apiKey: key });
+      return alicloud(model ?? "qwen3.6-flash");
     }
     case "openai-compatible": {
       const baseUrl = process.env["OPENREELS_LLM_BASE_URL"];

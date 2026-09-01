@@ -554,7 +554,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   fal: "fal.ai FLUX",
   // Video
   fal_video: "Kling 2.6",
-  grok: "Grok Video",
+  grok: "Grok",
   vidu: "VIDU",
   "vidu-q2-fast": "VIDU Q2 Fast",
   "vidu-q3-fast": "VIDU Q3 Fast",

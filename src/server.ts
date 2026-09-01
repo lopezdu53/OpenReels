@@ -22,6 +22,7 @@ import { OpenAILLM } from "./providers/llm/openai.js";
 import { OpenRouterLLM } from "./providers/llm/openrouter.js";
 import { ViviLLM } from "./providers/llm/vivi.js";
 import { AliCloudLLM } from "./providers/llm/alicloud.js";
+import { GrokLLM } from "./providers/llm/grok.js";
 import { ElevenLabsTTS } from "./providers/tts/elevenlabs.js";
 import { GeminiTTS } from "./providers/tts/gemini.js";
 import { OpenAITTS } from "./providers/tts/openai.js";
@@ -32,6 +33,7 @@ import { OpenAIImage } from "./providers/image/openai.js";
 import { ViviImage } from "./providers/image/vivi.js";
 import { AliCloudImage } from "./providers/image/alicloud.js";
 import { FalImage } from "./providers/image/fal.js";
+import { GrokImage } from "./providers/image/grok.js";
 import { RunPodImage } from "./providers/image/runpod.js";
 import { GeminiVideo } from "./providers/video/gemini.js";
 import { GrokVideo } from "./providers/video/grok.js";
@@ -96,6 +98,7 @@ app.get("/api/v1/health", async () => {
       VIVI_VIDEO_API_KEY: !!process.env["VIVI_VIDEO_API_KEY"],
       ALICLOUD_API_KEY: !!process.env["ALICLOUD_API_KEY"],
       VIDU_API_KEY: !!process.env["VIDU_API_KEY"],
+      TAVILY_API_KEY: !!process.env["TAVILY_API_KEY"],
       XAI_API_KEY: !!process.env["XAI_API_KEY"],
     },
   };
@@ -186,6 +189,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "openai-compatible", label: "Custom (OpenAI-compatible)" },
     { key: "vivi", label: "VIVI (Claude)" },
     { key: "alicloud", label: "Alibaba Cloud" },
+    { key: "grok", label: "Grok (xAI)" },
   ],
   search: [
     { key: "native", label: "Native (provider built-in)" },
@@ -208,6 +212,7 @@ app.get("/api/v1/providers", async () => ({
   image: [
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI (GPT Image)" },
+    { key: "grok", label: "Grok Imagine Image" },
     { key: "vivi", label: "VIVI (Gemini)" },
     { key: "alicloud", label: "Alibaba Cloud" },
     { key: "runpod", label: "RunPod Serverless" },
@@ -215,7 +220,7 @@ app.get("/api/v1/providers", async () => ({
   ],
   video: [
     { key: "gemini", label: "Google Veo" },
-    { key: "grok", label: "Grok Imagine Video" },
+    { key: "grok", label: "Grok Imagine Video 1.5" },
     { key: "vivi", label: "VIVI (Grok Video 3)" },
     { key: "fal", label: "fal.ai (Kling 2.6 Pro)" },
     { key: "vidu-q2-fast", label: "VIDU Q2 Fast (~27cr/5s)" },
@@ -240,6 +245,7 @@ app.post("/api/v1/test/llm", async (request, reply) => {
         case "openrouter": return new OpenRouterLLM(model);
         case "vivi": return new ViviLLM(model);
         case "alicloud": return new AliCloudLLM(model);
+        case "grok": return new GrokLLM(model);
         default: return new AnthropicLLM(model);
       }
     })();
@@ -289,6 +295,7 @@ app.post("/api/v1/test/image", async (request, reply) => {
     const imageGen = (() => {
       switch (provider) {
         case "openai": return new OpenAIImage();
+        case "grok": return new GrokImage();
         case "vivi": return new ViviImage();
         case "alicloud": return new AliCloudImage();
         case "runpod": return new RunPodImage();

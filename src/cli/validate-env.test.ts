@@ -292,4 +292,34 @@ describe("validateEnv", () => {
     delete process.env["ELEVENLABS_API_KEY"];
     delete process.env["GOOGLE_API_KEY"];
   });
+
+  it("requires XAI_API_KEY when --provider grok", () => {
+    delete process.env["XAI_API_KEY"];
+    process.env["ELEVENLABS_API_KEY"] = "test";
+    process.env["GOOGLE_API_KEY"] = "test";
+
+    validateEnv({ provider: "grok", ttsProvider: "elevenlabs", imageProvider: "gemini" });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = errorSpy.mock.calls.flat().join("");
+    expect(output).toContain("XAI_API_KEY");
+
+    delete process.env["ELEVENLABS_API_KEY"];
+    delete process.env["GOOGLE_API_KEY"];
+  });
+
+  it("requires XAI_API_KEY when --tts-provider grok-tts", () => {
+    process.env["ANTHROPIC_API_KEY"] = "test";
+    process.env["GOOGLE_API_KEY"] = "test";
+    delete process.env["XAI_API_KEY"];
+
+    validateEnv({ provider: "anthropic", ttsProvider: "grok-tts", imageProvider: "gemini" });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = errorSpy.mock.calls.flat().join("");
+    expect(output).toContain("XAI_API_KEY");
+
+    delete process.env["ANTHROPIC_API_KEY"];
+    delete process.env["GOOGLE_API_KEY"];
+  });
 });

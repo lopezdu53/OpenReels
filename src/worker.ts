@@ -301,6 +301,9 @@ const worker = new Worker<JobData>(
       gemini: "GOOGLE_API_KEY",
       openrouter: "OPENROUTER_API_KEY",
       "openai-compatible": "OPENREELS_LLM_API_KEY",
+      vivi: "VIVI_LLM_API_KEY",
+      alicloud: "ALICLOUD_API_KEY",
+      grok: "XAI_API_KEY",
     };
     const llmKeyName = LLM_KEY_MAP[providers.llm] ?? "ANTHROPIC_API_KEY";
     const llmKey = keys[llmKeyName];
