@@ -1,14 +1,16 @@
 import { DollarSign } from "lucide-react";
 import { formatCop, formatUsd, type JobCostPreview } from "@/lib/job-cost-preview";
+import { formatViviRateNote } from "@/lib/vivi-prices";
 
 interface CostEstimatePanelProps {
   preview: JobCostPreview;
   usdToCop: number;
   rateNote: string;
   dryRun?: boolean;
+  usesVivi?: boolean;
 }
 
-export function CostEstimatePanel({ preview, usdToCop, rateNote, dryRun }: CostEstimatePanelProps) {
+export function CostEstimatePanel({ preview, usdToCop, rateNote, dryRun, usesVivi }: CostEstimatePanelProps) {
   const cop = preview.totalUsd * usdToCop;
   const maxLine = Math.max(...preview.lines.map((l) => l.usd), 0.001);
 
@@ -29,6 +31,12 @@ export function CostEstimatePanel({ preview, usdToCop, rateNote, dryRun }: CostE
       {dryRun ? (
         <p className="mb-4 rounded-lg border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
           Dry run: no se generan medios ni render. Costo real ≈ $0.
+        </p>
+      ) : null}
+
+      {usesVivi && !dryRun ? (
+        <p className="mb-4 rounded-lg border border-primary/20 bg-primary/10 px-3 py-2 text-[11px] text-muted-foreground">
+          {formatViviRateNote()}. LLM ¥3/¥15 por 1M tokens; imagen ¥0.15/call.
         </p>
       ) : null}
 

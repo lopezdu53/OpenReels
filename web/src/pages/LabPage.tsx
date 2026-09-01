@@ -7,6 +7,7 @@ import { api, type ProviderOptions } from "@/hooks/useApi";
 import { Loader2, FlaskConical, Cpu, Mic, Image, Video } from "lucide-react";
 import { KokoroVoiceMixer } from "@/components/new-short/KokoroVoiceMixer";
 import { cn } from "@/lib/utils";
+import { VIVI_IMAGE_CNY, VIVI_LLM_CNY, yuanToUsd } from "@/lib/vivi-prices";
 
 // ─── Pricing types & defaults ─────────────────────────────────────────────────
 
@@ -23,7 +24,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     openai:     { inputPer1M: 2.5,  outputPer1M: 10.0 },
     gemini:     { inputPer1M: 0.1,  outputPer1M: 0.4  },
     openrouter: { inputPer1M: 2.0,  outputPer1M: 6.0  },
-    vivi:       { inputPer1M: 3.0,  outputPer1M: 15.0 },
+    vivi:       { inputPer1M: yuanToUsd(VIVI_LLM_CNY.inputPer1M), outputPer1M: yuanToUsd(VIVI_LLM_CNY.outputPer1M) },
     alicloud:   { inputPer1M: 0.5,  outputPer1M: 2.0  },
     grok:       { inputPer1M: 3.0,  outputPer1M: 15.0 },
   },
@@ -39,7 +40,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     gemini:   { perImage: 0.04 },
     openai:   { perImage: 0.08 },
     grok:     { perImage: 0.04 },
-    vivi:     { perImage: 0.04 },
+    vivi:     { perImage: yuanToUsd(VIVI_IMAGE_CNY.perImage) },
     alicloud: { perImage: 0.05 },
     runpod:   { perImage: 0.003 },
   },
@@ -52,7 +53,7 @@ export const DEFAULT_PRICES: ApiPrices = {
   },
 };
 
-export const PRICING_KEY = "openreels_api_prices";
+export const PRICING_KEY = "openreels_api_prices_v2";
 
 export function loadPrices(): ApiPrices {
   try {

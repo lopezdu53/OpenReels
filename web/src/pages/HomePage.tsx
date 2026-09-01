@@ -79,6 +79,7 @@ const DISPLAY_NAMES: Record<string, string> = {
   "openai-compatible": "Custom (OpenAI-compatible)",
   alicloud: "Alibaba Cloud",
   grok: "Grok (xAI)",
+  vivi: "VIVI",
   elevenlabs: "ElevenLabs",
   inworld: "Inworld",
   kokoro: "Kokoro (Local)",
@@ -106,6 +107,7 @@ const FALLBACK = {
     { key: "gemini", label: "Google Gemini" },
     { key: "openrouter", label: "OpenRouter" },
     { key: "grok", label: "Grok (xAI)" },
+    { key: "vivi", label: "VIVI (Claude)" },
     { key: "alicloud", label: "Alibaba Cloud" },
   ],
   tts: [
@@ -120,12 +122,14 @@ const FALLBACK = {
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI" },
     { key: "grok", label: "Grok Imagine" },
+    { key: "vivi", label: "VIVI (Gemini Image)" },
     { key: "runpod", label: "RunPod (público)" },
   ],
   video: [
     { key: "gemini", label: "Veo (Gemini)" },
     { key: "fal", label: "fal.ai (Kling)" },
     { key: "grok", label: "Grok Imagine Video" },
+    { key: "vivi", label: "VIVI (Grok Video)" },
     { key: "runpod", label: "RunPod (público)" },
   ],
   search: [
@@ -828,6 +832,7 @@ export function HomePage() {
               preview={costPreview}
               usdToCop={usdToCop}
               dryRun={dryRun}
+              usesVivi={llmProvider === "vivi" || imageProvider === "vivi" || videoProvider === "vivi"}
               rateNote={rateLive ? `${usdToCop.toFixed(0)} COP/USD` : `~${usdToCop.toFixed(0)} COP/USD`}
             />
             <Button type="submit" disabled={!hasTopic || loading}

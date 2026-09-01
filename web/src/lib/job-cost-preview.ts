@@ -1,4 +1,5 @@
 import type { ApiPrices } from "@/pages/LabPage";
+import { VIVI_IMAGE_CNY, VIVI_LLM_CNY } from "@/lib/vivi-prices";
 
 export interface JobCostPreviewInput {
   llm: string;
@@ -112,9 +113,23 @@ export function estimateJobCost(input: JobCostPreviewInput, prices: ApiPrices): 
   const musicCost = input.music === "lyria" ? 0.08 : 0;
 
   const lines: JobCostLine[] = [
-    { id: "llm", label: "Guion / LLM", usd: llmCost, detail: `${input.llm}` },
+    {
+      id: "llm",
+      label: "Guion / LLM",
+      usd: llmCost,
+      detail: input.llm === "vivi"
+        ? `vivi · ¥${VIVI_LLM_CNY.inputPer1M}/¥${VIVI_LLM_CNY.outputPer1M} por 1M`
+        : `${input.llm}`,
+    },
     { id: "tts", label: "Voz / TTS", usd: ttsCost, detail: `~${ttsCharacters} caracteres` },
-    { id: "image", label: "Imágenes", usd: imageCost, detail: `${aiImages} IA × $${perImage.toFixed(3)}` },
+    {
+      id: "image",
+      label: "Imágenes",
+      usd: imageCost,
+      detail: input.image === "vivi"
+        ? `${aiImages} IA × ¥${VIVI_IMAGE_CNY.perImage}`
+        : `${aiImages} IA × $${perImage.toFixed(3)}`,
+    },
     { id: "video", label: "Video IA", usd: videoCost, detail: hasVideo ? `${aiVideos} clips × 6s` : "sin AI video" },
     { id: "music", label: "Música", usd: musicCost, detail: input.music === "lyria" ? "Lyria 3 Pro" : "bundled (gratis)" },
   ];
