@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type IORedis from "ioredis";
+import { countdownToYpp, YPP } from "../learning/ypp.js";
 import { countPublicationsOn, listSocialPublic } from "../publish/accounts.js";
 import { countByDay, listUserJobs, streakDays } from "./jobs.js";
 import {
@@ -130,43 +131,57 @@ export async function registerAuth(app: FastifyInstance, redis: IORedis | null):
   app.get("/api/v1/me/dashboard", async (request: AuthedRequest, reply) => {
     const record = request.userRecord;
     if (!record) return reply.status(401).send({ error: "Inicia sesión" });
+    const checkins = record.checkins ?? {};
+    const clonedChannels = record.clonedChannels ?? [];
+    const clonedVideos = record.clonedVideos ?? [];
+    const goal = record.dailyGoal || 4;
+    let jobs: Awaited<ReturnType<typeof listUserJobs>> = [];
+    let jobsWarning = "";
     try {
-      const jobs = await listUserJobs(record.id);
+      jobs = await listUserJobs(record.id);
+    } catch (err) {
+      jobsWarning = err instanceof Error ? err.message : String(err);
+      request.log.warn({ err }, "listUserJobs failed");
+    }
+    let social: ReturnType<typeof listSocialPublic> = [];
+    try {
+      social = listSocialPublic(record.id);
+    } catch (err) {
+      request.log.warn({ err }, "listSocialPublic failed");
+    }
+    try {
       const week = countByDay(jobs, 7);
       const today = week[week.length - 1];
       const generatedToday = today?.generated ?? 0;
       const socialPosted = countPublicationsOn(record.id, todayKey());
-      const checkins = record.checkins ?? {};
-      const clonedChannels = record.clonedChannels ?? [];
-      const clonedVideos = record.clonedVideos ?? [];
       const posted = Math.max(checkins[todayKey()] ?? 0, socialPosted);
-      const progress = Math.min(record.dailyGoal, posted);
+      const progress = Math.min(goal, posted);
       const completed = jobs.filter((j) => j.status === "completed");
       const weekRows = week.map((d) => {
         const postedDay = Math.max(checkins[d.date] ?? 0, countPublicationsOn(record.id, d.date));
         return {
           ...d,
           posted: postedDay,
-          hit: postedDay >= record.dailyGoal,
+          hit: postedDay >= goal,
         };
       });
       return {
         user: toPublic(record),
-        dailyGoal: record.dailyGoal,
+        dailyGoal: goal,
         today: {
           date: todayKey(),
           generated: generatedToday,
           posted,
           progress,
-          goal: record.dailyGoal,
+          goal,
         },
         week: weekRows,
         streak: streakDays(
           weekRows.map((d) => ({ date: d.date, generated: d.posted })),
           {},
-          record.dailyGoal,
+          goal,
         ),
-        social: listSocialPublic(record.id),
+        social,
         clonedChannels,
         clonedVideos: clonedVideos.slice(0, 12),
         recentJobs: completed.slice(0, 8),
@@ -176,11 +191,29 @@ export async function registerAuth(app: FastifyInstance, redis: IORedis | null):
           scripts: clonedVideos.length,
         },
         countdown: countdownToYpp(),
+        ...(jobsWarning ? { warning: jobsWarning } : {}),
       };
     } catch (err) {
       request.log.error({ err }, "dashboard failed");
-      reply.status(500);
-      return { error: "No se pudo cargar el panel. Reintenta." };
+      const week = countByDay([], 7).map((d) => ({ ...d, posted: 0, hit: false }));
+      return {
+        user: toPublic(record),
+        dailyGoal: goal,
+        today: { date: todayKey(), generated: 0, posted: 0, progress: 0, goal },
+        week,
+        streak: 0,
+        social,
+        clonedChannels,
+        clonedVideos: clonedVideos.slice(0, 12),
+        recentJobs: [],
+        totals: {
+          videos: 0,
+          clones: clonedChannels.length,
+          scripts: clonedVideos.length,
+        },
+        countdown: countdownToYpp(),
+        warning: err instanceof Error ? err.message : String(err),
+      };
     }
   });
 

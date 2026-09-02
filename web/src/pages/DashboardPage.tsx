@@ -85,7 +85,14 @@ export function DashboardPage() {
   }
 
   if (error) {
-    return <p className="px-10 py-8 text-sm text-destructive">{error}</p>;
+    return (
+      <div className="px-10 py-8 space-y-3">
+        <p className="text-sm text-destructive">{error}</p>
+        <Button variant="outline" onClick={() => void load()}>
+          Reintentar
+        </Button>
+      </div>
+    );
   }
 
   if (!data) return null;
@@ -96,6 +103,11 @@ export function DashboardPage() {
 
   return (
     <div className="py-8 px-4 sm:px-10 max-w-[1100px] space-y-6">
+      {data.warning ? (
+        <p className="rounded-lg border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-[12px] text-status-warning">
+          {data.warning}
+        </p>
+      ) : null}
       <div className="flex items-start gap-3">
         <LayoutDashboard className="mt-0.5 size-6 text-primary" />
         <div>

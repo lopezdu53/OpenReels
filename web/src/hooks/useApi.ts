@@ -705,6 +705,7 @@ export interface DashboardData {
     minutes: number;
     seconds: number;
   };
+  warning?: string;
 }
 
 export type SocialPlatformId = "youtube" | "tiktok" | "facebook" | "x" | "bilibili";

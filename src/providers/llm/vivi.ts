@@ -3,6 +3,7 @@ import { generateText } from "ai";
 import type { LanguageModel } from "ai";
 import type { z } from "zod";
 import { BaseLLM } from "./base.js";
+import { parseLlmJson, schemaHint } from "./json-extract.js";
 import type { LLMResult } from "../../schema/providers.js";
 
 const VIVI_BASE_URL = "https://api.viviai.cc/v1";
@@ -50,13 +51,14 @@ export class ViviLLM extends BaseLLM {
 
     const systemWithJson =
       opts.systemPrompt +
-      "\n\nCRITICAL: Your entire response MUST be a single valid JSON object. No markdown fences, no explanation, no text before or after. Just the raw JSON.";
+      "\n\nCRITICAL: Your entire response MUST be a single valid JSON object. No markdown fences, no explanation, no text before or after. Just the raw JSON. Use the exact camelCase keys from the schema." +
+      schemaHint(opts.schema);
 
     const result = await generateText({
       model: languageModel,
       system: systemWithJson,
       prompt: opts.userMessage,
-      maxTokens: 32000,
+      maxOutputTokens: 32000,
     });
 
     const text = result.text.trim();
@@ -73,7 +75,7 @@ export class ViviLLM extends BaseLLM {
 
     const jsonStr = stripped.slice(start, end + 1);
     const parsed: unknown = JSON.parse(jsonStr);
-    const validated = opts.schema.parse(parsed) as z.infer<T>;
+    const validated = parseLlmJson(opts.schema, parsed);
 
     return {
       data: validated,

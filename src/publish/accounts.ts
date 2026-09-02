@@ -19,10 +19,21 @@ export function connected(acc: SocialAccount | undefined): boolean {
   return Boolean(acc.accessToken);
 }
 
+function publicationsOf(
+  user: ReturnType<typeof getUserById>,
+): SocialPublication[] {
+  const rows = user?.publications;
+  if (!Array.isArray(rows)) return [];
+  return rows.filter(
+    (p): p is SocialPublication =>
+      Boolean(p && typeof p === "object" && typeof p.platform === "string"),
+  );
+}
+
 export function listSocialPublic(userId: string): SocialPublic[] {
   const user = getUserById(userId);
   const today = todayKey();
-  const pubs = user?.publications ?? [];
+  const pubs = publicationsOf(user);
   return SOCIAL_PLATFORMS.map((platform) => {
     const acc = user?.social?.[platform];
     return {
@@ -48,7 +59,7 @@ export function listSocialPublic(userId: string): SocialPublic[] {
 export function countPublicationsOn(userId: string, date: string): number {
   const user = getUserById(userId);
   const seen = new Set<string>();
-  for (const p of user?.publications ?? []) {
+  for (const p of publicationsOf(user)) {
     if (p.status !== "ok" || typeof p.at !== "string" || !p.at.startsWith(date)) continue;
     const key = `${p.jobId}:${p.platform}`;
     if (seen.has(key)) continue;

@@ -92,8 +92,14 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
       });
       return { cloned };
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       reply.status(500);
-      return { error: err instanceof Error ? err.message : String(err) };
+      if (msg.includes("invalid_type") || msg.includes("expected")) {
+        return {
+          error: "Vivi no devolvió el JSON del clon (faltan campos). Reintenta Clonar canal.",
+        };
+      }
+      return { error: msg };
     }
   });
 

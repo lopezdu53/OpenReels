@@ -242,9 +242,12 @@ export async function cloneChannel(opts: {
       opts.polish?.trim()
         ? `\nCómo pulirlo: ${opts.polish.trim()}`
         : "\nPúlelo: tono cercano, títulos propios, diferenciación clara.",
-      "sourceChannel = nombre del canal de referencia.",
-      "polishNotes = qué cambiaste vs el original.",
-      "firstVideos = 5–8 ideas nuevas inspiradas en el formato, no copias.",
+      "sourceChannel = nombre del canal de referencia (string).",
+      "polishNotes = qué cambiaste vs el original (string).",
+      "firstVideos = array de 5–8 {title, hook, format:'short'|'long'} ideas NUEVAS.",
+      "Claves exactas camelCase: channelName, tagline, positioning, targetAudience, voiceTone, contentPillars, differentiation, monetization, firstMonthFocus, postingCadence, sourceChannel, polishNotes, firstVideos.",
+      "contentPillars = [{name, description, exampleTopics: string[]}]. monetization = {youtube, tiktok, facebook, bilibili}.",
+      "Responde un JSON plano (sin envolver en canal/cloned).",
     ]
       .filter(Boolean)
       .join("\n"),
@@ -276,6 +279,8 @@ export async function cloneContent(opts: {
       "script = locución 80–160 palabras si short, o 180–280 si long.",
       "Packs distintos para youtube, tiktok, bilibili, facebook (title, description, hashtags).",
       "sourceTitle y sourceChannel recuerdan la referencia; polishNotes explica el cambio.",
+      "Claves camelCase exactas: sourceTitle, sourceChannel, polishNotes, hook, script, visualNotes, youtube, tiktok, bilibili, facebook.",
+      "Cada pack de plataforma: {title, description, hashtags: string[]}. JSON plano, sin envolver.",
     ]
       .filter(Boolean)
       .join("\n"),

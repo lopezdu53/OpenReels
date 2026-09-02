@@ -61,9 +61,9 @@ describe("social publish + streak", () => {
     const user = await createUser({ email: "badpub@test.com", name: "P", password: "secret123" });
     const file = path.join(dir, "users", `${user.id}.json`);
     const raw = JSON.parse(readFileSync(file, "utf-8")) as {
-      publications?: Array<Record<string, unknown>>;
+      publications?: Array<Record<string, unknown> | null>;
     };
-    raw.publications = [{ jobId: "j1", platform: "youtube", status: "ok" }];
+    raw.publications = [{ jobId: "j1", platform: "youtube", status: "ok" }, null];
     writeFileSync(file, JSON.stringify(raw));
     expect(() => listSocialPublic(user.id)).not.toThrow();
     expect(countPublicationsOn(user.id, new Date().toISOString().slice(0, 10))).toBe(0);

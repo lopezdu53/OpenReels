@@ -106,9 +106,13 @@ function KeyDot({ ok, label }: { ok: boolean; label: string }) {
 }
 
 function ErrorBox({ msg }: { msg: string }) {
+  const friendly =
+    msg.includes("invalid_type") || msg.includes("expected string, received undefined")
+      ? "Vivi no devolvió el JSON del clon (faltan campos). Reintenta Clonar canal."
+      : msg;
   return (
-    <div className="rounded-[10px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
-      {msg}
+    <div className="rounded-[10px] border border-destructive/30 bg-destructive/10 px-4 py-3 text-[13px] text-destructive whitespace-pre-wrap break-words max-h-40 overflow-auto">
+      {friendly}
     </div>
   );
 }
