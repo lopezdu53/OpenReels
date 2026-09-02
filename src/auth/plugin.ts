@@ -14,14 +14,20 @@ import {
 import {
   authenticate,
   createUser,
+  ensureSuperadmin,
   getUserById,
+  isAdmin,
+  listUsers,
   type PublicUser,
   type StoredCloneChannel,
   type StoredCloneContent,
   saveUser,
+  setUserPassword,
+  toAdminRow,
   todayKey,
   toPublic,
   type UserRecord,
+  updateUser,
 } from "./store.js";
 
 export interface AuthedRequest extends FastifyRequest {
@@ -33,7 +39,19 @@ function setSid(reply: FastifyReply, sid: string | null): void {
   reply.header("Set-Cookie", cookieHeader(sid ?? "", sid == null));
 }
 
+function requireAdmin(request: AuthedRequest, reply: FastifyReply): UserRecord | null {
+  if (!request.userRecord || !isAdmin(request.userRecord)) {
+    reply.status(403).send({ error: "Solo el superadmin puede hacer esto" });
+    return null;
+  }
+  return request.userRecord;
+}
+
 export async function registerAuth(app: FastifyInstance, redis: IORedis | null): Promise<void> {
+  await ensureSuperadmin().catch((err) => {
+    app.log.warn({ err }, "ensureSuperadmin failed");
+  });
+
   app.addHook("onRequest", async (request: AuthedRequest) => {
     const sid = readCookie(request.headers.cookie, SESSION_COOKIE);
     if (!sid) return;
@@ -204,6 +222,42 @@ export async function registerAuth(app: FastifyInstance, redis: IORedis | null):
     record.checkins[day] = Math.min(record.dailyGoal, current + 1);
     saveUser(record);
     return { date: day, count: record.checkins[day], dailyGoal: record.dailyGoal };
+  });
+
+  app.get("/api/v1/admin/users", async (request: AuthedRequest, reply) => {
+    if (!requireAdmin(request, reply)) return;
+    return { users: listUsers().map(toAdminRow) };
+  });
+
+  app.patch("/api/v1/admin/users/:id", async (request: AuthedRequest, reply) => {
+    if (!requireAdmin(request, reply)) return;
+    const { id } = request.params as { id: string };
+    const body = (request.body ?? {}) as {
+      name?: string;
+      email?: string;
+      dailyGoal?: number;
+      role?: "admin" | "user";
+    };
+    try {
+      const user = await updateUser(id, body);
+      return { user: toAdminRow(user) };
+    } catch (err) {
+      reply.status(400);
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+  app.post("/api/v1/admin/users/:id/password", async (request: AuthedRequest, reply) => {
+    if (!requireAdmin(request, reply)) return;
+    const { id } = request.params as { id: string };
+    const { password } = (request.body ?? {}) as { password?: string };
+    try {
+      const user = await setUserPassword(id, password ?? "");
+      return { user: toAdminRow(user) };
+    } catch (err) {
+      reply.status(400);
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
   });
 }
 

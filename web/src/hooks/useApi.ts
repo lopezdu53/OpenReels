@@ -603,6 +603,27 @@ export const api = {
   learningYpp() {
     return fetchJson<YppInfo>("/learning/ypp");
   },
+
+  adminUsers() {
+    return fetchJson<{ users: AdminUserRow[] }>("/admin/users");
+  },
+
+  adminUpdateUser(
+    id: string,
+    patch: { name?: string; email?: string; dailyGoal?: number; role?: AuthUser["role"] },
+  ) {
+    return fetchJson<{ user: AdminUserRow }>(`/admin/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  },
+
+  adminSetPassword(id: string, password: string) {
+    return fetchJson<{ user: AdminUserRow }>(`/admin/users/${id}/password`, {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
+  },
 };
 
 export interface AuthUser {
@@ -611,6 +632,19 @@ export interface AuthUser {
   name: string;
   createdAt: string;
   dailyGoal: number;
+  role: "admin" | "user";
+}
+
+export interface AdminUserRow {
+  id: string;
+  email: string;
+  name: string;
+  createdAt: string;
+  dailyGoal: number;
+  role: "admin" | "user";
+  clones: number;
+  scripts: number;
+  envSuperadmin: boolean;
 }
 
 export interface DashboardDay {

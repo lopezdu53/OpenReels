@@ -1,4 +1,4 @@
-import { Loader2, LogOut, Settings } from "lucide-react";
+import { Loader2, LogOut, Settings, Shield } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, Outlet } from "react-router-dom";
 import { api, type StatsResponse } from "@/hooks/useApi";
@@ -81,6 +81,15 @@ export function Layout() {
         <header className="flex items-center justify-between border-b border-border px-4 py-2.5">
           <p className="truncate text-sm font-medium">{user.name}</p>
           <div className="flex items-center gap-1">
+            {user.role === "admin" ? (
+              <Link
+                to="/admin"
+                className="rounded-lg p-2 text-muted-foreground hover:text-foreground"
+                aria-label="Admin"
+              >
+                <Shield className="size-4" />
+              </Link>
+            ) : null}
             <Link
               to="/settings"
               className="rounded-lg p-2 text-muted-foreground hover:text-foreground"

@@ -12,21 +12,24 @@ import {
   PanelLeftClose,
   PlusCircle,
   Settings,
+  Shield,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { StatsResponse } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
-const NAV_ITEMS = [
-  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { path: "/analytic", label: "Analytic", icon: BarChart3 },
-  { path: "/learning", label: "Learning", icon: BookOpen },
-  { path: "/", label: "New Short", icon: PlusCircle },
-  { path: "/gallery", label: "Gallery", icon: LayoutGrid },
-  { path: "/lab", label: "API Lab", icon: FlaskConical },
-  { path: "/settings", label: "Settings", icon: Settings },
-];
+const NAV_ITEMS: { path: string; label: string; icon: typeof LayoutDashboard; admin?: boolean }[] =
+  [
+    { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { path: "/analytic", label: "Analytic", icon: BarChart3 },
+    { path: "/learning", label: "Learning", icon: BookOpen },
+    { path: "/", label: "New Short", icon: PlusCircle },
+    { path: "/gallery", label: "Gallery", icon: LayoutGrid },
+    { path: "/lab", label: "API Lab", icon: FlaskConical },
+    { path: "/settings", label: "Settings", icon: Settings },
+    { path: "/admin", label: "Admin", icon: Shield, admin: true },
+  ];
 
 interface SidebarProps {
   collapsed: boolean;
@@ -63,7 +66,7 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
       </div>
 
       <nav className={cn("mt-8 flex flex-col gap-1", collapsed ? "px-2" : "px-5")}>
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.filter((item) => !item.admin || user?.role === "admin").map((item) => {
           const active = isActive(item.path);
           return (
             <Link
