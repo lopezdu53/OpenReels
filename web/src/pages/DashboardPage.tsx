@@ -11,8 +11,9 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { SocialNetworkGrid } from "@/components/SocialNetworkGrid";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { api, type DashboardData } from "@/hooks/useApi";
+import { api, type DashboardData, type SocialPublic } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
@@ -21,11 +22,16 @@ export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(false);
+  const [social, setSocial] = useState<SocialPublic[]>([]);
+  const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
     void api
       .dashboard()
-      .then(setData)
+      .then((next) => {
+        setData(next);
+        setSocial(next.social ?? []);
+      })
       .catch((err) => {
         setError(err instanceof Error ? err.message : String(err));
       });
@@ -33,7 +39,9 @@ export function DashboardPage() {
 
   async function load() {
     try {
-      setData(await api.dashboard());
+      const next = await api.dashboard();
+      setData(next);
+      setSocial(next.social ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -52,6 +60,18 @@ export function DashboardPage() {
       await load();
     } finally {
       setChecking(false);
+    }
+  }
+
+  async function publishLatest() {
+    const id = data?.recentJobs[0]?.id;
+    if (!id) return;
+    setPublishing(true);
+    try {
+      await api.publishJob(id);
+      await load();
+    } finally {
+      setPublishing(false);
     }
   }
 
@@ -79,7 +99,8 @@ export function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="text-[13px] text-muted-foreground">
-            Hola {user?.name}. Método {dailyGoal} videos/día para acumular horas y vistas hacia YPP.
+            Hola {user?.name}. Método {dailyGoal} publicaciones/día: cada red social cuenta cuando
+            el Short se sube solo.
           </p>
         </div>
       </div>
@@ -117,12 +138,25 @@ export function DashboardPage() {
           ))}
         </div>
         <p className="mt-3 text-[12px] text-muted-foreground">
-          Generados en OpenReels hoy: {today.generated}. Publicados (check-in): {today.posted}.
+          Shorts generados hoy: {today.generated}. Publicados en redes: {today.posted}. La racha
+          sube sola al publicar (YouTube, TikTok, Facebook, X, Bilibili).
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button onClick={() => void checkin()} disabled={checking || today.progress >= dailyGoal}>
             {checking ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-            Marcar 1 publicado
+            Marqué a mano
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => void publishLatest()}
+            disabled={publishing || recentJobs.length === 0}
+          >
+            {publishing ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Video className="size-4" />
+            )}
+            Publicar último Short
           </Button>
           <Link to="/" className={buttonVariants({ variant: "outline" })}>
             <Plus className="size-4" />
@@ -149,6 +183,24 @@ export function DashboardPage() {
         </div>
       </div>
 
+      <SocialNetworkGrid
+        platforms={
+          social.length
+            ? social
+            : (["youtube", "tiktok", "facebook", "x", "bilibili"] as const).map((platform) => ({
+                platform,
+                connected: false,
+                autoPublish: false,
+                publishedToday: false,
+                oauthReady: false,
+              }))
+        }
+        onChange={(next) => {
+          setSocial(next);
+          void load();
+        }}
+      />
+
       <div>
         <h2 className="mb-2 text-sm font-semibold">Esta semana</h2>
         <div className="grid grid-cols-7 gap-1.5">
@@ -163,7 +215,7 @@ export function DashboardPage() {
               <p className="text-[10px] uppercase text-muted-foreground">
                 {new Date(`${d.date}T12:00:00Z`).toLocaleDateString("es", { weekday: "short" })}
               </p>
-              <p className="text-sm font-semibold tabular-nums">{d.generated + d.posted}</p>
+              <p className="text-sm font-semibold tabular-nums">{d.posted}</p>
             </div>
           ))}
         </div>

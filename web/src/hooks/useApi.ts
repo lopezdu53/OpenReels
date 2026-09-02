@@ -624,6 +624,38 @@ export const api = {
       body: JSON.stringify({ password }),
     });
   },
+
+  social() {
+    return fetchJson<{ platforms: SocialPublic[] }>("/me/social");
+  },
+
+  socialConnect(platform: SocialPlatformId) {
+    return fetchJson<{ url: string }>(`/me/social/${platform}/connect`);
+  },
+
+  socialBilibili(data: { sessdata: string; biliJct: string; handle?: string }) {
+    return fetchJson<{ platforms: SocialPublic[] }>("/me/social/bilibili", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  socialPatch(platform: SocialPlatformId, autoPublish: boolean) {
+    return fetchJson<{ platforms: SocialPublic[] }>(`/me/social/${platform}`, {
+      method: "PATCH",
+      body: JSON.stringify({ autoPublish }),
+    });
+  },
+
+  socialDisconnect(platform: SocialPlatformId) {
+    return fetchJson<{ platforms: SocialPublic[] }>(`/me/social/${platform}`, { method: "DELETE" });
+  },
+
+  publishJob(id: string, platforms?: SocialPlatformId[]) {
+    return fetchJson<{
+      results: { platform: SocialPlatformId; ok: boolean; url?: string; error?: string }[];
+    }>(`/me/jobs/${id}/publish`, { method: "POST", body: JSON.stringify({ platforms }) });
+  },
 };
 
 export interface AuthUser {
@@ -663,6 +695,7 @@ export interface DashboardData {
   clonedChannels: ClonedChannel[];
   clonedVideos: ClonedContent[];
   recentJobs: JobSummary[];
+  social?: SocialPublic[];
   totals: { videos: number; clones: number; scripts: number };
   countdown: {
     targetIso: string;
@@ -672,6 +705,20 @@ export interface DashboardData {
     minutes: number;
     seconds: number;
   };
+}
+
+export type SocialPlatformId = "youtube" | "tiktok" | "facebook" | "x" | "bilibili";
+
+export interface SocialPublic {
+  platform: SocialPlatformId;
+  connected: boolean;
+  autoPublish: boolean;
+  handle?: string;
+  lastError?: string;
+  lastPublishedAt?: string;
+  lastUrl?: string;
+  publishedToday: boolean;
+  oauthReady: boolean;
 }
 
 export interface YppInfo {

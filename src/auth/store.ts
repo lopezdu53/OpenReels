@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import type { SocialAccount, SocialPlatform, SocialPublication } from "../publish/types.js";
 import { hashPassword, verifyPassword } from "./password.js";
 
 export type UserRole = "admin" | "user";
@@ -53,6 +54,8 @@ export interface UserRecord {
   checkins: Record<string, number>;
   clonedChannels: StoredCloneChannel[];
   clonedVideos: StoredCloneContent[];
+  social?: Partial<Record<SocialPlatform, SocialAccount>>;
+  publications?: SocialPublication[];
 }
 
 export interface PublicUser {
@@ -200,6 +203,8 @@ export async function createUser(opts: {
     checkins: {},
     clonedChannels: [],
     clonedVideos: [],
+    social: {},
+    publications: [],
   };
   saveUser(user);
   const index = readIndex();

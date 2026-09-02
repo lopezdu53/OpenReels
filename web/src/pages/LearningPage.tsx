@@ -1,6 +1,13 @@
 import { BookOpen, Clock, Coins, HelpCircle, Sparkles, Target, Tv } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  BilibiliIcon,
+  FacebookIcon,
+  TiktokIcon,
+  XIcon,
+  YoutubeIcon,
+} from "@/components/BrandIcons";
 import { api, type YppInfo } from "@/hooks/useApi";
 import { formatCop, formatUsd } from "@/lib/job-cost-preview";
 import { cn } from "@/lib/utils";
@@ -22,6 +29,49 @@ function splitMs(ms: number): Pad {
     s: Math.floor((t % 60_000) / 1000),
   };
 }
+
+const NETWORKS = [
+  {
+    id: "youtube",
+    title: "YouTube",
+    sub: "Shorts · YPP",
+    color: "#FF0000",
+    Icon: YoutubeIcon,
+    body: "Aquí vive el Partner Program. CPM/RPM, 55% long-form, 45% Shorts. Desde feb 2027: 8.000 horas o 20M Shorts para ads.",
+  },
+  {
+    id: "tiktok",
+    title: "TikTok",
+    sub: "Creativity Program",
+    color: "#25F4EE",
+    Icon: TiktokIcon,
+    body: "Paga por RPM de vistas calificadas (no CPM de ads clásico). El video del Dashboard se puede auto-subir con la Content Posting API.",
+  },
+  {
+    id: "facebook",
+    title: "Facebook",
+    sub: "Reels · in-stream",
+    color: "#1877F2",
+    Icon: FacebookIcon,
+    body: "Reels en Páginas + bonus de vistas. El CPM varía por país. Se publica al Page token, no al perfil personal.",
+  },
+  {
+    id: "x",
+    title: "X",
+    sub: "Premium · ads share",
+    color: "#E7E9EA",
+    Icon: XIcon,
+    body: "Revenue share si tienes Premium y suficientes impresiones de ads. Un Short se publica como video nativo en el post.",
+  },
+  {
+    id: "bilibili",
+    title: "Bilibili",
+    sub: "创作激励",
+    color: "#00A1D6",
+    Icon: BilibiliIcon,
+    body: "Pozo de incentivos en CNY para creadores. En OpenReels se conecta con SESSDATA (cookie de sesión de member.bilibili.com).",
+  },
+];
 
 const TERMS = [
   {
@@ -87,6 +137,7 @@ export function LearningPage() {
   const [changeAt, setChangeAt] = useState(() => Date.UTC(2027, 1, 1, 0, 0, 0));
   const [now, setNow] = useState(Date.now());
   const [openTerm, setOpenTerm] = useState("cpm");
+  const [openNet, setOpenNet] = useState("youtube");
   const [views, setViews] = useState(250_000);
   const [cpm, setCpm] = useState(4.5);
   const [quizI, setQuizI] = useState(0);
@@ -258,9 +309,42 @@ export function LearningPage() {
             </li>
           </ol>
           <Link to="/dashboard" className="mt-4 inline-flex text-sm text-primary hover:underline">
-            Tu meta: 4 videos al día en el Dashboard →
+            Tu meta: 4 publicaciones/día en el Dashboard →
           </Link>
         </div>
+      </section>
+
+      <section>
+        <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold">
+          <Tv className="h-4 w-4 text-primary" /> Dónde se publica — toca una ficha
+        </h2>
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+          {NETWORKS.map((n) => (
+            <button
+              key={n.id}
+              type="button"
+              onClick={() => setOpenNet(n.id)}
+              className={cn(
+                "rounded-xl border p-4 text-left transition-colors",
+                openNet === n.id
+                  ? "border-primary bg-primary/10"
+                  : "border-border/60 bg-card hover:border-primary/40",
+              )}
+            >
+              <span style={{ color: n.color }}>
+                <n.Icon size={22} />
+              </span>
+              <p className="mt-2 text-lg font-bold">{n.title}</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{n.sub}</p>
+              {openNet === n.id && (
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{n.body}</p>
+              )}
+            </button>
+          ))}
+        </div>
+        <Link to="/dashboard" className="mt-3 inline-flex text-sm text-primary hover:underline">
+          Conectar cuentas y auto-publicar en el Dashboard →
+        </Link>
       </section>
 
       <section>

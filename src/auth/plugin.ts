@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type IORedis from "ioredis";
-import { countdownToYpp, YPP } from "../learning/ypp.js";
+import { countPublicationsOn, listSocialPublic } from "../publish/accounts.js";
 import { countByDay, listUserJobs, streakDays } from "./jobs.js";
 import {
   cookieHeader,
@@ -134,25 +134,38 @@ export async function registerAuth(app: FastifyInstance, redis: IORedis | null):
     const week = countByDay(jobs, 7);
     const today = week[week.length - 1];
     const generatedToday = today?.generated ?? 0;
-    const postedToday = record.checkins[todayKey()] ?? 0;
-    const progress = Math.min(record.dailyGoal, generatedToday + postedToday);
+    const socialPosted = countPublicationsOn(record.id, todayKey());
+    const posted = Math.max(record.checkins[todayKey()] ?? 0, socialPosted);
+    const progress = Math.min(record.dailyGoal, posted);
     const completed = jobs.filter((j) => j.status === "completed");
+    const weekRows = week.map((d) => {
+      const postedDay = Math.max(
+        record.checkins[d.date] ?? 0,
+        countPublicationsOn(record.id, d.date),
+      );
+      return {
+        ...d,
+        posted: postedDay,
+        hit: postedDay >= record.dailyGoal,
+      };
+    });
     return {
       user: toPublic(record),
       dailyGoal: record.dailyGoal,
       today: {
         date: todayKey(),
         generated: generatedToday,
-        posted: postedToday,
+        posted,
         progress,
         goal: record.dailyGoal,
       },
-      week: week.map((d) => ({
-        ...d,
-        posted: record.checkins[d.date] ?? 0,
-        hit: d.generated + (record.checkins[d.date] ?? 0) >= record.dailyGoal,
-      })),
-      streak: streakDays(week, record.checkins, record.dailyGoal),
+      week: weekRows,
+      streak: streakDays(
+        weekRows.map((d) => ({ date: d.date, generated: d.posted })),
+        {},
+        record.dailyGoal,
+      ),
+      social: listSocialPublic(record.id),
       clonedChannels: record.clonedChannels,
       clonedVideos: record.clonedVideos.slice(0, 12),
       recentJobs: completed.slice(0, 8),
