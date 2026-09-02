@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -6,6 +6,7 @@ import {
   authenticate,
   createUser,
   ensureSuperadmin,
+  getUserById,
   listUsers,
   setUserPassword,
   toAdminRow,
@@ -83,5 +84,23 @@ describe("user store + superadmin", () => {
     const boss = await ensureSuperadmin();
     await expect(updateUser(boss!.id, { role: "user" })).rejects.toThrow(/degradar/);
     await expect(updateUser(boss!.id, { email: "other@test.com" })).rejects.toThrow(/email/);
+  });
+
+  it("hydrates legacy user files missing dashboard fields", async () => {
+    const user = await createUser({ email: "legacy@test.com", name: "L", password: "secret123" });
+    const file = path.join(dir, "users", `${user.id}.json`);
+    const raw = JSON.parse(readFileSync(file, "utf-8")) as Record<string, unknown>;
+    delete raw["clonedVideos"];
+    delete raw["clonedChannels"];
+    delete raw["checkins"];
+    delete raw["dailyGoal"];
+    writeFileSync(file, JSON.stringify(raw));
+    const loaded = getUserById(user.id);
+    expect(loaded).not.toBeNull();
+    expect(loaded!.clonedVideos).toEqual([]);
+    expect(loaded!.clonedChannels).toEqual([]);
+    expect(loaded!.checkins).toEqual({});
+    expect(loaded!.dailyGoal).toBe(4);
+    expect(() => loaded!.clonedVideos.slice(0, 12)).not.toThrow();
   });
 });

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -55,6 +55,18 @@ describe("social publish + streak", () => {
     expect(cards.find((c) => c.platform === "tiktok")?.publishedToday).toBe(true);
     expect(cards.find((c) => c.platform === "x")?.publishedToday).toBe(false);
     expect(JSON.stringify(cards)).not.toContain("accessToken");
+  });
+
+  it("does not throw when a publication row is missing at", async () => {
+    const user = await createUser({ email: "badpub@test.com", name: "P", password: "secret123" });
+    const file = path.join(dir, "users", `${user.id}.json`);
+    const raw = JSON.parse(readFileSync(file, "utf-8")) as {
+      publications?: Array<Record<string, unknown>>;
+    };
+    raw.publications = [{ jobId: "j1", platform: "youtube", status: "ok" }];
+    writeFileSync(file, JSON.stringify(raw));
+    expect(() => listSocialPublic(user.id)).not.toThrow();
+    expect(countPublicationsOn(user.id, new Date().toISOString().slice(0, 10))).toBe(0);
   });
 
   it("builds captions from topic and finds the mp4", () => {

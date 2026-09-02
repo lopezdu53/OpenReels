@@ -140,9 +140,28 @@ export function toAdminRow(user: UserRecord): AdminUserRow {
   };
 }
 
+/** Fill fields added after the first user JSON files were written. */
+export function hydrateUser(raw: UserRecord): UserRecord {
+  const dailyGoal =
+    typeof raw.dailyGoal === "number" && Number.isFinite(raw.dailyGoal) && raw.dailyGoal > 0
+      ? raw.dailyGoal
+      : 4;
+  return {
+    ...raw,
+    dailyGoal,
+    checkins: raw.checkins && typeof raw.checkins === "object" ? raw.checkins : {},
+    clonedChannels: Array.isArray(raw.clonedChannels) ? raw.clonedChannels : [],
+    clonedVideos: Array.isArray(raw.clonedVideos) ? raw.clonedVideos : [],
+    publications: Array.isArray(raw.publications) ? raw.publications : [],
+    social: raw.social && typeof raw.social === "object" ? raw.social : {},
+  };
+}
+
 export function getUserById(id: string): UserRecord | null {
   try {
-    return JSON.parse(fs.readFileSync(userPath(id), "utf-8")) as UserRecord;
+    const raw = JSON.parse(fs.readFileSync(userPath(id), "utf-8")) as UserRecord;
+    if (!raw?.id) return null;
+    return hydrateUser(raw);
   } catch {
     return null;
   }

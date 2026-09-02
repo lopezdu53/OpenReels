@@ -93,7 +93,7 @@ export function Layout() {
             <Link
               to="/settings"
               className="rounded-lg p-2 text-muted-foreground hover:text-foreground"
-              aria-label="Settings"
+              aria-label="Ajustes"
             >
               <Settings className="size-4" />
             </Link>

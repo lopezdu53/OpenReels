@@ -39,14 +39,14 @@ function timeAgo(dateStr: string): string {
   const then = new Date(dateStr).getTime();
   const diffMs = now - then;
   const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return "Ahora";
+  if (mins < 60) return `hace ${mins} min`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `hace ${hours} h`;
   const days = Math.floor(hours / 24);
-  if (days === 1) return "Yesterday";
-  if (days < 7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString();
+  if (days === 1) return "Ayer";
+  if (days < 7) return `hace ${days} d`;
+  return new Date(dateStr).toLocaleDateString("es");
 }
 
 export function GalleryPage() {
@@ -126,7 +126,7 @@ export function GalleryPage() {
       setJobs((prev) => prev.filter((j) => j.id !== confirmDeleteId));
       setTotal((t) => t - 1);
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : "Failed to delete video.");
+      setDeleteError(err instanceof Error ? err.message : "No se pudo borrar el video.");
       setTimeout(() => setDeleteError(null), 7000);
     }
     setConfirmDeleteId(null);
@@ -148,7 +148,7 @@ export function GalleryPage() {
     setDeleteDialogOpen(false);
     setDeleting(false);
     if (failCount > 0) {
-      setDeleteError(`${failCount} of ${ids.length} deletions failed (jobs may still be active)`);
+      setDeleteError(`${failCount} de ${ids.length} borrados fallaron (el trabajo puede seguir activo)`);
       setTimeout(() => setDeleteError(null), 5000);
     }
     // Reload
@@ -231,7 +231,7 @@ export function GalleryPage() {
   if (jobs.length === 0) {
     return (
       <div className="py-8 px-4 sm:px-10">
-        <h1 className="mb-6 text-2xl font-semibold tracking-tight">Gallery</h1>
+        <h1 className="mb-6 text-2xl font-semibold tracking-tight">Galería</h1>
         <div
           className="flex flex-1 flex-col items-center justify-center min-h-[calc(100vh-160px)]"
         >
@@ -239,16 +239,16 @@ export function GalleryPage() {
             <div className="mb-5 flex size-20 items-center justify-center rounded-full bg-card">
               <Film className="size-9 text-border" />
             </div>
-            <h2 className="text-xl font-semibold text-foreground">No videos yet</h2>
+            <h2 className="text-xl font-semibold text-foreground">Aún no hay videos</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Create your first Short and it will appear here.
+              Crea tu primer Short y aparecerá aquí.
             </p>
             <Button
               className="mt-5 gap-2 rounded-[10px] px-6 py-2.5"
               onClick={() => navigate("/")}
             >
               <Plus className="size-4" />
-              Create a Short
+              Crear un Short
             </Button>
           </div>
         </div>
@@ -262,9 +262,9 @@ export function GalleryPage() {
     <div className="py-8 px-4 sm:px-10">
       {/* Header */}
       <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Gallery</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Galería</h1>
         <span className="text-[13px] text-muted-foreground">
-          {filteredJobs.length} of {jobs.length} loaded{jobs.length < total ? ` (${total} total)` : ""}
+          {filteredJobs.length} de {jobs.length} cargados{jobs.length < total ? ` (${total} en total)` : ""}
         </span>
       </div>
 
@@ -296,7 +296,7 @@ export function GalleryPage() {
       {bulkMode && (
         <div className="mb-4 flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
           <span className="text-sm font-medium text-primary">
-            {selectedIds.size} selected
+            {selectedIds.size} seleccionados
           </span>
           <Button
             variant="destructive"
@@ -305,7 +305,7 @@ export function GalleryPage() {
             onClick={() => setDeleteDialogOpen(true)}
           >
             <Trash2 className="size-3.5" />
-            Delete
+            Eliminar
           </Button>
           <Button
             variant="ghost"
@@ -314,14 +314,14 @@ export function GalleryPage() {
             onClick={() => setSelectedIds(new Set())}
           >
             <X className="size-3.5" />
-            Deselect
+            Deseleccionar
           </Button>
         </div>
       )}
 
       {filteredJobs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-sm text-muted-foreground">No videos match your filters.</p>
+          <p className="text-sm text-muted-foreground">Ningún video coincide con los filtros.</p>
         </div>
       ) : viewMode === "grid" ? (
         /* Grid view */
@@ -367,7 +367,7 @@ export function GalleryPage() {
             {loadingMore ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
-              `Load more (${jobs.length} of ${total})`
+              `Cargar más (${jobs.length} de ${total})`
             )}
           </Button>
         </div>
@@ -377,17 +377,17 @@ export function GalleryPage() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete {selectedIds.size} video{selectedIds.size > 1 ? "s" : ""}?</DialogTitle>
+            <DialogTitle>¿Borrar {selectedIds.size} video{selectedIds.size > 1 ? "s" : ""}?</DialogTitle>
             <DialogDescription>
-              This will permanently delete the selected videos and all their files from disk. This cannot be undone.
+              Se eliminarán de forma permanente los videos seleccionados y todos sus archivos. Esto no se puede deshacer.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
-              Cancel
+              Cancelar
             </Button>
             <Button variant="destructive" onClick={handleBulkDelete} disabled={deleting}>
-              {deleting ? "Deleting..." : "Delete"}
+              {deleting ? "Borrando…" : "Borrar"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -397,17 +397,17 @@ export function GalleryPage() {
       <Dialog open={!!confirmDeleteId} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete this video?</DialogTitle>
+            <DialogTitle>¿Borrar este video?</DialogTitle>
             <DialogDescription>
-              This will permanently delete the video and all its files from disk. This cannot be undone.
+              Se eliminará de forma permanente el video y todos sus archivos. Esto no se puede deshacer.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDeleteId(null)} disabled={deleting}>
-              Cancel
+              Cancelar
             </Button>
             <Button variant="destructive" onClick={handleSingleDelete} disabled={deleting}>
-              {deleting ? "Deleting..." : "Delete"}
+              {deleting ? "Borrando…" : "Borrar"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -474,13 +474,13 @@ function ListCard({
           )}
           {isFailed && (
             <Badge variant="destructive" className="text-[9px] font-normal py-0">
-              Failed
+              Fallido
             </Badge>
           )}
           {isRunning && (
             <span className="flex items-center gap-1 text-[10px] text-status-info">
               <span className="size-1.5 rounded-full bg-status-info animate-pulse" />
-              Running
+              En curso
             </span>
           )}
         </div>
@@ -513,7 +513,7 @@ function ListCard({
           <button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
             className="ml-1 flex size-7 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
-            title={isRunning ? "Force delete (stuck job)" : "Delete video"}
+            title={isRunning ? "Forzar borrado (trabajo colgado)" : "Borrar video"}
           >
             <Trash2 className="size-3.5" />
           </button>

@@ -12,7 +12,7 @@ const TYPES: {
   { key: "ai_image", label: "Imagen IA", hint: "Generada por API", icon: ImageIcon },
   { key: "stock_image", label: "Stock foto", hint: "Pexels / Pixabay", icon: Layers },
   { key: "stock_video", label: "Stock video", hint: "Clip real", icon: Clapperboard },
-  { key: "text_card", label: "Text card", hint: "Tipografía", icon: Type },
+  { key: "text_card", label: "Tarjeta de texto", hint: "Tipografía", icon: Type },
   { key: "ai_video", label: "Video IA", hint: "~$0.30 / escena", icon: Video, expensive: true },
 ];
 

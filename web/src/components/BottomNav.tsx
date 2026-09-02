@@ -4,11 +4,11 @@ import type { StatsResponse } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
-  { path: "/dashboard", label: "Dash", icon: LayoutDashboard },
-  { path: "/analytic", label: "Analytic", icon: BarChart3 },
-  { path: "/learning", label: "Learn", icon: BookOpen },
-  { path: "/", label: "New", icon: PlusCircle },
-  { path: "/gallery", label: "Gallery", icon: LayoutGrid },
+  { path: "/dashboard", label: "Panel", icon: LayoutDashboard },
+  { path: "/analytic", label: "Analítica", icon: BarChart3 },
+  { path: "/learning", label: "Aprender", icon: BookOpen },
+  { path: "/", label: "Nuevo", icon: PlusCircle },
+  { path: "/gallery", label: "Galería", icon: LayoutGrid },
 ];
 
 interface BottomNavProps {

@@ -21,13 +21,13 @@ import { cn } from "@/lib/utils";
 
 const NAV_ITEMS: { path: string; label: string; icon: typeof LayoutDashboard; admin?: boolean }[] =
   [
-    { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { path: "/analytic", label: "Analytic", icon: BarChart3 },
-    { path: "/learning", label: "Learning", icon: BookOpen },
-    { path: "/", label: "New Short", icon: PlusCircle },
-    { path: "/gallery", label: "Gallery", icon: LayoutGrid },
+    { path: "/dashboard", label: "Panel", icon: LayoutDashboard },
+    { path: "/analytic", label: "Analítica", icon: BarChart3 },
+    { path: "/learning", label: "Aprendizaje", icon: BookOpen },
+    { path: "/", label: "Nuevo Short", icon: PlusCircle },
+    { path: "/gallery", label: "Galería", icon: LayoutGrid },
     { path: "/lab", label: "API Lab", icon: FlaskConical },
-    { path: "/settings", label: "Settings", icon: Settings },
+    { path: "/settings", label: "Ajustes", icon: Settings },
     { path: "/admin", label: "Admin", icon: Shield, admin: true },
   ];
 
@@ -103,13 +103,14 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
             <Film className="size-3.5" />
             <span>
-              {stats.completedJobs} video{stats.completedJobs !== 1 ? "s" : ""} created
+              {stats.completedJobs} video{stats.completedJobs !== 1 ? "s" : ""} creado
+              {stats.completedJobs !== 1 ? "s" : ""}
             </span>
           </div>
           {stats.totalCost > 0 && (
             <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
               <DollarSign className="size-3.5" />
-              <span>${stats.totalCost.toFixed(2)} total spend</span>
+              <span>${stats.totalCost.toFixed(2)} gasto total</span>
             </div>
           )}
         </div>
@@ -148,7 +149,7 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
         ) : (
           <div className="flex w-full items-center gap-2">
             <PanelLeftClose className="size-4" />
-            <span className="text-xs">Collapse</span>
+            <span className="text-xs">Contraer</span>
           </div>
         )}
       </button>

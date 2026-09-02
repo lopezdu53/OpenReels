@@ -120,9 +120,9 @@ export async function registerAuth(app: FastifyInstance, redis: IORedis | null):
     if (!record) return reply.status(401).send({ error: "Inicia sesión" });
     return {
       user: toPublic(record),
-      clonedChannels: record.clonedChannels,
-      clonedVideos: record.clonedVideos,
-      checkins: record.checkins,
+      clonedChannels: record.clonedChannels ?? [],
+      clonedVideos: record.clonedVideos ?? [],
+      checkins: record.checkins ?? {},
       countdown: countdownToYpp(),
     };
   });
@@ -130,52 +130,58 @@ export async function registerAuth(app: FastifyInstance, redis: IORedis | null):
   app.get("/api/v1/me/dashboard", async (request: AuthedRequest, reply) => {
     const record = request.userRecord;
     if (!record) return reply.status(401).send({ error: "Inicia sesión" });
-    const jobs = await listUserJobs(record.id);
-    const week = countByDay(jobs, 7);
-    const today = week[week.length - 1];
-    const generatedToday = today?.generated ?? 0;
-    const socialPosted = countPublicationsOn(record.id, todayKey());
-    const posted = Math.max(record.checkins[todayKey()] ?? 0, socialPosted);
-    const progress = Math.min(record.dailyGoal, posted);
-    const completed = jobs.filter((j) => j.status === "completed");
-    const weekRows = week.map((d) => {
-      const postedDay = Math.max(
-        record.checkins[d.date] ?? 0,
-        countPublicationsOn(record.id, d.date),
-      );
+    try {
+      const jobs = await listUserJobs(record.id);
+      const week = countByDay(jobs, 7);
+      const today = week[week.length - 1];
+      const generatedToday = today?.generated ?? 0;
+      const socialPosted = countPublicationsOn(record.id, todayKey());
+      const checkins = record.checkins ?? {};
+      const clonedChannels = record.clonedChannels ?? [];
+      const clonedVideos = record.clonedVideos ?? [];
+      const posted = Math.max(checkins[todayKey()] ?? 0, socialPosted);
+      const progress = Math.min(record.dailyGoal, posted);
+      const completed = jobs.filter((j) => j.status === "completed");
+      const weekRows = week.map((d) => {
+        const postedDay = Math.max(checkins[d.date] ?? 0, countPublicationsOn(record.id, d.date));
+        return {
+          ...d,
+          posted: postedDay,
+          hit: postedDay >= record.dailyGoal,
+        };
+      });
       return {
-        ...d,
-        posted: postedDay,
-        hit: postedDay >= record.dailyGoal,
+        user: toPublic(record),
+        dailyGoal: record.dailyGoal,
+        today: {
+          date: todayKey(),
+          generated: generatedToday,
+          posted,
+          progress,
+          goal: record.dailyGoal,
+        },
+        week: weekRows,
+        streak: streakDays(
+          weekRows.map((d) => ({ date: d.date, generated: d.posted })),
+          {},
+          record.dailyGoal,
+        ),
+        social: listSocialPublic(record.id),
+        clonedChannels,
+        clonedVideos: clonedVideos.slice(0, 12),
+        recentJobs: completed.slice(0, 8),
+        totals: {
+          videos: completed.length,
+          clones: clonedChannels.length,
+          scripts: clonedVideos.length,
+        },
+        countdown: countdownToYpp(),
       };
-    });
-    return {
-      user: toPublic(record),
-      dailyGoal: record.dailyGoal,
-      today: {
-        date: todayKey(),
-        generated: generatedToday,
-        posted,
-        progress,
-        goal: record.dailyGoal,
-      },
-      week: weekRows,
-      streak: streakDays(
-        weekRows.map((d) => ({ date: d.date, generated: d.posted })),
-        {},
-        record.dailyGoal,
-      ),
-      social: listSocialPublic(record.id),
-      clonedChannels: record.clonedChannels,
-      clonedVideos: record.clonedVideos.slice(0, 12),
-      recentJobs: completed.slice(0, 8),
-      totals: {
-        videos: completed.length,
-        clones: record.clonedChannels.length,
-        scripts: record.clonedVideos.length,
-      },
-      countdown: countdownToYpp(),
-    };
+    } catch (err) {
+      request.log.error({ err }, "dashboard failed");
+      reply.status(500);
+      return { error: "No se pudo cargar el panel. Reintenta." };
+    }
   });
 
   app.post("/api/v1/me/clones/channel", async (request: AuthedRequest, reply) => {
@@ -193,7 +199,7 @@ export async function registerAuth(app: FastifyInstance, redis: IORedis | null):
       firstVideos: body.firstVideos ?? [],
       contentPillars: body.contentPillars ?? [],
     };
-    record.clonedChannels = [row, ...record.clonedChannels].slice(0, 40);
+    record.clonedChannels = [row, ...(record.clonedChannels ?? [])].slice(0, 40);
     saveUser(record);
     return { cloned: row };
   });
@@ -213,7 +219,7 @@ export async function registerAuth(app: FastifyInstance, redis: IORedis | null):
       bilibili: body.bilibili ?? empty,
       facebook: body.facebook ?? empty,
     };
-    record.clonedVideos = [row, ...record.clonedVideos].slice(0, 80);
+    record.clonedVideos = [row, ...(record.clonedVideos ?? [])].slice(0, 80);
     saveUser(record);
     return { cloned: row };
   });
@@ -231,6 +237,7 @@ export async function registerAuth(app: FastifyInstance, redis: IORedis | null):
     const record = request.userRecord;
     if (!record) return reply.status(401).send({ error: "Inicia sesión" });
     const day = todayKey();
+    record.checkins = record.checkins ?? {};
     const current = record.checkins[day] ?? 0;
     record.checkins[day] = Math.min(record.dailyGoal, current + 1);
     saveUser(record);

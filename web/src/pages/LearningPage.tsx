@@ -45,7 +45,7 @@ const NETWORKS = [
     sub: "Creativity Program",
     color: "#25F4EE",
     Icon: TiktokIcon,
-    body: "Paga por RPM de vistas calificadas (no CPM de ads clásico). El video del Dashboard se puede auto-subir con la Content Posting API.",
+    body: "Paga por RPM de vistas calificadas (no CPM de ads clásico). El video del Panel se puede auto-subir con la Content Posting API.",
   },
   {
     id: "facebook",
@@ -78,7 +78,7 @@ const TERMS = [
     id: "cpm",
     title: "CPM",
     sub: "Cost per mille",
-    body: "Lo que el anunciante paga por cada 1.000 impresiones de anuncio. En Analytic usamos un CPM de nicho (heurística) porque YouTube no publica el CPM real de cada canal. Un Short de finanzas en EE.UU. suele tener CPM más alto que un meme en LATAM.",
+    body: "Lo que el anunciante paga por cada 1.000 impresiones de anuncio. En Analítica usamos un CPM de nicho (heurística) porque YouTube no publica el CPM real de cada canal. Un Short de finanzas en EE.UU. suele tener CPM más alto que un meme en LATAM.",
   },
   {
     id: "rpm",
@@ -106,7 +106,7 @@ const TERMS = [
   },
   {
     id: "fan",
-    title: "Fan funding",
+    title: "Financiación de fans",
     sub: "500 subs, no cambia",
     body: "Super Thanks, Super Chat, members, Shopping: el umbral de 500 suscriptores (y 3.000 horas o 3M Shorts) NO sube en 2027. Puedes monetizar con fans antes de desbloquear anuncios.",
   },
@@ -126,7 +126,7 @@ const QUIZ = [
     why: "El blog de YouTube (10 ago 2026) duplica 10M → 20M para entrar a ads/Premium. El pool de Shorts aparte pide 10M/90d para cobrar Shorts.",
   },
   {
-    q: "¿Cuál es el método que usamos en el Dashboard para construir el hábito?",
+    q: "¿Cuál es el método que usamos en el Panel para construir el hábito?",
     options: ["1 video al mes", "4 Shorts al día", "10 lives por semana"],
     answer: 1,
     why: "Cuatro piezas diarias: volumen constante vence al video “perfecto” que nunca sale.",
@@ -179,7 +179,7 @@ export function LearningPage() {
     <div className="space-y-8 py-8 px-4 sm:px-10 max-w-[1100px]">
       <header>
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-          Learning
+          Aprendizaje
         </p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight">Cómo te paga YouTube</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
@@ -309,7 +309,7 @@ export function LearningPage() {
             </li>
           </ol>
           <Link to="/dashboard" className="mt-4 inline-flex text-sm text-primary hover:underline">
-            Tu meta: 4 publicaciones/día en el Dashboard →
+            Tu meta: 4 publicaciones/día en el Panel →
           </Link>
         </div>
       </section>
@@ -343,7 +343,7 @@ export function LearningPage() {
           ))}
         </div>
         <Link to="/dashboard" className="mt-3 inline-flex text-sm text-primary hover:underline">
-          Conectar cuentas y auto-publicar en el Dashboard →
+          Conectar cuentas y auto-publicar en el Panel →
         </Link>
       </section>
 
@@ -379,7 +379,7 @@ export function LearningPage() {
           <Coins className="h-4 w-4 text-primary" /> Calculadora CPM → tu bolsillo
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Misma fórmula que Analytic: (vistas / 1.000) × CPM × 55%. Es una cota alta: asume que cada
+          Misma fórmula que Analítica: (vistas / 1.000) × CPM × 55%. Es una cota alta: asume que cada
           vista “vale” una impresión de anuncio.
         </p>
         <div className="mt-5 grid gap-6 md:grid-cols-2">
@@ -434,7 +434,7 @@ export function LearningPage() {
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
               {score === QUIZ.length
-                ? "Listo. Ahora ve al Dashboard y cierra los 4 del día."
+                ? "Listo. Ahora ve al Panel y cierra los 4 del día."
                 : "Repasa el glosario y vuelve a intentarlo."}
             </p>
             <button
@@ -505,7 +505,7 @@ export function LearningPage() {
 
       <p className="flex items-center gap-2 text-xs text-muted-foreground">
         <BookOpen className="h-3.5 w-3.5" />
-        Cifras de umbrales: YouTube, 10 de agosto de 2026. CPM de Analytic es heurística de nicho,
+        Cifras de umbrales: YouTube, 10 de agosto de 2026. CPM de Analítica es heurística de nicho,
         no un dato de Studio.
       </p>
     </div>

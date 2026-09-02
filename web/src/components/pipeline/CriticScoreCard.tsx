@@ -19,7 +19,7 @@ export function CriticScoreCard({ review }: CriticScoreCardProps) {
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm animate-in fade-in duration-500">
       <span className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
-        QUALITY REVIEW
+        REVISIÓN DE CALIDAD
       </span>
 
       <div className="mt-3 flex gap-4">

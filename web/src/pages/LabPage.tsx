@@ -273,9 +273,9 @@ export function LabPage() {
       <div className="mb-8 flex items-center gap-3">
         <FlaskConical className="size-6 text-primary" />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">API Laboratory</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">API Lab</h1>
           <p className="text-[13px] text-muted-foreground mt-0.5">
-            Prueba cada proveedor de forma individual. Los costos usan los precios configurados en Settings.
+            Prueba cada proveedor de forma individual. Los costos usan los precios configurados en Ajustes.
           </p>
         </div>
       </div>

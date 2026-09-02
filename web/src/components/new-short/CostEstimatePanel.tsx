@@ -82,7 +82,7 @@ export function CostEstimatePanel({ preview, usdToCop, rateNote, dryRun, usesViv
       <p className="mt-4 text-[10px] leading-relaxed text-muted-foreground">
         ~{preview.sceneCount} escenas · {preview.aiImages} imágenes IA
         {preview.aiVideos > 0 ? ` · ${preview.aiVideos} videos IA` : ""}.
-        El director puede usar stock o text cards y bajar el costo real. Tarifas editables en Settings / API Lab.
+        El director puede usar stock o tarjetas de texto y bajar el costo real. Tarifas editables en Ajustes / API Lab.
       </p>
     </div>
   );

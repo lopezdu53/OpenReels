@@ -382,7 +382,7 @@ export function AnalyticsPage() {
       <div className="mb-6 flex items-start gap-3">
         <BarChart3 className="mt-0.5 size-6 text-primary" />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Analytic</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Analítica</h1>
           <p className="mt-0.5 text-[13px] text-muted-foreground">
             Busca nichos en YouTube, explora canales, estima vistas y ganancias, y reorganiza todo
             con Vivi para tu propio canal.

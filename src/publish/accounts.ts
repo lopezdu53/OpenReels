@@ -34,7 +34,11 @@ export function listSocialPublic(userId: string): SocialPublic[] {
       lastPublishedAt: acc?.lastPublishedAt,
       lastUrl: acc?.lastUrl,
       publishedToday: pubs.some(
-        (p) => p.platform === platform && p.status === "ok" && p.at.startsWith(today),
+        (p) =>
+          p.platform === platform &&
+          p.status === "ok" &&
+          typeof p.at === "string" &&
+          p.at.startsWith(today),
       ),
       oauthReady: oauthReady(platform),
     };
@@ -45,7 +49,7 @@ export function countPublicationsOn(userId: string, date: string): number {
   const user = getUserById(userId);
   const seen = new Set<string>();
   for (const p of user?.publications ?? []) {
-    if (p.status !== "ok" || !p.at.startsWith(date)) continue;
+    if (p.status !== "ok" || typeof p.at !== "string" || !p.at.startsWith(date)) continue;
     const key = `${p.jobId}:${p.platform}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -131,6 +135,7 @@ export function recordSocialPublish(opts: {
       )
     ) {
       const day = todayKey();
+      user.checkins = user.checkins ?? {};
       user.checkins[day] = (user.checkins[day] ?? 0) + 1;
     }
   }

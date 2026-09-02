@@ -90,14 +90,16 @@ export function DashboardPage() {
 
   if (!data) return null;
 
-  const { today, dailyGoal, week, streak, totals, clonedChannels, recentJobs, countdown } = data;
+  const { today, dailyGoal, week, streak, totals, countdown } = data;
+  const clonedChannels = data.clonedChannels ?? [];
+  const recentJobs = data.recentJobs ?? [];
 
   return (
     <div className="py-8 px-4 sm:px-10 max-w-[1100px] space-y-6">
       <div className="flex items-start gap-3">
         <LayoutDashboard className="mt-0.5 size-6 text-primary" />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Panel</h1>
           <p className="text-[13px] text-muted-foreground">
             Hola {user?.name}. Método {dailyGoal} publicaciones/día: cada red social cuenta cuando
             el Short se sube solo.
@@ -232,7 +234,7 @@ export function DashboardPage() {
           to="/learning"
           className="block rounded-xl border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-sm"
         >
-          Faltan <strong>{countdown.days} días</strong> para el YPP del 1 feb 2027. En Learning ves
+          Faltan <strong>{countdown.days} días</strong> para el YPP del 1 feb 2027. En Aprendizaje ves
           cómo se paga YouTube y qué cambia.
         </Link>
       ) : null}
@@ -241,7 +243,7 @@ export function DashboardPage() {
         <h2 className="mb-2 text-sm font-semibold">Tus canales clonados</h2>
         {clonedChannels.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            En Analytic clona un canal y se guarda aquí, solo para tu cuenta.
+            En Analítica clona un canal y se guarda aquí, solo para tu cuenta.
           </p>
         ) : (
           <ul className="grid gap-2 md:grid-cols-2">

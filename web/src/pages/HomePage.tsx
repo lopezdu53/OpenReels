@@ -38,29 +38,29 @@ import { fetchUsdToCopRate } from "@/lib/cop-rate";
 import { loadPrices } from "@/pages/LabPage";
 
 const TOPIC_CATEGORIES: Record<string, string[]> = {
-  History: [
-    "How coffee changed history",
-    "Ancient Rome's greatest inventions",
-    "The fall of the Berlin Wall",
-    "5 forgotten civilizations",
+  Historia: [
+    "Cómo el café cambió la historia",
+    "Los grandes inventos de la Roma antigua",
+    "La caída del Muro de Berlín",
+    "5 civilizaciones olvidadas",
   ],
-  Science: [
-    "Black holes explained",
-    "Why do we dream?",
-    "CRISPR gene editing in 2026",
-    "The science of time perception",
+  Ciencia: [
+    "Agujeros negros explicados",
+    "¿Por qué soñamos?",
+    "Edición genética CRISPR en 2026",
+    "La ciencia de la percepción del tiempo",
   ],
-  Culture: [
-    "How anime conquered the world",
-    "The psychology of music",
-    "Street food capitals of the world",
-    "Why we love horror movies",
+  Cultura: [
+    "Cómo el anime conquistó el mundo",
+    "La psicología de la música",
+    "Capitales de la comida callejera",
+    "Por qué nos encantan las películas de terror",
   ],
-  Technology: [
-    "Top 5 AI advancements in 2026",
-    "How quantum computing works",
-    "The future of space tourism",
-    "Inside a data center",
+  Tecnología: [
+    "Top 5 avances de IA en 2026",
+    "Cómo funciona la computación cuántica",
+    "El futuro del turismo espacial",
+    "Dentro de un data center",
   ],
 };
 
@@ -265,7 +265,7 @@ export function HomePage() {
     e.preventDefault();
     if (!topic.trim() || loading) return;
     if (styleReferenceMode && !styleReferenceImage) {
-      setError("Sube una imagen de referencia o cambia el Style Override.");
+      setError("Sube una imagen de referencia o cambia el estilo.");
       return;
     }
 
@@ -324,7 +324,7 @@ export function HomePage() {
       });
       navigate(`/jobs/${result.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create job");
+      setError(err instanceof Error ? err.message : "No se pudo crear el trabajo");
       setLoading(false);
     }
   };
@@ -698,7 +698,7 @@ export function HomePage() {
               </div>
 
               <div className="mt-4">
-                <Field label="Style Override">
+                <Field label="Estilo">
                   <Select
                     value={
                       styleReferenceMode ? "__image__"
