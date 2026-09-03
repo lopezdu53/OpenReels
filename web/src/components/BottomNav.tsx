@@ -1,4 +1,4 @@
-import { BarChart3, BookOpen, LayoutDashboard, LayoutGrid, PlusCircle } from "lucide-react";
+import { BarChart3, BookOpen, Film, LayoutDashboard, LayoutGrid, PlusCircle } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { StatsResponse } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
@@ -6,9 +6,10 @@ import { cn } from "@/lib/utils";
 const NAV_ITEMS = [
   { path: "/dashboard", label: "Panel", icon: LayoutDashboard },
   { path: "/analytic", label: "Analítica", icon: BarChart3 },
-  { path: "/learning", label: "Aprender", icon: BookOpen },
-  { path: "/", label: "Nuevo", icon: PlusCircle },
+  { path: "/", label: "Short", icon: PlusCircle },
+  { path: "/film", label: "Film", icon: Film },
   { path: "/gallery", label: "Galería", icon: LayoutGrid },
+  { path: "/learning", label: "Aprender", icon: BookOpen },
 ];
 
 interface BottomNavProps {
@@ -19,7 +20,7 @@ export function BottomNav({ stats }: BottomNavProps) {
   const location = useLocation();
 
   const isActive = (path: string) => {
-    if (path === "/") return location.pathname === "/" || location.pathname.startsWith("/jobs");
+    if (path === "/") return location.pathname === "/";
     return location.pathname.startsWith(path);
   };
 
@@ -38,7 +39,7 @@ export function BottomNav({ stats }: BottomNavProps) {
           >
             <item.icon className="size-5" />
             <span className="text-[10px] font-medium">{item.label}</span>
-            {item.path === "/" && stats && stats.activeJobs > 0 && (
+            {(item.path === "/" || item.path === "/film") && stats && stats.activeJobs > 0 && (
               <span className="absolute top-0.5 right-0 size-2 rounded-full bg-status-info animate-pulse" />
             )}
           </Link>

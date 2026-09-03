@@ -25,6 +25,7 @@ const NAV_ITEMS: { path: string; label: string; icon: typeof LayoutDashboard; ad
     { path: "/analytic", label: "Analítica", icon: BarChart3 },
     { path: "/learning", label: "Aprendizaje", icon: BookOpen },
     { path: "/", label: "Nuevo Short", icon: PlusCircle },
+    { path: "/film", label: "Nuevo Film", icon: Film },
     { path: "/gallery", label: "Galería", icon: LayoutGrid },
     { path: "/lab", label: "API Lab", icon: FlaskConical },
     { path: "/settings", label: "Ajustes", icon: Settings },
@@ -42,7 +43,8 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
   const { user, logout } = useAuth();
 
   const isActive = (path: string) => {
-    if (path === "/") return location.pathname === "/" || location.pathname.startsWith("/jobs");
+    if (path === "/") return location.pathname === "/";
+    if (path === "/film") return location.pathname === "/film";
     return location.pathname.startsWith(path);
   };
 
@@ -83,7 +85,7 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
             >
               <item.icon className="size-5 shrink-0" />
               {!collapsed && item.label}
-              {item.path === "/" && stats && stats.activeJobs > 0 && (
+              {(item.path === "/" || item.path === "/film") && stats && stats.activeJobs > 0 && (
                 <span
                   className={cn(
                     "size-2 rounded-full bg-status-info animate-pulse",

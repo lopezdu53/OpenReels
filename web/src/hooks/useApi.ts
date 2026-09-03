@@ -383,7 +383,7 @@ export interface CreateJobRequest {
 
 export const api = {
   createJob(data: CreateJobRequest) {
-    return fetchJson<{ id: string }>("/jobs", {
+    return fetchJson<{ id: string; topic?: string; status?: string }>("/jobs", {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -397,6 +397,20 @@ export const api = {
 
   getJob(id: string) {
     return fetchJson<JobSummary>(`/jobs/${id}`);
+  },
+
+  generateFilmScript(data: {
+    idea: string;
+    durationMinutes?: number;
+    llm?: string;
+    llmModel?: string;
+    youtubeText?: string;
+    youtubeUrls?: string[];
+  }) {
+    return fetchJson<{ script: { title: string; hook: string; script: string }; youtubeUrls: string[] }>(
+      "/film/script",
+      { method: "POST", body: JSON.stringify(data) },
+    );
   },
 
   cancelJob(id: string) {

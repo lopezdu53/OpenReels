@@ -13,6 +13,7 @@ import { type AuthedRequest, registerAuth, requireUser } from "./auth/plugin.js"
 import { getArchetype, listArchetypes } from "./config/archetype-registry.js";
 import { ATELIER_STYLES } from "./config/atelier-styles.js";
 import { PLATFORMS } from "./config/platforms.js";
+import { registerFilmRoutes } from "./film/routes.js";
 import { AliCloudImage } from "./providers/image/alicloud.js";
 import { FalImage } from "./providers/image/fal.js";
 import { GeminiImage } from "./providers/image/gemini.js";
@@ -268,6 +269,7 @@ app.get("/api/v1/providers", async () => ({
 }));
 
 await registerAnalyticsRoutes(app);
+await registerFilmRoutes(app);
 
 // --- API Test endpoints ---
 
@@ -580,8 +582,8 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     if (typeof direction !== "string") {
       return reply.status(400).send({ error: "direction must be a string" });
     }
-    if (Buffer.byteLength(direction, "utf-8") > 10240) {
-      return reply.status(400).send({ error: "direction exceeds 10KB limit" });
+    if (Buffer.byteLength(direction, "utf-8") > 65536) {
+      return reply.status(400).send({ error: "direction exceeds 64KB limit" });
     }
   }
 

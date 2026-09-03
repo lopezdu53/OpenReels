@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { AdminPage } from "@/pages/AdminPage";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { DashboardPage } from "@/pages/DashboardPage";
+import { FilmPage } from "@/pages/FilmPage";
 import { GalleryPage } from "@/pages/GalleryPage";
 import { HomePage } from "@/pages/HomePage";
 import { JobPage } from "@/pages/JobPage";
@@ -21,6 +22,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={<HomePage />} />
+            <Route path="/film" element={<FilmPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/analytic" element={<AnalyticsPage />} />
             <Route path="/learning" element={<LearningPage />} />
