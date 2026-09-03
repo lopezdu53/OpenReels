@@ -5,15 +5,27 @@ const sheet = Buffer.alloc(128, 7);
 const style = Buffer.alloc(128, 9);
 
 describe("planVisualReferences", () => {
-  it("prefers the approved character sheet over style and Atelier", () => {
+  it("prefers the approved character sheet over style and Atelier on Gemini/VIVI", () => {
     const plan = planVisualReferences({
       characterReferenceImage: sheet,
       styleReferenceImage: style,
       atelierMode: true,
+      imageProvider: "vivi",
     });
     expect(plan.globalReference).toBe(sheet);
     expect(plan.useAtelier).toBe(false);
     expect(plan.sheetReference).toBe("character");
+  });
+
+  it("does not img2img a model sheet on RunPod (FLUX copies the collage)", () => {
+    const plan = planVisualReferences({
+      characterReferenceImage: sheet,
+      atelierMode: true,
+      imageProvider: "runpod",
+    });
+    expect(plan.globalReference).toBeUndefined();
+    expect(plan.useAtelier).toBe(true);
+    expect(plan.sheetReference).toBeNull();
   });
 
   it("uses the style board when there is no character sheet", () => {

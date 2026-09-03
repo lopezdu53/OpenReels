@@ -14,12 +14,24 @@ export interface VisualRefPlan {
   sheetReference: SheetReference;
 }
 
+/** FLUX / img2img clones the reference composition. A 4-panel sheet becomes 25 sheets. */
+const LAYOUT_CLONE_PROVIDERS = new Set(["runpod", "fal", "openai"]);
+
 export function planVisualReferences(opts: {
   characterReferenceImage?: Buffer;
   styleReferenceImage?: Buffer;
   atelierMode?: boolean;
+  imageProvider?: string;
 }): VisualRefPlan {
+  const clonesLayout = LAYOUT_CLONE_PROVIDERS.has(opts.imageProvider ?? "");
   if (opts.characterReferenceImage && opts.characterReferenceImage.length > 100) {
+    if (clonesLayout) {
+      return {
+        globalReference: undefined,
+        useAtelier: opts.atelierMode !== false,
+        sheetReference: null,
+      };
+    }
     return {
       globalReference: opts.characterReferenceImage,
       useAtelier: false,
@@ -27,6 +39,13 @@ export function planVisualReferences(opts: {
     };
   }
   if (opts.styleReferenceImage && opts.styleReferenceImage.length > 100) {
+    if (clonesLayout) {
+      return {
+        globalReference: undefined,
+        useAtelier: opts.atelierMode !== false,
+        sheetReference: null,
+      };
+    }
     return {
       globalReference: opts.styleReferenceImage,
       useAtelier: false,

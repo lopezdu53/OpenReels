@@ -825,6 +825,7 @@ function buildPipelineWorkflow(
         characterReferenceImage: opts.characterReferenceImage,
         styleReferenceImage: opts.styleReferenceImage,
         atelierMode: opts.atelierMode,
+        imageProvider: opts.imageProvider,
       });
       const globalReference = refPlan.globalReference;
       const atelierMode = refPlan.useAtelier;
