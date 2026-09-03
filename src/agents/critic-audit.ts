@@ -35,6 +35,17 @@ export interface ScoreAudit {
 
 const HUMAN_IN_ANIMAL = /\b(niño|niña|ninos|niños|boy|girl|toddler|human child|hombre|mujer|bebé humano|bebe humano)\b/i;
 
+/** Scan only the scene action, not the lock / MUST-avoid list (those name forbidden humans on purpose). */
+export function sceneActionPrompt(prompt: string): string {
+  const parts = prompt.split(/\bSCENE:\s*/i);
+  if (parts.length > 1) return parts.slice(1).join(" ").trim();
+  return prompt
+    .replace(/MUST avoid[^.\n]+\.?/gi, "")
+    .replace(/MUST keep[^.\n]+\.?/gi, "")
+    .replace(/IDENTITY LOCK:[^.]+\.?/gi, "")
+    .trim();
+}
+
 export function isLockedScript(direction?: string): boolean {
   if (!direction?.trim()) return false;
   return /##\s*Guion/i.test(direction) || direction.trim().length >= 400;
@@ -110,7 +121,8 @@ export function auditDirectorScore(score: DirectorScore, opts: CriticEvalOptions
       const scene = score.scenes[i]!;
       if (scene.visual_type !== "ai_image" && scene.visual_type !== "ai_video") continue;
       const prompt = scene.visual_prompt.toLowerCase();
-      if (animal && HUMAN_IN_ANIMAL.test(scene.visual_prompt)) {
+      const action = sceneActionPrompt(scene.visual_prompt);
+      if (animal && HUMAN_IN_ANIMAL.test(action)) {
         findings.push(`Escena ${i}: el prompt mete un humano y el personaje es animal.`);
         revisionFocus.push(`Escena ${i}: quita humanos. El héroe es ${species || "el animal bloqueado"}.`);
       }

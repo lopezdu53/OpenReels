@@ -96,6 +96,37 @@ describe("critic audit", () => {
     expect(next.revision_instructions).toMatch(/script_line|especie|humano|tigrillo/i);
   });
 
+  it("does not treat MUST-avoid 'niño humano' in the lock prefix as a human hero", () => {
+    const score: DirectorScore = {
+      emotional_arc: "arc",
+      archetype: "warm_narrative",
+      music_mood: "warm_acoustic",
+      scenes: [
+        {
+          visual_type: "ai_image",
+          visual_prompt:
+            "IDENTITY LOCK: Kind: animal. Species/race (LOCKED): coatí. MUST avoid: niño humano, mapache. SCENE: Coco the ring-tailed coati cub under the trees, 16:9 landscape",
+          motion: "zoom_in",
+          script_line: "Coco el coatí se perdió.",
+          transition: "crossfade",
+        },
+        { visual_type: "text_card", visual_prompt: "PERDIDO", motion: "static", script_line: "Mamá.", transition: null },
+        {
+          visual_type: "ai_image",
+          visual_prompt:
+            "IDENTITY LOCK: Kind: animal. MUST avoid: niño humano. SCENE: mother coati finds Coco, ringed tail, 16:9",
+          motion: "zoom_out",
+          script_line: "Mamá coatí llegó.",
+          transition: null,
+        },
+      ],
+    };
+    const audit = auditDirectorScore(score, {
+      characterLock: "Kind: animal. Species/race (LOCKED): coatí. Appearance: cola anillada. MUST avoid: niño humano",
+    });
+    expect(audit.findings.some((f) => /mete un humano/.test(f))).toBe(false);
+  });
+
   it("summarizes Gemini credit exhaustion as a production note", () => {
     const notes = summarizeVideoFallbacks([
       {
