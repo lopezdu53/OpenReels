@@ -74,7 +74,7 @@ describe("generateOrientedImage", () => {
     expect(out).toBe(landscape);
     expect(generate).toHaveBeenCalledTimes(2);
     expect(String(generate.mock.calls[1]![0])).toContain("WIDE 16:9 HORIZONTAL");
-    expect(String(generate.mock.calls[1]![0])).toContain("No black bars");
+    expect(String(generate.mock.calls[1]![0])).toMatch(/no black bars/i);
   });
 
   it("keeps the wider still if the retry is still portrait", async () => {

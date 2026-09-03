@@ -9,7 +9,7 @@ export interface ImageSize {
 export const MIN_LANDSCAPE_RATIO = 1.4;
 
 export function readImageSize(buffer: Buffer): ImageSize | null {
-  if (!buffer || buffer.length < 24) return null;
+  if (!buffer || buffer.length < 12) return null;
   if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
     return readPngSize(buffer);
   }
@@ -88,6 +88,7 @@ function readJpegSize(buffer: Buffer): ImageSize | null {
       continue;
     }
     const marker = buffer[offset + 1];
+    if (marker == null) break;
     if (marker === 0xd8 || marker === 0xd9 || marker === 0x01) {
       offset += 2;
       continue;
