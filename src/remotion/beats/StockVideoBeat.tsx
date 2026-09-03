@@ -29,14 +29,14 @@ export const StockVideoBeat: React.FC<SceneProps> = ({
       style={{
         width: "100%",
         height: "100%",
-        objectFit: "cover",
+        objectFit: "contain",
       }}
       muted
     />
   ) : null;
 
   return (
-    <AbsoluteFill>
+    <AbsoluteFill style={{ backgroundColor: "#0a0a0a" }}>
       {video && (loop ? <Loop durationInFrames={loopDurationInFrames}>{video}</Loop> : video)}
     </AbsoluteFill>
   );

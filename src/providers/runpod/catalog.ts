@@ -19,8 +19,8 @@ export interface RunPodVideoModel {
   /** How the public endpoint expects output size. */
   sizeParam: "size" | "resolution" | "none";
   /**
-   * WaveSpeed proxies (Pruna / p-video) validate `{ input: { prompt, image, ... } }`
-   * after RunPod unwraps the top-level `{ input: ... }` envelope.
+   * WaveSpeed / p-video: omit extra keys (negative_prompt, seed).
+   * runPodJob already sends `{ input: fields }` — do not wrap twice.
    */
   nestedInput?: boolean;
 }

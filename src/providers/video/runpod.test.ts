@@ -10,26 +10,25 @@ describe("RunPodVideo", () => {
 });
 
 describe("buildRunPodVideoJobInput", () => {
-  it("nests p-video fields under input for WaveSpeed", () => {
+  it("keeps p-video fields flat so runPodJob can wrap { input } once", () => {
     const payload = buildRunPodVideoJobInput({
       modelId: "p-video",
       prompt: "camera slowly orbits the colosseum",
       imageDataUri: "data:image/png;base64,abc",
       duration: 5,
-      aspectRatio: "9:16",
+      aspectRatio: "16:9",
       resolution: "720p",
       negativePrompt: "blur",
     });
 
     expect(payload).toEqual({
-      input: {
-        prompt: "camera slowly orbits the colosseum",
-        image: "data:image/png;base64,abc",
-        duration: 5,
-        aspect_ratio: "9:16",
-        resolution: "720p",
-      },
+      prompt: "camera slowly orbits the colosseum",
+      image: "data:image/png;base64,abc",
+      duration: 5,
+      aspect_ratio: "16:9",
+      resolution: "720p",
     });
+    expect(payload["input"]).toBeUndefined();
     expect(payload).not.toHaveProperty("negative_prompt");
     expect(payload).not.toHaveProperty("seed");
   });

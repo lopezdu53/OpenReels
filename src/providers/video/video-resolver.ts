@@ -75,7 +75,7 @@ export async function resolveAIVideo(
       sceneIndex,
       opts.totalScenes ?? 1,
       opts.archetype,
-      { mode: "video", characterLock: opts.characterLock },
+      { mode: "video", characterLock: opts.characterLock, aspectRatio: opts.aspectRatio },
     );
     motionPrompt = optimized.prompt;
     prompterUsage = optimized.usage;

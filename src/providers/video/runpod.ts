@@ -63,8 +63,9 @@ export function buildRunPodVideoJobInput(opts: {
     fields["size"] = sizeFor(opts.aspectRatio, opts.resolution);
   }
 
-  // p-video's WaveSpeed schema rejects unknown keys (negative_prompt, seed: -1)
-  // with a misleading "property input is required" 400.
+  // p-video / WaveSpeed rejects unknown keys (negative_prompt, seed).
+  // runPodJob already wraps the body as { input: fields } — never nest again
+  // or P_VideoInput sees { input: {...} } and reports "prompt Field required".
   if (!spec.nestedInput) {
     fields["negative_prompt"] = opts.negativePrompt ?? "";
     fields["seed"] = -1;
@@ -78,7 +79,7 @@ export function buildRunPodVideoJobInput(opts: {
     fields["fps"] = 16;
   }
 
-  return spec.nestedInput ? { input: fields } : fields;
+  return fields;
 }
 
 export class RunPodVideo implements VideoProvider {

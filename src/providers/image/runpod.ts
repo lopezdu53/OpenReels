@@ -90,7 +90,7 @@ export class RunPodImage implements ImageProvider {
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        return await this.runJob(fullPrompt, dims.width, dims.height);
+        return await this.runJob(fullPrompt, dims.width, dims.height, aspectRatio, _referenceImage);
       } catch (err) {
         lastError = err;
         if (!isRunPodRetryable(err) || attempt === 2) break;
@@ -102,29 +102,26 @@ export class RunPodImage implements ImageProvider {
     throw lastError;
   }
 
-  private async runJob(prompt: string, width: number, height: number): Promise<Buffer> {
+  private async runJob(
+    prompt: string,
+    width: number,
+    height: number,
+    aspectRatio?: string,
+    referenceImage?: Buffer,
+  ): Promise<Buffer> {
     const spec = getRunPodImageModel(this.modelId);
     const steps = this.steps ?? spec.defaultSteps;
     const guidance = this.guidance ?? spec.defaultGuidance;
-
-    const input: Record<string, unknown> = { prompt };
-
-    if (spec.sizeMode === "aspect") {
-      input["aspect_ratio"] = aspectRatioFor(width, height);
-    } else if (spec.sizeMode === "preset") {
-      input["size"] = `${width}*${height}`;
-    } else {
-      input["width"] = width;
-      input["height"] = height;
-    }
-    if (steps != null) input["num_inference_steps"] = steps;
-    if (guidance != null) {
-      input["guidance"] = guidance;
-      input["guidance_scale"] = guidance;
-    }
-    input["num_images"] = 1;
-    input["image_format"] = "png";
-    input["output_format"] = "png";
+    const input = buildRunPodImageJobInput({
+      spec,
+      prompt,
+      width,
+      height,
+      aspectRatio,
+      steps,
+      guidance,
+      referenceImage,
+    });
 
     const output = await runPodJob({
       endpointId: this.endpointId,
@@ -143,6 +140,44 @@ export class RunPodImage implements ImageProvider {
   }
 }
 
+export function buildRunPodImageJobInput(opts: {
+  spec: RunPodImageModel;
+  prompt: string;
+  width: number;
+  height: number;
+  aspectRatio?: string;
+  steps?: number;
+  guidance?: number;
+  referenceImage?: Buffer;
+}): Record<string, unknown> {
+  const input: Record<string, unknown> = { prompt: opts.prompt };
+  const ratio = opts.aspectRatio ?? (opts.width > opts.height ? "16:9" : opts.width === opts.height ? "1:1" : "9:16");
+  input["aspect_ratio"] = ratio;
+
+  if (opts.spec.sizeMode === "aspect") {
+    // aspect_ratio already set
+  } else if (opts.spec.sizeMode === "preset") {
+    input["size"] = `${opts.width}*${opts.height}`;
+  } else {
+    input["width"] = opts.width;
+    input["height"] = opts.height;
+    input["size"] = `${opts.width}*${opts.height}`;
+  }
+  if (opts.steps != null) input["num_inference_steps"] = opts.steps;
+  if (opts.guidance != null) {
+    input["guidance"] = opts.guidance;
+    input["guidance_scale"] = opts.guidance;
+  }
+  input["num_images"] = 1;
+  input["image_format"] = "png";
+  input["output_format"] = "png";
+  if (opts.referenceImage && opts.referenceImage.length > 100) {
+    input["image"] = `data:image/png;base64,${opts.referenceImage.toString("base64")}`;
+    input["strength"] = 0.35;
+  }
+  return input;
+}
+
 function dimensionsFor(spec: RunPodImageModel, aspectRatio?: string): { width: number; height: number } {
   if (spec.sizeMode === "preset" || spec.sizeMode === "aspect") {
     if (aspectRatio === "16:9") return { width: 1280, height: 720 };
@@ -154,7 +189,3 @@ function dimensionsFor(spec: RunPodImageModel, aspectRatio?: string): { width: n
   return DIMENSIONS.portrait;
 }
 
-function aspectRatioFor(width: number, height: number): string {
-  if (width === height) return "1:1";
-  return width > height ? "16:9" : "9:16";
-}

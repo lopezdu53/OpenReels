@@ -158,6 +158,7 @@ async function generateAIImage(
   const imagePromptOpts = {
     ...(opts.artStyleOverride ? { artStyleOverride: opts.artStyleOverride } : {}),
     ...(opts.characterLock ? { characterLock: opts.characterLock } : {}),
+    ...(aspectRatio ? { aspectRatio } : {}),
   };
 
   try {
@@ -174,10 +175,16 @@ async function generateAIImage(
     usage = optimized.usage;
   } catch (err) {
     console.warn(`[visuals] Scene ${sceneIndex} prompt optimization failed, using original: ${err}`);
+    if (aspectRatio === "16:9") {
+      prompt = `16:9 landscape widescreen cinematic still. ${prompt}`;
+    }
+    if (opts.artStyleOverride?.trim()) {
+      prompt = `${prompt}. Art style LOCKED: ${opts.artStyleOverride.trim()}`;
+    }
   }
 
   if (opts.characterLock?.trim()) {
-    prompt = `IDENTITY LOCK — same individual every shot, never change species, markings, age or face. ${opts.characterLock.trim()} Scene: ${prompt}`;
+    prompt = `IDENTITY LOCK — same individual every shot, never change species, markings, age or face. Not a fox, raccoon, cat, or tiger unless the lock says so. ${opts.characterLock.trim()} Scene: ${prompt}`;
   }
 
   try {
@@ -472,7 +479,7 @@ function buildPipelineWorkflow(
         stockEnabled,
       });
       const directorOpts = {
-        archetype: opts.archetype,
+        archetype: opts.archetype ?? (opts.artStyleOverride ? "cinematic_documentary" : undefined),
         pacing: opts.pacing,
         videoEnabled,
         allowedVisualTypes,
@@ -480,6 +487,7 @@ function buildPipelineWorkflow(
         targetDurationMinutes: opts.targetDurationMinutes,
         platform: opts.platform,
         characterLock: opts.characterLock,
+        artStyleOverride: opts.artStyleOverride,
       };
 
       // ── Replay mode: use provided score, skip generation + revision ──

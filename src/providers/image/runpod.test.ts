@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { RunPodImage } from "./runpod.js";
+import { getRunPodImageModel } from "../runpod/catalog.js";
+import { buildRunPodImageJobInput, RunPodImage } from "./runpod.js";
 
 describe("RunPodImage", () => {
   it("constructs a public endpoint from API key only", () => {
@@ -13,6 +14,23 @@ describe("RunPodImage", () => {
       apiKey: "rp-key",
     });
     expect(img).toBeInstanceOf(RunPodImage);
+  });
+
+  it("sends landscape width/height and 16:9 for Film stills", () => {
+    const spec = getRunPodImageModel("black-forest-labs-flux-1-schnell");
+    const input = buildRunPodImageJobInput({
+      spec,
+      prompt: "a coati cub",
+      width: 1344,
+      height: 768,
+      aspectRatio: "16:9",
+      steps: 4,
+      guidance: 1,
+    });
+    expect(input["width"]).toBe(1344);
+    expect(input["height"]).toBe(768);
+    expect(input["aspect_ratio"]).toBe("16:9");
+    expect(input["size"]).toBe("1344*768");
   });
 
   it("throws without an API key", () => {

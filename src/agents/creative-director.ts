@@ -100,7 +100,7 @@ const ALL_VISUAL_TYPES = ["ai_image", "stock_image", "stock_video", "text_card",
 
 function characterSection(lock?: string): string {
   if (lock?.trim()) {
-    return `\n## CHARACTER IDENTITY LOCK\n${lock.trim()}\nThe SAME individual in every visual_prompt. Never change species, race, markings, age, or face. Do not swap an ocelot for a Bengal tiger or a cub for an adult. Contrast via camera and emotion only.\n`;
+    return `\n## CHARACTER IDENTITY LOCK\n${lock.trim()}\nThe SAME individual in every visual_prompt. Never change species, race, markings, age, or face. Do not swap an ocelot for a Bengal tiger, a coatí for a fox/raccoon, or a cub for an adult. Contrast via camera and emotion only.\n`;
   }
   return `\n## CHARACTER CONTINUITY\nIf the story has a recurring character (animal or person), lock species, race, age, markings, and face in EVERY visual_prompt. Repeat the exact description. Never morph to a similar species.\n`;
 }
@@ -125,13 +125,13 @@ export async function generateDirectorScore(
   llm: LLMProvider,
   topic: string,
   researchContext: ResearchResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; artStyleOverride?: string },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes, options?.platform);
 
   const archetypes = listArchetypes();
   const archetypeInstruction = options?.archetype
-    ? `Use the "${options.archetype}" archetype.`
+    ? `Use the "${options.archetype}" archetype. Do not switch to watercolor, anime, or another look.`
     : `Choose from: ${archetypes.join(", ")}`;
 
   const { visualTypes, videoGuidance } = buildVisualTypesInstruction(options?.allowedVisualTypes, options?.videoEnabled);
@@ -163,7 +163,7 @@ ${archetypeInstruction}
 
 ${pacingInstruction}
 Use ${visualTypes}.${videoGuidance}
-${directionSection}${characterSection(options?.characterLock)}CRITICAL RULE: Never use the same visual_type more than 2 times in a row. With more scenes, plan your visual_type sequence BEFORE writing scenes to ensure variety.
+${directionSection}${characterSection(options?.characterLock)}${options?.artStyleOverride?.trim() ? `\n## ART STYLE LOCK\n${options.artStyleOverride.trim()}\nEvery visual_prompt stays in this look. Do not switch photoreal ↔ cartoon/watercolor.\n` : ""}CRITICAL RULE: Never use the same visual_type more than 2 times in a row. With more scenes, plan your visual_type sequence BEFORE writing scenes to ensure variety.
 Every scene MUST have a script_line (the voiceover text).
 The first scene should be a strong hook.
 ${isLongForm
@@ -350,7 +350,7 @@ export async function reviseDirectorScore(
   researchContext: ResearchResult,
   originalScore: DirectorScore,
   critique: CritiqueResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; artStyleOverride?: string },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes, options?.platform);
 
@@ -397,6 +397,7 @@ Revise the DirectorScore to address the weaknesses while preserving the strength
 Keep the same archetype. Maintain the GOLDEN RULE: never use the same visual_type more than 2 times in a row.
 ${options?.direction?.trim() ? "LOCKED NARRATION: do not rewrite script_line. Only change visual_type, visual_prompt, motion, and transition." : ""}
 ${options?.characterLock?.trim() ? `IDENTITY: every AI visual_prompt must keep this lock: ${options.characterLock.trim()}` : ""}
+${options?.artStyleOverride?.trim() ? `ART STYLE LOCK: ${options.artStyleOverride.trim()}. Do not switch photoreal ↔ cartoon.` : ""}
 ${options?.platform === "youtube_horizontal" ? "Every AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame." : ""}`;
 
   const maxRetries = 2;

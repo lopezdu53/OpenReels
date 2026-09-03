@@ -7,9 +7,20 @@ import type { LLMProvider, LLMUsage } from "../schema/providers.js";
 const IMAGE_PROMPT_PATH = path.join(process.cwd(), "prompts", "image-prompter.md");
 const VIDEO_PROMPT_PATH = path.join(process.cwd(), "prompts", "video-prompter.md");
 
-const ImagePromptResult = z.object({
-  optimized_prompt: z.string(),
-});
+const ImagePromptResult = z
+  .object({
+    optimized_prompt: z.string().optional(),
+    prompt: z.string().optional(),
+    image_prompt: z.string().optional(),
+  })
+  .transform((data, ctx) => {
+    const text = [data.optimized_prompt, data.prompt, data.image_prompt].find((s) => s && s.trim().length > 0);
+    if (!text) {
+      ctx.addIssue({ code: "custom", message: "optimized_prompt is required" });
+      return z.NEVER;
+    }
+    return { optimized_prompt: text.trim() };
+  });
 
 export interface ImagePromptOutput {
   prompt: string;
@@ -21,6 +32,7 @@ export interface ImagePromptOptions {
   rejectionContext?: string;
   artStyleOverride?: string;
   characterLock?: string;
+  aspectRatio?: string;
 }
 
 export async function optimizeImagePrompt(
@@ -59,12 +71,23 @@ Cultural markers: ${archetype.culturalMarkers}
 Mood: ${archetype.mood}
 Quality guidance: ${archetype.antiArtifactGuidance}`;
 
+  const landscape = opts?.aspectRatio === "16:9";
+  systemPrompt += `
+
+## FRAME FORMAT
+${
+  landscape
+    ? "WIDE 16:9 landscape widescreen (1920x1080). Compose horizontally. Do NOT generate a vertical 9:16 or square image."
+    : "Vertical 9:16 portrait. Subject fills the frame vertically."
+}`;
+
   if (opts?.characterLock?.trim()) {
     systemPrompt += `
 
 ## CHARACTER IDENTITY LOCK (overrides visual contrast)
 The SAME individual must appear in every shot. Never change species, race, age, face, markings, or body type to create variety. Contrast only via camera angle, time of day, emotion, and framing.
-Locked character: ${opts.characterLock.trim()}`;
+Locked character: ${opts.characterLock.trim()}
+If the lock says coatí / Nasua, it is NOT a fox, raccoon, cat, or tiger. Repeat the locked species in the prompt.`;
   }
 
   let userMessage = `Scene ${sceneIndex + 1} of ${totalScenes}
@@ -77,8 +100,8 @@ Narration: ${scriptLine}`;
 
   userMessage +=
     mode === "video"
-      ? `\n\nGenerate an optimized video generation prompt for this scene. Focus on motion and camera movement.`
-      : `\n\nGenerate an optimized image generation prompt for this scene.`;
+      ? `\n\nGenerate an optimized video generation prompt for this scene. Focus on motion and camera movement. Put the full text in optimized_prompt.`
+      : `\n\nGenerate an optimized image generation prompt for this scene. Put the full text in the optimized_prompt field. ${landscape ? "The image MUST be 16:9 landscape." : "The image MUST be 9:16 portrait."}`;
 
   const result = await llm.generate({
     systemPrompt,
