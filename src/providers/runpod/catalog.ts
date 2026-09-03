@@ -7,6 +7,8 @@ export interface RunPodImageModel {
   maxSteps?: number;
   defaultGuidance?: number;
   sizeMode: "wh" | "preset" | "aspect";
+  /** How (if) the endpoint accepts a previous-scene still for identity lock. */
+  supportsReference?: "url" | "data";
 }
 
 export interface RunPodVideoModel {
@@ -62,13 +64,15 @@ export const RUNPOD_IMAGE_MODELS: RunPodImageModel[] = [
     maxSteps: 8,
     defaultGuidance: 1,
     sizeMode: "wh",
+    supportsReference: "data",
   },
   {
     id: "z-image-turbo",
-    label: "Z-Image Turbo",
+    label: "Z-Image Turbo — 16:9 + identidad",
     kind: "public",
     costHint: "$0.005 / imagen",
     sizeMode: "preset",
+    supportsReference: "url",
   },
   {
     id: "black-forest-labs-flux-1-dev",
@@ -79,6 +83,7 @@ export const RUNPOD_IMAGE_MODELS: RunPodImageModel[] = [
     maxSteps: 50,
     defaultGuidance: 7.5,
     sizeMode: "wh",
+    supportsReference: "data",
   },
   {
     id: "qwen-image-t2i",
@@ -173,6 +178,9 @@ export const RUNPOD_VIDEO_MODELS: RunPodVideoModel[] = [
 
 export const DEFAULT_RUNPOD_IMAGE_MODEL = "p-image-t2i";
 export const DEFAULT_RUNPOD_VIDEO_MODEL = "p-video";
+/** 16:9 img2img when the primary T2I model cannot see a reference still. */
+export const RUNPOD_IDENTITY_MODEL = "z-image-turbo";
+export const RUNPOD_IDENTITY_STRENGTH = 0.3;
 
 export function canonicalizeRunPodImageModelId(id: string | undefined): string {
   if (!id) return DEFAULT_RUNPOD_IMAGE_MODEL;

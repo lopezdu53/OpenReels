@@ -61,6 +61,8 @@ function countVideos(sceneCount: number, mode: string | undefined, hasVideo: boo
     case "first_every2":
     case "force_first_every2":
       return Math.ceil(sceneCount / 2);
+    case "all":
+      return sceneCount;
     default:
       return Math.max(2, Math.round(sceneCount / 4));
   }
@@ -70,7 +72,12 @@ export function estimateJobCost(input: JobCostPreviewInput, prices: ApiPrices): 
   const longForm = input.platform === "reel_extend" || input.platform === "youtube_horizontal";
   const minutes = input.targetDurationMinutes ?? 5;
   const pacing = PACING_SCENES[input.pacing || "moderate"] ?? PACING_SCENES.moderate!;
-  const sceneCount = longForm ? Math.max(8, Math.round(minutes * 150 / 14)) : pacing.scenes;
+  const testFilm = longForm && minutes > 0 && minutes < 2;
+  const sceneCount = testFilm
+    ? Math.max(4, Math.round((minutes * 150) / 12))
+    : longForm
+      ? Math.max(8, Math.round((minutes * 150) / 14))
+      : pacing.scenes;
   const words = longForm ? Math.round(minutes * 150) : pacing.words;
   const ttsCharacters = Math.round(words * 5.4);
 

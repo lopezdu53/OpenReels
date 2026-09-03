@@ -4,6 +4,8 @@ import {
   DEFAULT_RUNPOD_IMAGE_MODEL,
   getRunPodImageModel,
   isRunPodPublicModelId,
+  RUNPOD_IDENTITY_MODEL,
+  RUNPOD_IDENTITY_STRENGTH,
   type RunPodImageModel,
 } from "../runpod/catalog.js";
 import { extractMediaBuffer, isRunPodRetryable, runPodJob } from "../runpod/client.js";
@@ -72,9 +74,25 @@ export class RunPodImage implements ImageProvider {
     this.guidance = config.guidance;
   }
 
-  async generate(prompt: string, style?: string, _referenceImage?: Buffer, aspectRatio?: string): Promise<Buffer> {
-    const spec = getRunPodImageModel(this.modelId);
-    const dims = dimensionsFor(spec, aspectRatio);
+  async generate(
+    prompt: string,
+    style?: string,
+    _referenceImage?: Buffer,
+    aspectRatio?: string,
+    referenceImageUrl?: string,
+  ): Promise<Buffer> {
+    const refUrl = isHttpUrl(referenceImageUrl) ? referenceImageUrl.trim() : undefined;
+    const job = resolveRunPodImageJob({
+      primaryModelId: this.modelId,
+      primaryEndpointId: this.endpointId,
+      referenceImageUrl: refUrl,
+      referenceImage: _referenceImage,
+      aspectRatio,
+    });
+
+    const identityHint = refUrl
+      ? "IDENTITY LOCK from the reference still: same individual, same crest/hair shape, same black patches and markings, same eye color and species. Change only camera angle, pose and location. "
+      : "";
 
     const orientationHint =
       aspectRatio === "16:9"
@@ -84,13 +102,13 @@ export class RunPodImage implements ImageProvider {
           : "Vertical 9:16 portrait image.";
 
     const fullPrompt = style
-      ? `${prompt}. Style: ${style}. ${orientationHint} No text, no watermarks.`
-      : `${prompt}. ${orientationHint} No text, no watermarks.`;
+      ? `${identityHint}${prompt}. Style: ${style}. ${orientationHint} No text, no watermarks.`
+      : `${identityHint}${prompt}. ${orientationHint} No text, no watermarks.`;
 
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        return await this.runJob(fullPrompt, dims.width, dims.height, aspectRatio, _referenceImage);
+        return await this.runJob(fullPrompt, job, aspectRatio, _referenceImage, refUrl);
       } catch (err) {
         lastError = err;
         if (!isRunPodRetryable(err) || attempt === 2) break;
@@ -104,27 +122,28 @@ export class RunPodImage implements ImageProvider {
 
   private async runJob(
     prompt: string,
-    width: number,
-    height: number,
+    job: { spec: RunPodImageModel; endpointId: string },
     aspectRatio?: string,
     referenceImage?: Buffer,
+    referenceImageUrl?: string,
   ): Promise<Buffer> {
-    const spec = getRunPodImageModel(this.modelId);
-    const steps = this.steps ?? spec.defaultSteps;
-    const guidance = this.guidance ?? spec.defaultGuidance;
+    const dims = dimensionsFor(job.spec, aspectRatio);
+    const steps = this.steps ?? job.spec.defaultSteps;
+    const guidance = this.guidance ?? job.spec.defaultGuidance;
     const input = buildRunPodImageJobInput({
-      spec,
+      spec: job.spec,
       prompt,
-      width,
-      height,
+      width: dims.width,
+      height: dims.height,
       aspectRatio,
       steps,
       guidance,
       referenceImage,
+      referenceImageUrl,
     });
 
     const output = await runPodJob({
-      endpointId: this.endpointId,
+      endpointId: job.endpointId,
       apiKey: this.apiKey,
       input,
       pollMs: POLL_INTERVAL_MS,
@@ -140,6 +159,34 @@ export class RunPodImage implements ImageProvider {
   }
 }
 
+export function isHttpUrl(value?: string): value is string {
+  return typeof value === "string" && /^https?:\/\//i.test(value.trim());
+}
+
+/** Pick the endpoint that can honor a previous-scene still (crest, patches, face). */
+export function resolveRunPodImageJob(opts: {
+  primaryModelId: string;
+  primaryEndpointId: string;
+  referenceImageUrl?: string;
+  referenceImage?: Buffer;
+  aspectRatio?: string;
+}): { spec: RunPodImageModel; endpointId: string } {
+  const primary = getRunPodImageModel(opts.primaryModelId);
+  const hasUrl = isHttpUrl(opts.referenceImageUrl);
+  const hasBuf = !!(opts.referenceImage && opts.referenceImage.length > 100);
+  if (hasUrl) {
+    if (primary.supportsReference === "url") {
+      return { spec: primary, endpointId: opts.primaryEndpointId };
+    }
+    const lock = getRunPodImageModel(RUNPOD_IDENTITY_MODEL);
+    return { spec: lock, endpointId: lock.id };
+  }
+  if (hasBuf && primary.supportsReference === "data") {
+    return { spec: primary, endpointId: opts.primaryEndpointId };
+  }
+  return { spec: primary, endpointId: opts.primaryEndpointId };
+}
+
 export function buildRunPodImageJobInput(opts: {
   spec: RunPodImageModel;
   prompt: string;
@@ -149,8 +196,27 @@ export function buildRunPodImageJobInput(opts: {
   steps?: number;
   guidance?: number;
   referenceImage?: Buffer;
+  referenceImageUrl?: string;
 }): Record<string, unknown> {
   const ratio = opts.aspectRatio ?? (opts.width > opts.height ? "16:9" : opts.width === opts.height ? "1:1" : "9:16");
+  const refUrl = isHttpUrl(opts.referenceImageUrl) ? opts.referenceImageUrl.trim() : undefined;
+
+  // z-image-turbo (and other URL img2img): lean payload, native 16:9 size.
+  if (refUrl && opts.spec.supportsReference === "url") {
+    const input: Record<string, unknown> = {
+      prompt: opts.prompt,
+      image: refUrl,
+      strength: RUNPOD_IDENTITY_STRENGTH,
+      output_format: "png",
+    };
+    if (opts.spec.sizeMode === "preset") input["size"] = `${opts.width}*${opts.height}`;
+    else if (opts.spec.sizeMode === "aspect") input["aspect_ratio"] = ratio;
+    else {
+      input["width"] = opts.width;
+      input["height"] = opts.height;
+    }
+    return input;
+  }
 
   // p-image-t2i only accepts prompt + aspect_ratio. Extra keys 400.
   if (opts.spec.sizeMode === "aspect") {
@@ -174,9 +240,9 @@ export function buildRunPodImageJobInput(opts: {
   input["num_images"] = 1;
   input["image_format"] = "png";
   input["output_format"] = "png";
-  if (opts.referenceImage && opts.referenceImage.length > 100) {
+  if (opts.spec.supportsReference === "data" && opts.referenceImage && opts.referenceImage.length > 100) {
     input["image"] = `data:image/png;base64,${opts.referenceImage.toString("base64")}`;
-    input["strength"] = 0.35;
+    input["strength"] = RUNPOD_IDENTITY_STRENGTH;
   }
   return input;
 }

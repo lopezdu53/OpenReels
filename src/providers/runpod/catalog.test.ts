@@ -35,6 +35,7 @@ describe("RunPod catalog", () => {
   it("hides inference steps for models that do not expose them", () => {
     expect(getRunPodImageModel("z-image-turbo").maxSteps).toBeUndefined();
     expect(getRunPodImageModel("p-image-t2i").sizeMode).toBe("aspect");
+    expect(getRunPodImageModel("z-image-turbo").supportsReference).toBe("url");
     expect(getRunPodImageModel("black-forest-labs-flux-1-schnell").maxSteps).toBe(8);
   });
 

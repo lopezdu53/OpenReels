@@ -50,7 +50,13 @@ export interface ImageProvider {
    * for style/character continuity. Providers that don't support reference
    * images should ignore it.
    */
-  generate(prompt: string, style?: string, referenceImage?: Buffer, aspectRatio?: string): Promise<Buffer>;
+  generate(
+    prompt: string,
+    style?: string,
+    referenceImage?: Buffer,
+    aspectRatio?: string,
+    referenceImageUrl?: string,
+  ): Promise<Buffer>;
 }
 
 export interface StockCandidate {

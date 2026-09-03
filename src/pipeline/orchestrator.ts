@@ -165,6 +165,7 @@ async function generateAIImage(
     previousVisualPrompt?: string;
     sheetReference?: SheetReference;
   },
+  referenceImageUrl?: string,
 ): Promise<VisualAssetResult> {
   let prompt = visualPrompt;
   let usage: LLMUsage | null = null;
@@ -218,12 +219,14 @@ async function generateAIImage(
 
   try {
     const imageBuffer = await generateOrientedImage(
-      (p, s, r, a) => opts.imageGen.generate(p, s, r, a),
-      { prompt, referenceImage, aspectRatio },
+      (p, s, r, a, u) => opts.imageGen.generate(p, s, r, a, u),
+      { prompt, referenceImage, referenceImageUrl, aspectRatio },
     );
     const filePath = path.join(assetsDir, `scene-${sceneIndex}-ai.png`);
     fs.writeFileSync(filePath, imageBuffer);
-    return { path: filePath, usage, durationSeconds: null, remoteUrl: lookupRemoteUrl(imageBuffer) };
+    const remoteUrl = lookupRemoteUrl(imageBuffer);
+    if (remoteUrl) fs.writeFileSync(`${filePath}.url`, remoteUrl);
+    return { path: filePath, usage, durationSeconds: null, remoteUrl };
   } catch (err) {
     if (!isSafetyRejection(err)) throw err;
 
@@ -264,12 +267,14 @@ async function generateAIImage(
     }
 
     const imageBuffer = await generateOrientedImage(
-      (p, s, r, a) => opts.imageGen.generate(p, s, r, a),
-      { prompt, referenceImage, aspectRatio },
+      (p, s, r, a, u) => opts.imageGen.generate(p, s, r, a, u),
+      { prompt, referenceImage, referenceImageUrl, aspectRatio },
     );
     const filePath = path.join(assetsDir, `scene-${sceneIndex}-ai.png`);
     fs.writeFileSync(filePath, imageBuffer);
-    return { path: filePath, usage, durationSeconds: null, remoteUrl: lookupRemoteUrl(imageBuffer) };
+    const remoteUrl = lookupRemoteUrl(imageBuffer);
+    if (remoteUrl) fs.writeFileSync(`${filePath}.url`, remoteUrl);
+    return { path: filePath, usage, durationSeconds: null, remoteUrl };
   }
 }
 
@@ -300,6 +305,7 @@ async function resolveVisualAsset(
     previousVisualPrompt?: string;
     sheetReference?: SheetReference;
   },
+  referenceImageUrl?: string,
 ): Promise<VisualAssetResult> {
   const shotBag = {
     shotType: scene.shot_type,
@@ -310,7 +316,7 @@ async function resolveVisualAsset(
   };
   switch (scene.visual_type) {
     case "ai_image":
-      return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio, shotBag);
+      return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio, shotBag, referenceImageUrl);
 
     case "stock_image":
     case "stock_video": {
@@ -344,11 +350,11 @@ async function resolveVisualAsset(
     case "ai_video": {
       // If no video providers available, fall back to ai_image silently
       if (!opts.videoProviders?.length) {
-        return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio, shotBag);
+        return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio, shotBag, referenceImageUrl);
       }
       // Phase 1: Generate AI image (first frame)
       const imageStart = Date.now();
-      const imgResult = await generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio, shotBag);
+      const imgResult = await generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio, shotBag, referenceImageUrl);
       const imageGenTimeMs = Date.now() - imageStart;
       const imageBuffer = fs.readFileSync(imgResult.path!);
 
@@ -837,7 +843,15 @@ function buildPipelineWorkflow(
 
       // Long-form platforms using VIVI benefit from sequential generation with a
       // reference image fed forward so characters/setting/style stay consistent.
-      const continuityEnabled = !globalReference && !atelierMode && opts.platform !== "youtube" && opts.platform !== "tiktok" && opts.platform !== "instagram" && opts.imageProvider === "vivi";
+      const runpodIdentityLock = opts.imageProvider === "runpod" && atelierMode;
+      const continuityEnabled =
+        runpodIdentityLock ||
+        (!globalReference &&
+          !atelierMode &&
+          opts.platform !== "youtube" &&
+          opts.platform !== "tiktok" &&
+          opts.platform !== "instagram" &&
+          opts.imageProvider === "vivi");
 
       const shotFor = (i: number) => ({
         previousVisualPrompt: i > 0 ? score.scenes[i - 1]?.visual_prompt : undefined,
@@ -856,7 +870,7 @@ function buildPipelineWorkflow(
               }
             }),
           )
-        : atelierMode
+        : atelierMode && !runpodIdentityLock
         ? (async () => {
             // Step 1: generate scene 0 without reference
             const firstScene = score.scenes[0]!;
@@ -869,17 +883,22 @@ function buildPipelineWorkflow(
             }
             // Step 2: read scene 0's image as the Atelier reference
             let atelierRef: Buffer | undefined;
+            let atelierUrl: string | undefined = firstResult.remoteUrl;
             try {
               const firstAi = ["scene-0-ai.png", ...score.scenes.map((_, i) => `scene-${i}-ai.png`)]
                 .find((name) => fs.existsSync(path.join(assetsDir, name)));
-              if (firstAi) atelierRef = fs.readFileSync(path.join(assetsDir, firstAi));
+              if (firstAi) {
+                atelierRef = fs.readFileSync(path.join(assetsDir, firstAi));
+                const urlFile = path.join(assetsDir, `${firstAi}.url`);
+                if (fs.existsSync(urlFile)) atelierUrl = fs.readFileSync(urlFile, "utf-8").trim();
+              }
             } catch { /* no ai image yet — proceed without ref */ }
             // Step 3: scenes 1+ in parallel, all receiving scene 0's image as reference
             const restResults = await Promise.all(
               score.scenes.slice(1).map(async (scene, idx) => {
                 const i = idx + 1;
                 try {
-                  return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[i], atelierRef, aspectRatio, shotFor(i));
+                  return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[i], atelierRef, aspectRatio, shotFor(i), atelierUrl);
                 } catch (err) {
                   cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
                   return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
@@ -892,6 +911,7 @@ function buildPipelineWorkflow(
         ? (async () => {
             const results: VisualAssetResult[] = [];
             let previousImage: Buffer | undefined;
+            let previousImageUrl: string | undefined;
             for (let i = 0; i < score.scenes.length; i++) {
               const scene = score.scenes[i]!;
               try {
@@ -908,10 +928,15 @@ function buildPipelineWorkflow(
                   previousImage,
                   aspectRatio,
                   shotFor(i),
+                  previousImageUrl,
                 );
                 results.push(result);
                 try {
                   previousImage = fs.readFileSync(path.join(assetsDir, `scene-${i}-ai.png`));
+                  const urlFile = path.join(assetsDir, `scene-${i}-ai.png.url`);
+                  previousImageUrl = fs.existsSync(urlFile)
+                    ? fs.readFileSync(urlFile, "utf-8").trim()
+                    : result.remoteUrl;
                 } catch {
                   // No AI-generated frame for this scene (stock/text card) — keep the prior reference
                 }

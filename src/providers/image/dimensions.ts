@@ -42,15 +42,28 @@ export function pickWider(a: Buffer, b: Buffer): Buffer {
 }
 
 export async function generateOrientedImage(
-  generate: (prompt: string, style?: string, referenceImage?: Buffer, aspectRatio?: string) => Promise<Buffer>,
+  generate: (
+    prompt: string,
+    style?: string,
+    referenceImage?: Buffer,
+    aspectRatio?: string,
+    referenceImageUrl?: string,
+  ) => Promise<Buffer>,
   opts: {
     prompt: string;
     style?: string;
     referenceImage?: Buffer;
+    referenceImageUrl?: string;
     aspectRatio?: string;
   },
 ): Promise<Buffer> {
-  const first = await generate(opts.prompt, opts.style, opts.referenceImage, opts.aspectRatio);
+  const first = await generate(
+    opts.prompt,
+    opts.style,
+    opts.referenceImage,
+    opts.aspectRatio,
+    opts.referenceImageUrl,
+  );
   if (opts.aspectRatio !== "16:9") return first;
 
   const firstSize = readImageSize(first);
@@ -64,6 +77,7 @@ export async function generateOrientedImage(
     opts.style,
     opts.referenceImage,
     opts.aspectRatio,
+    opts.referenceImageUrl,
   );
   return isWideLandscape(readImageSize(second)) ? second : pickWider(first, second);
 }

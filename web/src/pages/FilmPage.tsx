@@ -348,10 +348,17 @@ export function FilmPage() {
             ? `\n## Referencias YouTube (formato, no identidad)\n${youtubeUrls.map((u) => `- ${u}`).join("\n")}`
             : "",
           "\n## Formato\nVideo horizontal 16:9 para YouTube (1920x1080). No es un Short vertical.",
+          durationMinutes > 0 && durationMinutes < 2
+            ? "\n## Prueba 30s\nMismo individuo en TODOS los planos: misma cresta, mismas manchas negras, mismos ojos, misma especie. Cero text_card. Todas las escenas ai_video."
+            : "",
         ].join("\n");
         if (new TextEncoder().encode(direction).length > 65536) {
           throw new Error(`El guion de “${title}” supera 64KB. Acórtalo.`);
         }
+        const testCut = durationMinutes > 0 && durationMinutes < 2;
+        const visualTypes = testCut
+          ? Array.from(new Set([...allowedVisualTypes.filter((t) => t !== "text_card"), "ai_image", "ai_video"]))
+          : allowedVisualTypes;
         const res = await api.createJob({
           topic: title,
           platform: "youtube_horizontal",
@@ -359,7 +366,7 @@ export function FilmPage() {
           targetDurationMinutes: durationMinutes,
           direction,
           noSubtitles,
-          allowedVisualTypes,
+          allowedVisualTypes: visualTypes,
           atelierMode: true,
           ...(artStyleOverride ? { artStyleOverride } : {}),
           ...(characterLock ? { characterLock } : {}),
@@ -432,8 +439,22 @@ export function FilmPage() {
               <select
                 className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
                 value={durationMinutes}
-                onChange={(e) => setDurationMinutes(Number(e.target.value))}
+                onChange={(e) => {
+                  const next = Number(e.target.value);
+                  setDurationMinutes(next);
+                  if (next > 0 && next < 2) {
+                    setAllowedVisualTypes((prev) => {
+                      const nextTypes = new Set(prev.filter((t) => t !== "text_card"));
+                      nextTypes.add("ai_image");
+                      nextTypes.add("ai_video");
+                      return [...nextTypes];
+                    });
+                    setVideoSceneMode("all");
+                    if (!videoProvider) setVideoProvider("runpod");
+                  }
+                }}
               >
+                <option value={0.5}>30 s (prueba)</option>
                 {[2, 3, 5, 8, 10, 12, 15, 20].map((n) => (
                   <option key={n} value={n}>
                     {n} min
@@ -441,7 +462,11 @@ export function FilmPage() {
                 ))}
               </select>
             </label>
-            <span className="text-[11px] text-muted-foreground">~{durationMinutes * 150} palabras · 1920×1080</span>
+            <span className="text-[11px] text-muted-foreground">
+              {durationMinutes < 2
+                ? "~75 palabras · 6 escenas · mismo personaje · video en todas"
+                : `~${durationMinutes * 150} palabras · 1920×1080`}
+            </span>
           </div>
         </section>
 

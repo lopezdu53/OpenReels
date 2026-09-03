@@ -4,6 +4,13 @@ import { z } from "zod";
 import { getArchetype, listArchetypes } from "../config/archetype-registry.js";
 import type { ScenePacing } from "../schema/archetype.js";
 import { loadPlaybook } from "../config/playbook.js";
+import {
+  filmSceneTarget,
+  filmWordsTarget,
+  isFilmJob,
+  isFilmTestMinutes,
+  normalizeFilmMinutes,
+} from "../config/film-duration.js";
 import { DirectorScore, DirectorScoreBase, Motion, MusicMood, TransitionType, VisualType } from "../schema/director-score.js";
 import type { LLMProvider, LLMUsage } from "../schema/providers.js";
 import type { ResearchResult } from "./research.js";
@@ -48,12 +55,16 @@ function loadDirectorSystemPrompt(targetDurationMinutes?: number, platform?: str
     // Use default
   }
 
-  if (targetDurationMinutes && targetDurationMinutes >= 2) {
+  const minutes = normalizeFilmMinutes(targetDurationMinutes);
+  if (minutes && isFilmJob(minutes, platform)) {
     const isLandscape = platform === "youtube_horizontal";
+    const isTest = isFilmTestMinutes(minutes);
     const formatDesc = isLandscape
-      ? `long-form horizontal video content (${targetDurationMinutes}-minute videos, 1920x1080 landscape 16:9)`
-      : `long-form vertical video content (${targetDurationMinutes}-minute videos, 1080x1920 portrait)`;
-    const wordsTarget = Math.round(targetDurationMinutes * 150);
+      ? isTest
+        ? `30-second horizontal test film (1920x1080 landscape 16:9)`
+        : `long-form horizontal video content (${minutes}-minute videos, 1920x1080 landscape 16:9)`
+      : `long-form vertical video content (${minutes}-minute videos, 1080x1920 portrait)`;
+    const wordsTarget = filmWordsTarget(minutes);
     systemPrompt = systemPrompt
       .replace(
         /You are a Creative Director for short-form vertical video content[^.]*\./,
@@ -61,19 +72,35 @@ function loadDirectorSystemPrompt(targetDurationMinutes?: number, platform?: str
       )
       .replace(
         /Keep total script under \d+ words[^.]*\./g,
-        `Total script target: approximately ${wordsTarget} words (${targetDurationMinutes} minutes at ~150 words/minute).`,
+        `Total script target: approximately ${wordsTarget} words (${isTest ? "30 seconds" : `${minutes} minutes`} at ~150 words/minute).`,
       )
       // Remove the short-form CTA enforcement — long-form ends with a proper conclusion + CTA
       .replace(
         /\*\*CTA scene \(FINAL scene, REQUIRED\)\*\*:.*?(?=\n-|\n##|\n\n)/gs,
-        `**CTA scene (FINAL scene, REQUIRED)**: 20-40 words. Summarize the key takeaway, then add a call-to-action (like/subscribe/comment prompt). Typically a text_card followed by a closing visual.`,
+        isTest
+          ? `**CTA scene (FINAL scene)**: one spoken closing line. No text_card. Same character as every other shot.`
+          : `**CTA scene (FINAL scene, REQUIRED)**: 20-40 words. Summarize the key takeaway, then add a call-to-action (like/subscribe/comment prompt). Typically a text_card followed by a closing visual.`,
       );
 
-    const MAX_SCENES = 60;
-    const sceneCount = Math.min(Math.round(wordsTarget / 12), MAX_SCENES);
+    const sceneCount = filmSceneTarget(minutes);
     const wordsPerScene = Math.round(wordsTarget / sceneCount);
 
-    systemPrompt += `
+    systemPrompt += isTest
+      ? `
+
+## 30-SECOND TEST FILM OVERRIDE
+
+This is a FAST TEST, not a Short and not an 8-minute Film.
+
+- **Scene count**: exactly ${sceneCount} scenes total
+- **Words per scene**: ${Math.max(8, wordsPerScene - 2)}-${wordsPerScene + 2} words (~5 seconds per scene)
+- **Total word budget**: ~${wordsTarget} words
+- **NO text_card. NO chapter titles.**
+- If ai_video is allowed, EVERY scene is ai_video (fluidity).
+- The SAME character in every visual_prompt: copy crest, patches, markings, species verbatim.
+- **DO NOT** apply short-form pacing tiers
+- **DO NOT** exceed ${sceneCount} scenes`
+      : `
 
 ## LONG-FORM VIDEO OVERRIDE
 
@@ -146,11 +173,12 @@ export async function generateDirectorScore(
     ? `\n## Creative Direction (from the producer)\n\n${options.direction}\n\nHonor these creative constraints while exercising your judgment on anything not specified.\n`
     : "";
 
-  const isLongForm = (options?.targetDurationMinutes ?? 0) >= 2;
-  const wordsTarget = isLongForm ? Math.round((options!.targetDurationMinutes!) * 150) : null;
-  const MAX_SCENES = 60;
-  const sceneTarget = isLongForm ? Math.min(Math.round(wordsTarget! / 12), MAX_SCENES) : null;
-  const wordsPerSceneTarget = isLongForm ? Math.round(wordsTarget! / sceneTarget!) : null;
+  const filmMinutes = normalizeFilmMinutes(options?.targetDurationMinutes);
+  const isLongForm = isFilmJob(filmMinutes, options?.platform);
+  const isTest = isFilmTestMinutes(filmMinutes);
+  const wordsTarget = isLongForm && filmMinutes ? filmWordsTarget(filmMinutes) : null;
+  const sceneTarget = isLongForm && filmMinutes ? filmSceneTarget(filmMinutes) : null;
+  const wordsPerSceneTarget = isLongForm && wordsTarget && sceneTarget ? Math.round(wordsTarget / sceneTarget) : null;
 
   const userMessage = `Topic: ${topic}
 
@@ -170,7 +198,9 @@ ${directionSection}${characterSection(options?.characterLock)}${options?.artStyl
 Every scene MUST have a script_line (the voiceover text).
 The first scene should be a strong hook.
 ${isLongForm
-  ? `MANDATORY: This is a ${options!.targetDurationMinutes!}-minute video. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total word count MUST be ~${wordsTarget} words. Break topic into chapters separated by text_card chapter titles. Stop at exactly ${sceneTarget} scenes.`
+  ? isTest
+    ? `MANDATORY: This is a 30-second TEST film. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total ~${wordsTarget} words. NO text_card. If ai_video is allowed, every scene is ai_video. Same character (crest, patches, species) in every visual_prompt.`
+    : `MANDATORY: This is a ${filmMinutes}-minute video. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total word count MUST be ~${wordsTarget} words. Break topic into chapters separated by text_card chapter titles. Stop at exactly ${sceneTarget} scenes.`
   : "If over budget, cut a scene rather than cramming."
 }${options?.platform === "youtube_horizontal" ? "\nEvery AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars.\nFor every ai_image/ai_video scene set shot_type (wide_establishing|wide|medium|close_up|extreme_close_up|over_shoulder|aerial|insert), camera_move (static|push_in|pull_out|pan|track), and location (a short reusable place name). Neighboring AI shots must not share the same shot_type. Repeat the same location name when the action stays in that place." : ""}`;
 
@@ -243,15 +273,25 @@ const PACING_TIER_TABLE = `After choosing your archetype, use the matching pacin
 - cinematic (10-14 scenes, 16-22 words/scene, 210-265 words total): cinematic_documentary, moody_cinematic, studio_realism, warm_narrative, pastoral_watercolor`;
 
 export function buildPacingInstruction(archetype?: string, pacingOverride?: string, targetDurationMinutes?: number, platform?: string): string {
-  if (targetDurationMinutes && targetDurationMinutes >= 2) {
+  const minutes = normalizeFilmMinutes(targetDurationMinutes);
+  if (minutes && isFilmJob(minutes, platform)) {
     const isLandscape = platform === "youtube_horizontal";
+    const isTest = isFilmTestMinutes(minutes);
     const formatLabel = isLandscape ? "YouTube Horizontal (landscape 16:9)" : "Reel Extend vertical";
-    const wordsTarget = Math.round(targetDurationMinutes * 150);
-    const MAX_SCENES = 60;
-    const sceneCount = Math.min(Math.round(wordsTarget / 12), MAX_SCENES);
+    const wordsTarget = filmWordsTarget(minutes);
+    const sceneCount = filmSceneTarget(minutes);
     const wordsPerScene = Math.round(wordsTarget / sceneCount);
-    console.log(`[creative-director] Long-form pacing (${formatLabel}): ~${sceneCount} scenes for ${targetDurationMinutes} min (~${wordsTarget} words, ~${wordsPerScene} words/scene)`);
-    return `This is a ${formatLabel} video targeting ${targetDurationMinutes} minutes.
+    if (isTest) {
+      console.log(`[creative-director] 30s test pacing (${formatLabel}): ${sceneCount} scenes (~${wordsTarget} words)`);
+      return `This is a ${formatLabel} 30-SECOND TEST.
+Create a DirectorScore with exactly ${sceneCount} scenes.
+Per-scene word budget: ${Math.max(8, wordsPerScene - 2)}-${wordsPerScene + 2} words (~5 seconds per scene).
+Total word budget: approximately ${wordsTarget} words.
+NO text_card. If ai_video is allowed, every scene is ai_video.
+The same character (crest, black patches, markings, species) appears in every visual_prompt.`;
+    }
+    console.log(`[creative-director] Long-form pacing (${formatLabel}): ~${sceneCount} scenes for ${minutes} min (~${wordsTarget} words, ~${wordsPerScene} words/scene)`);
+    return `This is a ${formatLabel} video targeting ${minutes} minutes.
 Create a DirectorScore with exactly ${sceneCount} scenes.
 Per-scene word budget: ${wordsPerScene - 2}-${wordsPerScene + 2} words (~5 seconds per scene at 150 words/minute).
 Total word budget: approximately ${wordsTarget} words at ~150 words/minute.
