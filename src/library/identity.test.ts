@@ -30,6 +30,17 @@ describe("visual identity lock", () => {
     expect(text).toContain("rosettes");
   });
 
+  it("includes aliases so script nicknames map to the same individual", () => {
+    const text = formatCharacterLock({
+      name: "Coco",
+      kind: "animal",
+      species: "coatí",
+      appearance: "cola anillada",
+      aliases: "el coatí, Coco el Coatí",
+    });
+    expect(text).toContain("Aliases (same individual): el coatí, Coco el Coatí");
+  });
+
   it("prefixes AI prompts and never leaves still↔motion as a hard cut", () => {
     const next = applyVisualIdentity(score(), "Rayitas the ocelot cub, not a Bengal tiger");
     expect(next.scenes[0]!.visual_prompt).toContain("IDENTITY LOCK");

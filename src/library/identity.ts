@@ -12,6 +12,8 @@ export interface CharacterBible {
   mustKeep?: string;
   mustAvoid?: string;
   notes?: string;
+  /** Nicknames the script may use ("el coatí", "Coco el Coatí"). */
+  aliases?: string;
 }
 
 const IDENTITY_MARKER = "IDENTITY LOCK:";
@@ -19,6 +21,7 @@ const IDENTITY_MARKER = "IDENTITY LOCK:";
 export function formatCharacterLock(c: CharacterBible): string {
   const lines = [
     `Name: ${c.name.trim()}`,
+    c.aliases?.trim() ? `Aliases (same individual): ${c.aliases.trim()}` : "",
     c.kind ? `Kind: ${c.kind}` : "",
     `Species/race (LOCKED, never substitute a similar animal): ${c.species.trim()}`,
     c.age?.trim() ? `Age: ${c.age.trim()}` : "",

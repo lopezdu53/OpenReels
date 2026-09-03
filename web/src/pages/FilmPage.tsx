@@ -329,6 +329,7 @@ export function FilmPage() {
         const characterLock = character
           ? [
               `Name: ${character.name}`,
+              character.aliases ? `Aliases (same individual): ${character.aliases}` : "",
               character.kind ? `Kind: ${character.kind}` : "",
               `Species/race (LOCKED): ${character.species}`,
               character.age ? `Age: ${character.age}` : "",
@@ -337,7 +338,8 @@ export function FilmPage() {
               character.mustAvoid ? `MUST avoid: ${character.mustAvoid}` : "",
             ].filter(Boolean).join(". ")
           : "";
-        const styleReferenceImage = character?.referenceImage ?? style?.referenceImage;
+        const characterReferenceImage = character?.referenceImage;
+        const styleReferenceImage = style?.referenceImage;
         const direction = [
           "## Guion (locución — honrar estas líneas; no reescribir el texto hablado)",
           slot.body.trim(),
@@ -361,6 +363,7 @@ export function FilmPage() {
           atelierMode: true,
           ...(artStyleOverride ? { artStyleOverride } : {}),
           ...(characterLock ? { characterLock } : {}),
+          ...(characterReferenceImage ? { characterReferenceImage } : {}),
           ...(styleReferenceImage ? { styleReferenceImage } : {}),
           ...(allowedVisualTypes.includes("ai_video") && videoSceneMode !== "all" ? { videoSceneMode } : {}),
           providers: providersPayload(),
@@ -548,6 +551,9 @@ export function FilmPage() {
             if (characterId === id) setCharacterId("");
           }}
         />
+        <p className="text-xs text-muted-foreground">
+          Si el personaje tiene ficha 16:9, cada still usa esa ficha como ancla de identidad (cara, marcas, especie). No se copia el collage de paneles: se pinta un plano nuevo.
+        </p>
 
         <VisualStyleStudio
           builtins={builtinStyles.length ? builtinStyles : (providers?.atelierStyles ?? [])}

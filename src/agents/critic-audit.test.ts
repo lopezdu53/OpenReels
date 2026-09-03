@@ -127,6 +127,23 @@ describe("critic audit", () => {
     expect(audit.findings.some((f) => /mete un humano/.test(f))).toBe(false);
   });
 
+  it("asks Film scores for shot_type variety", () => {
+    const score: DirectorScore = {
+      emotional_arc: "arc",
+      archetype: "cinematic_documentary",
+      music_mood: "warm_acoustic",
+      scenes: [
+        { visual_type: "ai_image", visual_prompt: "16:9 landscape Coco coatí", motion: "zoom_in", script_line: "Uno.", transition: "crossfade" },
+        { visual_type: "ai_image", visual_prompt: "16:9 landscape Coco coatí", motion: "zoom_in", script_line: "Dos.", transition: "crossfade" },
+        { visual_type: "text_card", visual_prompt: "CAP", motion: "static", script_line: "Tres.", transition: null },
+        { visual_type: "ai_image", visual_prompt: "16:9 landscape Coco coatí", motion: "zoom_out", script_line: "Cuatro.", transition: null },
+        { visual_type: "ai_image", visual_prompt: "16:9 landscape Coco coatí", motion: "pan_left", script_line: "Cinco.", transition: null },
+      ],
+    };
+    const audit = auditDirectorScore(score, { platform: "youtube_horizontal" });
+    expect(audit.findings.some((f) => /shot_type/i.test(f))).toBe(true);
+  });
+
   it("summarizes Gemini credit exhaustion as a production note", () => {
     const notes = summarizeVideoFallbacks([
       {

@@ -33,6 +33,11 @@ export interface ImagePromptOptions {
   artStyleOverride?: string;
   characterLock?: string;
   aspectRatio?: string;
+  shotType?: string;
+  cameraMove?: string;
+  location?: string;
+  previousVisualPrompt?: string;
+  shotContext?: string;
 }
 
 export async function optimizeImagePrompt(
@@ -88,6 +93,28 @@ ${
 The SAME individual must appear in every shot. Never change species, race, age, face, markings, or body type to create variety. Contrast only via camera angle, time of day, emotion, and framing.
 Locked character: ${opts.characterLock.trim()}
 If the lock says coatí / Nasua, it is NOT a fox, raccoon, cat, or tiger. Repeat the locked species in the prompt.`;
+  }
+
+  if (opts?.shotContext?.trim()) {
+    systemPrompt += `
+
+## SHOT CONTEXT (keep bible + location; change camera/action)
+${opts.shotContext.trim()}`;
+  } else {
+    const shotBits = [
+      opts?.shotType?.trim() ? `shot_type: ${opts.shotType.trim()}` : "",
+      opts?.cameraMove?.trim() ? `camera_move: ${opts.cameraMove.trim()}` : "",
+      opts?.location?.trim() ? `location: ${opts.location.trim()}` : "",
+      opts?.previousVisualPrompt?.trim()
+        ? `previous_shot: ${opts.previousVisualPrompt.trim().slice(0, 400)}`
+        : "",
+    ].filter(Boolean);
+    if (shotBits.length) {
+      systemPrompt += `
+
+## SHOT CONTEXT (keep bible + location; change camera/action)
+${shotBits.join("\n")}`;
+    }
   }
 
   let userMessage = `Scene ${sceneIndex + 1} of ${totalScenes}

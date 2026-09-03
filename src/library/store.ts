@@ -58,6 +58,7 @@ export function parseCharacterInput(body: Record<string, unknown>, existing?: St
     mustKeep: asText(body.mustKeep, 800),
     mustAvoid: asText(body.mustAvoid, 800),
     notes: asText(body.notes, 1200),
+    aliases: asText(body.aliases, 240),
     ...(referenceImage ? { referenceImage } : {}),
     createdAt: existing?.createdAt ?? ts,
     updatedAt: ts,

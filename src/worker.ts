@@ -53,6 +53,7 @@ interface JobData {
   score?: Record<string, unknown>;
   videoSceneMode?: string;
   styleReferenceImage?: string; // base64
+  characterReferenceImage?: string; // base64 character model sheet
   atelierMode?: boolean;
   artStyleOverride?: string;
   characterLock?: string;
@@ -108,6 +109,7 @@ interface JobMeta {
     noVideo?: boolean;
     noSubtitles?: boolean;
     styleReference?: boolean;
+    characterReference?: boolean;
     atelierMode?: boolean;
     artStyleOverride?: string;
   };
@@ -140,7 +142,7 @@ function writeMeta(jobDir: string, meta: JobMeta) {
 const worker = new Worker<JobData>(
   "openreels",
   async (job: Job<JobData>) => {
-    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, atelierMode, artStyleOverride, characterLock, providers, keys, userId } =
+    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, characterReferenceImage, atelierMode, artStyleOverride, characterLock, providers, keys, userId } =
       job.data;
     const jobDir = path.join(JOBS_DIR, job.id!);
     fs.mkdirSync(jobDir, { recursive: true });
@@ -166,6 +168,7 @@ const worker = new Worker<JobData>(
         noVideo: noVideo === true || undefined,
         noSubtitles: noSubtitles === true || undefined,
         styleReference: styleReferenceImage ? true : undefined,
+        characterReference: characterReferenceImage ? true : undefined,
         atelierMode: atelierMode !== false,
         artStyleOverride: artStyleOverride ?? undefined,
       },
@@ -379,6 +382,7 @@ const worker = new Worker<JobData>(
         targetDurationMinutes,
         videoSceneMode,
         styleReferenceImage: styleReferenceImage ? Buffer.from(styleReferenceImage, "base64") : undefined,
+        characterReferenceImage: characterReferenceImage ? Buffer.from(characterReferenceImage, "base64") : undefined,
         atelierMode: atelierMode !== false,
         artStyleOverride: artStyleOverride ?? undefined,
         characterLock: characterLock ?? undefined,

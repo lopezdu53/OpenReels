@@ -22,7 +22,7 @@ Follow these rules strictly:
 
 7. **Follow the style bible.** You MUST follow the style bible's art style, color palette, lighting, composition, and mood. Every scene should feel like it belongs to the same video.
 
-8. **Character identity lock.** If the user message includes a CHARACTER IDENTITY LOCK, copy those species/markings/face details into the prompt. Do not "upgrade" or "correct" the animal to a more famous species.
+8. **Character identity lock.** If the user message includes a CHARACTER IDENTITY LOCK, copy those species/markings/face details into the prompt. Do not "upgrade" or "correct" the animal to a more famous species. If SHOT CONTEXT is present, keep the same character_bible and location; change only camera, action, and time of day. If a model sheet is referenced, extract identity — do not copy the multi-panel collage.
 
 9. **Include technical details.** Specify lighting direction, camera angle, depth of field, color temperature, and atmosphere. These details dramatically improve image generation quality.
 

@@ -481,6 +481,7 @@ interface CreateJobBody {
   score?: Record<string, unknown>;
   videoSceneMode?: string;
   styleReferenceImage?: string; // base64
+  characterReferenceImage?: string; // base64 character model sheet
   atelierMode?: boolean;
   artStyleOverride?: string;
   characterLock?: string;
@@ -532,6 +533,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     score,
     videoSceneMode,
     styleReferenceImage,
+    characterReferenceImage,
     atelierMode,
     artStyleOverride,
     characterLock,
@@ -578,6 +580,15 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     }
     if (Buffer.byteLength(styleReferenceImage, "base64") > 8 * 1024 * 1024) {
       return reply.status(400).send({ error: "styleReferenceImage exceeds 8MB limit" });
+    }
+  }
+
+  if (characterReferenceImage != null) {
+    if (typeof characterReferenceImage !== "string") {
+      return reply.status(400).send({ error: "characterReferenceImage must be a base64 string" });
+    }
+    if (Buffer.byteLength(characterReferenceImage, "base64") > 8 * 1024 * 1024) {
+      return reply.status(400).send({ error: "characterReferenceImage exceeds 8MB limit" });
     }
   }
 
@@ -636,6 +647,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     ...(validatedScore ? { score: validatedScore } : {}),
     ...(videoSceneMode ? { videoSceneMode } : {}),
     ...(styleReferenceImage ? { styleReferenceImage } : {}),
+    ...(characterReferenceImage ? { characterReferenceImage } : {}),
     atelierMode: atelierMode !== false,
     ...(artStyleOverride?.trim() ? { artStyleOverride: artStyleOverride.trim() } : {}),
     ...(characterLock?.trim() ? { characterLock: characterLock.trim() } : {}),
@@ -698,6 +710,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       noVideo: noVideo === true || undefined,
       noSubtitles: noSubtitles === true || undefined,
       styleReference: styleReferenceImage ? true : undefined,
+      characterReference: characterReferenceImage ? true : undefined,
       atelierMode: atelierMode !== false,
       artStyleOverride: artStyleOverride?.trim() || undefined,
     },

@@ -15,6 +15,7 @@ export interface StoredCharacter {
   mustKeep: string;
   mustAvoid: string;
   notes: string;
+  aliases?: string;
   referenceImage?: string;
   createdAt: string;
   updatedAt: string;

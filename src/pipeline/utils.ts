@@ -76,6 +76,8 @@ export interface PipelineOptions {
   videoSceneMode?: string;
   /** Image used as a global style reference — every scene's AI image generation is conditioned on it. */
   styleReferenceImage?: Buffer;
+  /** Approved character model sheet — preferred identity anchor for every still. */
+  characterReferenceImage?: Buffer;
   /** Atelier chain-of-reference. Default ON unless explicitly false. */
   atelierMode?: boolean;
   /** Overrides archetype.artStyle in the image-prompter style bible. */

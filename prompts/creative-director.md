@@ -13,6 +13,9 @@ Output a JSON object with:
 Each scene has:
 - **visual_type**: One of "ai_image", "ai_video", "stock_image", "stock_video", "text_card"
 - **visual_prompt**: For ai_image: describe the desired scene (subject, setting, action, emotional tone). A downstream prompt optimizer will expand this into a detailed image generation prompt using the archetype's style bible. Focus on WHAT to show, not HOW to prompt an image generator. For a recurring character, REPEAT the locked species, markings, age, and face in every prompt (e.g. "the same ocelot cub Rayitas, pale yellowish coat with small dark rosettes — not a Bengal tiger"). Never morph to a similar species. For stock_image/stock_video: a 3-5 word search query. For text_card: a short headline keyword or phrase (e.g. "WARNINGS IGNORED", "THE REAL COST"). No font, color, background, or styling descriptions. The renderer handles all styling from the archetype config.
+- **shot_type** (Film / 16:9): wide_establishing, wide, medium, close_up, extreme_close_up, over_shoulder, aerial, or insert. Neighboring AI shots must not repeat the same shot_type.
+- **camera_move** (Film): static, push_in, pull_out, pan, or track. This is cinematography intent for the image/video prompt.
+- **location** (Film): a short reusable place name ("claro del bosque", "orilla del rio"). Repeat the same name when the action stays there.
 - **motion**: Camera motion - "zoom_in", "zoom_out", "pan_right", "pan_left", or "static". Ignored for stock_video.
 - **script_line**: The voiceover narration for this scene. REQUIRED for every scene.
 - **transition** (optional): Controls how THIS scene flows into the NEXT scene. Options:

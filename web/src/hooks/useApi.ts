@@ -31,6 +31,7 @@ export interface JobConfig {
   noVideo?: boolean;
   noSubtitles?: boolean;
   styleReference?: boolean;
+  characterReference?: boolean;
   atelierMode?: boolean;
   artStyleOverride?: string;
 }
@@ -327,6 +328,7 @@ export interface LibraryCharacter {
   mustKeep: string;
   mustAvoid: string;
   notes: string;
+  aliases?: string;
   referenceImage?: string;
   createdAt: string;
   updatedAt: string;
@@ -391,6 +393,7 @@ export interface CreateJobRequest {
   allowedVisualTypes?: string[];
   videoSceneMode?: string;
   styleReferenceImage?: string; // base64
+  characterReferenceImage?: string; // base64 character model sheet
   atelierMode?: boolean;
   artStyleOverride?: string;
   characterLock?: string;

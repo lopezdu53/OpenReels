@@ -150,6 +150,22 @@ export function auditDirectorScore(score: DirectorScore, opts: CriticEvalOptions
       );
       revisionFocus.push("Empieza cada visual_prompt de IA con: 16:9 landscape widescreen cinematic frame, full-bleed, sin cintas negras.");
     }
+
+    const aiShots = score.scenes.filter((s) => s.visual_type === "ai_image" || s.visual_type === "ai_video");
+    const withShot = aiShots.filter((s) => s.shot_type?.trim());
+    if (aiShots.length >= 4 && withShot.length < aiShots.length * 0.5) {
+      findings.push(
+        `Faltan shot_type en ${aiShots.length - withShot.length} planos de IA. Sin wide/medium/close el personaje sale siempre en el mismo encuadre.`,
+      );
+      revisionFocus.push(
+        "Pon shot_type (wide_establishing, wide, medium, close_up…) y location en cada escena de IA. No repitas el mismo plano en vecinos.",
+      );
+    }
+    const shotKinds = withShot.map((s) => s.shot_type!.trim().toLowerCase());
+    if (shotKinds.length >= 4 && new Set(shotKinds).size <= 1) {
+      findings.push("Todos los planos de IA usan el mismo shot_type. El Film se siente como un slideshow del mismo encuadre.");
+      revisionFocus.push("Alterna wide / medium / close_up / over_shoulder entre escenas vecinas.");
+    }
   }
 
   if (mode === "short") {

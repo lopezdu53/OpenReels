@@ -11,6 +11,8 @@ import { summarizeVideoFallbacks } from "../agents/critic-audit.js";
 import { applyVisualIdentity } from "../library/identity.js";
 import { optimizeImagePrompt } from "../agents/image-prompter.js";
 import { generateOrientedImage } from "../providers/image/dimensions.js";
+import { buildShotContext } from "../library/prompt-context.js";
+import { planVisualReferences, sheetToSceneHint, type SheetReference } from "./visual-refs.js";
 import { research } from "../agents/research.js";
 import { resolveStockAdaptive, type StockResolution } from "../providers/stock/adaptive-resolver.js";
 import { resolveAIVideo, type VideoResolution } from "../providers/video/video-resolver.js";
@@ -153,13 +155,30 @@ async function generateAIImage(
   assetsDir: string,
   referenceImage?: Buffer,
   aspectRatio?: string,
+  shot?: {
+    shotType?: string;
+    cameraMove?: string;
+    location?: string;
+    previousVisualPrompt?: string;
+    sheetReference?: SheetReference;
+  },
 ): Promise<VisualAssetResult> {
   let prompt = visualPrompt;
   let usage: LLMUsage | null = null;
+  const shotContext = buildShotContext({
+    characterLock: opts.characterLock,
+    artStyle: opts.artStyleOverride,
+    shotType: shot?.shotType,
+    cameraMove: shot?.cameraMove,
+    location: shot?.location,
+    previousVisualPrompt: shot?.previousVisualPrompt,
+  });
+  const sheetHint = sheetToSceneHint(shot?.sheetReference ?? null);
   const imagePromptOpts = {
     ...(opts.artStyleOverride ? { artStyleOverride: opts.artStyleOverride } : {}),
     ...(opts.characterLock ? { characterLock: opts.characterLock } : {}),
     ...(aspectRatio ? { aspectRatio } : {}),
+    ...(shotContext ? { shotContext } : {}),
   };
 
   try {
@@ -186,6 +205,12 @@ async function generateAIImage(
 
   if (opts.characterLock?.trim()) {
     prompt = `IDENTITY LOCK — same individual every shot, never change species, markings, age or face. Not a fox, raccoon, cat, or tiger unless the lock says so. ${opts.characterLock.trim()} Scene: ${prompt}`;
+  }
+  if (sheetHint) {
+    prompt = `${sheetHint} ${prompt}`;
+  }
+  if (shotContext) {
+    prompt = `${prompt}\n${shotContext}`;
   }
 
   try {
@@ -228,6 +253,12 @@ async function generateAIImage(
     if (opts.characterLock?.trim()) {
       prompt = `IDENTITY LOCK — same individual every shot, never change species, markings, age or face. ${opts.characterLock.trim()} Scene: ${prompt}`;
     }
+    if (sheetHint) {
+      prompt = `${sheetHint} ${prompt}`;
+    }
+    if (shotContext) {
+      prompt = `${prompt}\n${shotContext}`;
+    }
 
     const imageBuffer = await generateOrientedImage(
       (p, s, r, a) => opts.imageGen.generate(p, s, r, a),
@@ -262,10 +293,21 @@ async function resolveVisualAsset(
   sceneDurationSeconds?: number,
   referenceImage?: Buffer,
   aspectRatio?: string,
+  shot?: {
+    previousVisualPrompt?: string;
+    sheetReference?: SheetReference;
+  },
 ): Promise<VisualAssetResult> {
+  const shotBag = {
+    shotType: scene.shot_type,
+    cameraMove: scene.camera_move,
+    location: scene.location,
+    previousVisualPrompt: shot?.previousVisualPrompt,
+    sheetReference: shot?.sheetReference,
+  };
   switch (scene.visual_type) {
     case "ai_image":
-      return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio);
+      return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio, shotBag);
 
     case "stock_image":
     case "stock_video": {
@@ -299,11 +341,11 @@ async function resolveVisualAsset(
     case "ai_video": {
       // If no video providers available, fall back to ai_image silently
       if (!opts.videoProviders?.length) {
-        return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio);
+        return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio, shotBag);
       }
       // Phase 1: Generate AI image (first frame)
       const imageStart = Date.now();
-      const imgResult = await generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio);
+      const imgResult = await generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio, shotBag);
       const imageGenTimeMs = Date.now() - imageStart;
       const imageBuffer = fs.readFileSync(imgResult.path!);
 
@@ -779,24 +821,30 @@ function buildPipelineWorkflow(
 
       const aspectRatio = getPlatformAspectRatio(opts.platform);
 
-      // A user-supplied style reference image takes priority over everything else:
-      // every scene is conditioned on the same image so the whole video shares its look.
-      const styleReferenceImage = opts.styleReferenceImage;
-
-      // Atelier is on by default: scene 1 generates freely, then its (or the first
-      // available AI) image locks character + style for the rest of the film.
-      const atelierMode = !styleReferenceImage && opts.atelierMode !== false;
+      const refPlan = planVisualReferences({
+        characterReferenceImage: opts.characterReferenceImage,
+        styleReferenceImage: opts.styleReferenceImage,
+        atelierMode: opts.atelierMode,
+      });
+      const globalReference = refPlan.globalReference;
+      const atelierMode = refPlan.useAtelier;
+      const sheetReference = refPlan.sheetReference;
 
       // Long-form platforms using VIVI benefit from sequential generation with a
       // reference image fed forward so characters/setting/style stay consistent.
-      const continuityEnabled = !styleReferenceImage && !atelierMode && opts.platform !== "youtube" && opts.platform !== "tiktok" && opts.platform !== "instagram" && opts.imageProvider === "vivi";
+      const continuityEnabled = !globalReference && !atelierMode && opts.platform !== "youtube" && opts.platform !== "tiktok" && opts.platform !== "instagram" && opts.imageProvider === "vivi";
 
-      const scenePromise = styleReferenceImage
+      const shotFor = (i: number) => ({
+        previousVisualPrompt: i > 0 ? score.scenes[i - 1]?.visual_prompt : undefined,
+        sheetReference,
+      });
+
+      const scenePromise = globalReference
         ? Promise.all(
             score.scenes.map(async (scene, i) => {
               try {
                 const sceneDuration = sceneDurations[i];
-                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, styleReferenceImage, aspectRatio);
+                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, globalReference, aspectRatio, shotFor(i));
               } catch (err) {
                 cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
                 return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
@@ -809,7 +857,7 @@ function buildPipelineWorkflow(
             const firstScene = score.scenes[0]!;
             let firstResult: VisualAssetResult;
             try {
-              firstResult = await resolveVisualAsset(firstScene, 0, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[0], undefined, aspectRatio);
+              firstResult = await resolveVisualAsset(firstScene, 0, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[0], undefined, aspectRatio, shotFor(0));
             } catch (err) {
               cb.onProgress?.("visuals", { type: "asset_failed", scene: 0, error: String(err) });
               firstResult = { path: null, usage: null, durationSeconds: null };
@@ -826,7 +874,7 @@ function buildPipelineWorkflow(
               score.scenes.slice(1).map(async (scene, idx) => {
                 const i = idx + 1;
                 try {
-                  return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[i], atelierRef, aspectRatio);
+                  return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[i], atelierRef, aspectRatio, shotFor(i));
                 } catch (err) {
                   cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
                   return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
@@ -854,6 +902,7 @@ function buildPipelineWorkflow(
                   sceneDuration,
                   previousImage,
                   aspectRatio,
+                  shotFor(i),
                 );
                 results.push(result);
                 try {
@@ -872,7 +921,7 @@ function buildPipelineWorkflow(
             score.scenes.map(async (scene, i) => {
               try {
                 const sceneDuration = sceneDurations[i];
-                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, undefined, aspectRatio);
+                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, undefined, aspectRatio, shotFor(i));
               } catch (err) {
                 cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
                 return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;

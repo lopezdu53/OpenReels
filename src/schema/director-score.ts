@@ -36,6 +36,11 @@ export const Scene = z.object({
   // Controls how THIS scene transitions into the NEXT scene.
   // Optional — mapper cascade resolves: scene value → archetype default → "none".
   transition: TransitionType.nullable(),
+  /** Cinematography (Film). Optional so older scores still parse. */
+  shot_type: z.string().optional(),
+  camera_move: z.string().optional(),
+  /** Named place reused across shots (location bible lite). */
+  location: z.string().optional(),
 });
 export type Scene = z.infer<typeof Scene>;
 

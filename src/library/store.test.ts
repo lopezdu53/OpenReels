@@ -39,6 +39,8 @@ describe("library store", () => {
     const updated = upsertCharacter(user.id, { ...created, age: "cachorro 4 meses", kind: "animal" });
     expect(updated.age).toContain("cachorro");
     expect(updated.kind).toBe("animal");
+    const withAlias = upsertCharacter(user.id, { ...updated, aliases: "el tigrillo, Rayitas" });
+    expect(withAlias.aliases).toContain("tigrillo");
     expect(deleteCharacter(user.id, created.id)).toBe(true);
     expect(deleteCharacter(user.id, created.id)).toBe(false);
   });

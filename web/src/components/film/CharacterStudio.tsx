@@ -34,6 +34,7 @@ const emptyForm = (): Partial<LibraryCharacter> => ({
   mustKeep: "",
   mustAvoid: "",
   notes: "",
+  aliases: "",
 });
 
 function kindLabel(kind?: string) {
@@ -283,6 +284,9 @@ export function CharacterStudio({
           </div>
           <Field label="Nombre">
             <Input value={editing.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder={kind === "human" ? "Ana" : kind === "animal" ? "Rayitas" : "Nyx"} />
+          </Field>
+          <Field label="Alias / apodos (mismo individuo)">
+            <Input value={editing.aliases ?? ""} onChange={(e) => setEditing({ ...editing, aliases: e.target.value })} placeholder="el coatí, Coco el Coatí" />
           </Field>
           <Field label={kind === "human" ? "Tipo / etnia (opcional)" : kind === "animal" ? "Especie / raza (bloqueada)" : "Especie inventada"}>
             <Input

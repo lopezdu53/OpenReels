@@ -26,6 +26,9 @@ const DirectorScoreRaw = z.object({
       motion: Motion.catch("static"),
       script_line: z.string(),
       transition: TransitionType.nullable().catch(null),
+      shot_type: z.string().optional(),
+      camera_move: z.string().optional(),
+      location: z.string().optional(),
     }),
   ),
 });
@@ -169,7 +172,7 @@ The first scene should be a strong hook.
 ${isLongForm
   ? `MANDATORY: This is a ${options!.targetDurationMinutes!}-minute video. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total word count MUST be ~${wordsTarget} words. Break topic into chapters separated by text_card chapter titles. Stop at exactly ${sceneTarget} scenes.`
   : "If over budget, cut a scene rather than cramming."
-}${options?.platform === "youtube_horizontal" ? "\nEvery AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars." : ""}`;
+}${options?.platform === "youtube_horizontal" ? "\nEvery AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars.\nFor every ai_image/ai_video scene set shot_type (wide_establishing|wide|medium|close_up|extreme_close_up|over_shoulder|aerial|insert), camera_move (static|push_in|pull_out|pan|track), and location (a short reusable place name). Neighboring AI shots must not share the same shot_type. Repeat the same location name when the action stays in that place." : ""}`;
 
   const maxRetries = 3;
   let lastError: Error | null = null;
@@ -395,10 +398,10 @@ ${revisionGuidance}
 
 Revise the DirectorScore to address the weaknesses while preserving the strengths.
 Keep the same archetype. Maintain the GOLDEN RULE: never use the same visual_type more than 2 times in a row.
-${options?.direction?.trim() ? "LOCKED NARRATION: do not rewrite script_line. Only change visual_type, visual_prompt, motion, and transition." : ""}
+${options?.direction?.trim() ? "LOCKED NARRATION: do not rewrite script_line. Only change visual_type, visual_prompt, motion, transition, shot_type, camera_move, and location." : ""}
 ${options?.characterLock?.trim() ? `IDENTITY: every AI visual_prompt must keep this lock: ${options.characterLock.trim()}` : ""}
 ${options?.artStyleOverride?.trim() ? `ART STYLE LOCK: ${options.artStyleOverride.trim()}. Do not switch photoreal ↔ cartoon.` : ""}
-${options?.platform === "youtube_horizontal" ? "Every AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars." : ""}`;
+${options?.platform === "youtube_horizontal" ? "Every AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars. Fill shot_type, camera_move, and a reusable location. Neighboring AI shots must not share the same shot_type." : ""}`;
 
   const maxRetries = 2;
   let lastError: Error | null = null;
