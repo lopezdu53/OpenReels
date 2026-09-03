@@ -7,6 +7,7 @@ import { FalImage } from "../providers/image/fal.js";
 import { GeminiImage } from "../providers/image/gemini.js";
 import { GrokImage } from "../providers/image/grok.js";
 import { OpenAIImage } from "../providers/image/openai.js";
+import { generateOrientedImage } from "../providers/image/dimensions.js";
 import { RunPodImage } from "../providers/image/runpod.js";
 import { ViviImage } from "../providers/image/vivi.js";
 import {
@@ -160,7 +161,10 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
 
       const imageGen = createSheetImageGen(provider);
       const start = Date.now();
-      const buffer = await imageGen.generate(prompt, undefined, undefined, "16:9");
+      const buffer = await generateOrientedImage(
+        (p, s, r, a) => imageGen.generate(p, s, r, a),
+        { prompt, aspectRatio: "16:9" },
+      );
       return {
         imageBase64: buffer.toString("base64"),
         prompt,

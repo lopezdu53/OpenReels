@@ -77,7 +77,7 @@ Quality guidance: ${archetype.antiArtifactGuidance}`;
 ## FRAME FORMAT
 ${
   landscape
-    ? "WIDE 16:9 landscape widescreen (1920x1080). Compose horizontally. Do NOT generate a vertical 9:16 or square image."
+    ? "WIDE 16:9 landscape widescreen (1920x1080). Compose horizontally and fill the entire frame edge to edge. Do NOT generate a vertical 9:16 or square image. Do NOT paint black bars, letterboxing, or pillarboxing into the picture."
     : "Vertical 9:16 portrait. Subject fills the frame vertically."
 }`;
 
@@ -101,7 +101,7 @@ Narration: ${scriptLine}`;
   userMessage +=
     mode === "video"
       ? `\n\nGenerate an optimized video generation prompt for this scene. Focus on motion and camera movement. Put the full text in optimized_prompt.`
-      : `\n\nGenerate an optimized image generation prompt for this scene. Put the full text in the optimized_prompt field. ${landscape ? "The image MUST be 16:9 landscape." : "The image MUST be 9:16 portrait."}`;
+      : `\n\nGenerate an optimized image generation prompt for this scene. Put the full text in the optimized_prompt field. ${landscape ? "The image MUST be 16:9 landscape, full-bleed, no letterbox bars." : "The image MUST be 9:16 portrait."}`;
 
   const result = await llm.generate({
     systemPrompt,

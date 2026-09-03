@@ -71,7 +71,7 @@ export function buildCharacterSheetPrompt(input: {
     "3) BOTTOM CENTER: smaller full-body SIDE PROFILE, facing left.",
     "4) BOTTOM RIGHT: smaller full-body BACK VIEW, same pose language.",
     "Optional tiny handwritten labels with arrows: CONCEPT ART, FACE, PROFILE, BACK. No other text, no watermark, no logo.",
-    "Clean line, consistent proportions, high detail, concept-art presentation. 16:9 landscape only, not portrait.",
+    "Clean line, consistent proportions, high detail, concept-art presentation. 16:9 landscape only, not portrait. Fill the frame edge to edge, no black letterbox bars.",
   ]
     .filter(Boolean)
     .join(" ");
@@ -98,7 +98,7 @@ export function buildStyleSheetPrompt(input: {
     "3) BOTTOM CENTER: mid shot of a typical location in this style.",
     "4) BOTTOM RIGHT: texture and material close-ups (surfaces, foliage, fabrics, sky).",
     "Optional tiny labels: ENVIRONMENT, LIGHT, PLACE, TEXTURE. No watermarks.",
-    "16:9 landscape only. The four panels must feel like one film, not four different movies.",
+    "16:9 landscape only. Fill the frame edge to edge, no black letterbox bars. The four panels must feel like one film, not four different movies.",
   ]
     .filter(Boolean)
     .join(" ");

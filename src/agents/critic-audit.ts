@@ -148,7 +148,7 @@ export function auditDirectorScore(score: DirectorScore, opts: CriticEvalOptions
       findings.push(
         `${missingWide} prompts de IA no piden 16:9 horizontal. En Film eso genera cuadrados mezclados con landscape.`,
       );
-      revisionFocus.push("Empieza cada visual_prompt de IA con: 16:9 landscape widescreen cinematic frame.");
+      revisionFocus.push("Empieza cada visual_prompt de IA con: 16:9 landscape widescreen cinematic frame, full-bleed, sin cintas negras.");
     }
   }
 

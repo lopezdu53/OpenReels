@@ -78,7 +78,7 @@ export class RunPodImage implements ImageProvider {
 
     const orientationHint =
       aspectRatio === "16:9"
-        ? "WIDE HORIZONTAL LANDSCAPE image ONLY. 16:9 widescreen. Do NOT generate portrait."
+        ? "WIDE HORIZONTAL LANDSCAPE image ONLY. 16:9 widescreen (width much greater than height, 1344x768). Fill the entire frame edge to edge. Do NOT generate portrait, square, black bars, or letterboxing."
         : aspectRatio === "1:1"
           ? "Square 1:1 image."
           : "Vertical 9:16 portrait image.";

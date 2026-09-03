@@ -10,7 +10,7 @@ Follow these rules strictly:
 
 1. **Show the topic, enrich beyond the words.** The image should visually depict the subject being discussed. But go further: add visual context the narration doesn't cover. If narration mentions a flood, show floodwaters WITH scale (people, buildings for reference), aftermath details, or the specific location. The image illustrates AND enriches.
 
-2. **Frame format.** Follow FRAME FORMAT exactly. For 16:9 Film: wide cinematic still, horizon and environment visible, do not crop to a vertical phone frame. For 9:16 Shorts: subject fills the portrait frame.
+2. **Frame format.** Follow FRAME FORMAT exactly. For 16:9 Film: wide cinematic still that fills 1920x1080 edge to edge, horizon and environment visible. Do not crop to a vertical phone frame. Do not paint black bars, letterboxing, or cinema tapes into the image. For 9:16 Shorts: subject fills the portrait frame.
 
 3. **Emotional tone matching.** Match the emotional intensity of the scene. Early scenes in an arc can be calmer; later scenes should be more dramatic, detailed, or emotionally charged. Use the scene position (e.g., "Scene 2 of 6") to calibrate intensity.
 

@@ -33,7 +33,7 @@ export class ViviImage implements ImageProvider {
   async generate(prompt: string, style?: string, referenceImage?: Buffer, aspectRatio?: string): Promise<Buffer> {
     const isLandscape = aspectRatio === "16:9";
     const orientationHint = isLandscape
-      ? "WIDE HORIZONTAL LANDSCAPE image ONLY. 16:9 widescreen aspect ratio, wider than tall. CRITICAL: Do NOT generate portrait or vertical orientation. Compose as a cinematic widescreen scene filling the full horizontal frame. 1920x1080 pixels"
+      ? "WIDE HORIZONTAL LANDSCAPE image ONLY. 16:9 widescreen aspect ratio, wider than tall. CRITICAL: Do NOT generate portrait or vertical orientation. Fill the full 1920x1080 frame edge to edge. No black bars, no letterboxing."
       : "Vertical 9:16 aspect ratio, 1080x1920 pixels";
     const continuityHint = referenceImage
       ? " Keep the SAME individual as the reference image: same species, same markings, same age, same face. Do not morph into a similar animal (no ocelot-to-Bengal-tiger). Same setting family, color palette and visual style so this scene continues the story."
@@ -64,6 +64,9 @@ export class ViviImage implements ImageProvider {
           contents,
           config: {
             responseModalities: ["image", "text"],
+            imageConfig: {
+              aspectRatio: aspectRatio === "16:9" ? "16:9" : aspectRatio === "1:1" ? "1:1" : "9:16",
+            },
           },
         });
 

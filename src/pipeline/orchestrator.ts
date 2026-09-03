@@ -10,6 +10,7 @@ import { evaluate, type CriticEvalOptions } from "../agents/critic.js";
 import { summarizeVideoFallbacks } from "../agents/critic-audit.js";
 import { applyVisualIdentity } from "../library/identity.js";
 import { optimizeImagePrompt } from "../agents/image-prompter.js";
+import { generateOrientedImage } from "../providers/image/dimensions.js";
 import { research } from "../agents/research.js";
 import { resolveStockAdaptive, type StockResolution } from "../providers/stock/adaptive-resolver.js";
 import { resolveAIVideo, type VideoResolution } from "../providers/video/video-resolver.js";
@@ -176,7 +177,7 @@ async function generateAIImage(
   } catch (err) {
     console.warn(`[visuals] Scene ${sceneIndex} prompt optimization failed, using original: ${err}`);
     if (aspectRatio === "16:9") {
-      prompt = `16:9 landscape widescreen cinematic still. ${prompt}`;
+      prompt = `16:9 landscape widescreen cinematic still, fill the full frame edge to edge, no letterbox bars. ${prompt}`;
     }
     if (opts.artStyleOverride?.trim()) {
       prompt = `${prompt}. Art style LOCKED: ${opts.artStyleOverride.trim()}`;
@@ -188,7 +189,10 @@ async function generateAIImage(
   }
 
   try {
-    const imageBuffer = await opts.imageGen.generate(prompt, undefined, referenceImage, aspectRatio);
+    const imageBuffer = await generateOrientedImage(
+      (p, s, r, a) => opts.imageGen.generate(p, s, r, a),
+      { prompt, referenceImage, aspectRatio },
+    );
     const filePath = path.join(assetsDir, `scene-${sceneIndex}-ai.png`);
     fs.writeFileSync(filePath, imageBuffer);
     return { path: filePath, usage, durationSeconds: null };
@@ -225,7 +229,10 @@ async function generateAIImage(
       prompt = `IDENTITY LOCK — same individual every shot, never change species, markings, age or face. ${opts.characterLock.trim()} Scene: ${prompt}`;
     }
 
-    const imageBuffer = await opts.imageGen.generate(prompt, undefined, referenceImage, aspectRatio);
+    const imageBuffer = await generateOrientedImage(
+      (p, s, r, a) => opts.imageGen.generate(p, s, r, a),
+      { prompt, referenceImage, aspectRatio },
+    );
     const filePath = path.join(assetsDir, `scene-${sceneIndex}-ai.png`);
     fs.writeFileSync(filePath, imageBuffer);
     return { path: filePath, usage, durationSeconds: null };

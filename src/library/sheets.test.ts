@@ -23,6 +23,7 @@ describe("concept sheets", () => {
     expect(prompt).toContain("ocelote");
     expect(prompt).toContain("Bengal");
     expect(prompt).toContain("16:9");
+    expect(prompt).toMatch(/letterbox/i);
   });
 
   it("marks humans as human and fictional as fictional", () => {
@@ -42,5 +43,6 @@ describe("concept sheets", () => {
     expect(prompt).toContain("ENVIRONMENT");
     expect(prompt).toContain("TEXTURE");
     expect(prompt).toContain("golden hour");
+    expect(prompt).toMatch(/letterbox/i);
   });
 });

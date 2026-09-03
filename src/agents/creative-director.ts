@@ -169,7 +169,7 @@ The first scene should be a strong hook.
 ${isLongForm
   ? `MANDATORY: This is a ${options!.targetDurationMinutes!}-minute video. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total word count MUST be ~${wordsTarget} words. Break topic into chapters separated by text_card chapter titles. Stop at exactly ${sceneTarget} scenes.`
   : "If over budget, cut a scene rather than cramming."
-}`;
+}${options?.platform === "youtube_horizontal" ? "\nEvery AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars." : ""}`;
 
   const maxRetries = 3;
   let lastError: Error | null = null;
@@ -398,7 +398,7 @@ Keep the same archetype. Maintain the GOLDEN RULE: never use the same visual_typ
 ${options?.direction?.trim() ? "LOCKED NARRATION: do not rewrite script_line. Only change visual_type, visual_prompt, motion, and transition." : ""}
 ${options?.characterLock?.trim() ? `IDENTITY: every AI visual_prompt must keep this lock: ${options.characterLock.trim()}` : ""}
 ${options?.artStyleOverride?.trim() ? `ART STYLE LOCK: ${options.artStyleOverride.trim()}. Do not switch photoreal ↔ cartoon.` : ""}
-${options?.platform === "youtube_horizontal" ? "Every AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame." : ""}`;
+${options?.platform === "youtube_horizontal" ? "Every AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars." : ""}`;
 
   const maxRetries = 2;
   let lastError: Error | null = null;

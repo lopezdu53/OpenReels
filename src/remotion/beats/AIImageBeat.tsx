@@ -15,14 +15,14 @@ export const AIImageBeat: React.FC<SceneProps> = ({
   const { scale, translateX } = kenBurnsTransform({ progress, motion, intensity: motionIntensity });
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "#0a0a0a" }}>
+    <AbsoluteFill>
       {assetSrc && (
         <Img
           src={assetSrc}
           style={{
             width: "100%",
             height: "100%",
-            objectFit: "contain",
+            objectFit: "cover",
             transform: `scale(${scale}) translateX(${translateX}px)`,
           }}
         />
