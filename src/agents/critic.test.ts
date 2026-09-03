@@ -81,4 +81,17 @@ describe("evaluate pacing tier derivation", () => {
     expect(result.data.revision_needed).toBe(false);
     expect(result.usage.inputTokens).toBe(100);
   });
+
+  it("passes locked-script + character lock into the critic message", async () => {
+    const llm = mockLLM();
+    await evaluate(llm, baseScore, "Rayitas", {
+      pacing: "cinematic",
+      platform: "youtube_horizontal",
+      direction: "## Guion (locución)\nRayitas era un gatito.",
+      characterLock: "Kind: animal. Species/race (LOCKED): gato persa. Appearance: blanco con rayas doradas",
+    });
+    expect(llm.lastUserMessage).toContain("LOCKED producer script");
+    expect(llm.lastUserMessage).toContain("gato persa");
+    expect(llm.lastUserMessage).not.toContain("**cinematic** pacing");
+  });
 });

@@ -375,6 +375,7 @@ export interface CriticReview {
   score: number;
   strengths: string[];
   weaknesses: string[];
+  findings?: string[];
 }
 
 export interface CreateJobRequest {

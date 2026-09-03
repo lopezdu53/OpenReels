@@ -71,6 +71,18 @@ export function CriticScoreCard({ review }: CriticScoreCardProps) {
           ))}
         </div>
       </div>
+      {review.findings?.length ? (
+        <div className="mt-3 space-y-1 border-t border-border pt-3">
+          <span className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
+            Alertas de producción
+          </span>
+          {review.findings.map((f, i) => (
+            <p key={`f-${i}`} className="text-[11px] leading-snug text-text-subtle">
+              · {f}
+            </p>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

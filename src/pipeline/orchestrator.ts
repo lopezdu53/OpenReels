@@ -6,7 +6,8 @@ import { Mastra } from "@mastra/core";
 import { createStep, createWorkflow } from "@mastra/core/workflows";
 import { z } from "zod";
 import { generateDirectorScore, reviseDirectorScore } from "../agents/creative-director.js";
-import { evaluate } from "../agents/critic.js";
+import { evaluate, type CriticEvalOptions } from "../agents/critic.js";
+import { summarizeVideoFallbacks } from "../agents/critic-audit.js";
 import { applyVisualIdentity } from "../library/identity.js";
 import { optimizeImagePrompt } from "../agents/image-prompter.js";
 import { research } from "../agents/research.js";
@@ -344,6 +345,17 @@ async function resolveVisualAsset(
  * Data flows between steps via Mastra's input/output chaining (.then()).
  * Shared mutable state (llmUsages, log) lives in the runPipeline scope.
  */
+function criticOptions(opts: PipelineOptions, extra: Partial<CriticEvalOptions> = {}): CriticEvalOptions {
+  return {
+    pacing: opts.pacing,
+    platform: opts.platform,
+    targetDurationMinutes: opts.targetDurationMinutes,
+    characterLock: opts.characterLock,
+    direction: opts.direction,
+    ...extra,
+  };
+}
+
 function buildPipelineWorkflow(
   opts: PipelineOptions,
   cb: PipelineCallbacks,
@@ -539,7 +551,7 @@ function buildPipelineWorkflow(
 
       for (let round = 0; round < MAX_REVISION_ROUNDS; round++) {
         try {
-          const critiqueOutput = await evaluate(opts.llm, score, opts.topic, opts.pacing);
+          const critiqueOutput = await evaluate(opts.llm, score, opts.topic, criticOptions(opts));
           llmUsages.push(critiqueOutput.usage);
           evaluationsCompleted++;
           const critique = critiqueOutput.data;
@@ -570,7 +582,7 @@ function buildPipelineWorkflow(
       // give it a chance to compete with bestScore
       if (revisionRoundsCompleted > 0 && score !== bestScore) {
         try {
-          const finalCritique = await evaluate(opts.llm, score, opts.topic, opts.pacing);
+          const finalCritique = await evaluate(opts.llm, score, opts.topic, criticOptions(opts));
           llmUsages.push(finalCritique.usage);
           evaluationsCompleted++;
           if (finalCritique.data.score > bestCritiqueScore) {
@@ -1064,7 +1076,12 @@ function buildPipelineWorkflow(
       cb.onStageStart?.("critic");
       const start = Date.now();
       try {
-        const critiqueOutput = await evaluate(opts.llm, score, opts.topic, opts.pacing);
+        const critiqueOutput = await evaluate(
+          opts.llm,
+          score,
+          opts.topic,
+          criticOptions(opts, { productionNotes: summarizeVideoFallbacks(log.videoResolutions) }),
+        );
         const critique = critiqueOutput.data;
         llmUsages.push(critiqueOutput.usage);
         const dur = (Date.now() - start) / 1000;
@@ -1075,6 +1092,7 @@ function buildPipelineWorkflow(
           score: critique.score,
           strengths: critique.strengths,
           weaknesses: critique.weaknesses,
+          findings: critique.findings ?? [],
         });
         log.stages.push({ name: "critic", duration: dur, status: "done" });
       } catch (err) {

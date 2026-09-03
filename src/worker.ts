@@ -118,7 +118,7 @@ interface JobMeta {
   runDir?: string;
   researchData?: { summary: string; key_facts: string[]; mood: string };
   score?: unknown; // DirectorScore
-  criticReview?: { score: number; strengths: string[]; weaknesses: string[] };
+  criticReview?: { score: number; strengths: string[]; weaknesses: string[]; findings?: string[] };
   musicTrack?: { trackId: string; mood: string; requestedMood: string; fallback: boolean };
   musicGeneration?: {
     provider: string;
@@ -283,6 +283,7 @@ const worker = new Worker<JobData>(
             score: data.score as number,
             strengths: data.strengths as string[],
             weaknesses: data.weaknesses as string[],
+            ...(Array.isArray(data.findings) ? { findings: data.findings as string[] } : {}),
           };
           writeMeta(jobDir, meta);
         }

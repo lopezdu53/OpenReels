@@ -394,7 +394,10 @@ ${critique.weakest_scene_index != null ? `Weakest scene: Scene ${critique.weakes
 ${revisionGuidance}
 
 Revise the DirectorScore to address the weaknesses while preserving the strengths.
-Keep the same archetype. Maintain the GOLDEN RULE: never use the same visual_type more than 2 times in a row.`;
+Keep the same archetype. Maintain the GOLDEN RULE: never use the same visual_type more than 2 times in a row.
+${options?.direction?.trim() ? "LOCKED NARRATION: do not rewrite script_line. Only change visual_type, visual_prompt, motion, and transition." : ""}
+${options?.characterLock?.trim() ? `IDENTITY: every AI visual_prompt must keep this lock: ${options.characterLock.trim()}` : ""}
+${options?.platform === "youtube_horizontal" ? "Every AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame." : ""}`;
 
   const maxRetries = 2;
   let lastError: Error | null = null;
