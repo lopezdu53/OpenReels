@@ -74,8 +74,8 @@ describe("mapScoreToProps", () => {
 
   it("calculates scene duration from word timestamps with padding", () => {
     const props = mapScoreToProps(baseScore, baseAssets, 30);
-    // Scene 1: words from 0 to 3 = 3s + 0.5s padding = 3.5s = 105 frames
-    expect(props.scenes[0]!.durationInFrames).toBe(105);
+    // Scene 0 spans 0→3s until the next scene's first word (90 frames at 30fps)
+    expect(props.scenes[0]!.durationInFrames).toBe(90);
   });
 
   it("uses minimum 2 second duration for scenes with short voiceover", () => {
@@ -106,14 +106,14 @@ describe("mapScoreToProps", () => {
     };
     const props = mapScoreToProps(score, baseAssets);
     expect(props.scenes[0]!.transition).toBe("crossfade");
-    expect(props.scenes[1]!.transition).toBe("wipe");
+    expect(props.scenes[1]!.transition).toBe("crossfade");
   });
 
   it("falls back to archetype default when scene transition is undefined", () => {
     // editorial_caricature has defaultTransition: "slide_left"
     const props = mapScoreToProps(baseScore, baseAssets);
     expect(props.scenes[0]!.transition).toBe("slide_left");
-    expect(props.scenes[1]!.transition).toBe("slide_left");
+    expect(props.scenes[1]!.transition).toBe("crossfade");
   });
 
   it("falls back to 'none' when archetype has no default transition", async () => {
@@ -237,8 +237,8 @@ describe("getTotalDurationInFrames", () => {
 
     const sum = props.scenes.reduce((acc, s) => acc + s.durationInFrames, 0);
     const total = getTotalDurationInFrames(props, 30);
-    // Overlaps: 15 + 10 = 25 frames
-    expect(total).toBe(sum - 25);
+    // Overlaps: 15 + 10 = 25 frames, then clamp up to the 9s voiceover (270)
+    expect(total).toBe(Math.max(sum - 25, 270));
   });
 
   it("extends last scene when overlap causes voiceover truncation", () => {

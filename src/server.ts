@@ -14,6 +14,7 @@ import { getArchetype, listArchetypes } from "./config/archetype-registry.js";
 import { ATELIER_STYLES } from "./config/atelier-styles.js";
 import { PLATFORMS } from "./config/platforms.js";
 import { registerFilmRoutes } from "./film/routes.js";
+import { registerLibraryRoutes } from "./library/routes.js";
 import { AliCloudImage } from "./providers/image/alicloud.js";
 import { FalImage } from "./providers/image/fal.js";
 import { GeminiImage } from "./providers/image/gemini.js";
@@ -270,6 +271,7 @@ app.get("/api/v1/providers", async () => ({
 
 await registerAnalyticsRoutes(app);
 await registerFilmRoutes(app);
+await registerLibraryRoutes(app);
 
 // --- API Test endpoints ---
 
@@ -481,6 +483,7 @@ interface CreateJobBody {
   styleReferenceImage?: string; // base64
   atelierMode?: boolean;
   artStyleOverride?: string;
+  characterLock?: string;
   providers?: {
     llm?: string;
     tts?: string;
@@ -531,6 +534,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     styleReferenceImage,
     atelierMode,
     artStyleOverride,
+    characterLock,
     providers,
     keys,
   } = request.body ?? {};
@@ -587,6 +591,15 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     }
   }
 
+  if (characterLock != null) {
+    if (typeof characterLock !== "string") {
+      return reply.status(400).send({ error: "characterLock must be a string" });
+    }
+    if (Buffer.byteLength(characterLock, "utf-8") > 8192) {
+      return reply.status(400).send({ error: "characterLock exceeds 8KB limit" });
+    }
+  }
+
   // Validate score (DirectorScore) if provided for replay
   let validatedScore: unknown | undefined;
   if (score != null) {
@@ -623,8 +636,9 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     ...(validatedScore ? { score: validatedScore } : {}),
     ...(videoSceneMode ? { videoSceneMode } : {}),
     ...(styleReferenceImage ? { styleReferenceImage } : {}),
-    ...(atelierMode ? { atelierMode: true } : {}),
+    atelierMode: atelierMode !== false,
     ...(artStyleOverride?.trim() ? { artStyleOverride: artStyleOverride.trim() } : {}),
+    ...(characterLock?.trim() ? { characterLock: characterLock.trim() } : {}),
     providers: {
       llm: providers?.llm ?? "anthropic",
       tts: providers?.tts ?? "elevenlabs",
@@ -684,7 +698,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       noVideo: noVideo === true || undefined,
       noSubtitles: noSubtitles === true || undefined,
       styleReference: styleReferenceImage ? true : undefined,
-      atelierMode: atelierMode === true || undefined,
+      atelierMode: atelierMode !== false,
       artStyleOverride: artStyleOverride?.trim() || undefined,
     },
   };

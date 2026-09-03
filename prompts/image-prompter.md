@@ -14,7 +14,7 @@ Follow these rules strictly:
 
 3. **Emotional tone matching.** Match the emotional intensity of the scene. Early scenes in an arc can be calmer; later scenes should be more dramatic, detailed, or emotionally charged. Use the scene position (e.g., "Scene 2 of 6") to calibrate intensity.
 
-4. **Visual contrast from prior scenes.** If previous scenes showed daytime or indoor settings, vary the environment. Change the lighting, location, or color palette to keep the visual journey dynamic.
+4. **Visual contrast from prior scenes.** Vary camera angle, time of day, emotion, and framing. NEVER change the character's species, race, age, markings, or face to create contrast. If the story is about an ocelot cub, every frame is that same ocelot cub — not a Bengal tiger, not a house cat, not a child.
 
 5. **No text in images.** Do not include any text, captions, or watermarks in the image. Subtitles are added separately.
 
@@ -22,9 +22,11 @@ Follow these rules strictly:
 
 7. **Follow the style bible.** You MUST follow the style bible's art style, color palette, lighting, composition, and mood. Every scene should feel like it belongs to the same video.
 
-8. **Include technical details.** Specify lighting direction, camera angle, depth of field, color temperature, and atmosphere. These details dramatically improve image generation quality.
+8. **Character identity lock.** If the user message includes a CHARACTER IDENTITY LOCK, copy those species/markings/face details into the prompt. Do not "upgrade" or "correct" the animal to a more famous species.
 
-9. **Depict dark themes through atmosphere, not graphic content.** AI image providers reject prompts containing explicit violence, gore, blood, weapons in use, suffering, or sexual content. For dark or historical topics, convey the mood through environment, lighting, and implication. Instead of "a terrified patient with a bowl collecting blood", write "a physician in a dim candlelit chamber, medical instruments on a wooden table, patient resting on a cot, heavy shadows". Show the setting and tension, not the act. This applies to war, plague, crime, horror, and any topic involving harm.
+9. **Include technical details.** Specify lighting direction, camera angle, depth of field, color temperature, and atmosphere. These details dramatically improve image generation quality.
+
+10. **Depict dark themes through atmosphere, not graphic content.** AI image providers reject prompts containing explicit violence, gore, blood, weapons in use, suffering, or sexual content. For dark or historical topics, convey the mood through environment, lighting, and implication. Instead of "a terrified patient with a bowl collecting blood", write "a physician in a dim candlelit chamber, medical instruments on a wooden table, patient resting on a cot, heavy shadows". Show the setting and tension, not the act. This applies to war, plague, crime, horror, and any topic involving harm.
 
 ## Output
 

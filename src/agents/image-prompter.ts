@@ -20,6 +20,7 @@ export interface ImagePromptOptions {
   mode?: "image" | "video";
   rejectionContext?: string;
   artStyleOverride?: string;
+  characterLock?: string;
 }
 
 export async function optimizeImagePrompt(
@@ -57,6 +58,14 @@ Composition: ${archetype.compositionRules}
 Cultural markers: ${archetype.culturalMarkers}
 Mood: ${archetype.mood}
 Quality guidance: ${archetype.antiArtifactGuidance}`;
+
+  if (opts?.characterLock?.trim()) {
+    systemPrompt += `
+
+## CHARACTER IDENTITY LOCK (overrides visual contrast)
+The SAME individual must appear in every shot. Never change species, race, age, face, markings, or body type to create variety. Contrast only via camera angle, time of day, emotion, and framing.
+Locked character: ${opts.characterLock.trim()}`;
+  }
 
   let userMessage = `Scene ${sceneIndex + 1} of ${totalScenes}
 Visual description: ${visualPrompt}

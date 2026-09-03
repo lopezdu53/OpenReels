@@ -7,6 +7,7 @@ import { createStep, createWorkflow } from "@mastra/core/workflows";
 import { z } from "zod";
 import { generateDirectorScore, reviseDirectorScore } from "../agents/creative-director.js";
 import { evaluate } from "../agents/critic.js";
+import { applyVisualIdentity } from "../library/identity.js";
 import { optimizeImagePrompt } from "../agents/image-prompter.js";
 import { research } from "../agents/research.js";
 import { resolveStockAdaptive, type StockResolution } from "../providers/stock/adaptive-resolver.js";
@@ -153,7 +154,10 @@ async function generateAIImage(
 ): Promise<VisualAssetResult> {
   let prompt = visualPrompt;
   let usage: LLMUsage | null = null;
-  const imagePromptOpts = opts.artStyleOverride ? { artStyleOverride: opts.artStyleOverride } : undefined;
+  const imagePromptOpts = {
+    ...(opts.artStyleOverride ? { artStyleOverride: opts.artStyleOverride } : {}),
+    ...(opts.characterLock ? { characterLock: opts.characterLock } : {}),
+  };
 
   try {
     const optimized = await optimizeImagePrompt(
@@ -169,6 +173,10 @@ async function generateAIImage(
     usage = optimized.usage;
   } catch (err) {
     console.warn(`[visuals] Scene ${sceneIndex} prompt optimization failed, using original: ${err}`);
+  }
+
+  if (opts.characterLock?.trim()) {
+    prompt = `IDENTITY LOCK — same individual every shot, never change species, markings, age or face. ${opts.characterLock.trim()} Scene: ${prompt}`;
   }
 
   try {
@@ -195,7 +203,7 @@ async function generateAIImage(
             `The previous prompt was rejected by the image provider's safety filter (${String(err).slice(0, 200)}). ` +
             `Rewrite the prompt to convey the same scene mood and composition through atmosphere, lighting, and implication. ` +
             `Remove ALL references to violence, blood, gore, weapons in use, suffering, nudity, or graphic content. ` +
-            `Keep the archetype style and emotional tone intact.`,
+            `Keep the archetype style and emotional tone intact. Keep the IDENTITY LOCK character unchanged.`,
         },
       );
       prompt = sanitized.prompt;
@@ -203,6 +211,10 @@ async function generateAIImage(
     } catch {
       // If the LLM sanitization call itself fails, re-throw the original safety error
       throw err;
+    }
+
+    if (opts.characterLock?.trim()) {
+      prompt = `IDENTITY LOCK — same individual every shot, never change species, markings, age or face. ${opts.characterLock.trim()} Scene: ${prompt}`;
     }
 
     const imageBuffer = await opts.imageGen.generate(prompt, undefined, referenceImage, aspectRatio);
@@ -293,6 +305,7 @@ async function resolveVisualAsset(
         totalScenes,
         sceneDurationSeconds,
         aspectRatio,
+        characterLock: opts.characterLock,
       });
 
       // Adjust imageGenTimeMs in the resolution metadata
@@ -446,11 +459,20 @@ function buildPipelineWorkflow(
         videoEnabled,
         stockEnabled,
       });
-      const directorOpts = { archetype: opts.archetype, pacing: opts.pacing, videoEnabled, allowedVisualTypes, direction: opts.direction, targetDurationMinutes: opts.targetDurationMinutes, platform: opts.platform };
+      const directorOpts = {
+        archetype: opts.archetype,
+        pacing: opts.pacing,
+        videoEnabled,
+        allowedVisualTypes,
+        direction: opts.direction,
+        targetDurationMinutes: opts.targetDurationMinutes,
+        platform: opts.platform,
+        characterLock: opts.characterLock,
+      };
 
       // ── Replay mode: use provided score, skip generation + revision ──
       if (opts.replayScore) {
-        const score = opts.replayScore;
+        const score = applyVisualIdentity(opts.replayScore, opts.characterLock);
         directorResult.score = score;
         directorResult.config = getArchetype(score.archetype);
 
@@ -621,6 +643,8 @@ function buildPipelineWorkflow(
         }
       }
 
+      score = applyVisualIdentity(score, opts.characterLock);
+
       // ── Store final score on shared closure state ──
       directorResult.score = score;
       directorResult.config = getArchetype(score.archetype);
@@ -732,9 +756,9 @@ function buildPipelineWorkflow(
       // every scene is conditioned on the same image so the whole video shares its look.
       const styleReferenceImage = opts.styleReferenceImage;
 
-      // Atelier mode: scene 1 generates freely, its image becomes the fixed reference
-      // for ALL subsequent scenes (character + style lock). Scenes 2+ run in parallel.
-      const atelierMode = !styleReferenceImage && opts.atelierMode === true;
+      // Atelier is on by default: scene 1 generates freely, then its (or the first
+      // available AI) image locks character + style for the rest of the film.
+      const atelierMode = !styleReferenceImage && opts.atelierMode !== false;
 
       // Long-form platforms using VIVI benefit from sequential generation with a
       // reference image fed forward so characters/setting/style stay consistent.
@@ -766,9 +790,10 @@ function buildPipelineWorkflow(
             // Step 2: read scene 0's image as the Atelier reference
             let atelierRef: Buffer | undefined;
             try {
-              const refPath = path.join(assetsDir, "scene-0-ai.png");
-              if (fs.existsSync(refPath)) atelierRef = fs.readFileSync(refPath);
-            } catch { /* no ai image for scene 0 — stock/text_card, proceed without ref */ }
+              const firstAi = ["scene-0-ai.png", ...score.scenes.map((_, i) => `scene-${i}-ai.png`)]
+                .find((name) => fs.existsSync(path.join(assetsDir, name)));
+              if (firstAi) atelierRef = fs.readFileSync(path.join(assetsDir, firstAi));
+            } catch { /* no ai image yet — proceed without ref */ }
             // Step 3: scenes 1+ in parallel, all receiving scene 0's image as reference
             const restResults = await Promise.all(
               score.scenes.slice(1).map(async (scene, idx) => {

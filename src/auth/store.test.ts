@@ -99,6 +99,8 @@ describe("user store + superadmin", () => {
     expect(loaded).not.toBeNull();
     expect(loaded!.clonedVideos).toEqual([]);
     expect(loaded!.clonedChannels).toEqual([]);
+    expect(loaded!.characters).toEqual([]);
+    expect(loaded!.visualStyles).toEqual([]);
     expect(loaded!.checkins).toEqual({});
     expect(loaded!.dailyGoal).toBe(4);
     expect(() => loaded!.clonedVideos.slice(0, 12)).not.toThrow();

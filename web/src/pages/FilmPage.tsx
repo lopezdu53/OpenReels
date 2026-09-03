@@ -2,8 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   api,
+  type BuiltinVisualStyle,
   type DirectorScoreScene,
   type JobSummary,
+  type LibraryCharacter,
+  type LibraryVisualStyle,
   type ProviderOptions,
 } from "@/hooks/useApi";
 import { Button } from "@/components/ui/button";
@@ -21,6 +24,8 @@ import { getSceneAssetUrl } from "@/lib/scene-assets";
 import { KokoroVoiceMixer } from "@/components/new-short/KokoroVoiceMixer";
 import { VisualTypeGrid } from "@/components/new-short/VisualTypeGrid";
 import { CostEstimatePanel } from "@/components/new-short/CostEstimatePanel";
+import { CharacterStudio } from "@/components/film/CharacterStudio";
+import { VisualStyleStudio } from "@/components/film/VisualStyleStudio";
 import { estimateJobCost } from "@/lib/job-cost-preview";
 import { fetchUsdToCopRate } from "@/lib/cop-rate";
 import { loadPrices } from "@/pages/LabPage";
@@ -152,7 +157,12 @@ export function FilmPage() {
   const [noSubtitles, setNoSubtitles] = useState(false);
   const [allowedVisualTypes, setAllowedVisualTypes] = useState(["ai_image", "stock_image", "text_card"]);
   const [stockAvailable, setStockAvailable] = useState(true);
-  const [atelierMode, setAtelierMode] = useState(false);
+  const [artStyleOverride, setArtStyleOverride] = useState("");
+  const [styleId, setStyleId] = useState("");
+  const [characterId, setCharacterId] = useState("");
+  const [characters, setCharacters] = useState<LibraryCharacter[]>([]);
+  const [userStyles, setUserStyles] = useState<LibraryVisualStyle[]>([]);
+  const [builtinStyles, setBuiltinStyles] = useState<BuiltinVisualStyle[]>([]);
   const [providers, setProviders] = useState<ProviderOptions | null>(null);
   const [usdToCop, setUsdToCop] = useState(4100);
   const [scriptLoading, setScriptLoading] = useState(false);
@@ -170,6 +180,11 @@ export function FilmPage() {
       }
     }).catch(() => {});
     fetchUsdToCopRate().then(setUsdToCop).catch(() => {});
+    api.listCharacters().then((r) => setCharacters(r.characters)).catch(() => {});
+    api.listVisualStyles().then((r) => {
+      setBuiltinStyles(r.builtins ?? []);
+      setUserStyles(r.styles ?? []);
+    }).catch(() => {});
     api.listJobs(20, 0).then(({ jobs: listed }) => {
       const films = listed.filter(isFilmJob);
       if (!films.length) return;
@@ -307,9 +322,21 @@ export function FilmPage() {
     try {
       for (const slot of readyScripts) {
         const title = (slot.title.trim() || slot.body.trim().split("\n")[0] || "Film YouTube").slice(0, 200);
+        const character = characters.find((c) => c.id === characterId);
+        const characterLock = character
+          ? [
+              `Name: ${character.name}`,
+              `Species/race (LOCKED): ${character.species}`,
+              character.age ? `Age: ${character.age}` : "",
+              `Appearance: ${character.appearance}`,
+              character.mustKeep ? `MUST keep: ${character.mustKeep}` : "",
+              character.mustAvoid ? `MUST avoid: ${character.mustAvoid}` : "",
+            ].filter(Boolean).join(". ")
+          : "";
         const direction = [
           "## Guion (locución — honrar estas líneas; no reescribir el texto hablado)",
           slot.body.trim(),
+          characterLock ? `\n## Personaje (identidad bloqueada)\n${characterLock}` : "",
           youtubeUrls.length
             ? `\n## Referencias YouTube (formato, no identidad)\n${youtubeUrls.map((u) => `- ${u}`).join("\n")}`
             : "",
@@ -326,8 +353,11 @@ export function FilmPage() {
           direction,
           noSubtitles,
           allowedVisualTypes,
+          atelierMode: true,
+          ...(artStyleOverride ? { artStyleOverride } : {}),
+          ...(characterLock ? { characterLock } : {}),
+          ...(character?.referenceImage ? { styleReferenceImage: character.referenceImage } : {}),
           ...(allowedVisualTypes.includes("ai_video") && videoSceneMode !== "all" ? { videoSceneMode } : {}),
-          ...(atelierMode ? { atelierMode: true } : {}),
           providers: providersPayload(),
         });
         created.push({
@@ -491,6 +521,56 @@ export function FilmPage() {
             </ul>
           ) : null}
         </section>
+
+        <CharacterStudio
+          characters={characters}
+          selectedId={characterId}
+          onSelect={setCharacterId}
+          onSave={async (body) => {
+            const { character } = body.id
+              ? await api.updateCharacter(String(body.id), body)
+              : await api.saveCharacter(body);
+            setCharacters((prev) => {
+              const rest = prev.filter((c) => c.id !== character.id);
+              return [character, ...rest];
+            });
+            setCharacterId(character.id);
+          }}
+          onDelete={async (id) => {
+            await api.deleteCharacter(id);
+            setCharacters((prev) => prev.filter((c) => c.id !== id));
+            if (characterId === id) setCharacterId("");
+          }}
+        />
+
+        <VisualStyleStudio
+          builtins={builtinStyles.length ? builtinStyles : (providers?.atelierStyles ?? [])}
+          styles={userStyles}
+          selectedId={styleId}
+          onSelect={(id, artStyle) => {
+            setStyleId(id);
+            setArtStyleOverride(artStyle);
+          }}
+          onSave={async (body) => {
+            const { style } = body.id
+              ? await api.updateVisualStyle(String(body.id), body)
+              : await api.saveVisualStyle(body);
+            setUserStyles((prev) => {
+              const rest = prev.filter((s) => s.id !== style.id);
+              return [style, ...rest];
+            });
+            setStyleId(style.id);
+            setArtStyleOverride(style.artStyle);
+          }}
+          onDelete={async (id) => {
+            await api.deleteVisualStyle(id);
+            setUserStyles((prev) => prev.filter((s) => s.id !== id));
+            if (styleId === id) {
+              setStyleId("");
+              setArtStyleOverride("");
+            }
+          }}
+        />
 
         <section className="grid gap-4 lg:grid-cols-[1fr_280px]">
           <div className="space-y-4 rounded-2xl border border-border bg-card p-4">
@@ -712,8 +792,9 @@ export function FilmPage() {
                     setVideoSceneMode("all");
                   }
                 }}
-                atelierMode={atelierMode}
-                onAtelier={setAtelierMode}
+                atelierMode
+                onAtelier={() => {}}
+                hideAtelier
               />
             </div>
           </div>

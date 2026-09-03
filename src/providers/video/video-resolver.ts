@@ -53,6 +53,7 @@ export async function resolveAIVideo(
     sceneDurationSeconds?: number;
     totalScenes?: number;
     aspectRatio?: string;
+    characterLock?: string;
   },
 ): Promise<{
   path: string;
@@ -74,7 +75,7 @@ export async function resolveAIVideo(
       sceneIndex,
       opts.totalScenes ?? 1,
       opts.archetype,
-      { mode: "video" },
+      { mode: "video", characterLock: opts.characterLock },
     );
     motionPrompt = optimized.prompt;
     prompterUsage = optimized.usage;

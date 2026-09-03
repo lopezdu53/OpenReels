@@ -312,6 +312,40 @@ export interface ActualCostBreakdown {
   };
 }
 
+export interface LibraryCharacter {
+  id: string;
+  name: string;
+  species: string;
+  age: string;
+  sex: string;
+  appearance: string;
+  personality: string;
+  wardrobe: string;
+  mustKeep: string;
+  mustAvoid: string;
+  notes: string;
+  referenceImage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LibraryVisualStyle {
+  id: string;
+  name: string;
+  artStyle: string;
+  lighting: string;
+  palette: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BuiltinVisualStyle {
+  id: string;
+  label: string;
+  artStyle: string;
+}
+
 export interface DirectorScoreScene {
   visual_type: "ai_image" | "ai_video" | "stock_image" | "stock_video" | "text_card";
   visual_prompt: string;
@@ -354,6 +388,7 @@ export interface CreateJobRequest {
   styleReferenceImage?: string; // base64
   atelierMode?: boolean;
   artStyleOverride?: string;
+  characterLock?: string;
   providers?: {
     llm?: string;
     tts?: string;
@@ -411,6 +446,43 @@ export const api = {
       "/film/script",
       { method: "POST", body: JSON.stringify(data) },
     );
+  },
+
+  listCharacters() {
+    return fetchJson<{ characters: LibraryCharacter[] }>("/library/characters");
+  },
+  saveCharacter(body: Record<string, unknown>) {
+    return fetchJson<{ character: LibraryCharacter }>("/library/characters", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateCharacter(id: string, body: Record<string, unknown>) {
+    return fetchJson<{ character: LibraryCharacter }>(`/library/characters/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteCharacter(id: string) {
+    return fetchJson<{ ok: boolean }>(`/library/characters/${id}`, { method: "DELETE" });
+  },
+  listVisualStyles() {
+    return fetchJson<{ builtins: BuiltinVisualStyle[]; styles: LibraryVisualStyle[] }>("/library/styles");
+  },
+  saveVisualStyle(body: Record<string, unknown>) {
+    return fetchJson<{ style: LibraryVisualStyle }>("/library/styles", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateVisualStyle(id: string, body: Record<string, unknown>) {
+    return fetchJson<{ style: LibraryVisualStyle }>(`/library/styles/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteVisualStyle(id: string) {
+    return fetchJson<{ ok: boolean }>(`/library/styles/${id}`, { method: "DELETE" });
   },
 
   cancelJob(id: string) {

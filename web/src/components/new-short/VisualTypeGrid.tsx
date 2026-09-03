@@ -22,6 +22,7 @@ interface VisualTypeGridProps {
   onToggle: (key: string, nextChecked: boolean) => void;
   atelierMode: boolean;
   onAtelier: (on: boolean) => void;
+  hideAtelier?: boolean;
 }
 
 export function VisualTypeGrid({
@@ -30,6 +31,7 @@ export function VisualTypeGrid({
   onToggle,
   atelierMode,
   onAtelier,
+  hideAtelier,
 }: VisualTypeGridProps) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -64,6 +66,7 @@ export function VisualTypeGrid({
           </button>
         );
       })}
+      {!hideAtelier ? (
       <button
         type="button"
         onClick={() => onAtelier(!atelierMode)}
@@ -76,9 +79,10 @@ export function VisualTypeGrid({
       >
         <Layers className={cn("size-4", atelierMode ? "text-violet-400" : "text-muted-foreground")} />
         <span className="text-xs font-semibold leading-tight">Atelier</span>
-        <span className="text-[10px] text-muted-foreground">Consistencia de personaje</span>
+        <span className="text-[10px] text-muted-foreground">Identidad gráfica (activo por defecto)</span>
         {atelierMode && <span className="absolute top-2 right-2 text-[10px] font-bold text-violet-400">✓</span>}
       </button>
+      ) : null}
     </div>
   );
 }

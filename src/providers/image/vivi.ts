@@ -36,7 +36,7 @@ export class ViviImage implements ImageProvider {
       ? "WIDE HORIZONTAL LANDSCAPE image ONLY. 16:9 widescreen aspect ratio, wider than tall. CRITICAL: Do NOT generate portrait or vertical orientation. Compose as a cinematic widescreen scene filling the full horizontal frame. 1920x1080 pixels"
       : "Vertical 9:16 aspect ratio, 1080x1920 pixels";
     const continuityHint = referenceImage
-      ? " Keep the same characters, setting, color palette and visual style as the reference image so this scene reads as a continuation of the same story."
+      ? " Keep the SAME individual as the reference image: same species, same markings, same age, same face. Do not morph into a similar animal (no ocelot-to-Bengal-tiger). Same setting family, color palette and visual style so this scene continues the story."
       : "";
     const fullPrompt = isLandscape
       ? `${orientationHint}. ${prompt}.${continuityHint}${style ? ` Style: ${style}.` : ""} No text, no watermarks.`

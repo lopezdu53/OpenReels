@@ -158,7 +158,7 @@ export function HomePage() {
   const [styleReferenceImage, setStyleReferenceImage] = useState<string | undefined>(undefined);
   const styleImageInputRef = useRef<HTMLInputElement | null>(null);
   const [artStyleOverride, setArtStyleOverride] = useState<string>("");
-  const [atelierMode, setAtelierMode] = useState(false);
+  const [atelierMode, setAtelierMode] = useState(true);
   const [platform, setPlatform] = useState("youtube");
   const [llmProvider, setLlmProvider] = useState("anthropic");
   const [llmModel, setLlmModel] = useState("");
@@ -286,7 +286,7 @@ export function HomePage() {
         allowedVisualTypes: allowedVisualTypes.length > 0 ? allowedVisualTypes : undefined,
         ...(allowedVisualTypes.includes("ai_video") && videoSceneMode !== "all" ? { videoSceneMode } : {}),
         ...(styleReferenceMode && styleReferenceImage ? { styleReferenceImage } : {}),
-        ...(atelierMode ? { atelierMode: true } : {}),
+        atelierMode,
         ...(artStyleOverride ? { artStyleOverride } : {}),
         providers: {
           llm: llmProvider,
@@ -692,7 +692,7 @@ export function HomePage() {
                 )}
                 {atelierMode && (
                   <p className="mt-2 text-[11px] text-violet-300/90">
-                    Atelier: la escena 1 se usa como referencia para mantener personaje y estilo en todo el video.
+                    Atelier está activo por defecto: la primera imagen bloquea personaje y estilo en todo el video.
                   </p>
                 )}
               </div>

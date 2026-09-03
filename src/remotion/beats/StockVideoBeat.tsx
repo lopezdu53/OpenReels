@@ -1,22 +1,31 @@
 import type React from "react";
 import { AbsoluteFill, Loop, OffthreadVideo, useVideoConfig } from "remotion";
+import { resolveVideoPlayback } from "../lib/motion";
 import type { SceneProps } from "../lib/score-to-props";
 
-export const StockVideoBeat: React.FC<SceneProps> = ({ assetSrc, sourceDurationInSeconds, visualType }) => {
-  const { fps, durationInFrames } = useVideoConfig();
-  const sceneDurationSeconds = durationInFrames / fps;
+export const StockVideoBeat: React.FC<SceneProps> = ({
+  assetSrc,
+  sourceDurationInSeconds,
+  visualType,
+  durationInFrames: sceneFrames,
+}) => {
+  const { fps } = useVideoConfig();
+  const sceneDurationSeconds = Math.max(1, sceneFrames || 1) / fps;
+  const { playbackRate, loop } = resolveVideoPlayback({
+    sourceDurationSeconds: sourceDurationInSeconds,
+    sceneDurationSeconds,
+    visualType,
+  });
 
-  // If we know the source video duration and it's shorter than the scene, loop it.
-  // Exception: AI-generated video clips create visible seams when looped — play once instead.
-  // Otherwise, play once with trim (endAt handles videos longer than the scene).
-  const needsLoop =
-    sourceDurationInSeconds != null && sourceDurationInSeconds < sceneDurationSeconds && visualType !== "ai_video";
   const loopDurationInFrames =
-    sourceDurationInSeconds != null ? Math.floor(sourceDurationInSeconds * fps) : durationInFrames;
+    sourceDurationInSeconds != null
+      ? Math.max(1, Math.floor((sourceDurationInSeconds / playbackRate) * fps))
+      : Math.max(1, sceneFrames || 1);
 
   const video = assetSrc ? (
     <OffthreadVideo
       src={assetSrc}
+      playbackRate={playbackRate}
       style={{
         width: "100%",
         height: "100%",
@@ -28,7 +37,7 @@ export const StockVideoBeat: React.FC<SceneProps> = ({ assetSrc, sourceDurationI
 
   return (
     <AbsoluteFill>
-      {video && (needsLoop ? <Loop durationInFrames={loopDurationInFrames}>{video}</Loop> : video)}
+      {video && (loop ? <Loop durationInFrames={loopDurationInFrames}>{video}</Loop> : video)}
     </AbsoluteFill>
   );
 };

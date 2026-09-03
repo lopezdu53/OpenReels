@@ -125,6 +125,19 @@ export function mapScoreToProps(
     };
   });
 
+  const STILL = new Set(["ai_image", "stock_image", "text_card"]);
+  const MOTION = new Set(["ai_video", "stock_video"]);
+  for (let i = 0; i < scenes.length - 1; i++) {
+    const cur = scenes[i]!;
+    const nxt = scenes[i + 1]!;
+    const stillToMotion = STILL.has(cur.visualType) && MOTION.has(nxt.visualType);
+    const motionToStill = MOTION.has(cur.visualType) && STILL.has(nxt.visualType);
+    if (stillToMotion || motionToStill) {
+      cur.transition = "crossfade";
+      cur.transitionDurationFrames = Math.max(cur.transitionDurationFrames, 18);
+    }
+  }
+
   return {
     scenes,
     captionStyle: archetype.captionStyle,
