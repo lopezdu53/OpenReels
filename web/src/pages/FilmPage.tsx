@@ -149,7 +149,7 @@ export function FilmPage() {
   const [videoProvider, setVideoProvider] = useState("");
   const [videoSceneMode, setVideoSceneMode] = useState("all");
   const [musicProvider, setMusicProvider] = useState("bundled");
-  const [runpodImageModel, setRunpodImageModel] = useState("black-forest-labs-flux-1-schnell");
+  const [runpodImageModel, setRunpodImageModel] = useState("p-image-t2i");
   const [runpodVideoModel, setRunpodVideoModel] = useState("p-video");
   const [runpodImageSteps, setRunpodImageSteps] = useState(4);
   const [runpodImageGuidance, setRunpodImageGuidance] = useState(1);

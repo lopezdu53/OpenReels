@@ -36,7 +36,7 @@ function makeProvider(opts?: { shouldFail?: boolean; durations?: number[] }): Vi
       : vi.fn().mockImplementation(async () => {
           // Create a real temp file so copyFileSync works
           const tmpFile = path.join(os.tmpdir(), `test-video-${Date.now()}.mp4`);
-          fs.writeFileSync(tmpFile, "fake-mp4-data");
+          fs.writeFileSync(tmpFile, Buffer.alloc(50_001, 1));
           return { filePath: tmpFile, durationSeconds: 6 } as VideoResult;
         }),
   };
@@ -85,6 +85,28 @@ describe("resolveAIVideo", () => {
     expect(result.videoResolution.method).toBe("image_to_video");
     expect(result.durationSeconds).toBe(6);
     expect(primary.generate).toHaveBeenCalledOnce();
+  });
+
+  it("forwards the hosted still URL to the video provider", async () => {
+    const primary = makeProvider();
+    await resolveAIVideo(
+      mockScene,
+      { ...mockImageResult, remoteUrl: "https://image.runpod.ai/p-image-t2i/scene.png" },
+      0,
+      path.join(tmpDir, "assets"),
+      {
+        videoProviders: [primary],
+        llm: mockLlm,
+        archetype: mockArchetype,
+        callbacks: mockCallbacks,
+      },
+    );
+
+    expect(primary.generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        imageUrl: "https://image.runpod.ai/p-image-t2i/scene.png",
+      }),
+    );
   });
 
   it("falls back to secondary provider on primary failure", async () => {

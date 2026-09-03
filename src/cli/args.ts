@@ -139,7 +139,7 @@ export function parseArgs(): CLIOptions {
     .option("--kokoro-speed <n>", "Kokoro speaking speed (0.7–1.5)", parseFloat)
     .option(
       "--runpod-image-model <model>",
-      "RunPod public image endpoint (default: black-forest-labs-flux-1-schnell)",
+      "RunPod public image endpoint (default: p-image-t2i)",
     )
     .option(
       "--runpod-video-model <model>",

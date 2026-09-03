@@ -91,11 +91,23 @@ async function downloadMedia(url: string, kind: "image" | "video"): Promise<Buff
   return Buffer.from(new Uint8Array(await res.arrayBuffer()));
 }
 
+const remoteUrls = new WeakMap<Buffer, string>();
+
+/** Remember a hosted HTTPS URL for a downloaded RunPod buffer (scene-safe). */
+export function rememberRemoteUrl(buffer: Buffer, url: string | undefined): Buffer {
+  if (url && isHttpUrl(url)) remoteUrls.set(buffer, url.trim());
+  return buffer;
+}
+
+export function lookupRemoteUrl(buffer: Buffer): string | undefined {
+  return remoteUrls.get(buffer);
+}
+
 /**
  * WaveSpeed-backed public endpoints often return `{ cost, result: "https://..." }`
  * instead of the documented `image_url` / `video_url` keys.
  */
-function mediaUrlFrom(output: unknown, kind: "image" | "video"): string | null {
+export function mediaUrlFrom(output: unknown, kind: "image" | "video"): string | null {
   if (typeof output === "string" && isHttpUrl(output)) return output.trim();
   if (!output || typeof output !== "object") return null;
 
@@ -121,7 +133,10 @@ function mediaUrlFrom(output: unknown, kind: "image" | "video"): string | null {
 
 export async function extractMediaBuffer(output: unknown, kind: "image" | "video"): Promise<Buffer | null> {
   const url = mediaUrlFrom(output, kind);
-  if (url) return downloadMedia(url, kind);
+  if (url) {
+    const buffer = await downloadMedia(url, kind);
+    return rememberRemoteUrl(buffer, url);
+  }
 
   if (!output || typeof output !== "object") return null;
   const o = output as Record<string, unknown>;
@@ -138,7 +153,10 @@ export async function extractMediaBuffer(output: unknown, kind: "image" | "video
   );
   if (!raw) return null;
 
-  if (isHttpUrl(raw)) return downloadMedia(raw, kind);
+  if (isHttpUrl(raw)) {
+    const buffer = await downloadMedia(raw, kind);
+    return rememberRemoteUrl(buffer, raw);
+  }
 
   const dataMatch = raw.match(/^data:(?:image|video)\/[\w+.-]+;base64,(.+)$/);
   if (dataMatch) return Buffer.from(dataMatch[1] ?? "", "base64");

@@ -175,7 +175,7 @@ export function HomePage() {
   const [imageProvider, setImageProvider] = useState("gemini");
   const [musicProvider, setMusicProvider] = useState("bundled");
   const [videoProvider, setVideoProvider] = useState("");
-  const [runpodImageModel, setRunpodImageModel] = useState("black-forest-labs-flux-1-schnell");
+  const [runpodImageModel, setRunpodImageModel] = useState("p-image-t2i");
   const [runpodVideoModel, setRunpodVideoModel] = useState("p-video");
   const [runpodImageSteps, setRunpodImageSteps] = useState(4);
   const [runpodImageGuidance, setRunpodImageGuidance] = useState(1);

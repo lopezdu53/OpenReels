@@ -13,7 +13,7 @@ import {
 
 describe("RunPod catalog", () => {
   it("defaults to the cheapest public endpoints", () => {
-    expect(DEFAULT_RUNPOD_IMAGE_MODEL).toBe("black-forest-labs-flux-1-schnell");
+    expect(DEFAULT_RUNPOD_IMAGE_MODEL).toBe("p-image-t2i");
     expect(DEFAULT_RUNPOD_VIDEO_MODEL).toBe("p-video");
     expect(getRunPodImageModel(undefined).id).toBe(DEFAULT_RUNPOD_IMAGE_MODEL);
     expect(getRunPodVideoModel(undefined).id).toBe(DEFAULT_RUNPOD_VIDEO_MODEL);

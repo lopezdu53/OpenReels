@@ -82,6 +82,8 @@ export interface VideoProvider {
     durationSeconds?: number;
     aspectRatio?: string;
     negativePrompt?: string;
+    /** Hosted HTTPS still from the image job. Required by RunPod p-video I2V. */
+    imageUrl?: string;
   }): Promise<VideoResult>;
 }
 

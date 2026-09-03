@@ -230,16 +230,14 @@ export function createProviders(config: ProviderConfig): Providers {
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "fal", "gemini")
       : primary;
   } else if (config.image === "runpod") {
-    const primary = new RunPodImage({
+    // Stay on RunPod only — Gemini image fallback burns prepaid AI Studio credits.
+    imageGen = new RunPodImage({
       model: config.runpodImageModel,
       endpointId: runpodImageEndpoint,
       apiKey: runpodKey,
       steps: config.runpodImageSteps,
       guidance: config.runpodImageGuidance,
     });
-    imageGen = googleKey
-      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "runpod", "gemini")
-      : primary;
   } else if (config.image === "openai") {
     const primary = new OpenAIImage(undefined, openaiKey);
     imageGen = googleKey
@@ -360,11 +358,8 @@ export function createProviders(config: ProviderConfig): Providers {
         }),
       );
     }
-    if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
-    else if (xaiKey) videoProviders.push(new GrokVideo(xaiKey));
-    else if (viduKey) videoProviders.push(new ViduVideo(undefined, viduKey));
-    else if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
-    else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
+    // No Gemini/Grok/fal fallback: those are billed separately and
+    // Google prepaid 429s were burning the job after p-video failed.
   } else if (videoPrimary === "gemini" || videoPrimary === undefined) {
     if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
     if (xaiKey) videoProviders.push(new GrokVideo(xaiKey));

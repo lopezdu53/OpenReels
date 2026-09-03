@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { extractMediaBuffer, isRunPodRetryable } from "./client.js";
+import { extractMediaBuffer, isRunPodRetryable, lookupRemoteUrl } from "./client.js";
 
 describe("extractMediaBuffer", () => {
   afterEach(() => {
@@ -21,6 +21,7 @@ describe("extractMediaBuffer", () => {
     );
     expect(buf).toBeInstanceOf(Buffer);
     expect(buf?.length).toBe(16);
+    expect(lookupRemoteUrl(buf!)).toBe("https://image.runpod.ai/abc/out.png");
   });
 
   it("decodes nested base64 image data", async () => {

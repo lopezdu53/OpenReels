@@ -42,7 +42,7 @@ function pickDuration(supportedDurations: number[], targetSeconds: number): numb
 
 export async function resolveAIVideo(
   scene: DirectorScore["scenes"][number],
-  imageResult: { path: string; buffer: Buffer; usage: LLMUsage | null },
+  imageResult: { path: string; buffer: Buffer; usage: LLMUsage | null; remoteUrl?: string },
   sceneIndex: number,
   assetsDir: string,
   opts: {
@@ -107,6 +107,7 @@ export async function resolveAIVideo(
           durationSeconds: genDuration,
           aspectRatio: opts.aspectRatio ?? "9:16",
           negativePrompt,
+          imageUrl: imageResult.remoteUrl,
         }),
       );
       const videoGenTimeMs = Date.now() - videoStart;

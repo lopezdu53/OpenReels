@@ -304,6 +304,28 @@ describe("createProviders", () => {
     });
   });
 
+  it("does not fall back to Gemini video when RunPod is primary", () => {
+    const origGoogle = process.env["GOOGLE_API_KEY"];
+    process.env["GOOGLE_API_KEY"] = "test-goog";
+
+    const providers = createProviders({
+      llm: "anthropic",
+      tts: "elevenlabs",
+      image: "runpod",
+      video: "runpod",
+      runpodImageModel: "p-image-t2i",
+      runpodVideoModel: "p-video",
+      keys: { RUNPOD_API_KEY: "rp-key", GOOGLE_API_KEY: "test-goog" },
+    });
+
+    expect(RunPodVideo).toHaveBeenCalledOnce();
+    expect(GeminiVideo).not.toHaveBeenCalled();
+    expect(providers.videoProviders).toHaveLength(1);
+
+    process.env["GOOGLE_API_KEY"] = origGoogle ?? "";
+    if (!origGoogle) delete process.env["GOOGLE_API_KEY"];
+  });
+
   it("wraps GeminiTTS in AlignedTTSProvider", () => {
     const providers = createProviders({
       llm: "anthropic",

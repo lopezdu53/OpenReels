@@ -150,13 +150,16 @@ export function buildRunPodImageJobInput(opts: {
   guidance?: number;
   referenceImage?: Buffer;
 }): Record<string, unknown> {
-  const input: Record<string, unknown> = { prompt: opts.prompt };
   const ratio = opts.aspectRatio ?? (opts.width > opts.height ? "16:9" : opts.width === opts.height ? "1:1" : "9:16");
-  input["aspect_ratio"] = ratio;
 
+  // p-image-t2i only accepts prompt + aspect_ratio. Extra keys 400.
   if (opts.spec.sizeMode === "aspect") {
-    // aspect_ratio already set
-  } else if (opts.spec.sizeMode === "preset") {
+    return { prompt: opts.prompt, aspect_ratio: ratio };
+  }
+
+  const input: Record<string, unknown> = { prompt: opts.prompt, aspect_ratio: ratio };
+
+  if (opts.spec.sizeMode === "preset") {
     input["size"] = `${opts.width}*${opts.height}`;
   } else {
     input["width"] = opts.width;

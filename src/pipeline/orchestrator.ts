@@ -11,6 +11,7 @@ import { summarizeVideoFallbacks } from "../agents/critic-audit.js";
 import { applyVisualIdentity } from "../library/identity.js";
 import { optimizeImagePrompt } from "../agents/image-prompter.js";
 import { generateOrientedImage } from "../providers/image/dimensions.js";
+import { lookupRemoteUrl } from "../providers/runpod/client.js";
 import { buildShotContext } from "../library/prompt-context.js";
 import { planVisualReferences, sheetToSceneHint, type SheetReference } from "./visual-refs.js";
 import { research } from "../agents/research.js";
@@ -142,6 +143,8 @@ interface VisualAssetResult {
   stockResolution?: StockResolution;
   videoResolution?: VideoResolution;
   prompterUsage?: LLMUsage | null;
+  /** Hosted HTTPS URL from RunPod image job, used for p-video I2V. */
+  remoteUrl?: string;
 }
 
 /** Generate an AI image with optional rejection context from failed stock searches */
@@ -220,7 +223,7 @@ async function generateAIImage(
     );
     const filePath = path.join(assetsDir, `scene-${sceneIndex}-ai.png`);
     fs.writeFileSync(filePath, imageBuffer);
-    return { path: filePath, usage, durationSeconds: null };
+    return { path: filePath, usage, durationSeconds: null, remoteUrl: lookupRemoteUrl(imageBuffer) };
   } catch (err) {
     if (!isSafetyRejection(err)) throw err;
 
@@ -266,7 +269,7 @@ async function generateAIImage(
     );
     const filePath = path.join(assetsDir, `scene-${sceneIndex}-ai.png`);
     fs.writeFileSync(filePath, imageBuffer);
-    return { path: filePath, usage, durationSeconds: null };
+    return { path: filePath, usage, durationSeconds: null, remoteUrl: lookupRemoteUrl(imageBuffer) };
   }
 }
 
@@ -354,6 +357,7 @@ async function resolveVisualAsset(
         path: imgResult.path!,
         buffer: imageBuffer,
         usage: imgResult.usage,
+        remoteUrl: imgResult.remoteUrl,
       }, index, assetsDir, {
         videoProviders: opts.videoProviders,
         llm: opts.llm,

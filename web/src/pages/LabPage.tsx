@@ -156,7 +156,7 @@ export function LabPage() {
   const [imgProvider, setImgProvider] = useState("gemini");
   const [imgPrompt, setImgPrompt] = useState("A futuristic city at sunset with flying cars and neon lights.");
   const [imgAspect, setImgAspect] = useState("9:16");
-  const [imgModel, setImgModel] = useState("black-forest-labs-flux-1-schnell");
+  const [imgModel, setImgModel] = useState("p-image-t2i");
   const [imgSteps, setImgSteps] = useState(4);
   const [imgResult, setImgResult] = useState<{ imageBase64: string; durationMs: number } | null>(null);
   const [imgLoading, setImgLoading] = useState(false);

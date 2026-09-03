@@ -47,21 +47,21 @@ const VIDEO_ALIASES: Record<string, string> = {
 /** Current RunPod Public Endpoints for text-to-image (Sep 2026). */
 export const RUNPOD_IMAGE_MODELS: RunPodImageModel[] = [
   {
+    id: "p-image-t2i",
+    label: "P-Image T2I — 16:9 nativo",
+    kind: "public",
+    costHint: "$0.005 / imagen",
+    sizeMode: "aspect",
+  },
+  {
     id: "black-forest-labs-flux-1-schnell",
-    label: "FLUX Schnell — más barato",
+    label: "FLUX Schnell — barato (cuadrado)",
     kind: "public",
     costHint: "~$0.0025 / imagen",
     defaultSteps: 4,
     maxSteps: 8,
     defaultGuidance: 1,
     sizeMode: "wh",
-  },
-  {
-    id: "p-image-t2i",
-    label: "P-Image T2I — ultra rápido",
-    kind: "public",
-    costHint: "$0.005 / imagen",
-    sizeMode: "aspect",
   },
   {
     id: "z-image-turbo",
@@ -171,7 +171,7 @@ export const RUNPOD_VIDEO_MODELS: RunPodVideoModel[] = [
   },
 ];
 
-export const DEFAULT_RUNPOD_IMAGE_MODEL = "black-forest-labs-flux-1-schnell";
+export const DEFAULT_RUNPOD_IMAGE_MODEL = "p-image-t2i";
 export const DEFAULT_RUNPOD_VIDEO_MODEL = "p-video";
 
 export function canonicalizeRunPodImageModelId(id: string | undefined): string {

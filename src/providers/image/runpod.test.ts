@@ -33,6 +33,24 @@ describe("RunPodImage", () => {
     expect(input["size"]).toBe("1344*768");
   });
 
+  it("sends only prompt + aspect_ratio for p-image-t2i", () => {
+    const spec = getRunPodImageModel("p-image-t2i");
+    const input = buildRunPodImageJobInput({
+      spec,
+      prompt: "a coati cub in a moonlit jungle",
+      width: 1280,
+      height: 720,
+      aspectRatio: "16:9",
+      steps: 4,
+      guidance: 1,
+      referenceImage: Buffer.from("x".repeat(200)),
+    });
+    expect(input).toEqual({
+      prompt: "a coati cub in a moonlit jungle",
+      aspect_ratio: "16:9",
+    });
+  });
+
   it("throws without an API key", () => {
     const prev = process.env["RUNPOD_API_KEY"];
     delete process.env["RUNPOD_API_KEY"];

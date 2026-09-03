@@ -39,11 +39,16 @@ function sizeFor(aspectRatio: string | undefined, resolution: string): string {
   return landscape ? "1280*720" : "720*1280";
 }
 
+function isHttpImageUrl(value: string | undefined): value is string {
+  return typeof value === "string" && /^https?:\/\//i.test(value.trim());
+}
+
 /** Build the `/run` input object for a public or custom RunPod video endpoint. */
 export function buildRunPodVideoJobInput(opts: {
   modelId: string;
   prompt: string;
-  imageDataUri: string;
+  /** HTTPS URL preferred. data: URIs break p-video ("property input is required"). */
+  image?: string;
   duration: number;
   aspectRatio?: string;
   resolution: string;
@@ -52,10 +57,23 @@ export function buildRunPodVideoJobInput(opts: {
   const spec = getRunPodVideoModel(opts.modelId);
   const fields: Record<string, unknown> = {
     prompt: opts.prompt,
-    image: opts.imageDataUri,
     duration: opts.duration,
-    aspect_ratio: opts.aspectRatio ?? "9:16",
   };
+
+  const image = opts.image?.trim();
+  const httpImage = isHttpImageUrl(image) ? image : undefined;
+  // p-video / WaveSpeed only accept a hosted image URL. A data: URI is
+  // forwarded to their internal API without `input` and fails with 400.
+  if (httpImage) {
+    fields["image"] = httpImage;
+  } else if (image && !spec.nestedInput) {
+    fields["image"] = image;
+  }
+
+  // Docs: when `image` is set, p-video ignores aspect_ratio.
+  if (!(spec.nestedInput && httpImage)) {
+    fields["aspect_ratio"] = opts.aspectRatio ?? "9:16";
+  }
 
   if (spec.sizeParam === "resolution") {
     fields["resolution"] = opts.resolution;
@@ -124,6 +142,7 @@ export class RunPodVideo implements VideoProvider {
     durationSeconds?: number;
     aspectRatio?: string;
     negativePrompt?: string;
+    imageUrl?: string;
   }): Promise<VideoResult> {
     const allowed = this.supportedDurations;
     const requested = Math.round(opts.durationSeconds ?? allowed[0] ?? 5);
@@ -134,7 +153,14 @@ export class RunPodVideo implements VideoProvider {
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        return await this.runJob(opts.sourceImage, opts.prompt, duration, opts.aspectRatio, opts.negativePrompt);
+        return await this.runJob(
+          opts.sourceImage,
+          opts.prompt,
+          duration,
+          opts.aspectRatio,
+          opts.negativePrompt,
+          opts.imageUrl,
+        );
       } catch (err) {
         lastError = err;
         if (!isRunPodRetryable(err) || attempt === 2) break;
@@ -152,12 +178,20 @@ export class RunPodVideo implements VideoProvider {
     duration: number,
     aspectRatio?: string,
     negativePrompt?: string,
+    imageUrl?: string,
   ): Promise<VideoResult> {
-    const dataUri = `data:image/png;base64,${sourceImage.toString("base64")}`;
+    const hosted = isHttpImageUrl(imageUrl) ? imageUrl.trim() : undefined;
+    const spec = getRunPodVideoModel(this.modelId);
+    const image = hosted ?? (spec.nestedInput ? undefined : `data:image/png;base64,${sourceImage.toString("base64")}`);
+    if (hosted) {
+      console.log(`[video/runpod] I2V from hosted still ${hosted.slice(0, 80)}`);
+    } else if (spec.nestedInput) {
+      console.log("[video/runpod] no hosted still URL — p-video text-to-video (aspect_ratio)");
+    }
     const input = buildRunPodVideoJobInput({
       modelId: this.modelId,
       prompt,
-      imageDataUri: dataUri,
+      image,
       duration,
       aspectRatio,
       resolution: this.resolution,
