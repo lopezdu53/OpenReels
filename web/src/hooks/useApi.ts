@@ -312,9 +312,12 @@ export interface ActualCostBreakdown {
   };
 }
 
+export type CharacterKind = "human" | "animal" | "fictional";
+
 export interface LibraryCharacter {
   id: string;
   name: string;
+  kind?: CharacterKind;
   species: string;
   age: string;
   sex: string;
@@ -336,6 +339,7 @@ export interface LibraryVisualStyle {
   lighting: string;
   palette: string;
   notes: string;
+  referenceImage?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -483,6 +487,17 @@ export const api = {
   },
   deleteVisualStyle(id: string) {
     return fetchJson<{ ok: boolean }>(`/library/styles/${id}`, { method: "DELETE" });
+  },
+  generateLibrarySheet(data: {
+    type: "character" | "style";
+    provider?: string;
+    character?: Record<string, unknown>;
+    style?: Record<string, unknown>;
+  }) {
+    return fetchJson<{ imageBase64: string; prompt: string; provider: string; durationMs: number }>(
+      "/library/sheets",
+      { method: "POST", body: JSON.stringify(data) },
+    );
   },
 
   cancelJob(id: string) {

@@ -1,12 +1,30 @@
 import { useRef, useState, type ReactNode } from "react";
-import { Download, Pencil, Plus, Trash2, Upload, UserRound } from "lucide-react";
+import { Download, ImageIcon, Pencil, Plus, Sparkles, Trash2, Upload, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { LibraryCharacter } from "@/hooks/useApi";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { api, type CharacterKind, type LibraryCharacter, type ProviderOption } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
+
+const KIND_OPTIONS: { key: CharacterKind; label: string }[] = [
+  { key: "human", label: "Humano" },
+  { key: "animal", label: "Animal" },
+  { key: "fictional", label: "Ficticio" },
+];
+
+const DEFAULT_PROVIDERS: ProviderOption[] = [
+  { key: "vivi", label: "VIVI" },
+  { key: "gemini", label: "Google Gemini" },
+  { key: "openai", label: "OpenAI" },
+  { key: "grok", label: "Grok Imagine" },
+  { key: "runpod", label: "RunPod (público)" },
+  { key: "fal", label: "fal.ai" },
+  { key: "alicloud", label: "Alibaba Cloud" },
+];
 
 const emptyForm = (): Partial<LibraryCharacter> => ({
   name: "",
+  kind: "animal",
   species: "",
   age: "",
   sex: "",
@@ -18,6 +36,10 @@ const emptyForm = (): Partial<LibraryCharacter> => ({
   notes: "",
 });
 
+function kindLabel(kind?: string) {
+  return KIND_OPTIONS.find((k) => k.key === kind)?.label ?? "Ficticio";
+}
+
 function downloadJson(filename: string, data: unknown) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -26,6 +48,14 @@ function downloadJson(filename: string, data: unknown) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function downloadPng(filename: string, base64: string) {
+  const raw = base64.includes(",") ? base64.split(",")[1]! : base64;
+  const a = document.createElement("a");
+  a.href = `data:image/png;base64,${raw}`;
+  a.download = filename;
+  a.click();
 }
 
 function fileToBase64(file: File): Promise<string> {
@@ -40,29 +70,79 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+function slug(name: string) {
+  return name.replace(/\s+/g, "-").toLowerCase() || "personaje";
+}
+
 interface Props {
   characters: LibraryCharacter[];
   selectedId: string;
+  imageProviders?: ProviderOption[];
   onSelect: (id: string) => void;
   onSave: (body: Record<string, unknown>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }
 
-export function CharacterStudio({ characters, selectedId, onSelect, onSave, onDelete }: Props) {
+export function CharacterStudio({
+  characters,
+  selectedId,
+  imageProviders,
+  onSelect,
+  onSave,
+  onDelete,
+}: Props) {
   const [editing, setEditing] = useState<Partial<LibraryCharacter> | null>(null);
   const [busy, setBusy] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [sheetError, setSheetError] = useState("");
+  const [sheetProvider, setSheetProvider] = useState("vivi");
   const importRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
   const selected = characters.find((c) => c.id === selectedId);
+  const providers = imageProviders?.length ? imageProviders : DEFAULT_PROVIDERS;
+  const kind = editing?.kind ?? "animal";
 
   async function commit() {
     if (!editing) return;
     setBusy(true);
+    setSheetError("");
     try {
-      await onSave(editing);
+      await onSave({ ...editing, kind: editing.kind ?? "animal" });
       setEditing(null);
+    } catch (err) {
+      setSheetError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function generateSheet() {
+    if (!editing) return;
+    setGenerating(true);
+    setSheetError("");
+    try {
+      const { imageBase64 } = await api.generateLibrarySheet({
+        type: "character",
+        provider: sheetProvider,
+        character: {
+          name: editing.name,
+          kind: editing.kind ?? "animal",
+          species: editing.species,
+          age: editing.age,
+          sex: editing.sex,
+          appearance: editing.appearance,
+          personality: editing.personality,
+          wardrobe: editing.wardrobe,
+          mustKeep: editing.mustKeep,
+          mustAvoid: editing.mustAvoid,
+          notes: editing.notes,
+        },
+      });
+      setEditing({ ...editing, referenceImage: imageBase64 });
+    } catch (err) {
+      setSheetError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGenerating(false);
     }
   }
 
@@ -71,10 +151,10 @@ export function CharacterStudio({ characters, selectedId, onSelect, onSave, onDe
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">Personaje</p>
-          <p className="text-sm font-medium">Misma identidad en todos los films</p>
+          <p className="text-sm font-medium">Ficha 16:9 — frente, retrato, perfil y espalda</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => setEditing(emptyForm())}>
+          <Button type="button" variant="outline" size="sm" onClick={() => { setSheetError(""); setEditing(emptyForm()); }}>
             <Plus className="size-3.5" /> Crear
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => importRef.current?.click()}>
@@ -102,7 +182,7 @@ export function CharacterStudio({ characters, selectedId, onSelect, onSave, onDe
 
       {characters.length === 0 && !editing ? (
         <p className="text-xs text-muted-foreground">
-          Crea a Rayitas una vez (especie, marcas, foto) y reutilízalo. Así no cambia de tigrillo a tigre de Bengala.
+          Humano, animal o ficticio. Genera una ficha de concepto (como un model sheet) y reutilízala para que no cambie de especie ni de cara.
         </p>
       ) : (
         <div className="flex flex-wrap gap-2">
@@ -117,13 +197,13 @@ export function CharacterStudio({ characters, selectedId, onSelect, onSave, onDe
               )}
             >
               {c.referenceImage ? (
-                <img src={`data:image/png;base64,${c.referenceImage}`} alt="" className="size-8 rounded object-cover" />
+                <img src={`data:image/png;base64,${c.referenceImage}`} alt="" className="h-8 w-14 rounded object-cover" />
               ) : (
                 <UserRound className="size-4 text-muted-foreground" />
               )}
               <span>
                 <span className="block font-medium">{c.name}</span>
-                <span className="text-[10px] text-muted-foreground">{c.species}</span>
+                <span className="text-[10px] text-muted-foreground">{kindLabel(c.kind)} · {c.species}</span>
               </span>
             </button>
           ))}
@@ -132,18 +212,36 @@ export function CharacterStudio({ characters, selectedId, onSelect, onSave, onDe
 
       {selected && !editing ? (
         <div className="rounded-xl border border-border bg-surface-inset p-3 space-y-2 text-xs">
+          {selected.referenceImage ? (
+            <img
+              src={`data:image/png;base64,${selected.referenceImage}`}
+              alt={`Ficha de ${selected.name}`}
+              className="aspect-video w-full rounded-lg bg-neutral-900 object-contain"
+            />
+          ) : null}
+          <p><span className="text-muted-foreground">Tipo:</span> {kindLabel(selected.kind)}</p>
           <p><span className="text-muted-foreground">Apariencia:</span> {selected.appearance}</p>
           {selected.mustAvoid ? <p><span className="text-muted-foreground">Evitar:</span> {selected.mustAvoid}</p> : null}
           <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => setEditing(selected)}>
+            <Button type="button" variant="outline" size="sm" onClick={() => { setSheetError(""); setEditing(selected); }}>
               <Pencil className="size-3.5" /> Editar
             </Button>
+            {selected.referenceImage ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => downloadPng(`ficha-${slug(selected.name)}.png`, selected.referenceImage!)}
+              >
+                <ImageIcon className="size-3.5" /> PNG
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() =>
-                downloadJson(`personaje-${selected.name.replace(/\s+/g, "-").toLowerCase()}.json`, {
+                downloadJson(`personaje-${slug(selected.name)}.json`, {
                   openreels: "character",
                   version: 1,
                   character: selected,
@@ -168,11 +266,30 @@ export function CharacterStudio({ characters, selectedId, onSelect, onSave, onDe
 
       {editing ? (
         <div className="grid gap-2 sm:grid-cols-2">
+          <div className="sm:col-span-2 flex flex-wrap gap-1.5">
+            {KIND_OPTIONS.map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setEditing({ ...editing, kind: opt.key })}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-[11px]",
+                  kind === opt.key ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
           <Field label="Nombre">
-            <Input value={editing.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder="Rayitas" />
+            <Input value={editing.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} placeholder={kind === "human" ? "Ana" : kind === "animal" ? "Rayitas" : "Nyx"} />
           </Field>
-          <Field label="Especie / raza (bloqueada)">
-            <Input value={editing.species ?? ""} onChange={(e) => setEditing({ ...editing, species: e.target.value })} placeholder="tigrillo ocelote cachorro, no tigre de Bengala" />
+          <Field label={kind === "human" ? "Tipo / etnia (opcional)" : kind === "animal" ? "Especie / raza (bloqueada)" : "Especie inventada"}>
+            <Input
+              value={editing.species ?? ""}
+              onChange={(e) => setEditing({ ...editing, species: e.target.value })}
+              placeholder={kind === "human" ? "humano" : kind === "animal" ? "tigrillo ocelote cachorro" : "elfa de bosque"}
+            />
           </Field>
           <Field label="Edad visual">
             <Input value={editing.age ?? ""} onChange={(e) => setEditing({ ...editing, age: e.target.value })} />
@@ -202,28 +319,67 @@ export function CharacterStudio({ characters, selectedId, onSelect, onSave, onDe
               <Input value={editing.notes ?? ""} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} />
             </Field>
           </div>
-          <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => imageRef.current?.click()}>
-              Foto de referencia
-            </Button>
-            <input
-              ref={imageRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                e.target.value = "";
-                if (!file) return;
-                const referenceImage = await fileToBase64(file);
-                setEditing({ ...editing, referenceImage });
-              }}
-            />
+          <div className="sm:col-span-2 space-y-2 rounded-xl border border-border bg-surface-inset p-3">
+            <p className="text-[11px] text-muted-foreground">
+              Genera un model sheet 16:9: cuerpo de frente a la izquierda, retrato arriba a la derecha, perfil y espalda abajo. VIVI por defecto.
+            </p>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="min-w-[160px] space-y-1">
+                <span className="text-[11px] text-muted-foreground">Generador de imagen</span>
+                <Select value={sheetProvider} onValueChange={(v) => v && setSheetProvider(v)}>
+                  <SelectTrigger className="h-9 w-full rounded-lg">
+                    <SelectValue>{providers.find((p) => p.key === sheetProvider)?.label ?? sheetProvider}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providers.map((p) => (
+                      <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+              <Button type="button" size="sm" disabled={generating || busy} onClick={() => void generateSheet()}>
+                <Sparkles className="size-3.5" />
+                {generating ? "Generando ficha…" : "Generar ficha"}
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => imageRef.current?.click()}>
+                Subir foto
+              </Button>
+              <input
+                ref={imageRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  const referenceImage = await fileToBase64(file);
+                  setEditing({ ...editing, referenceImage });
+                }}
+              />
+              {editing.referenceImage ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadPng(`ficha-${slug(editing.name ?? "personaje")}.png`, editing.referenceImage!)}
+                >
+                  <ImageIcon className="size-3.5" /> PNG
+                </Button>
+              ) : null}
+            </div>
             {editing.referenceImage ? (
-              <img src={`data:image/png;base64,${editing.referenceImage}`} alt="" className="h-10 w-10 rounded object-cover" />
+              <img
+                src={`data:image/png;base64,${editing.referenceImage}`}
+                alt="Ficha de concepto"
+                className="aspect-video w-full rounded-lg bg-neutral-900 object-contain"
+              />
             ) : null}
-            <Button type="button" size="sm" disabled={busy} onClick={() => void commit()}>Guardar</Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => setEditing(null)}>Cancelar</Button>
+            {sheetError ? <p className="text-xs text-destructive">{sheetError}</p> : null}
+          </div>
+          <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" disabled={busy || generating} onClick={() => void commit()}>Guardar</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => { setEditing(null); setSheetError(""); }}>Cancelar</Button>
           </div>
         </div>
       ) : null}

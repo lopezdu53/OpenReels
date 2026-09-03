@@ -20,10 +20,12 @@ describe("visual identity lock", () => {
   it("formats species lock text", () => {
     const text = formatCharacterLock({
       name: "Rayitas",
+      kind: "animal",
       species: "ocelot cub (Leopardus pardalis), NOT a Bengal tiger",
       appearance: "pale yellowish coat with small dark rosettes, round ears, cub proportions",
     });
     expect(text).toContain("Rayitas");
+    expect(text).toContain("Kind: animal");
     expect(text).toContain("NOT a Bengal tiger");
     expect(text).toContain("rosettes");
   });

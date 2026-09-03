@@ -78,7 +78,7 @@ const redis = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
 const queue = new Queue("openreels", { connection: redis });
 const queueEvents = new QueueEvents("openreels", { connection: redis.duplicate() });
 
-const app = Fastify({ logger: true });
+const app = Fastify({ logger: true, bodyLimit: 8 * 1024 * 1024 });
 
 await app.register(cors, { origin: true, credentials: true });
 

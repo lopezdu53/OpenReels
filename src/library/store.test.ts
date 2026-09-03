@@ -35,8 +35,10 @@ describe("library store", () => {
       mustAvoid: "tigre de Bengala adulto, gato doméstico",
     });
     expect(created.id).toBeTruthy();
-    const updated = upsertCharacter(user.id, { ...created, age: "cachorro 4 meses" });
+    expect(created.kind).toBe("fictional");
+    const updated = upsertCharacter(user.id, { ...created, age: "cachorro 4 meses", kind: "animal" });
     expect(updated.age).toContain("cachorro");
+    expect(updated.kind).toBe("animal");
     expect(deleteCharacter(user.id, created.id)).toBe(true);
     expect(deleteCharacter(user.id, created.id)).toBe(false);
   });
@@ -64,5 +66,25 @@ describe("library store", () => {
       palette: "amber, moss, gold",
     });
     expect(style.artStyle).toContain("storybook");
+    expect(style.referenceImage).toBeUndefined();
+  });
+
+  it("defaults human species and stores a style board image", async () => {
+    const user = await createUser({ email: "sheet@test.com", name: "H", password: "secret123" });
+    const human = upsertCharacter(user.id, {
+      name: "Ana",
+      kind: "human",
+      appearance: "cabello oscuro, ojos cafe, cicatriz suave en la ceja",
+    });
+    expect(human.kind).toBe("human");
+    expect(human.species).toBe("humano");
+
+    const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "utf8").toString("utf8");
+    const style = upsertVisualStyle(user.id, {
+      name: "Selva cine",
+      artStyle: "Filmic jungle, golden hour, 35mm, soft haze, storybook lighting",
+      referenceImage: tinyPng,
+    });
+    expect(style.referenceImage).toBeTruthy();
   });
 });

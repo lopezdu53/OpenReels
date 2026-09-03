@@ -2,6 +2,7 @@ import type { DirectorScore } from "../schema/director-score.js";
 
 export interface CharacterBible {
   name: string;
+  kind?: "human" | "animal" | "fictional";
   species: string;
   age?: string;
   sex?: string;
@@ -18,6 +19,7 @@ const IDENTITY_MARKER = "IDENTITY LOCK:";
 export function formatCharacterLock(c: CharacterBible): string {
   const lines = [
     `Name: ${c.name.trim()}`,
+    c.kind ? `Kind: ${c.kind}` : "",
     `Species/race (LOCKED, never substitute a similar animal): ${c.species.trim()}`,
     c.age?.trim() ? `Age: ${c.age.trim()}` : "",
     c.sex?.trim() ? `Sex: ${c.sex.trim()}` : "",

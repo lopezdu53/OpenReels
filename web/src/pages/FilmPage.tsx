@@ -80,11 +80,13 @@ const FALLBACK = {
     { key: "inworld", label: "Inworld" },
   ],
   image: [
+    { key: "vivi", label: "VIVI" },
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI" },
     { key: "grok", label: "Grok Imagine" },
-    { key: "vivi", label: "VIVI" },
     { key: "runpod", label: "RunPod (público)" },
+    { key: "fal", label: "fal.ai" },
+    { key: "alicloud", label: "Alibaba Cloud" },
   ],
   video: [
     { key: "gemini", label: "Veo (Gemini)" },
@@ -323,9 +325,11 @@ export function FilmPage() {
       for (const slot of readyScripts) {
         const title = (slot.title.trim() || slot.body.trim().split("\n")[0] || "Film YouTube").slice(0, 200);
         const character = characters.find((c) => c.id === characterId);
+        const style = userStyles.find((s) => s.id === styleId);
         const characterLock = character
           ? [
               `Name: ${character.name}`,
+              character.kind ? `Kind: ${character.kind}` : "",
               `Species/race (LOCKED): ${character.species}`,
               character.age ? `Age: ${character.age}` : "",
               `Appearance: ${character.appearance}`,
@@ -333,6 +337,7 @@ export function FilmPage() {
               character.mustAvoid ? `MUST avoid: ${character.mustAvoid}` : "",
             ].filter(Boolean).join(". ")
           : "";
+        const styleReferenceImage = character?.referenceImage ?? style?.referenceImage;
         const direction = [
           "## Guion (locución — honrar estas líneas; no reescribir el texto hablado)",
           slot.body.trim(),
@@ -356,7 +361,7 @@ export function FilmPage() {
           atelierMode: true,
           ...(artStyleOverride ? { artStyleOverride } : {}),
           ...(characterLock ? { characterLock } : {}),
-          ...(character?.referenceImage ? { styleReferenceImage: character.referenceImage } : {}),
+          ...(styleReferenceImage ? { styleReferenceImage } : {}),
           ...(allowedVisualTypes.includes("ai_video") && videoSceneMode !== "all" ? { videoSceneMode } : {}),
           providers: providersPayload(),
         });
@@ -525,6 +530,7 @@ export function FilmPage() {
         <CharacterStudio
           characters={characters}
           selectedId={characterId}
+          imageProviders={providers?.image ?? FALLBACK.image}
           onSelect={setCharacterId}
           onSave={async (body) => {
             const { character } = body.id
@@ -547,6 +553,7 @@ export function FilmPage() {
           builtins={builtinStyles.length ? builtinStyles : (providers?.atelierStyles ?? [])}
           styles={userStyles}
           selectedId={styleId}
+          imageProviders={providers?.image ?? FALLBACK.image}
           onSelect={(id, artStyle) => {
             setStyleId(id);
             setArtStyleOverride(artStyle);

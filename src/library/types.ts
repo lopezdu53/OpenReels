@@ -1,6 +1,11 @@
+import type { CharacterKind } from "./sheets.js";
+
+export type { CharacterKind };
+
 export interface StoredCharacter {
   id: string;
   name: string;
+  kind: CharacterKind;
   species: string;
   age: string;
   sex: string;
@@ -22,6 +27,7 @@ export interface StoredVisualStyle {
   lighting: string;
   palette: string;
   notes: string;
+  referenceImage?: string;
   createdAt: string;
   updatedAt: string;
 }
