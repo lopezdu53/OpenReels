@@ -90,7 +90,7 @@ describe("buildPacingInstruction", () => {
   it("uses a 1-minute plan without title cards for Film", () => {
     const result = buildPacingInstruction("cinematic_documentary", undefined, 1, "youtube_horizontal");
     expect(result).toContain("targeting 1 minutes");
-    expect(result).toContain("exactly 13 scenes");
+    expect(result).toContain("exactly 15 scenes");
     expect(result).toContain("NO text_card");
     expect(result).toContain("cliffhanger");
   });

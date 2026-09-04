@@ -248,13 +248,15 @@ describe("getTotalDurationInFrames", () => {
     props.scenes[1]!.transition = "crossfade";
     props.scenes[1]!.transitionDurationFrames = 60;
 
-    const lastSceneBefore = props.scenes[2]!.durationInFrames;
+    const stillBefore = props.scenes[1]!.durationInFrames;
+    const lastVideoBefore = props.scenes[2]!.durationInFrames;
     const total = getTotalDurationInFrames(props, 30);
 
-    // Voiceover ends at 9 seconds = 270 frames
+    // Voiceover ends at 9 seconds = 270 frames. Pad a still, not the last video clip.
     const voiceoverEnd = Math.ceil(9 * 30);
     expect(total).toBeGreaterThanOrEqual(voiceoverEnd);
-    expect(props.scenes[2]!.durationInFrames).toBeGreaterThan(lastSceneBefore);
+    expect(props.scenes[1]!.durationInFrames).toBeGreaterThan(stillBefore);
+    expect(props.scenes[2]!.durationInFrames).toBe(lastVideoBefore);
   });
 
   it("handles empty words array without clamping", () => {
