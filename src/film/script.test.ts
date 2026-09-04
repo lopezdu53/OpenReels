@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCastBrief, buildFilmDirection, parseYoutubeUrls, titleFromScript } from "./script.js";
+import { buildCastBrief, buildFilmDirection, buildSequelBrief, extractScoreCastNames, parseYoutubeUrls, titleFromScript } from "./script.js";
 
 describe("film script helpers", () => {
   it("parses unique YouTube urls", () => {
@@ -39,5 +39,28 @@ describe("film script helpers", () => {
     expect(three).toContain("1. Coco");
     expect(three).toContain("3. Luz");
     expect(three).not.toContain("Extra");
+  });
+
+  it("builds a sequel brief from a produced episode", () => {
+    const brief = buildSequelBrief({
+      title: "Tania Conoce a Casimiro",
+      characters: ["Tania", "Casimiro"],
+      scenes: [
+        { script_line: "Tania camina por Santorini.", location: "playa_santorini" },
+        { script_line: "Casimiro gana la lotería." },
+        { script_line: "¿Quieres saber qué pasa en esa cita?", location: "piscina" },
+      ],
+    });
+    expect(brief).toContain("CONTINUACIÓN");
+    expect(brief).toContain("Tania camina");
+    expect(brief).toContain("esa cita");
+    expect(brief).toContain("Tania, Casimiro");
+    expect(brief).toContain("playa_santorini");
+    expect(brief).toContain("No reinicies");
+    expect(
+      extractScoreCastNames({
+        scenes: [{ visual_prompt: "ON SCREEN: only Tania. Name: Tania. | leftover" }],
+      }),
+    ).toEqual(["Tania"]);
   });
 });

@@ -540,6 +540,7 @@ function buildPipelineWorkflow(
         requested: opts.allowedVisualTypes,
         videoEnabled,
         stockEnabled,
+        forbidTextCard: opts.platform === "youtube_horizontal",
       });
       const directorOpts = {
         archetype: opts.archetype ?? (opts.artStyleOverride ? "cinematic_documentary" : undefined),

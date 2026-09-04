@@ -8,6 +8,7 @@ import {
   filmSceneTarget,
   filmWordsTarget,
   isFilmJob,
+  isFilmOneMinute,
   isFilmTestMinutes,
   normalizeFilmMinutes,
 } from "../config/film-duration.js";
@@ -78,9 +79,11 @@ function loadDirectorSystemPrompt(targetDurationMinutes?: number, platform?: str
       // Remove the short-form CTA enforcement — long-form ends with a proper conclusion + CTA
       .replace(
         /\*\*CTA scene \(FINAL scene, REQUIRED\)\*\*:.*?(?=\n-|\n##|\n\n)/gs,
-        isTest
-          ? `**CTA scene (FINAL scene)**: one spoken closing line. No text_card. Same character as every other shot.`
-          : `**CTA scene (FINAL scene, REQUIRED)**: 20-40 words. Summarize the key takeaway, then add a call-to-action (like/subscribe/comment prompt). Typically a text_card followed by a closing visual.`,
+        isLandscape
+          ? `**CTA scene (FINAL scene)**: spoken closing line or cliffhanger. No text_card. Same CAST identity rules as every other shot.`
+          : isTest
+            ? `**CTA scene (FINAL scene)**: one spoken closing line. No text_card. Same character as every other shot.`
+            : `**CTA scene (FINAL scene, REQUIRED)**: 20-40 words. Summarize the key takeaway, then add a call-to-action (like/subscribe/comment prompt). Typically a text_card followed by a closing visual.`,
       );
 
     const sceneCount = filmSceneTarget(minutes);
@@ -101,7 +104,21 @@ This is a FAST TEST, not a Short and not an 8-minute Film.
 - The SAME character in every visual_prompt: copy crest, patches, markings, species verbatim.
 - **DO NOT** apply short-form pacing tiers
 - **DO NOT** exceed ${sceneCount} scenes`
-      : `
+      : isLandscape
+        ? `
+
+## LONG-FORM VIDEO OVERRIDE
+
+This is a LONG-FORM YouTube horizontal film, NOT a Short. Apply these rules instead of the short-form pacing table:
+
+- **Scene count**: exactly ${sceneCount} scenes total
+- **Words per scene**: ${wordsPerScene - 2}-${wordsPerScene + 2} words (~5 seconds per scene)
+- **Total word budget**: ~${wordsTarget} words
+- **NO text_card. NO chapter title cards. NO on-screen typography.**
+- Every scene is a cinematic shot (ai_image or ai_video). Contrast via camera, not title cards.
+- **DO NOT** apply short-form pacing tiers (fast/moderate/cinematic)
+- **DO NOT** exceed ${sceneCount} scenes`
+        : `
 
 ## LONG-FORM VIDEO OVERRIDE
 
@@ -210,7 +227,15 @@ ${isLongForm
           ? "Keep each CAST member's species, markings and face. Do not merge or swap identities."
           : "Same character (crest, patches, species) in every visual_prompt."
       }`
-    : `MANDATORY: This is a ${filmMinutes}-minute video. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total word count MUST be ~${wordsTarget} words. Break topic into chapters separated by text_card chapter titles. Stop at exactly ${sceneTarget} scenes.`
+    : isFilmOneMinute(filmMinutes)
+      ? `MANDATORY: This is a 1-minute film. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total ~${wordsTarget} words. NO text_card. Hook, advance the plot, cliffhanger CTA. ${
+          castCount >= 2
+            ? "Keep each CAST member's species, markings and face. Only the character named in that script_line is on screen."
+            : "Same character in every visual_prompt."
+        }`
+      : options?.platform === "youtube_horizontal"
+        ? `MANDATORY: This is a ${filmMinutes}-minute YouTube horizontal film. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total word count MUST be ~${wordsTarget} words. NO text_card. No chapter title cards. Stop at exactly ${sceneTarget} scenes.`
+        : `MANDATORY: This is a ${filmMinutes}-minute video. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total word count MUST be ~${wordsTarget} words. Break topic into chapters separated by text_card chapter titles. Stop at exactly ${sceneTarget} scenes.`
   : "If over budget, cut a scene rather than cramming."
 }${options?.platform === "youtube_horizontal" ? "\nEvery AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars.\nFor every ai_image/ai_video scene set shot_type (wide_establishing|wide|medium|close_up|extreme_close_up|over_shoulder|aerial|insert), camera_move (static|push_in|pull_out|pan|track), and location (a short reusable place name). Neighboring AI shots must not share the same shot_type. Repeat the same location name when the action stays in that place." : ""}`;
 
@@ -301,12 +326,17 @@ NO text_card. If ai_video is allowed, every scene is ai_video.
 The same character (crest, black patches, markings, species) appears in every visual_prompt.`;
     }
     console.log(`[creative-director] Long-form pacing (${formatLabel}): ~${sceneCount} scenes for ${minutes} min (~${wordsTarget} words, ~${wordsPerScene} words/scene)`);
+    const noCards = isLandscape ? "\nNO text_card. No chapter title cards. Every scene is a cinematic shot." : "";
+    const structure = isFilmOneMinute(minutes)
+      ? "Structure: hook (1-2 scenes), rising action, cliffhanger CTA. Do not pad with chapter titles."
+      : isLandscape
+        ? "Structure: engaging intro, rising chapters as cinematic scenes (not title cards), strong conclusion with spoken CTA."
+        : "Structure: engaging intro (2-3 scenes), multiple topic chapters of 5-8 scenes each, strong conclusion with CTA (2-3 scenes).\nEach chapter must have a clear thematic focus. Vary visual types throughout.";
     return `This is a ${formatLabel} video targeting ${minutes} minutes.
 Create a DirectorScore with exactly ${sceneCount} scenes.
 Per-scene word budget: ${wordsPerScene - 2}-${wordsPerScene + 2} words (~5 seconds per scene at 150 words/minute).
 Total word budget: approximately ${wordsTarget} words at ~150 words/minute.
-Structure: engaging intro (2-3 scenes), multiple topic chapters of 5-8 scenes each, strong conclusion with CTA (2-3 scenes).
-Each chapter must have a clear thematic focus. Vary visual types throughout.`;
+${structure}${noCards}`;
   }
 
   // Path 1: Explicit --pacing override always wins

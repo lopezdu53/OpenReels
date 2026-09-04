@@ -49,4 +49,15 @@ describe("resolveAllowedVisualTypes", () => {
       }),
     ).toEqual(["ai_image", "text_card"]);
   });
+
+  it("strips text_card for Film even if it was requested", () => {
+    expect(
+      resolveAllowedVisualTypes({
+        requested: ["ai_image", "text_card", "ai_video"],
+        videoEnabled: true,
+        stockEnabled: true,
+        forbidTextCard: true,
+      }),
+    ).toEqual(["ai_image", "ai_video"]);
+  });
 });

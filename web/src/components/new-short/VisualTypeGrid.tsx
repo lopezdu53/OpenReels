@@ -23,6 +23,7 @@ interface VisualTypeGridProps {
   atelierMode: boolean;
   onAtelier: (on: boolean) => void;
   hideAtelier?: boolean;
+  hideTypes?: string[];
 }
 
 export function VisualTypeGrid({
@@ -32,10 +33,12 @@ export function VisualTypeGrid({
   atelierMode,
   onAtelier,
   hideAtelier,
+  hideTypes,
 }: VisualTypeGridProps) {
+  const hidden = new Set(hideTypes ?? []);
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-      {TYPES.map(({ key, label, hint, icon: Icon, expensive }) => {
+      {TYPES.filter((t) => !hidden.has(t.key)).map(({ key, label, hint, icon: Icon, expensive }) => {
         const checked = selected.includes(key);
         const stockDisabled = !stockAvailable && (key === "stock_image" || key === "stock_video");
         return (

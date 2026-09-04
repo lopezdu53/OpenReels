@@ -14,8 +14,10 @@ export async function registerFilmRoutes(app: FastifyInstance): Promise<void> {
       youtubeUrls?: string[];
       youtubeText?: string;
       characters?: Array<{ name: string; species?: string; kind?: string }>;
+      previousStory?: string;
     };
-    const idea = body.idea?.trim() ?? "";
+    const sequel = body.previousStory?.trim() ?? "";
+    const idea = body.idea?.trim() || (sequel ? "Continuación del episodio anterior" : "");
     if (idea.length < 4) return reply.status(400).send({ error: "Escribe una idea (mín. 4 caracteres)" });
     const fromText = body.youtubeText ? parseYoutubeUrls(body.youtubeText) : [];
     const youtubeUrls = [...new Set([...(body.youtubeUrls ?? []), ...fromText])].slice(0, 10);
@@ -27,6 +29,7 @@ export async function registerFilmRoutes(app: FastifyInstance): Promise<void> {
         llmModel: body.llmModel,
         youtubeUrls,
         characters: Array.isArray(body.characters) ? body.characters.slice(0, 3) : undefined,
+        previousStory: sequel || undefined,
       });
       return { script, youtubeUrls };
     } catch (err) {

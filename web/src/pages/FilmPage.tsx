@@ -33,6 +33,7 @@ import {
   Clapperboard,
   Film,
   FileText,
+  History,
   ImageIcon,
   Link2,
   Loader2,
@@ -151,6 +152,39 @@ function isFilmJob(job: JobSummary) {
   return job.platform === "youtube_horizontal" || job.config?.platform === "youtube_horizontal";
 }
 
+function sequelBriefFromJob(job: JobSummary): string {
+  const scenes = job.score?.scenes ?? [];
+  const lines = scenes.map((s) => s.script_line.trim()).filter(Boolean);
+  const clip = (text: string, max: number) => {
+    const t = text.replace(/\s+/g, " ").trim();
+    return t.length <= max ? t : `${t.slice(0, max).replace(/\s+\S*$/, "")}…`;
+  };
+  const names = new Set<string>();
+  for (const scene of scenes) {
+    for (const m of scene.visual_prompt.matchAll(/\bName:\s*([^.|/]+)/gi)) {
+      const name = m[1]?.trim();
+      if (name && name.length >= 2 && name.length <= 40) names.add(name);
+    }
+  }
+  const locations = [...new Set(scenes.map((s) => s.location?.trim()).filter(Boolean) as string[])].slice(0, 8);
+  return [
+    `CONTINUACIÓN del episodio anterior: «${job.topic}».`,
+    lines.length ? `Qué ya pasó: ${clip(lines.slice(0, 5).join(" "), 700)}` : "",
+    lines.length ? `Cómo cerró (parte de aquí, no lo reescribas): ${clip(lines.slice(-8).join(" "), 900)}` : "",
+    names.size ? `Personajes ya establecidos: ${[...names].slice(0, 3).join(", ")}` : "",
+    locations.length ? `Lugares ya establecidos: ${locations.join(", ")}` : "",
+    "No reinicies. No re-presentes a nadie. Avanza la trama y cierra con gancho al siguiente capítulo.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function durationHint(minutes: number): string {
+  if (minutes > 0 && minutes < 0.75) return "~75 palabras · 6 escenas · video en todas · sin tarjetas";
+  if (minutes >= 0.75 && minutes < 1.5) return "~150 palabras · 13 escenas · 1920×1080 · sin tarjetas";
+  return `~${minutes * 150} palabras · 1920×1080 · sin tarjetas`;
+}
+
 export function FilmPage() {
   const [idea, setIdea] = useState("");
   const [youtubeDraft, setYoutubeDraft] = useState("");
@@ -181,8 +215,23 @@ export function FilmPage() {
   const [runpodImageEndpointId, setRunpodImageEndpointId] = useState("");
   const [runpodVideoEndpointId, setRunpodVideoEndpointId] = useState("");
   const [noSubtitles, setNoSubtitles] = useState(false);
-  const [allowedVisualTypes, setAllowedVisualTypes] = useState(["ai_image", "stock_image", "text_card"]);
+  const [allowedVisualTypes, setAllowedVisualTypes] = useState(["ai_image"]);
   const [stockAvailable, setStockAvailable] = useState(true);
+  const [artStyleOverride, setArtStyleOverride] = useState("");
+  const [styleId, setStyleId] = useState("");
+  const [characterIds, setCharacterIds] = useState<string[]>([]);
+  const [characters, setCharacters] = useState<LibraryCharacter[]>([]);
+  const [userStyles, setUserStyles] = useState<LibraryVisualStyle[]>([]);
+  const [builtinStyles, setBuiltinStyles] = useState<BuiltinVisualStyle[]>([]);
+  const [providers, setProviders] = useState<ProviderOptions | null>(null);
+  const [usdToCop, setUsdToCop] = useState(4100);
+  const [scriptLoading, setScriptLoading] = useState(false);
+  const [producing, setProducing] = useState(false);
+  const [error, setError] = useState("");
+  const [jobs, setJobs] = useState<JobSummary[]>([]);
+  const [storyLibrary, setStoryLibrary] = useState<JobSummary[]>([]);
+  const [sequelId, setSequelId] = useState("");
+  const [sequelJob, setSequelJob] = useState<JobSummary | null>(null);
   const [artStyleOverride, setArtStyleOverride] = useState("");
   const [styleId, setStyleId] = useState("");
   const [characterIds, setCharacterIds] = useState<string[]>([]);
@@ -211,8 +260,10 @@ export function FilmPage() {
       setBuiltinStyles(r.builtins ?? []);
       setUserStyles(r.styles ?? []);
     }).catch(() => {});
-    api.listJobs(20, 0).then(({ jobs: listed }) => {
+    api.listJobs(50, 0).then(({ jobs: listed }) => {
       const films = listed.filter(isFilmJob);
+      const completed = films.filter((j) => j.status === "completed");
+      if (completed.length) setStoryLibrary(completed);
       if (!films.length) return;
       setJobs((prev) => {
         const ids = new Set(prev.map((j) => j.id));
@@ -309,13 +360,43 @@ export function FilmPage() {
     };
   }
 
+  async function pickSequel(id: string) {
+    setSequelId(id);
+    if (!id) {
+      setSequelJob(null);
+      return;
+    }
+    setError("");
+    try {
+      const job = await api.getJob(id);
+      setSequelJob(job);
+      const names = new Set<string>();
+      for (const scene of job.score?.scenes ?? []) {
+        for (const m of scene.visual_prompt.matchAll(/\bName:\s*([^.|/]+)/gi)) {
+          const name = m[1]?.trim();
+          if (name && name.length >= 2) names.add(name.toLowerCase());
+        }
+      }
+      if (names.size) {
+        const matched = characters.filter((c) => names.has(c.name.trim().toLowerCase())).map((c) => c.id);
+        if (matched.length) setCharacterIds(matched.slice(0, MAX_FILM_CAST));
+      }
+      if (idea.trim().length < 4) setIdea(`Continuación: ${job.topic}`);
+    } catch (err) {
+      setSequelJob(null);
+      setSequelId("");
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   async function generateScript() {
-    if (idea.trim().length < 4 || scriptLoading) return;
+    const ideaText = idea.trim() || (sequelJob ? `Continuación: ${sequelJob.topic}` : "");
+    if (ideaText.length < 4 || scriptLoading) return;
     setScriptLoading(true);
     setError("");
     try {
       const { script } = await api.generateFilmScript({
-        idea: idea.trim(),
+        idea: ideaText,
         durationMinutes,
         llm: llmProvider,
         llmModel: llmModel || undefined,
@@ -325,6 +406,7 @@ export function FilmPage() {
           .map((id) => characters.find((c) => c.id === id))
           .filter((c): c is LibraryCharacter => Boolean(c))
           .map((c) => ({ name: c.name, species: c.species, kind: c.kind })),
+        previousStory: sequelJob ? sequelBriefFromJob(sequelJob) : undefined,
       });
       setScripts((prev) => {
         const empty = prev.find((s) => !s.body.trim());
@@ -370,20 +452,27 @@ export function FilmPage() {
           youtubeUrls.length
             ? `\n## Referencias YouTube (formato, no identidad)\n${youtubeUrls.map((u) => `- ${u}`).join("\n")}`
             : "",
-          "\n## Formato\nVideo horizontal 16:9 para YouTube (1920x1080). No es un Short vertical.",
-          durationMinutes > 0 && durationMinutes < 2
+          "\n## Formato\nVideo horizontal 16:9 para YouTube (1920x1080). No es un Short vertical. Cero text_card: toda la información va en locución e imagen, nunca en tarjetas de título.",
+          sequelJob ? `\n## Continuación\n${sequelBriefFromJob(sequelJob)}` : "",
+          durationMinutes > 0 && durationMinutes < 0.75
             ? cast.length > 1
               ? `\n## Prueba 30s\nElenco bloqueado (${cast.map((c) => c.name).join(", ")}): cada uno conserva especie, marcas y cara. En cada plano solo quien nombra la locución. Cero text_card. Todas las escenas ai_video.`
               : "\n## Prueba 30s\nMismo individuo en TODOS los planos: misma cresta, mismas manchas negras, mismos ojos, misma especie. Cero text_card. Todas las escenas ai_video."
-            : "",
+            : durationMinutes >= 0.75 && durationMinutes < 1.5
+              ? "\n## Corte 1 min\nUn episodio corto. Cero text_card. Gancho, avance, cliffhanger."
+              : "",
         ].join("\n");
         if (new TextEncoder().encode(direction).length > 65536) {
           throw new Error(`El guion de “${title}” supera 64KB. Acórtalo.`);
         }
-        const testCut = durationMinutes > 0 && durationMinutes < 2;
-        const visualTypes = testCut
-          ? Array.from(new Set([...allowedVisualTypes.filter((t) => t !== "text_card"), "ai_image", "ai_video"]))
-          : allowedVisualTypes;
+        const testCut = durationMinutes > 0 && durationMinutes < 0.75;
+        const visualTypes = Array.from(
+          new Set([
+            ...allowedVisualTypes.filter((t) => t !== "text_card"),
+            "ai_image",
+            ...(testCut ? ["ai_video"] : []),
+          ]),
+        );
         const res = await api.createJob({
           topic: title,
           platform: "youtube_horizontal",
@@ -450,10 +539,10 @@ export function FilmPage() {
               id="film-idea"
               value={idea}
               onChange={(e) => setIdea(e.target.value)}
-              placeholder="Ej. qué harías con un millón de dólares, explicado en 8 minutos"
+              placeholder="Ej. qué pasa después de la cita en Santorini"
               className="h-11 flex-1"
             />
-            <Button className="h-11 px-4" onClick={() => void generateScript()} disabled={scriptLoading || idea.trim().length < 4}>
+            <Button className="h-11 px-4" onClick={() => void generateScript()} disabled={scriptLoading || (idea.trim().length < 4 && !sequelJob)}>
               {scriptLoading ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
               Generar guion
             </Button>
@@ -467,7 +556,7 @@ export function FilmPage() {
                 onChange={(e) => {
                   const next = Number(e.target.value);
                   setDurationMinutes(next);
-                  if (next > 0 && next < 2) {
+                  if (next > 0 && next < 0.75) {
                     setAllowedVisualTypes((prev) => {
                       const nextTypes = new Set(prev.filter((t) => t !== "text_card"));
                       nextTypes.add("ai_image");
@@ -476,10 +565,13 @@ export function FilmPage() {
                     });
                     setVideoSceneMode("all");
                     if (!videoProvider) setVideoProvider("runpod");
+                  } else {
+                    setAllowedVisualTypes((prev) => prev.filter((t) => t !== "text_card"));
                   }
                 }}
               >
                 <option value={0.5}>30 s (prueba)</option>
+                <option value={1}>1 min</option>
                 {[2, 3, 5, 8, 10, 12, 15, 20].map((n) => (
                   <option key={n} value={n}>
                     {n} min
@@ -487,12 +579,44 @@ export function FilmPage() {
                 ))}
               </select>
             </label>
-            <span className="text-[11px] text-muted-foreground">
-              {durationMinutes < 2
-                ? "~75 palabras · 6 escenas · mismo personaje · video en todas"
-                : `~${durationMinutes * 150} palabras · 1920×1080`}
-            </span>
+            <span className="text-[11px] text-muted-foreground">{durationHint(durationMinutes)}</span>
           </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label className="flex min-w-0 flex-1 items-center gap-2 text-xs text-muted-foreground">
+              <History className="size-3.5 shrink-0" />
+              Continuar historia
+              <select
+                className="h-8 min-w-0 flex-1 rounded-lg border border-input bg-transparent px-2 text-foreground"
+                value={sequelId}
+                onChange={(e) => void pickSequel(e.target.value)}
+              >
+                <option value="">Nueva historia</option>
+                {storyLibrary.map((job) => (
+                  <option key={job.id} value={job.id}>
+                    #{job.id} · {job.topic.slice(0, 72)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {sequelJob ? (
+              <button
+                type="button"
+                className="text-[11px] text-muted-foreground hover:text-destructive"
+                onClick={() => void pickSequel("")}
+              >
+                Quitar
+              </button>
+            ) : null}
+          </div>
+          {sequelJob ? (
+            <p className="text-[11px] text-muted-foreground">
+              El guion y las escenas usarán el cierre de «{sequelJob.topic}» (job #{sequelJob.id}) para no reiniciar personajes ni hechos.
+            </p>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">
+              Elige un Film ya producido para el siguiente capítulo. Sin tarjetas de texto: la historia va en locución e imagen.
+            </p>
+          )}
         </section>
 
         <section className="space-y-3">
@@ -859,7 +983,9 @@ export function FilmPage() {
               <VisualTypeGrid
                 selected={allowedVisualTypes}
                 stockAvailable={stockAvailable}
+                hideTypes={["text_card"]}
                 onToggle={(key, on) => {
+                  if (key === "text_card") return;
                   setAllowedVisualTypes((prev) => (on ? [...prev, key] : prev.filter((k) => k !== key)));
                   if (key === "ai_video" && !on) {
                     setVideoProvider("");

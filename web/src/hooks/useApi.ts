@@ -358,6 +358,8 @@ export interface DirectorScoreScene {
   motion: "zoom_in" | "zoom_out" | "pan_right" | "pan_left" | "static";
   script_line: string;
   transition?: "none" | "crossfade" | "slide_left" | "slide_right" | "wipe" | "flip";
+  location?: string;
+  shot_type?: string;
 }
 
 export interface DirectorScore {
@@ -450,6 +452,7 @@ export const api = {
     youtubeText?: string;
     youtubeUrls?: string[];
     characters?: Array<{ name: string; species?: string; kind?: string }>;
+    previousStory?: string;
   }) {
     return fetchJson<{ script: { title: string; hook: string; script: string }; youtubeUrls: string[] }>(
       "/film/script",

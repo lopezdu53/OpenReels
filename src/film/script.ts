@@ -7,7 +7,7 @@ import { OpenAILLM } from "../providers/llm/openai.js";
 import { OpenRouterLLM } from "../providers/llm/openrouter.js";
 import { ViviLLM } from "../providers/llm/vivi.js";
 import type { LLMProvider } from "../schema/providers.js";
-import { filmWordsTarget, isFilmTestMinutes, normalizeFilmMinutes } from "../config/film-duration.js";
+import { filmDurationLabel, filmWordsTarget, isFilmTestMinutes, normalizeFilmMinutes } from "../config/film-duration.js";
 import { MAX_FILM_CHARACTERS } from "../library/identity.js";
 
 export const filmScriptSchema = z.object({
@@ -76,6 +76,46 @@ export function buildCastBrief(
   return `Reparto bloqueado (${n} personaje${n === 1 ? "" : "s"}; usa estos nombres en la locución, no inventes protagonistas extra):\n${lines.join("\n")}`;
 }
 
+function clipText(text: string, max: number): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  return `${t.slice(0, max).replace(/\s+\S*$/, "")}…`;
+}
+
+export function extractScoreCastNames(
+  score?: { scenes?: Array<{ visual_prompt?: string }> } | null,
+): string[] {
+  const names = new Set<string>();
+  for (const scene of score?.scenes ?? []) {
+    for (const m of scene.visual_prompt?.matchAll(/\bName:\s*([^.|/]+)/gi) ?? []) {
+      const name = m[1]?.trim();
+      if (name && name.length >= 2 && name.length <= 40) names.add(name);
+    }
+  }
+  return [...names].slice(0, MAX_FILM_CHARACTERS);
+}
+
+export function buildSequelBrief(opts: {
+  title: string;
+  scenes?: Array<{ script_line?: string; location?: string }>;
+  characters?: string[];
+}): string {
+  const lines = (opts.scenes ?? []).map((s) => s.script_line?.trim() ?? "").filter(Boolean);
+  if (!opts.title.trim() && !lines.length) return "";
+  const opening = clipText(lines.slice(0, 5).join(" "), 700);
+  const ending = clipText(lines.slice(-8).join(" "), 900);
+  const locations = [...new Set((opts.scenes ?? []).map((s) => s.location?.trim()).filter(Boolean) as string[])].slice(0, 8);
+  const parts = [
+    `CONTINUACIÓN del episodio anterior: «${opts.title.trim()}».`,
+    opening ? `Qué ya pasó: ${opening}` : "",
+    ending ? `Cómo cerró (parte de aquí, no lo reescribas ni lo resumas como si fuera nuevo): ${ending}` : "",
+    opts.characters?.length ? `Personajes ya establecidos: ${opts.characters.join(", ")}` : "",
+    locations.length ? `Lugares ya establecidos: ${locations.join(", ")}` : "",
+    "No reinicies. No re-presentes a nadie como si el público no los conociera. Avanza la trama, honra los hechos ya narrados, y cierra con gancho al siguiente capítulo.",
+  ];
+  return parts.filter(Boolean).join("\n");
+}
+
 export function pickFilmLlm(provider?: string, model?: string): LLMProvider {
   switch (provider) {
     case "openai":
@@ -102,27 +142,30 @@ export async function generateFilmScript(opts: {
   llmModel?: string;
   youtubeUrls?: string[];
   characters?: Array<{ name: string; species?: string; kind?: string }>;
+  previousStory?: string;
 }): Promise<FilmScript> {
   const minutes = normalizeFilmMinutes(opts.durationMinutes) ?? 8;
   const words = filmWordsTarget(minutes);
   const refs = (opts.youtubeUrls ?? []).slice(0, 10);
   const cast = buildCastBrief(opts.characters ?? []);
+  const sequel = opts.previousStory?.trim() ?? "";
   const llm = pickFilmLlm(opts.llm, opts.llmModel);
   const result = await llm.generate({
     systemPrompt:
-      "Eres un guionista de YouTube en español LATAM para videos HORIZONTALES 16:9 (no Shorts). Escribes locución hablable en voz alta, un dato por frase, gancho en 8s. JSON único con title, hook, script.",
+      "Eres un guionista de YouTube en español LATAM para videos HORIZONTALES 16:9 (no Shorts). Escribes locución hablable en voz alta, un dato por frase, gancho en 8s. JSON único con title, hook, script. Si hay un episodio anterior, continúas esa historia: no la reinicias.",
     userMessage: [
       `Idea: ${opts.idea.trim()}`,
       isFilmTestMinutes(minutes)
         ? `Duración objetivo: 30 segundos (~${words} palabras de locución). Prueba rápida, ${
             (opts.characters?.length ?? 0) > 1 ? "solo el elenco bloqueado" : "un solo personaje"
           }, sin letreros.`
-        : `Duración objetivo: ${minutes} minutos (~${words} palabras de locución).`,
+        : `Duración objetivo: ${filmDurationLabel(minutes)} (~${words} palabras de locución). Sin tarjetas de texto en pantalla.`,
       cast,
+      sequel,
       refs.length ? `Referencias de formato (no copies identidad):\n${refs.map((u) => `- ${u}`).join("\n")}` : "",
-      "title = título propio de YouTube, ≤ 70 caracteres.",
+      "title = título propio de YouTube, ≤ 70 caracteres." + (sequel ? " Distinto al episodio anterior." : ""),
       "hook = primera frase hablada, ≤ 160 caracteres.",
-      "script = locución completa, párrafos cortos, cierre con CTA de suscripción.",
+      "script = locución completa, párrafos cortos, cierre con CTA de suscripción o gancho al siguiente capítulo.",
     ]
       .filter(Boolean)
       .join("\n"),

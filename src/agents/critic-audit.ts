@@ -112,7 +112,11 @@ export function auditDirectorScore(score: DirectorScore, opts: CriticEvalOptions
     findings.push(
       `Slideshow: ${aiImageCount}/${sceneCount} escenas son ai_image. El video se siente como un carrusel de fotos.`,
     );
-    revisionFocus.push("Mete text_card, stock o ai_video entre bloques de fotos para romper el slideshow.");
+    revisionFocus.push(
+      opts.platform === "youtube_horizontal"
+        ? "Mete stock o ai_video entre bloques de fotos. En Film no uses text_card."
+        : "Mete text_card, stock o ai_video entre bloques de fotos para romper el slideshow.",
+    );
   }
 
   const lock = opts.characterLock?.trim();

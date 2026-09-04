@@ -86,6 +86,20 @@ describe("buildPacingInstruction", () => {
     expect(result).toContain("NO text_card");
     expect(result).not.toContain("chapter");
   });
+
+  it("uses a 1-minute plan without title cards for Film", () => {
+    const result = buildPacingInstruction("cinematic_documentary", undefined, 1, "youtube_horizontal");
+    expect(result).toContain("targeting 1 minutes");
+    expect(result).toContain("exactly 13 scenes");
+    expect(result).toContain("NO text_card");
+    expect(result).toContain("cliffhanger");
+  });
+
+  it("bans text_card on 8-minute YouTube horizontal Film", () => {
+    const result = buildPacingInstruction("cinematic_documentary", undefined, 8, "youtube_horizontal");
+    expect(result).toContain("NO text_card");
+    expect(result).not.toContain("use a text_card as a chapter");
+  });
 });
 
 describe("PACING_CONFIG", () => {
