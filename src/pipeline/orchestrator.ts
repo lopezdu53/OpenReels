@@ -8,7 +8,7 @@ import { z } from "zod";
 import { generateDirectorScore, reviseDirectorScore } from "../agents/creative-director.js";
 import { evaluate, type CriticEvalOptions } from "../agents/critic.js";
 import { summarizeVideoFallbacks } from "../agents/critic-audit.js";
-import { applyVisualIdentity, characterSheetFitsScene, identityLockLead, parseCastMembers, planSceneCastFocus } from "../library/identity.js";
+import { applyVisualIdentity, characterSheetFitsScene, identityLockLead, locationSheetFitsScene, parseCastMembers, parseLocationMembers, planSceneCastFocus, planSceneLocationFocus } from "../library/identity.js";
 import { optimizeImagePrompt } from "../agents/image-prompter.js";
 import { generateOrientedImage } from "../providers/image/dimensions.js";
 import { lookupRemoteUrl } from "../providers/runpod/client.js";
@@ -165,14 +165,17 @@ async function generateAIImage(
     previousVisualPrompt?: string;
     sheetReference?: SheetReference;
     sceneLock?: string;
+    locationLock?: string;
   },
   referenceImageUrl?: string,
 ): Promise<VisualAssetResult> {
   let prompt = visualPrompt;
   let usage: LLMUsage | null = null;
   const sceneLock = shot?.sceneLock?.trim() || opts.characterLock;
+  const sceneLocationLock = shot?.locationLock?.trim() || opts.locationLock;
   const shotContext = buildShotContext({
     characterLock: sceneLock,
+    locationLock: sceneLocationLock,
     artStyle: opts.artStyleOverride,
     shotType: shot?.shotType,
     cameraMove: shot?.cameraMove,
@@ -183,6 +186,7 @@ async function generateAIImage(
   const imagePromptOpts = {
     ...(opts.artStyleOverride ? { artStyleOverride: opts.artStyleOverride } : {}),
     ...(sceneLock ? { characterLock: sceneLock } : {}),
+    ...(sceneLocationLock ? { locationLock: sceneLocationLock } : {}),
     ...(aspectRatio ? { aspectRatio } : {}),
     ...(shotContext ? { shotContext } : {}),
   };
@@ -211,6 +215,9 @@ async function generateAIImage(
 
   if (sceneLock?.trim()) {
     prompt = `${identityLockLead(sceneLock)} Not a fox, raccoon, cat, or tiger unless the lock says so. ${sceneLock.trim()} Scene: ${prompt}`;
+  }
+  if (sceneLocationLock?.trim()) {
+    prompt = `LOCATION LOCK — one named place only, never collage two roster locations. ${sceneLocationLock.trim()} ${prompt}`;
   }
   if (sheetHint) {
     prompt = `${sheetHint} ${prompt}`;
@@ -261,6 +268,9 @@ async function generateAIImage(
     if (sceneLock?.trim()) {
       prompt = `${identityLockLead(sceneLock)} ${sceneLock.trim()} Scene: ${prompt}`;
     }
+    if (sceneLocationLock?.trim()) {
+      prompt = `LOCATION LOCK — one named place only. ${sceneLocationLock.trim()} ${prompt}`;
+    }
     if (sheetHint) {
       prompt = `${sheetHint} ${prompt}`;
     }
@@ -307,6 +317,7 @@ async function resolveVisualAsset(
     previousVisualPrompt?: string;
     sheetReference?: SheetReference;
     sceneLock?: string;
+    locationLock?: string;
   },
   referenceImageUrl?: string,
 ): Promise<VisualAssetResult> {
@@ -317,6 +328,7 @@ async function resolveVisualAsset(
     previousVisualPrompt: shot?.previousVisualPrompt,
     sheetReference: shot?.sheetReference,
     sceneLock: shot?.sceneLock,
+    locationLock: shot?.locationLock,
   };
   switch (scene.visual_type) {
     case "ai_image":
@@ -377,6 +389,7 @@ async function resolveVisualAsset(
         sceneDurationSeconds,
         aspectRatio,
         characterLock: shot?.sceneLock ?? opts.characterLock,
+        locationLock: shot?.locationLock ?? opts.locationLock,
       });
 
       // Adjust imageGenTimeMs in the resolution metadata
@@ -551,12 +564,13 @@ function buildPipelineWorkflow(
         targetDurationMinutes: opts.targetDurationMinutes,
         platform: opts.platform,
         characterLock: opts.characterLock,
+        locationLock: opts.locationLock,
         artStyleOverride: opts.artStyleOverride,
       };
 
       // ── Replay mode: use provided score, skip generation + revision ──
       if (opts.replayScore) {
-        const score = applyVisualIdentity(opts.replayScore, opts.characterLock);
+        const score = applyVisualIdentity(opts.replayScore, opts.characterLock, opts.locationLock);
         directorResult.score = score;
         directorResult.config = getArchetype(score.archetype);
 
@@ -727,7 +741,7 @@ function buildPipelineWorkflow(
         }
       }
 
-      score = applyVisualIdentity(score, opts.characterLock);
+      score = applyVisualIdentity(score, opts.characterLock, opts.locationLock);
 
       // ── Store final score on shared closure state ──
       directorResult.score = score;
@@ -843,24 +857,35 @@ function buildPipelineWorkflow(
         opts.characterReferenceImage && opts.characterReferenceImage.length > 100
           ? opts.characterReferenceImage
           : undefined;
+      const sceneLoc = planSceneLocationFocus(score.scenes, opts.locationLock);
+      const locRoster = parseLocationMembers(opts.locationLock);
+      const locSheetOwner = locRoster[0]?.name;
+      const locationSheet =
+        opts.locationReferenceImage && opts.locationReferenceImage.length > 100
+          ? opts.locationReferenceImage
+          : undefined;
 
       const refPlan = planVisualReferences({
         characterReferenceImage: opts.characterReferenceImage,
         styleReferenceImage: opts.styleReferenceImage,
+        locationReferenceImage: opts.locationReferenceImage,
         atelierMode: opts.atelierMode,
         imageProvider: opts.imageProvider,
         characterLock: opts.characterLock,
+        locationLock: opts.locationLock,
       });
       const globalReference = refPlan.globalReference;
       const atelierMode = refPlan.useAtelier;
       const sheetReference = refPlan.sheetReference;
       const multiCast = roster.length >= 2;
+      const multiLocation = locRoster.length >= 2;
 
       // Long-form platforms using VIVI benefit from sequential generation with a
       // reference image fed forward so characters/setting/style stay consistent.
       const runpodIdentityLock = opts.imageProvider === "runpod" && atelierMode;
       const continuityEnabled =
         !multiCast &&
+        !multiLocation &&
         (runpodIdentityLock ||
           (!globalReference &&
             !atelierMode &&
@@ -869,16 +894,38 @@ function buildPipelineWorkflow(
             opts.platform !== "instagram" &&
             opts.imageProvider === "vivi"));
 
-      const shotFor = (i: number, useSheet: boolean) => ({
-        previousVisualPrompt: i > 0 ? score.scenes[i - 1]?.visual_prompt : undefined,
-        sheetReference: useSheet ? ("character" as const) : sheetReference,
-        sceneLock: sceneCast[i]?.lock,
-      });
+      const shotFor = (i: number, useSheet: boolean) => {
+        const charNames = sceneCast[i]?.names ?? [];
+        const locName = sceneLoc[i]?.name ?? "";
+        const charFits = Boolean(characterSheet) && characterSheetFitsScene(roster.length, sheetOwner, charNames);
+        const locFits = Boolean(locationSheet) && locationSheetFitsScene(locRoster.length, locSheetOwner, locName);
+        let sheet: typeof sheetReference = sheetReference;
+        if (useSheet) {
+          if (multiCast && charFits) sheet = "character";
+          else if (multiLocation && locFits) sheet = "location";
+          else if (characterSheet) sheet = "character";
+          else if (locationSheet) sheet = "location";
+        }
+        return {
+          previousVisualPrompt: i > 0 ? score.scenes[i - 1]?.visual_prompt : undefined,
+          sheetReference: sheet,
+          sceneLock: sceneCast[i]?.lock,
+          locationLock: sceneLoc[i]?.lock,
+          location: sceneLoc[i]?.name || score.scenes[i]?.location,
+        };
+      };
 
       const refForScene = (i: number, fallback?: Buffer) => {
-        if (!multiCast) return fallback;
-        const names = sceneCast[i]?.names ?? [];
-        return characterSheetFitsScene(roster.length, sheetOwner, names) ? characterSheet : undefined;
+        const charNames = sceneCast[i]?.names ?? [];
+        const locName = sceneLoc[i]?.name ?? "";
+        if (multiCast && characterSheetFitsScene(roster.length, sheetOwner, charNames) && characterSheet) {
+          return characterSheet;
+        }
+        if (multiLocation && locationSheetFitsScene(locRoster.length, locSheetOwner, locName) && locationSheet) {
+          return locationSheet;
+        }
+        if (multiCast || multiLocation) return undefined;
+        return fallback;
       };
 
       const scenePromise = globalReference

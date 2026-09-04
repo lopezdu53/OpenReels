@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { getUserById, saveUser, type UserRecord } from "../auth/store.js";
 import { normalizeCharacterKind } from "./sheets.js";
-import type { StoredCharacter, StoredVisualStyle } from "./types.js";
+import type { StoredCharacter, StoredLocation, StoredVisualStyle } from "./types.js";
 
-export type { StoredCharacter, StoredVisualStyle } from "./types.js";
+export type { StoredCharacter, StoredLocation, StoredVisualStyle } from "./types.js";
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_ITEMS = 80;
@@ -103,6 +103,38 @@ export function parseStyleBundle(raw: unknown): Record<string, unknown> {
   return obj;
 }
 
+export function parseLocationInput(body: Record<string, unknown>, existing?: StoredLocation): StoredLocation {
+  const name = asText(body.name, 80);
+  const place = asText(body.place, 2000);
+  if (name.length < 2) throw new Error("La locación necesita un nombre");
+  if (place.length < 8) throw new Error("Describe el entorno: arquitectura, luz, texturas, interior o exterior");
+  const referenceImage = parseOptionalImage(body, existing?.referenceImage);
+  const ts = now();
+  return {
+    id: existing?.id ?? (asText(body.id, 40) || newId()),
+    name,
+    place,
+    timeOfDay: asText(body.timeOfDay, 80),
+    weather: asText(body.weather, 80),
+    mustKeep: asText(body.mustKeep, 800),
+    mustAvoid: asText(body.mustAvoid, 800),
+    notes: asText(body.notes, 1200),
+    aliases: asText(body.aliases, 240),
+    ...(referenceImage ? { referenceImage } : {}),
+    createdAt: existing?.createdAt ?? ts,
+    updatedAt: ts,
+  };
+}
+
+export function parseLocationBundle(raw: unknown): Record<string, unknown> {
+  if (typeof raw !== "object" || raw == null) throw new Error("JSON de locación inválido");
+  const obj = raw as Record<string, unknown>;
+  if (obj.openreels === "location" && obj.location && typeof obj.location === "object") {
+    return obj.location as Record<string, unknown>;
+  }
+  return obj;
+}
+
 function requireUser(userId: string): UserRecord {
   const user = getUserById(userId);
   if (!user) throw new Error("Usuario no encontrado");
@@ -162,6 +194,33 @@ export function deleteVisualStyle(userId: string, id: string): boolean {
   const before = user.visualStyles?.length ?? 0;
   user.visualStyles = (user.visualStyles ?? []).filter((s) => s.id !== id);
   if ((user.visualStyles?.length ?? 0) === before) return false;
+  saveUser(user);
+  return true;
+}
+
+export function listLocations(userId: string): StoredLocation[] {
+  return requireUser(userId).locations ?? [];
+}
+
+export function upsertLocation(userId: string, body: Record<string, unknown>): StoredLocation {
+  const user = requireUser(userId);
+  const list = user.locations ?? [];
+  const id = typeof body.id === "string" ? body.id : "";
+  const existing = id ? list.find((l) => l.id === id) : undefined;
+  if (!existing && list.length >= MAX_ITEMS) throw new Error("Límite de 80 locaciones");
+  const next = parseLocationInput(body, existing);
+  user.locations = existing
+    ? list.map((l) => (l.id === existing.id ? next : l))
+    : [next, ...list];
+  saveUser(user);
+  return next;
+}
+
+export function deleteLocation(userId: string, id: string): boolean {
+  const user = requireUser(userId);
+  const before = user.locations?.length ?? 0;
+  user.locations = (user.locations ?? []).filter((l) => l.id !== id);
+  if ((user.locations?.length ?? 0) === before) return false;
   saveUser(user);
   return true;
 }

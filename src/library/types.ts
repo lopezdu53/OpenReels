@@ -32,3 +32,18 @@ export interface StoredVisualStyle {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface StoredLocation {
+  id: string;
+  name: string;
+  place: string;
+  timeOfDay: string;
+  weather: string;
+  mustKeep: string;
+  mustAvoid: string;
+  notes: string;
+  aliases?: string;
+  referenceImage?: string;
+  createdAt: string;
+  updatedAt: string;
+}

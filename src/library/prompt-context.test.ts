@@ -9,6 +9,7 @@ describe("buildShotContext", () => {
       shotType: "wide",
       cameraMove: "push_in",
       location: "claro del bosque",
+      locationLock: "ON LOCATION: only Villa. Name: Villa. Place: casa blanca.",
       previousVisualPrompt: "Coco under the kapok tree",
     });
     expect(text).toContain("character_bible: Name: Coco");
@@ -16,6 +17,7 @@ describe("buildShotContext", () => {
     expect(text).toContain("shot_type: wide");
     expect(text).toContain("camera_move: push_in");
     expect(text).toContain("location: claro del bosque");
+    expect(text).toContain("location_bible: ON LOCATION: only Villa");
     expect(text).toContain("previous_shot");
     expect(text).toContain("kapok");
   });

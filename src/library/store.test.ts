@@ -5,9 +5,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createUser } from "../auth/store.js";
 import {
   deleteCharacter,
+  deleteLocation,
   parseCharacterBundle,
+  parseLocationBundle,
   parseStyleBundle,
   upsertCharacter,
+  upsertLocation,
   upsertVisualStyle,
 } from "./store.js";
 
@@ -88,5 +91,25 @@ describe("library store", () => {
       referenceImage: tinyPng,
     });
     expect(style.referenceImage).toBeTruthy();
+  });
+
+  it("creates, exports and deletes a location", async () => {
+    const user = await createUser({ email: "loc@test.com", name: "L", password: "secret123" });
+    const created = upsertLocation(user.id, {
+      name: "Villa Santorini",
+      place: "villa blanca de cal en acantilado, terrazas al Egeo",
+      aliases: "la villa, la casa blanca",
+    });
+    expect(created.id).toBeTruthy();
+    expect(created.place).toContain("acantilado");
+    const updated = upsertLocation(user.id, { ...created, timeOfDay: "atardecer" });
+    expect(updated.timeOfDay).toBe("atardecer");
+    expect(parseLocationBundle({
+      openreels: "location",
+      version: 1,
+      location: { name: "Oficina", place: "open space de cristal y acero, noche" },
+    }).name).toBe("Oficina");
+    expect(deleteLocation(user.id, created.id)).toBe(true);
+    expect(deleteLocation(user.id, created.id)).toBe(false);
   });
 });

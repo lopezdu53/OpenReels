@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyVisualIdentity, countLockedCharacters, focusCastLock, formatCastLock, formatCharacterLock, identityLockLead, parseCastMembers, planSceneCastFocus } from "./identity.js";
+import { applyVisualIdentity, countLockedCharacters, countLockedLocations, focusCastLock, focusLocationLock, formatCastLock, formatCharacterLock, formatLocationLock, formatLocationRoster, identityLockLead, parseCastMembers, parseLocationMembers, planSceneCastFocus, planSceneLocationFocus } from "./identity.js";
 import type { DirectorScore } from "../schema/director-score.js";
 
 function score(over: Partial<DirectorScore> = {}): DirectorScore {
@@ -118,5 +118,52 @@ describe("visual identity lock", () => {
     expect(next.scenes[3]!.visual_prompt).toContain("Do not depict Tania");
     expect(next.scenes[4]!.visual_prompt).toContain("Tania and Casimiro together");
     expect(identityLockLead(focus[1]!.lock)).toMatch(/only the named ON SCREEN/i);
+  });
+
+  it("never combines two roster locations in one scene", () => {
+    const lock = formatLocationRoster([
+      { name: "Villa Santorini", place: "casa blanca de cal, terrazas, mar Egeo" },
+      { name: "Oficina", place: "open space de cristal y acero, noche" },
+      { name: "Selva", place: "selva húmeda, kapok, neblina" },
+    ]);
+    expect(countLockedLocations(lock)).toBe(3);
+    expect(parseLocationMembers(lock).map((m) => m.name)).toEqual(["Villa Santorini", "Oficina", "Selva"]);
+
+    const villaOnly = focusLocationLock(lock, parseLocationMembers(lock)[0]!);
+    expect(villaOnly).toContain("ON LOCATION: only Villa Santorini");
+    expect(villaOnly).toContain("Do not depict Oficina or Selva");
+    expect(villaOnly).not.toMatch(/Name: Oficina/);
+
+    const film = score({
+      scenes: [
+        { visual_type: "ai_image", visual_prompt: "cliff", motion: "static", script_line: "En la Villa Santorini el sol se pone.", transition: "none", location: "Villa Santorini" },
+        { visual_type: "ai_image", visual_prompt: "desk", motion: "zoom_in", script_line: "Horas después, en la Oficina, el teléfono suena.", transition: "none", location: "Oficina" },
+        { visual_type: "ai_image", visual_prompt: "trees", motion: "zoom_in", script_line: "Nadie habla del otro lugar.", transition: "none" },
+      ],
+    });
+    const focus = planSceneLocationFocus(film.scenes, lock);
+    expect(focus[0]!.name).toBe("Villa Santorini");
+    expect(focus[1]!.name).toBe("Oficina");
+    expect(focus[2]!.name).toBe("Oficina");
+    expect(focus[0]!.lock).not.toMatch(/Name: Oficina/);
+    expect(focus[1]!.lock).not.toMatch(/Name: Villa Santorini/);
+
+    const next = applyVisualIdentity(film, undefined, lock);
+    expect(next.scenes[0]!.visual_prompt).toContain("LOCATION LOCK");
+    expect(next.scenes[0]!.visual_prompt).toContain("only Villa Santorini");
+    expect(next.scenes[0]!.visual_prompt).not.toMatch(/Name: Oficina/);
+    expect(next.scenes[0]!.location).toBe("Villa Santorini");
+    expect(next.scenes[1]!.location).toBe("Oficina");
+  });
+
+  it("formats a single location lock", () => {
+    const text = formatLocationLock({
+      name: "Claro del bosque",
+      place: "claro con kapok y musgo, luz filtrada",
+      aliases: "el claro",
+    });
+    expect(text).toContain("Name: Claro del bosque");
+    expect(text).toContain("Aliases (same place): el claro");
+    expect(text).toContain("kapok");
   });
 });

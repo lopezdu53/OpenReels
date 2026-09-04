@@ -57,6 +57,8 @@ interface JobData {
   atelierMode?: boolean;
   artStyleOverride?: string;
   characterLock?: string;
+  locationLock?: string;
+  locationReferenceImage?: string; // base64 location bible board
   providers: {
     llm: string;
     tts: string;
@@ -110,6 +112,7 @@ interface JobMeta {
     noSubtitles?: boolean;
     styleReference?: boolean;
     characterReference?: boolean;
+    locationReference?: boolean;
     atelierMode?: boolean;
     artStyleOverride?: string;
   };
@@ -142,7 +145,7 @@ function writeMeta(jobDir: string, meta: JobMeta) {
 const worker = new Worker<JobData>(
   "openreels",
   async (job: Job<JobData>) => {
-    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, characterReferenceImage, atelierMode, artStyleOverride, characterLock, providers, keys, userId } =
+    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, characterReferenceImage, locationReferenceImage, atelierMode, artStyleOverride, characterLock, locationLock, providers, keys, userId } =
       job.data;
     const jobDir = path.join(JOBS_DIR, job.id!);
     fs.mkdirSync(jobDir, { recursive: true });
@@ -161,7 +164,7 @@ const worker = new Worker<JobData>(
         tts: providers.tts,
         image: providers.image,
         video: providers.video ?? undefined,
-        music: providers.music ?? "bundled",
+        music: providers.music === "none" ? "bundled" : (providers.music ?? "bundled"),
         platform,
         pacing: pacing ?? undefined,
         videoSceneMode: videoSceneMode ?? undefined,
@@ -169,6 +172,7 @@ const worker = new Worker<JobData>(
         noSubtitles: noSubtitles === true || undefined,
         styleReference: styleReferenceImage ? true : undefined,
         characterReference: characterReferenceImage ? true : undefined,
+        locationReference: locationReferenceImage ? true : undefined,
         atelierMode: atelierMode !== false,
         artStyleOverride: artStyleOverride ?? undefined,
       },
@@ -188,7 +192,7 @@ const worker = new Worker<JobData>(
       stock: providers.stock as StockProviderKey,
       video: providers.video as VideoProviderKey | undefined,
       videoModel: providers.videoModel,
-      music: (providers.music as MusicProviderKey) ?? "bundled",
+      music: providers.music === "none" ? "bundled" : ((providers.music as MusicProviderKey) ?? "bundled"),
       keys: {
         ...keys,
         ...(providers.runpodImageEndpointId
@@ -370,9 +374,9 @@ const worker = new Worker<JobData>(
         pacing,
         platform,
         dryRun,
-        noMusic,
+        noMusic: noMusic === true || providers.music === "none",
         musicProvider: providerInstances.music,
-        musicProviderKey: (providers.music as MusicProviderKey) ?? "bundled",
+        musicProviderKey: (providers.music === "none" ? "bundled" : providers.music) as MusicProviderKey ?? "bundled",
         preview: false,
         outputDir: jobDir,
         yes: true,
@@ -383,9 +387,11 @@ const worker = new Worker<JobData>(
         videoSceneMode,
         styleReferenceImage: styleReferenceImage ? Buffer.from(styleReferenceImage, "base64") : undefined,
         characterReferenceImage: characterReferenceImage ? Buffer.from(characterReferenceImage, "base64") : undefined,
+        locationReferenceImage: locationReferenceImage ? Buffer.from(locationReferenceImage, "base64") : undefined,
         atelierMode: atelierMode !== false,
         artStyleOverride: artStyleOverride ?? undefined,
         characterLock: characterLock ?? undefined,
+        locationLock: locationLock ?? undefined,
       },
       callbacks,
     );

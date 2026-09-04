@@ -12,7 +12,7 @@ import {
   isFilmTestMinutes,
   normalizeFilmMinutes,
 } from "../config/film-duration.js";
-import { countLockedCharacters } from "../library/identity.js";
+import { countLockedCharacters, countLockedLocations } from "../library/identity.js";
 import { DirectorScore, DirectorScoreBase, Motion, MusicMood, TransitionType, VisualType } from "../schema/director-score.js";
 import type { LLMProvider, LLMUsage } from "../schema/providers.js";
 import type { ResearchResult } from "./research.js";
@@ -157,6 +157,15 @@ function characterSection(lock?: string): string {
   return `\n## CHARACTER CONTINUITY\nIf the story has a recurring character (animal or person), lock species, race, age, markings, and face in EVERY visual_prompt. Repeat the exact description. Never morph to a similar species.\n`;
 }
 
+function locationSection(lock?: string): string {
+  if (!lock?.trim()) return "";
+  const named = lock.match(/\bName:\s*/gi)?.length ?? 0;
+  if (named >= 2) {
+    return `\n## LOCATION ROSTER (never combine)\n${lock.trim()}\nEach scene uses EXACTLY ONE named place. Never collage, split-screen, morph, or mix two roster locations in one visual_prompt. Neighboring shots MAY change location. scene.location MUST be the exact roster Name of that one place. Do NOT paste every location into every prompt; copy only the active place.\n`;
+  }
+  return `\n## LOCATION LOCK\n${lock.trim()}\nThe SAME named place in every visual_prompt unless the narration clearly moves. Do not morph it into a different building or landscape.\n`;
+}
+
 function buildVisualTypesInstruction(allowedVisualTypes?: string[], videoEnabled?: boolean): { visualTypes: string; videoGuidance: string } {
   // Derive allowed set: explicit list wins, else fall back to videoEnabled flag
   const allowed = allowedVisualTypes && allowedVisualTypes.length > 0
@@ -177,7 +186,7 @@ export async function generateDirectorScore(
   llm: LLMProvider,
   topic: string,
   researchContext: ResearchResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; artStyleOverride?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; artStyleOverride?: string },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes, options?.platform);
 
@@ -202,6 +211,7 @@ export async function generateDirectorScore(
   const sceneTarget = isLongForm && filmMinutes ? filmSceneTarget(filmMinutes) : null;
   const wordsPerSceneTarget = isLongForm && wordsTarget && sceneTarget ? Math.round(wordsTarget / sceneTarget) : null;
   const castCount = countLockedCharacters(options?.characterLock);
+  const locationCount = countLockedLocations(options?.locationLock);
 
   const userMessage = `Topic: ${topic}
 
@@ -217,7 +227,7 @@ ${archetypeInstruction}
 
 ${pacingInstruction}
 Use ${visualTypes}.${videoGuidance}
-${directionSection}${characterSection(options?.characterLock)}${options?.artStyleOverride?.trim() ? `\n## ART STYLE LOCK\n${options.artStyleOverride.trim()}\nEvery visual_prompt stays in this look. Do not switch photoreal ↔ cartoon/watercolor.\n` : ""}CRITICAL RULE: Never use the same visual_type more than 2 times in a row. With more scenes, plan your visual_type sequence BEFORE writing scenes to ensure variety.
+${directionSection}${characterSection(options?.characterLock)}${locationSection(options?.locationLock)}${options?.artStyleOverride?.trim() ? `\n## ART STYLE LOCK\n${options.artStyleOverride.trim()}\nEvery visual_prompt stays in this look. Do not switch photoreal ↔ cartoon/watercolor.\n` : ""}CRITICAL RULE: Never use the same visual_type more than 2 times in a row. With more scenes, plan your visual_type sequence BEFORE writing scenes to ensure variety.
 Every scene MUST have a script_line (the voiceover text).
 The first scene should be a strong hook.
 ${isLongForm
@@ -237,7 +247,15 @@ ${isLongForm
         ? `MANDATORY: This is a ${filmMinutes}-minute YouTube horizontal film. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total word count MUST be ~${wordsTarget} words. NO text_card. No chapter title cards. Stop at exactly ${sceneTarget} scenes.`
         : `MANDATORY: This is a ${filmMinutes}-minute video. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total word count MUST be ~${wordsTarget} words. Break topic into chapters separated by text_card chapter titles. Stop at exactly ${sceneTarget} scenes.`
   : "If over budget, cut a scene rather than cramming."
-}${options?.platform === "youtube_horizontal" ? "\nEvery AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars.\nFor every ai_image/ai_video scene set shot_type (wide_establishing|wide|medium|close_up|extreme_close_up|over_shoulder|aerial|insert), camera_move (static|push_in|pull_out|pan|track), and location (a short reusable place name). Neighboring AI shots must not share the same shot_type. Repeat the same location name when the action stays in that place." : ""}`;
+}${options?.platform === "youtube_horizontal" ? `\nEvery AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars.\nFor every ai_image/ai_video scene set shot_type (wide_establishing|wide|medium|close_up|extreme_close_up|over_shoulder|aerial|insert), camera_move (static|push_in|pull_out|pan|track), and location (${
+    locationCount >= 2
+      ? "the exact Name of ONE roster place — never two names"
+      : "a short reusable place name"
+  }). Neighboring AI shots must not share the same shot_type. ${
+    locationCount >= 2
+      ? "Never combine two roster locations in one frame."
+      : "Repeat the same location name when the action stays in that place."
+  }` : ""}`;
 
   const maxRetries = 3;
   let lastError: Error | null = null;
@@ -433,7 +451,7 @@ export async function reviseDirectorScore(
   researchContext: ResearchResult,
   originalScore: DirectorScore,
   critique: CritiqueResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; artStyleOverride?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; artStyleOverride?: string },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes, options?.platform);
 
@@ -461,7 +479,7 @@ Mood: ${researchContext.mood}
 
 ${pacingInstruction}
 Use ${visualTypes}.
-${directionSection}${characterSection(options?.characterLock)}
+${directionSection}${characterSection(options?.characterLock)}${locationSection(options?.locationLock)}
 ## Current Plan (score: ${critique.score}/10)
 
 ${JSON.stringify(originalScore, null, 2)}
@@ -480,6 +498,7 @@ Revise the DirectorScore to address the weaknesses while preserving the strength
 Keep the same archetype. Maintain the GOLDEN RULE: never use the same visual_type more than 2 times in a row.
 ${options?.direction?.trim() ? "LOCKED NARRATION: do not rewrite script_line. Only change visual_type, visual_prompt, motion, transition, shot_type, camera_move, and location." : ""}
 ${options?.characterLock?.trim() ? `IDENTITY: keep each CAST member's appearance when they are ON SCREEN. Do not paste the full CAST into every visual_prompt. If script_line names one person, the others stay off camera.` : ""}
+${options?.locationLock?.trim() ? `LOCATION: each scene is ONE roster place only. Never combine two locations in one frame. scene.location must be that place's Name.` : ""}
 ${options?.artStyleOverride?.trim() ? `ART STYLE LOCK: ${options.artStyleOverride.trim()}. Do not switch photoreal ↔ cartoon.` : ""}
 ${options?.platform === "youtube_horizontal" ? "Every AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars. Fill shot_type, camera_move, and a reusable location. Neighboring AI shots must not share the same shot_type." : ""}`;
 

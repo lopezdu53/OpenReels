@@ -6,12 +6,12 @@ import {
   type DirectorScoreScene,
   type JobSummary,
   type LibraryCharacter,
+  type LibraryLocation,
   type LibraryVisualStyle,
   type ProviderOptions,
 } from "@/hooks/useApi";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -25,6 +25,7 @@ import { KokoroVoiceMixer } from "@/components/new-short/KokoroVoiceMixer";
 import { VisualTypeGrid } from "@/components/new-short/VisualTypeGrid";
 import { CostEstimatePanel } from "@/components/new-short/CostEstimatePanel";
 import { CharacterStudio } from "@/components/film/CharacterStudio";
+import { LocationStudio } from "@/components/film/LocationStudio";
 import { VisualStyleStudio } from "@/components/film/VisualStyleStudio";
 import { estimateJobCost } from "@/lib/job-cost-preview";
 import { fetchUsdToCopRate } from "@/lib/cop-rate";
@@ -63,6 +64,7 @@ function parseYoutubeUrls(text: string): string[] {
 }
 
 const MAX_FILM_CAST = 3;
+const MAX_FILM_LOCATIONS = 3;
 
 function lockFromCharacter(character: LibraryCharacter): string {
   return [
@@ -83,6 +85,28 @@ function lockFromCast(cast: LibraryCharacter[]): string {
   if (members.length === 1) return lockFromCharacter(members[0]!);
   return `CAST of ${members.length} named individuals (do not merge or swap identities). ${members
     .map((c, i) => `[${i + 1}] ${lockFromCharacter(c)}`)
+    .join(" | ")}`;
+}
+
+function lockFromLocation(location: LibraryLocation): string {
+  return [
+    `Name: ${location.name}`,
+    location.aliases ? `Aliases (same place): ${location.aliases}` : "",
+    `Place (LOCKED, never collage another location): ${location.place}`,
+    location.timeOfDay ? `Time of day: ${location.timeOfDay}` : "",
+    location.weather ? `Weather: ${location.weather}` : "",
+    location.mustKeep ? `MUST keep: ${location.mustKeep}` : "",
+    location.mustAvoid ? `MUST avoid (do not morph into these places): ${location.mustAvoid}` : "",
+    location.notes ? `Notes: ${location.notes}` : "",
+  ].filter(Boolean).join(". ");
+}
+
+function lockFromLocations(places: LibraryLocation[]): string {
+  const members = places.slice(0, MAX_FILM_LOCATIONS);
+  if (members.length === 0) return "";
+  if (members.length === 1) return lockFromLocation(members[0]!);
+  return `LOCATIONS of ${members.length} named places (never combine two places in one frame). ${members
+    .map((l, i) => `[${i + 1}] ${lockFromLocation(l)}`)
     .join(" | ")}`;
 }
 
@@ -214,13 +238,14 @@ export function FilmPage() {
   const [runpodVideoResolution, setRunpodVideoResolution] = useState("720p");
   const [runpodImageEndpointId, setRunpodImageEndpointId] = useState("");
   const [runpodVideoEndpointId, setRunpodVideoEndpointId] = useState("");
-  const [noSubtitles, setNoSubtitles] = useState(false);
   const [allowedVisualTypes, setAllowedVisualTypes] = useState(["ai_image"]);
   const [stockAvailable, setStockAvailable] = useState(true);
   const [artStyleOverride, setArtStyleOverride] = useState("");
   const [styleId, setStyleId] = useState("");
   const [characterIds, setCharacterIds] = useState<string[]>([]);
+  const [locationIds, setLocationIds] = useState<string[]>([]);
   const [characters, setCharacters] = useState<LibraryCharacter[]>([]);
+  const [locations, setLocations] = useState<LibraryLocation[]>([]);
   const [userStyles, setUserStyles] = useState<LibraryVisualStyle[]>([]);
   const [builtinStyles, setBuiltinStyles] = useState<BuiltinVisualStyle[]>([]);
   const [providers, setProviders] = useState<ProviderOptions | null>(null);
@@ -244,6 +269,7 @@ export function FilmPage() {
     }).catch(() => {});
     fetchUsdToCopRate().then(setUsdToCop).catch(() => {});
     api.listCharacters().then((r) => setCharacters(r.characters)).catch(() => {});
+    api.listLocations().then((r) => setLocations(r.locations)).catch(() => {});
     api.listVisualStyles().then((r) => {
       setBuiltinStyles(r.builtins ?? []);
       setUserStyles(r.styles ?? []);
@@ -321,7 +347,7 @@ export function FilmPage() {
       llm: llmProvider,
       tts: ttsProvider,
       image: imageProvider,
-      music: musicProvider,
+      music: musicProvider === "none" ? "bundled" : musicProvider,
       ...(videoProvider ? { video: videoProvider } : {}),
       ...(llmModel ? { llmModel } : {}),
       ...(llmBaseUrl ? { llmBaseUrl } : {}),
@@ -369,6 +395,17 @@ export function FilmPage() {
         const matched = characters.filter((c) => names.has(c.name.trim().toLowerCase())).map((c) => c.id);
         if (matched.length) setCharacterIds(matched.slice(0, MAX_FILM_CAST));
       }
+      const placeNames = new Set(
+        (job.score?.scenes ?? [])
+          .map((s) => s.location?.trim().toLowerCase())
+          .filter((n): n is string => Boolean(n && n.length >= 2)),
+      );
+      if (placeNames.size) {
+        const matchedLoc = locations
+          .filter((l) => placeNames.has(l.name.trim().toLowerCase()) || l.aliases?.split(/,| y /i).some((a) => placeNames.has(a.trim().toLowerCase())))
+          .map((l) => l.id);
+        if (matchedLoc.length) setLocationIds(matchedLoc.slice(0, MAX_FILM_LOCATIONS));
+      }
       if (idea.trim().length < 4) setIdea(`Continuación: ${job.topic}`);
     } catch (err) {
       setSequelJob(null);
@@ -394,6 +431,10 @@ export function FilmPage() {
           .map((id) => characters.find((c) => c.id === id))
           .filter((c): c is LibraryCharacter => Boolean(c))
           .map((c) => ({ name: c.name, species: c.species, kind: c.kind })),
+        locations: locationIds
+          .map((id) => locations.find((l) => l.id === id))
+          .filter((l): l is LibraryLocation => Boolean(l))
+          .map((l) => ({ name: l.name, place: l.place })),
         previousStory: sequelJob ? sequelBriefFromJob(sequelJob) : undefined,
       });
       setScripts((prev) => {
@@ -427,6 +468,11 @@ export function FilmPage() {
           .filter((c): c is LibraryCharacter => Boolean(c));
         const characterLock = lockFromCast(cast);
         const characterReferenceImage = cast.find((c) => c.referenceImage)?.referenceImage;
+        const places = locationIds
+          .map((id) => locations.find((l) => l.id === id))
+          .filter((l): l is LibraryLocation => Boolean(l));
+        const locationLock = lockFromLocations(places);
+        const locationReferenceImage = places.find((l) => l.referenceImage)?.referenceImage;
         const style = userStyles.find((s) => s.id === styleId);
         const styleReferenceImage = style?.referenceImage;
         const direction = [
@@ -437,10 +483,15 @@ export function FilmPage() {
               ? `\n## Personajes (identidad bloqueada, ${cast.length})\n${characterLock}\nSolo en cuadro quien nombra esa frase. Si la locución es de uno, los demás no aparecen ni de fondo. Juntos solo cuando la frase nombra a más de uno.`
               : `\n## Personaje (identidad bloqueada)\n${characterLock}`
             : "",
+          locationLock
+            ? places.length > 1
+              ? `\n## Locaciones (una por plano, ${places.length})\n${locationLock}\nCada escena ocurre en UNA sola locación. Nunca combines dos lugares en el mismo plano.`
+              : `\n## Locación (entorno bloqueado)\n${locationLock}`
+            : "",
           youtubeUrls.length
             ? `\n## Referencias YouTube (formato, no identidad)\n${youtubeUrls.map((u) => `- ${u}`).join("\n")}`
             : "",
-          "\n## Formato\nVideo horizontal 16:9 para YouTube (1920x1080). No es un Short vertical. Cero text_card: toda la información va en locución e imagen, nunca en tarjetas de título.",
+          "\n## Formato\nVideo horizontal 16:9 para YouTube (1920x1080). No es un Short vertical. Cero text_card: toda la información va en locución e imagen, nunca en tarjetas de título. Subtítulos desactivados.",
           sequelJob ? `\n## Continuación\n${sequelBriefFromJob(sequelJob)}` : "",
           durationMinutes > 0 && durationMinutes < 0.75
             ? cast.length > 1
@@ -467,12 +518,15 @@ export function FilmPage() {
           pacing: "cinematic",
           targetDurationMinutes: durationMinutes,
           direction,
-          noSubtitles,
+          noSubtitles: true,
+          noMusic: musicProvider === "none",
           allowedVisualTypes: visualTypes,
           atelierMode: true,
           ...(artStyleOverride ? { artStyleOverride } : {}),
           ...(characterLock ? { characterLock } : {}),
           ...(characterReferenceImage ? { characterReferenceImage } : {}),
+          ...(locationLock ? { locationLock } : {}),
+          ...(locationReferenceImage ? { locationReferenceImage } : {}),
           ...(styleReferenceImage ? { styleReferenceImage } : {}),
           ...(allowedVisualTypes.includes("ai_video") && videoSceneMode !== "all" ? { videoSceneMode } : {}),
           providers: providersPayload(),
@@ -728,6 +782,42 @@ export function FilmPage() {
           Hasta 3 personajes. Cada plano muestra solo a quien nombra la locución; juntos solo si la frase nombra a más de uno. La ficha 16:9 ancla al primero con imagen cuando está en cuadro.
         </p>
 
+        <LocationStudio
+          locations={locations}
+          selectedIds={locationIds}
+          maxSelect={MAX_FILM_LOCATIONS}
+          imageProviders={providers?.image ?? FALLBACK.image}
+          onToggle={(id) => {
+            setLocationIds((prev) => {
+              if (prev.includes(id)) return prev.filter((x) => x !== id);
+              if (prev.length >= MAX_FILM_LOCATIONS) return prev;
+              return [...prev, id];
+            });
+          }}
+          onSave={async (body) => {
+            const { location } = body.id
+              ? await api.updateLocation(String(body.id), body)
+              : await api.saveLocation(body);
+            setLocations((prev) => {
+              const rest = prev.filter((l) => l.id !== location.id);
+              return [location, ...rest];
+            });
+            setLocationIds((prev) => {
+              if (prev.includes(location.id)) return prev;
+              if (prev.length >= MAX_FILM_LOCATIONS) return prev;
+              return [...prev, location.id];
+            });
+          }}
+          onDelete={async (id) => {
+            await api.deleteLocation(id);
+            setLocations((prev) => prev.filter((l) => l.id !== id));
+            setLocationIds((prev) => prev.filter((x) => x !== id));
+          }}
+        />
+        <p className="text-xs text-muted-foreground">
+          Hasta 3 locaciones. Un plano ocurre en un solo entorno: nunca se mezclan dos lugares en la misma escena.
+        </p>
+
         <VisualStyleStudio
           builtins={builtinStyles.length ? builtinStyles : (providers?.atelierStyles ?? [])}
           styles={userStyles}
@@ -818,6 +908,7 @@ export function FilmPage() {
                 <Select value={musicProvider} onValueChange={(v) => v && setMusicProvider(v)}>
                   <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">Sin música</SelectItem>
                     <SelectItem value="bundled">Bundled (gratis)</SelectItem>
                     <SelectItem value="lyria">Lyria 3 Pro ($0.08)</SelectItem>
                   </SelectContent>
@@ -962,10 +1053,6 @@ export function FilmPage() {
                 ) : null}
               </div>
             ) : null}
-            <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-              <span className="text-xs font-medium">Subtítulos</span>
-              <Switch checked={!noSubtitles} onCheckedChange={(v) => setNoSubtitles(!v)} size="sm" />
-            </div>
             <div>
               <p className="mb-2 text-xs font-medium text-muted-foreground">Tipos visuales</p>
               <VisualTypeGrid

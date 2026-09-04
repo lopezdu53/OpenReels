@@ -346,6 +346,21 @@ export interface LibraryVisualStyle {
   updatedAt: string;
 }
 
+export interface LibraryLocation {
+  id: string;
+  name: string;
+  place: string;
+  timeOfDay: string;
+  weather: string;
+  mustKeep: string;
+  mustAvoid: string;
+  notes: string;
+  aliases?: string;
+  referenceImage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface BuiltinVisualStyle {
   id: string;
   label: string;
@@ -389,6 +404,7 @@ export interface CreateJobRequest {
   platform?: string;
   dryRun?: boolean;
   noSubtitles?: boolean;
+  noMusic?: boolean;
   direction?: string;
   targetDurationMinutes?: number;
   score?: Record<string, unknown>;
@@ -399,6 +415,8 @@ export interface CreateJobRequest {
   atelierMode?: boolean;
   artStyleOverride?: string;
   characterLock?: string;
+  locationLock?: string;
+  locationReferenceImage?: string;
   providers?: {
     llm?: string;
     tts?: string;
@@ -452,6 +470,7 @@ export const api = {
     youtubeText?: string;
     youtubeUrls?: string[];
     characters?: Array<{ name: string; species?: string; kind?: string }>;
+    locations?: Array<{ name: string; place?: string }>;
     previousStory?: string;
   }) {
     return fetchJson<{ script: { title: string; hook: string; script: string }; youtubeUrls: string[] }>(
@@ -496,11 +515,30 @@ export const api = {
   deleteVisualStyle(id: string) {
     return fetchJson<{ ok: boolean }>(`/library/styles/${id}`, { method: "DELETE" });
   },
+  listLocations() {
+    return fetchJson<{ locations: LibraryLocation[] }>("/library/locations");
+  },
+  saveLocation(body: Record<string, unknown>) {
+    return fetchJson<{ location: LibraryLocation }>("/library/locations", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateLocation(id: string, body: Record<string, unknown>) {
+    return fetchJson<{ location: LibraryLocation }>(`/library/locations/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteLocation(id: string) {
+    return fetchJson<{ ok: boolean }>(`/library/locations/${id}`, { method: "DELETE" });
+  },
   generateLibrarySheet(data: {
-    type: "character" | "style";
+    type: "character" | "style" | "location";
     provider?: string;
     character?: Record<string, unknown>;
     style?: Record<string, unknown>;
+    location?: Record<string, unknown>;
   }) {
     return fetchJson<{ imageBase64: string; prompt: string; provider: string; durationMs: number }>(
       "/library/sheets",

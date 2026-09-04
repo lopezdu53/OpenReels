@@ -485,6 +485,8 @@ interface CreateJobBody {
   atelierMode?: boolean;
   artStyleOverride?: string;
   characterLock?: string;
+  locationLock?: string;
+  locationReferenceImage?: string; // base64 location bible board
   providers?: {
     llm?: string;
     tts?: string;
@@ -537,6 +539,8 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     atelierMode,
     artStyleOverride,
     characterLock,
+    locationLock,
+    locationReferenceImage,
     providers,
     keys,
   } = request.body ?? {};
@@ -611,6 +615,24 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     }
   }
 
+  if (locationLock != null) {
+    if (typeof locationLock !== "string") {
+      return reply.status(400).send({ error: "locationLock must be a string" });
+    }
+    if (Buffer.byteLength(locationLock, "utf-8") > 24576) {
+      return reply.status(400).send({ error: "locationLock exceeds 24KB limit" });
+    }
+  }
+
+  if (locationReferenceImage != null) {
+    if (typeof locationReferenceImage !== "string") {
+      return reply.status(400).send({ error: "locationReferenceImage must be a base64 string" });
+    }
+    if (Buffer.byteLength(locationReferenceImage, "base64") > 8 * 1024 * 1024) {
+      return reply.status(400).send({ error: "locationReferenceImage exceeds 8MB limit" });
+    }
+  }
+
   // Validate score (DirectorScore) if provided for replay
   let validatedScore: unknown | undefined;
   if (score != null) {
@@ -636,7 +658,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     pacing,
     platform: platform ?? "youtube",
     dryRun: dryRun ?? false,
-    noMusic: noMusic === true,
+    noMusic: noMusic === true || providers?.music === "none",
     noVideo: noVideo === true,
     noSubtitles: noSubtitles === true,
     ...(allowedVisualTypes?.length ? { allowedVisualTypes } : {}),
@@ -651,6 +673,8 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     atelierMode: atelierMode !== false,
     ...(artStyleOverride?.trim() ? { artStyleOverride: artStyleOverride.trim() } : {}),
     ...(characterLock?.trim() ? { characterLock: characterLock.trim() } : {}),
+    ...(locationLock?.trim() ? { locationLock: locationLock.trim() } : {}),
+    ...(locationReferenceImage ? { locationReferenceImage } : {}),
     providers: {
       llm: providers?.llm ?? "anthropic",
       tts: providers?.tts ?? "elevenlabs",
@@ -658,7 +682,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       stock: providers?.stock ?? "pexels",
       video: providers?.video,
       videoModel: providers?.videoModel,
-      music: providers?.music ?? "bundled",
+      music: providers?.music === "none" ? "bundled" : (providers?.music ?? "bundled"),
       llmModel: providers?.llmModel,
       llmBaseUrl: providers?.llmBaseUrl,
       searchProvider: providers?.searchProvider,
@@ -703,12 +727,13 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       tts: providers?.tts ?? "elevenlabs",
       image: providers?.image ?? "gemini",
       video: providers?.video,
-      music: providers?.music ?? "bundled",
+      music: providers?.music === "none" ? "bundled" : (providers?.music ?? "bundled"),
       platform: platform ?? "youtube",
       pacing: pacing,
       videoSceneMode: videoSceneMode,
       noVideo: noVideo === true || undefined,
       noSubtitles: noSubtitles === true || undefined,
+      noMusic: noMusic === true || providers?.music === "none" || undefined,
       styleReference: styleReferenceImage ? true : undefined,
       characterReference: characterReferenceImage ? true : undefined,
       atelierMode: atelierMode !== false,

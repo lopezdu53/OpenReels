@@ -5,6 +5,7 @@
 
 export function buildShotContext(opts: {
   characterLock?: string;
+  locationLock?: string;
   artStyle?: string;
   shotType?: string;
   cameraMove?: string;
@@ -15,6 +16,9 @@ export function buildShotContext(opts: {
   if (opts.characterLock?.trim()) {
     lines.push(`character_bible: ${opts.characterLock.trim()}`);
   }
+  if (opts.locationLock?.trim()) {
+    lines.push(`location_bible: ${opts.locationLock.trim()}`);
+  }
   if (opts.artStyle?.trim()) {
     lines.push(`art_style_lock: ${opts.artStyle.trim()}`);
   }
@@ -23,7 +27,7 @@ export function buildShotContext(opts: {
   if (opts.location?.trim()) lines.push(`location: ${opts.location.trim()}`);
   if (opts.previousVisualPrompt?.trim()) {
     lines.push(
-      `previous_shot (keep the world and location; follow ON SCREEN for who appears — do not carry off-screen CAST members from the previous frame): ${opts.previousVisualPrompt.trim().slice(0, 400)}`,
+      `previous_shot (keep the world; follow ON SCREEN for who appears and ON LOCATION for the place — do not carry off-screen CAST or a second roster location from the previous frame): ${opts.previousVisualPrompt.trim().slice(0, 400)}`,
     );
   }
   return lines.join("\n");

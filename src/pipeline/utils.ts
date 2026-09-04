@@ -84,6 +84,10 @@ export interface PipelineOptions {
   artStyleOverride?: string;
   /** Locked character appearance injected into every AI visual prompt. */
   characterLock?: string;
+  /** Locked location roster; each scene uses exactly one named place. */
+  locationLock?: string;
+  /** Approved location bible board — per-scene when the roster has 2–3 places. */
+  locationReferenceImage?: Buffer;
 }
 
 export interface PipelineResult {

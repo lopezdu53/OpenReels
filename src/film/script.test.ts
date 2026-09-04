@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCastBrief, buildFilmDirection, buildSequelBrief, extractScoreCastNames, parseYoutubeUrls, titleFromScript } from "./script.js";
+import { buildCastBrief, buildFilmDirection, buildLocationBrief, buildSequelBrief, extractScoreCastNames, parseYoutubeUrls, titleFromScript } from "./script.js";
 
 describe("film script helpers", () => {
   it("parses unique YouTube urls", () => {
@@ -39,6 +39,22 @@ describe("film script helpers", () => {
     expect(three).toContain("1. Coco");
     expect(three).toContain("3. Luz");
     expect(three).not.toContain("Extra");
+  });
+
+  it("lists 1–3 locked locations for the script LLM", () => {
+    expect(buildLocationBrief([])).toBe("");
+    expect(buildLocationBrief([{ name: "Villa", place: "casa blanca" }])).toContain("1. Villa — casa blanca");
+    const three = buildLocationBrief([
+      { name: "Villa" },
+      { name: "Oficina" },
+      { name: "Selva" },
+      { name: "Extra" },
+    ]);
+    expect(three).toContain("3");
+    expect(three).toContain("1. Villa");
+    expect(three).toContain("3. Selva");
+    expect(three).not.toContain("Extra");
+    expect(three).toMatch(/UNA por escena/i);
   });
 
   it("builds a sequel brief from a produced episode", () => {

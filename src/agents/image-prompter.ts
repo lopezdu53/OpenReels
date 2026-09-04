@@ -32,6 +32,7 @@ export interface ImagePromptOptions {
   rejectionContext?: string;
   artStyleOverride?: string;
   characterLock?: string;
+  locationLock?: string;
   aspectRatio?: string;
   shotType?: string;
   cameraMove?: string;
@@ -104,6 +105,20 @@ ${
 ${lockRule} Contrast only via camera angle, time of day, emotion, framing, and who is on screen.
 Locked character${named >= 2 ? "s" : ""}: ${lock}
 If the lock says coatí / Nasua, it is NOT a fox, raccoon, cat, or tiger. Repeat the locked species in the prompt.`;
+  }
+
+  if (opts?.locationLock?.trim()) {
+    const lock = opts.locationLock.trim();
+    const solo = /ON LOCATION:\s*only/i.test(lock);
+    systemPrompt += `
+
+## LOCATION LOCK (one place per frame)
+${
+  solo
+    ? "ONLY the named ON LOCATION place. Other roster places must be completely absent — not as a split-screen, window, mural, or background of a different building."
+    : "Stay in this named place. Do not morph it into another location or collage a second environment."
+}
+Locked place: ${lock}`;
   }
 
   if (opts?.shotContext?.trim()) {

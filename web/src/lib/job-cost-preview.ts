@@ -147,7 +147,7 @@ export function estimateJobCost(input: JobCostPreviewInput, prices: ApiPrices): 
           ? `${aiVideos} clips × ¥${VIVI_VIDEO_CNY.perClip}`
           : `${aiVideos} clips × 6s`,
     },
-    { id: "music", label: "Música", usd: musicCost, detail: input.music === "lyria" ? "Lyria 3 Pro" : "bundled (gratis)" },
+    { id: "music", label: "Música", usd: musicCost, detail: input.music === "lyria" ? "Lyria 3 Pro" : input.music === "none" ? "sin música" : "bundled (gratis)" },
   ];
 
   const totalUsd = lines.reduce((s, l) => s + l.usd, 0);

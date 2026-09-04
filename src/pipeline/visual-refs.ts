@@ -4,9 +4,9 @@
  * Sheets are identity/style anchors — never a collage to copy.
  */
 
-import { countLockedCharacters } from "../library/identity.js";
+import { countLockedCharacters, countLockedLocations } from "../library/identity.js";
 
-export type SheetReference = "character" | "style" | null;
+export type SheetReference = "character" | "style" | "location" | null;
 
 export interface VisualRefPlan {
   /** Passed into every scene generate() when set. */
@@ -22,14 +22,17 @@ const LAYOUT_CLONE_PROVIDERS = new Set(["runpod", "fal", "openai"]);
 export function planVisualReferences(opts: {
   characterReferenceImage?: Buffer;
   styleReferenceImage?: Buffer;
+  locationReferenceImage?: Buffer;
   atelierMode?: boolean;
   imageProvider?: string;
   characterLock?: string;
+  locationLock?: string;
 }): VisualRefPlan {
   const clonesLayout = LAYOUT_CLONE_PROVIDERS.has(opts.imageProvider ?? "");
   const multiCast = countLockedCharacters(opts.characterLock) >= 2;
-  if (multiCast) {
-    // One sheet / scene-0 still would glue the whole CAST into every later frame.
+  const multiLocation = countLockedLocations(opts.locationLock) >= 2;
+  if (multiCast || multiLocation) {
+    // One sheet / scene-0 still would glue the whole CAST or two places into every later frame.
     return {
       globalReference: undefined,
       useAtelier: false,
@@ -48,6 +51,20 @@ export function planVisualReferences(opts: {
       globalReference: opts.characterReferenceImage,
       useAtelier: false,
       sheetReference: "character",
+    };
+  }
+  if (opts.locationReferenceImage && opts.locationReferenceImage.length > 100) {
+    if (clonesLayout) {
+      return {
+        globalReference: undefined,
+        useAtelier: opts.atelierMode !== false,
+        sheetReference: null,
+      };
+    }
+    return {
+      globalReference: opts.locationReferenceImage,
+      useAtelier: false,
+      sheetReference: "location",
     };
   }
   if (opts.styleReferenceImage && opts.styleReferenceImage.length > 100) {
@@ -82,6 +99,12 @@ export function sheetToSceneHint(kind: SheetReference): string {
     return (
       "REFERENCE IMAGE is a STYLE / WORLD bible board. Match palette, lighting and art style only. " +
       "Do NOT copy the board layout or panels. Paint ONE new cinematic scene."
+    );
+  }
+  if (kind === "location") {
+    return (
+      "REFERENCE IMAGE is a LOCATION / SET bible board for ONE place. Copy architecture, materials, lighting of that place only. " +
+      "Do NOT copy the multi-panel layout or labels. Do NOT add a second location. Paint ONE new cinematic scene in that place."
     );
   }
   return "";

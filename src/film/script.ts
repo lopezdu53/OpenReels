@@ -8,7 +8,7 @@ import { OpenRouterLLM } from "../providers/llm/openrouter.js";
 import { ViviLLM } from "../providers/llm/vivi.js";
 import type { LLMProvider } from "../schema/providers.js";
 import { filmDurationLabel, filmWordsTarget, isFilmTestMinutes, normalizeFilmMinutes } from "../config/film-duration.js";
-import { MAX_FILM_CHARACTERS } from "../library/identity.js";
+import { MAX_FILM_CHARACTERS, MAX_FILM_LOCATIONS } from "../library/identity.js";
 
 export const filmScriptSchema = z.object({
   title: z.string(),
@@ -74,6 +74,19 @@ export function buildCastBrief(
   });
   const n = members.length;
   return `Reparto bloqueado (${n} personaje${n === 1 ? "" : "s"}; usa estos nombres en la locución, no inventes protagonistas extra):\n${lines.join("\n")}`;
+}
+
+export function buildLocationBrief(
+  places: Array<{ name: string; place?: string }>,
+): string {
+  const members = places.filter((l) => l.name?.trim()).slice(0, MAX_FILM_LOCATIONS);
+  if (!members.length) return "";
+  const lines = members.map((l, i) => {
+    const bits = [l.name.trim(), l.place?.trim()].filter(Boolean).join(" — ");
+    return `${i + 1}. ${bits}`;
+  });
+  const n = members.length;
+  return `Locaciones bloqueadas (${n}; nombra UNA por escena, nunca combines dos lugares en la misma frase visual):\n${lines.join("\n")}`;
 }
 
 function clipText(text: string, max: number): string {
@@ -142,12 +155,14 @@ export async function generateFilmScript(opts: {
   llmModel?: string;
   youtubeUrls?: string[];
   characters?: Array<{ name: string; species?: string; kind?: string }>;
+  locations?: Array<{ name: string; place?: string }>;
   previousStory?: string;
 }): Promise<FilmScript> {
   const minutes = normalizeFilmMinutes(opts.durationMinutes) ?? 8;
   const words = filmWordsTarget(minutes);
   const refs = (opts.youtubeUrls ?? []).slice(0, 10);
   const cast = buildCastBrief(opts.characters ?? []);
+  const places = buildLocationBrief(opts.locations ?? []);
   const sequel = opts.previousStory?.trim() ?? "";
   const llm = pickFilmLlm(opts.llm, opts.llmModel);
   const result = await llm.generate({
@@ -161,6 +176,7 @@ export async function generateFilmScript(opts: {
           }, sin letreros.`
         : `Duración objetivo: ${filmDurationLabel(minutes)} (~${words} palabras de locución). Sin tarjetas de texto en pantalla.`,
       cast,
+      places,
       sequel,
       refs.length ? `Referencias de formato (no copies identidad):\n${refs.map((u) => `- ${u}`).join("\n")}` : "",
       "title = título propio de YouTube, ≤ 70 caracteres." + (sequel ? " Distinto al episodio anterior." : ""),

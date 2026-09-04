@@ -14,6 +14,7 @@ export async function registerFilmRoutes(app: FastifyInstance): Promise<void> {
       youtubeUrls?: string[];
       youtubeText?: string;
       characters?: Array<{ name: string; species?: string; kind?: string }>;
+      locations?: Array<{ name: string; place?: string }>;
       previousStory?: string;
     };
     const sequel = body.previousStory?.trim() ?? "";
@@ -29,6 +30,7 @@ export async function registerFilmRoutes(app: FastifyInstance): Promise<void> {
         llmModel: body.llmModel,
         youtubeUrls,
         characters: Array.isArray(body.characters) ? body.characters.slice(0, 3) : undefined,
+        locations: Array.isArray(body.locations) ? body.locations.slice(0, 3) : undefined,
         previousStory: sequel || undefined,
       });
       return { script, youtubeUrls };

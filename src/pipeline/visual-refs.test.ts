@@ -41,7 +41,27 @@ describe("planVisualReferences", () => {
     expect(plan.sheetReference).toBeNull();
   });
 
-  it("uses the style board when there is no character sheet", () => {
+  it("does not glue two locations to one establishing still", () => {
+    const plan = planVisualReferences({
+      locationReferenceImage: sheet,
+      atelierMode: true,
+      imageProvider: "vivi",
+      locationLock:
+        "LOCATIONS of 2 named places (never combine two places in one frame). [1] Name: Villa. Place (LOCKED): casa blanca. | [2] Name: Oficina. Place (LOCKED): cristal",
+    });
+    expect(plan.globalReference).toBeUndefined();
+    expect(plan.useAtelier).toBe(false);
+    expect(plan.sheetReference).toBeNull();
+  });
+
+  it("uses a single location board when there is no character sheet", () => {
+    const plan = planVisualReferences({ locationReferenceImage: sheet, atelierMode: true, imageProvider: "vivi" });
+    expect(plan.globalReference).toBe(sheet);
+    expect(plan.useAtelier).toBe(false);
+    expect(plan.sheetReference).toBe("location");
+  });
+
+  it("uses the style board when there is no character or location sheet", () => {
     const plan = planVisualReferences({ styleReferenceImage: style, atelierMode: true });
     expect(plan.globalReference).toBe(style);
     expect(plan.useAtelier).toBe(false);
@@ -70,6 +90,7 @@ describe("sheetToSceneHint", () => {
     expect(sheetToSceneHint("character")).toMatch(/MODEL SHEET/i);
     expect(sheetToSceneHint("character")).toMatch(/Do NOT copy the multi-panel/i);
     expect(sheetToSceneHint("style")).toMatch(/STYLE \/ WORLD/i);
+    expect(sheetToSceneHint("location")).toMatch(/LOCATION \/ SET/i);
     expect(sheetToSceneHint(null)).toBe("");
   });
 });

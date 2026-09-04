@@ -17,6 +17,7 @@ export interface CharacterBible {
 }
 
 const IDENTITY_MARKER = "IDENTITY LOCK:";
+const LOCATION_MARKER = "LOCATION LOCK:";
 
 export function formatCharacterLock(c: CharacterBible): string {
   const lines = [
@@ -176,6 +177,175 @@ export function characterSheetFitsScene(
   return onScreenNames.some((n) => n.toLowerCase() === sheetOwner.toLowerCase());
 }
 
+export interface LocationBible {
+  name: string;
+  place: string;
+  timeOfDay?: string;
+  weather?: string;
+  mustKeep?: string;
+  mustAvoid?: string;
+  notes?: string;
+  aliases?: string;
+}
+
+export const MAX_FILM_LOCATIONS = 3;
+
+export function formatLocationLock(loc: LocationBible): string {
+  const lines = [
+    `Name: ${loc.name.trim()}`,
+    loc.aliases?.trim() ? `Aliases (same place): ${loc.aliases.trim()}` : "",
+    `Place (LOCKED, never collage another location): ${loc.place.trim()}`,
+    loc.timeOfDay?.trim() ? `Time of day: ${loc.timeOfDay.trim()}` : "",
+    loc.weather?.trim() ? `Weather: ${loc.weather.trim()}` : "",
+    loc.mustKeep?.trim() ? `MUST keep: ${loc.mustKeep.trim()}` : "",
+    loc.mustAvoid?.trim() ? `MUST avoid (do not morph into these places): ${loc.mustAvoid.trim()}` : "",
+    loc.notes?.trim() ? `Notes: ${loc.notes.trim()}` : "",
+  ].filter(Boolean);
+  return lines.join(". ");
+}
+
+export function formatLocationRoster(locations: LocationBible[]): string {
+  const members = locations.slice(0, MAX_FILM_LOCATIONS);
+  if (members.length === 0) return "";
+  if (members.length === 1) return formatLocationLock(members[0]!);
+  const numbered = members.map((l, i) => `[${i + 1}] ${formatLocationLock(l)}`);
+  return `LOCATIONS of ${members.length} named places (never combine two places in one frame). ${numbered.join(" | ")}`;
+}
+
+export function locationDirectionBlockForRoster(locations: LocationBible[]): string {
+  const members = locations.slice(0, MAX_FILM_LOCATIONS);
+  if (members.length === 0) return "";
+  if (members.length === 1) {
+    return [
+      "## Locación (entorno bloqueado)",
+      formatLocationLock(members[0]!),
+      "El mismo lugar en TODAS las escenas salvo que la locución se mueva. No lo fusiones con otro edificio ni otro paisaje.",
+    ].join("\n");
+  }
+  return [
+    `## Locaciones (una por plano, ${members.length})`,
+    ...members.map((l, i) => `[${i + 1}] ${formatLocationLock(l)}`),
+    "Cada escena ocurre en UNA sola locación del roster. Nunca combines dos lugares en el mismo plano (ni collage, ni split-screen, ni el otro de fondo).",
+    "ON LOCATION: solo el lugar que nombra esa frase o el scene.location. Los demás no aparecen.",
+  ].join("\n");
+}
+
+export interface LocationMemberLock {
+  name: string;
+  aliases: string[];
+  lock: string;
+}
+
+export interface SceneLocationFocus {
+  lock: string;
+  name: string;
+}
+
+function splitLocationChunks(lock: string): string[] {
+  const body = lock.replace(/^LOCATIONS of \d+[^.]*\.\s*/i, "").trim();
+  if (/\[\d+\]/.test(body) || (body.match(/\bName:\s*/gi)?.length ?? 0) >= 2) {
+    return body
+      .split(/\s\|\s/)
+      .map((part) => part.replace(/^\[\d+\]\s*/, "").trim())
+      .filter(Boolean);
+  }
+  return body ? [body] : [];
+}
+
+export function parseLocationMembers(lock?: string): LocationMemberLock[] {
+  const text = lock?.trim() ?? "";
+  if (!text) return [];
+  return splitLocationChunks(text)
+    .map((chunk) => {
+      const name = chunk.match(/\bName:\s*([^.|]+)/i)?.[1]?.trim() ?? "";
+      const aliasRaw = chunk.match(/Aliases[^:]*:\s*([^.|]+)/i)?.[1] ?? "";
+      const aliases = aliasRaw
+        .split(/,| y | and /i)
+        .map((s) => s.trim())
+        .filter((s) => s.length >= 2);
+      return { name, aliases, lock: chunk };
+    })
+    .filter((m) => m.name.length >= 2);
+}
+
+export function countLockedLocations(lock?: string): number {
+  const roster = parseLocationMembers(lock);
+  if (roster.length) return roster.length;
+  const text = lock?.trim() ?? "";
+  if (!text) return 0;
+  return 1;
+}
+
+function slugKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9áéíóúüñ]+/gi, "");
+}
+
+export function mentionsLocationMember(text: string, member: LocationMemberLock): boolean {
+  const hay = text ?? "";
+  if (!hay.trim()) return false;
+  const labels = [member.name, ...member.aliases].filter((n) => n.trim().length >= 2);
+  if (labels.some((label) => new RegExp(`\\b${escapeRegExp(label.trim())}\\b`, "i").test(hay))) {
+    return true;
+  }
+  const haySlug = slugKey(hay);
+  return labels.some((label) => {
+    const t = slugKey(label);
+    return t.length >= 4 && haySlug.includes(t);
+  });
+}
+
+export function focusLocationLock(
+  fullLock: string,
+  onLocation: LocationMemberLock,
+  roster: LocationMemberLock[] = parseLocationMembers(fullLock),
+): string {
+  if (roster.length <= 1) return fullLock.trim();
+  const others = roster.filter((m) => m.name.toLowerCase() !== onLocation.name.toLowerCase());
+  const ban = others.length
+    ? ` Do not depict ${others.map((m) => m.name).join(" or ")} — not as a split-screen, window, reflection, or background of a different place.`
+    : "";
+  return `ON LOCATION: only ${onLocation.name} (one place, never collage).${ban} ${onLocation.lock}`;
+}
+
+export function planSceneLocationFocus(
+  scenes: Array<{ script_line: string; location?: string }>,
+  locationLock?: string,
+): SceneLocationFocus[] {
+  const full = locationLock?.trim() ?? "";
+  const roster = parseLocationMembers(full);
+  if (roster.length === 0) {
+    return scenes.map(() => ({ lock: "", name: "" }));
+  }
+  if (roster.length === 1) {
+    return scenes.map(() => ({ lock: full, name: roster[0]!.name }));
+  }
+  let last = roster[0]!;
+  return scenes.map((scene) => {
+    const locField = scene.location ?? "";
+    const hay = `${locField} ${scene.script_line}`;
+    const mentioned = roster.filter((m) => mentionsLocationMember(hay, m));
+    let chosen = last;
+    if (mentioned.length === 1) {
+      chosen = mentioned[0]!;
+    } else if (mentioned.length > 1) {
+      chosen =
+        mentioned.find((m) => mentionsLocationMember(locField, m)) ?? mentioned[0]!;
+    }
+    last = chosen;
+    return { lock: focusLocationLock(full, chosen, roster), name: chosen.name };
+  });
+}
+
+export function locationSheetFitsScene(
+  rosterCount: number,
+  sheetOwner: string | undefined,
+  onLocationName: string,
+): boolean {
+  if (rosterCount < 2) return true;
+  if (!sheetOwner || !onLocationName.trim()) return false;
+  return onLocationName.toLowerCase() === sheetOwner.toLowerCase();
+}
+
 export function identityLockLead(lock?: string): string {
   if (/ON SCREEN:\s*none/i.test(lock ?? "")) {
     return `IDENTITY LOCK — no named CAST member in this frame.`;
@@ -190,30 +360,52 @@ export function identityLockLead(lock?: string): string {
   return `IDENTITY LOCK — same individual every shot, never change species, markings, age or face.`;
 }
 
-function stripIdentityPrefix(prompt: string): string {
+function stripLockPrefixes(prompt: string): string {
   const parts = prompt.split(/\bSCENE:\s*/i);
   if (parts.length > 1) return parts.slice(1).join(" ").trim();
   const scene = prompt
     .replace(/^IDENTITY LOCK[:\s—-][^\n]*\n?/i, "")
+    .replace(/^LOCATION LOCK[:\s—-][^\n]*\n?/i, "")
     .replace(/CAST of \d+[^.]*\.\s*/gi, "")
+    .replace(/LOCATIONS of \d+[^.]*\.\s*/gi, "")
     .trim();
   if (/^(?:\[\d+\]\s*)?Name:/i.test(scene)) return "";
+  if (/^ON (?:SCREEN|LOCATION):/i.test(scene)) return "";
   return scene;
 }
 
-function prefixIdentity(prompt: string, lock: string): string {
-  const scene = stripIdentityPrefix(prompt);
-  const n = countLockedCharacters(lock);
-  const lead = /ON SCREEN:\s*none/i.test(lock)
-    ? "no named CAST on screen."
-    : /ON SCREEN:\s*only/i.test(lock)
-      ? "only the ON SCREEN person; other CAST members absent."
-      : n >= 2
-        ? `named CAST of ${n} ON SCREEN, do not merge or swap.`
-        : "same individual every shot.";
-  return scene
-    ? `${IDENTITY_MARKER} ${lead} ${lock}. SCENE: ${scene}`
-    : `${IDENTITY_MARKER} ${lead} ${lock}.`;
+function locationLockLead(lock?: string): string {
+  if (/ON LOCATION:\s*only/i.test(lock ?? "")) {
+    return "only the named ON LOCATION place; other roster places stay out of frame.";
+  }
+  const n = countLockedLocations(lock);
+  if (n >= 2) {
+    return `named LOCATION roster of ${n}: use exactly one place per frame, never collage.`;
+  }
+  return "same named place every shot, never morph into another location.";
+}
+
+function prefixLocks(prompt: string, characterLock?: string, locationLock?: string): string {
+  const scene = stripLockPrefixes(prompt);
+  const bits: string[] = [];
+  if (characterLock?.trim()) {
+    const lock = characterLock.trim();
+    const n = countLockedCharacters(lock);
+    const lead = /ON SCREEN:\s*none/i.test(lock)
+      ? "no named CAST on screen."
+      : /ON SCREEN:\s*only/i.test(lock)
+        ? "only the ON SCREEN person; other CAST members absent."
+        : n >= 2
+          ? `named CAST of ${n} ON SCREEN, do not merge or swap.`
+          : "same individual every shot.";
+    bits.push(`${IDENTITY_MARKER} ${lead} ${lock}.`);
+  }
+  if (locationLock?.trim()) {
+    const lock = locationLock.trim();
+    bits.push(`${LOCATION_MARKER} ${locationLockLead(lock)} ${lock}.`);
+  }
+  if (!bits.length) return prompt;
+  return scene ? `${bits.join(" ")} SCENE: ${scene}` : bits.join(" ");
 }
 
 const STILL = new Set(["ai_image", "stock_image", "text_card"]);
@@ -223,15 +415,19 @@ const MOTION = new Set(["ai_video", "stock_video"]);
 export function applyVisualIdentity(
   score: DirectorScore,
   characterLock?: string,
+  locationLock?: string,
 ): DirectorScore {
   const lock = characterLock?.trim();
+  const locFull = locationLock?.trim();
   const focus = lock ? planSceneCastFocus(score.scenes, lock) : [];
+  const locFocus = locFull ? planSceneLocationFocus(score.scenes, locFull) : [];
   const scenes = score.scenes.map((scene, i) => {
     const next = score.scenes[i + 1];
     let visual_prompt = scene.visual_prompt;
     const sceneLock = focus[i]?.lock || lock;
-    if (sceneLock && (scene.visual_type === "ai_image" || scene.visual_type === "ai_video")) {
-      visual_prompt = prefixIdentity(visual_prompt, sceneLock);
+    const sceneLoc = locFocus[i]?.lock || locFull;
+    if ((sceneLock || sceneLoc) && (scene.visual_type === "ai_image" || scene.visual_type === "ai_video")) {
+      visual_prompt = prefixLocks(visual_prompt, sceneLock, sceneLoc);
     }
 
     let motion = scene.motion;
@@ -249,7 +445,8 @@ export function applyVisualIdentity(
       }
     }
 
-    return { ...scene, visual_prompt, motion, transition };
+    const location = locFocus[i]?.name?.trim() || scene.location;
+    return { ...scene, visual_prompt, motion, transition, ...(location ? { location } : {}) };
   });
 
   return { ...score, scenes };

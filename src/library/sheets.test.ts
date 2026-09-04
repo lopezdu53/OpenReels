@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCharacterSheetPrompt,
+  buildLocationSheetPrompt,
   buildStyleSheetPrompt,
   normalizeCharacterKind,
   normalizeSheetProvider,
@@ -43,6 +44,20 @@ describe("concept sheets", () => {
     expect(prompt).toContain("ENVIRONMENT");
     expect(prompt).toContain("TEXTURE");
     expect(prompt).toContain("golden hour");
+    expect(prompt).toMatch(/letterbox/i);
+  });
+
+  it("builds a single-place location board", () => {
+    const prompt = buildLocationSheetPrompt({
+      name: "Villa Santorini",
+      place: "villa blanca de cal, terrazas, mar Egeo",
+      mustAvoid: "oficina de cristal",
+    });
+    expect(prompt).toContain("LOCATION");
+    expect(prompt).toContain("ESTABLISH");
+    expect(prompt).toContain("Villa Santorini");
+    expect(prompt).toContain("ONE named place");
+    expect(prompt).toContain("oficina");
     expect(prompt).toMatch(/letterbox/i);
   });
 });

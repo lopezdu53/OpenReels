@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { StoredCharacter, StoredVisualStyle } from "../library/types.js";
+import type { StoredCharacter, StoredLocation, StoredVisualStyle } from "../library/types.js";
 import type { SocialAccount, SocialPlatform, SocialPublication } from "../publish/types.js";
 import { hashPassword, verifyPassword } from "./password.js";
 
@@ -57,6 +57,7 @@ export interface UserRecord {
   clonedVideos: StoredCloneContent[];
   characters: StoredCharacter[];
   visualStyles: StoredVisualStyle[];
+  locations: StoredLocation[];
   social?: Partial<Record<SocialPlatform, SocialAccount>>;
   publications?: SocialPublication[];
 }
@@ -157,6 +158,7 @@ export function hydrateUser(raw: UserRecord): UserRecord {
     clonedVideos: Array.isArray(raw.clonedVideos) ? raw.clonedVideos : [],
     characters: Array.isArray(raw.characters) ? raw.characters : [],
     visualStyles: Array.isArray(raw.visualStyles) ? raw.visualStyles : [],
+    locations: Array.isArray(raw.locations) ? raw.locations : [],
     publications: Array.isArray(raw.publications) ? raw.publications : [],
     social: raw.social && typeof raw.social === "object" ? raw.social : {},
   };
@@ -229,6 +231,7 @@ export async function createUser(opts: {
     clonedVideos: [],
     characters: [],
     visualStyles: [],
+    locations: [],
     social: {},
     publications: [],
   };

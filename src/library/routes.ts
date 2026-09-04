@@ -12,18 +12,23 @@ import { RunPodImage } from "../providers/image/runpod.js";
 import { ViviImage } from "../providers/image/vivi.js";
 import {
   buildCharacterSheetPrompt,
+  buildLocationSheetPrompt,
   buildStyleSheetPrompt,
   normalizeCharacterKind,
   normalizeSheetProvider,
 } from "./sheets.js";
 import {
   deleteCharacter,
+  deleteLocation,
   deleteVisualStyle,
   listCharacters,
+  listLocations,
   listVisualStyles,
   parseCharacterBundle,
+  parseLocationBundle,
   parseStyleBundle,
   upsertCharacter,
+  upsertLocation,
   upsertVisualStyle,
 } from "./store.js";
 
@@ -107,6 +112,41 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
     return { ok: true };
   });
 
+  app.get("/api/v1/library/locations", async (request: AuthedRequest, reply) => {
+    if (!requireUser(request, reply)) return;
+    return { locations: listLocations(request.user!.id) };
+  });
+
+  app.post("/api/v1/library/locations", async (request: AuthedRequest, reply) => {
+    if (!requireUser(request, reply)) return;
+    try {
+      const body = parseLocationBundle(request.body ?? {});
+      return { location: upsertLocation(request.user!.id, body) };
+    } catch (err) {
+      return fail(reply, err);
+    }
+  });
+
+  app.patch("/api/v1/library/locations/:id", async (request: AuthedRequest, reply) => {
+    if (!requireUser(request, reply)) return;
+    const { id } = request.params as { id: string };
+    try {
+      const existing = listLocations(request.user!.id).find((l) => l.id === id);
+      if (!existing) return reply.status(404).send({ error: "Locación no encontrada" });
+      const body = { ...parseLocationBundle(request.body ?? {}), id };
+      return { location: upsertLocation(request.user!.id, body) };
+    } catch (err) {
+      return fail(reply, err);
+    }
+  });
+
+  app.delete("/api/v1/library/locations/:id", async (request: AuthedRequest, reply) => {
+    if (!requireUser(request, reply)) return;
+    const { id } = request.params as { id: string };
+    if (!deleteLocation(request.user!.id, id)) return reply.status(404).send({ error: "Locación no encontrada" });
+    return { ok: true };
+  });
+
   app.post("/api/v1/library/sheets", async (request: AuthedRequest, reply) => {
     if (!requireUser(request, reply)) return;
     request.raw.setTimeout(180_000);
@@ -116,6 +156,7 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
       provider?: string;
       character?: Record<string, unknown>;
       style?: Record<string, unknown>;
+      location?: Record<string, unknown>;
     };
     const provider = normalizeSheetProvider(body.provider);
     let prompt = "";
@@ -133,6 +174,22 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
           lighting: typeof s.lighting === "string" ? s.lighting : undefined,
           palette: typeof s.palette === "string" ? s.palette : undefined,
           notes: typeof s.notes === "string" ? s.notes : undefined,
+        });
+      } else if (body.type === "location") {
+        const loc = body.location ?? {};
+        const name = typeof loc.name === "string" ? loc.name.trim() : "";
+        const place = typeof loc.place === "string" ? loc.place.trim() : "";
+        if (name.length < 2 || place.length < 8) {
+          return reply.status(400).send({ error: "Nombre y descripción del entorno son obligatorios para el tablero" });
+        }
+        prompt = buildLocationSheetPrompt({
+          name,
+          place,
+          timeOfDay: typeof loc.timeOfDay === "string" ? loc.timeOfDay : undefined,
+          weather: typeof loc.weather === "string" ? loc.weather : undefined,
+          mustKeep: typeof loc.mustKeep === "string" ? loc.mustKeep : undefined,
+          mustAvoid: typeof loc.mustAvoid === "string" ? loc.mustAvoid : undefined,
+          notes: typeof loc.notes === "string" ? loc.notes : undefined,
         });
       } else {
         const c = body.character ?? {};

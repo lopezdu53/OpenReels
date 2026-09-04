@@ -103,3 +103,34 @@ export function buildStyleSheetPrompt(input: {
     .filter(Boolean)
     .join(" ");
 }
+
+export function buildLocationSheetPrompt(input: {
+  name: string;
+  place: string;
+  timeOfDay?: string;
+  weather?: string;
+  mustKeep?: string;
+  mustAvoid?: string;
+  notes?: string;
+}): string {
+  return [
+    "LOCATION / SET BIBLE SHEET, single wide 16:9 landscape image, professional production-design board.",
+    "ONE named place only. Do not collage a second location. No unique faces; tiny distant silhouettes only if needed for scale.",
+    `Location name: ${input.name}.`,
+    `Place LOCKED (architecture, materials, geography — copy exactly): ${input.place}.`,
+    input.timeOfDay ? `Time of day: ${input.timeOfDay}.` : "",
+    input.weather ? `Weather / atmosphere: ${input.weather}.` : "",
+    input.mustKeep ? `MUST keep: ${input.mustKeep}.` : "",
+    input.mustAvoid ? `MUST avoid (do not draw these other places): ${input.mustAvoid}.` : "",
+    input.notes ? `Notes: ${input.notes}.` : "",
+    "LAYOUT (one cohesive 16:9 board, same place in every panel):",
+    "1) LEFT: large ESTABLISHING wide of this exact location.",
+    "2) TOP RIGHT: lighting / atmosphere study of the SAME place.",
+    "3) BOTTOM CENTER: mid shot of a typical corner, room, or landmark of this place.",
+    "4) BOTTOM RIGHT: texture and material close-ups (walls, floor, foliage, sky belonging to this place).",
+    "Optional tiny labels: ESTABLISH, LIGHT, DETAIL, TEXTURE. No watermarks, no other locations.",
+    "16:9 landscape only. Fill the frame edge to edge, no black letterbox bars.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
