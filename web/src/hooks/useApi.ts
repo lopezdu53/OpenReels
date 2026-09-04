@@ -361,6 +361,17 @@ export interface LibraryLocation {
   updatedAt: string;
 }
 
+export interface LibraryObject {
+  id: string;
+  name: string;
+  prompt: string;
+  notes: string;
+  aliases?: string;
+  referenceImage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface BuiltinVisualStyle {
   id: string;
   label: string;
@@ -416,6 +427,7 @@ export interface CreateJobRequest {
   artStyleOverride?: string;
   characterLock?: string;
   locationLock?: string;
+  objectLock?: string;
   locationReferenceImage?: string;
   providers?: {
     llm?: string;
@@ -471,6 +483,7 @@ export const api = {
     youtubeUrls?: string[];
     characters?: Array<{ name: string; species?: string; kind?: string }>;
     locations?: Array<{ name: string; place?: string }>;
+    objects?: Array<{ name: string; prompt?: string }>;
     previousStory?: string;
   }) {
     return fetchJson<{ script: { title: string; hook: string; script: string }; youtubeUrls: string[] }>(
@@ -533,12 +546,31 @@ export const api = {
   deleteLocation(id: string) {
     return fetchJson<{ ok: boolean }>(`/library/locations/${id}`, { method: "DELETE" });
   },
+  listObjects() {
+    return fetchJson<{ objects: LibraryObject[] }>("/library/objects");
+  },
+  saveObject(body: Record<string, unknown>) {
+    return fetchJson<{ object: LibraryObject }>("/library/objects", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateObject(id: string, body: Record<string, unknown>) {
+    return fetchJson<{ object: LibraryObject }>(`/library/objects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteObject(id: string) {
+    return fetchJson<{ ok: boolean }>(`/library/objects/${id}`, { method: "DELETE" });
+  },
   generateLibrarySheet(data: {
-    type: "character" | "style" | "location";
+    type: "character" | "style" | "location" | "object";
     provider?: string;
     character?: Record<string, unknown>;
     style?: Record<string, unknown>;
     location?: Record<string, unknown>;
+    object?: Record<string, unknown>;
   }) {
     return fetchJson<{ imageBase64: string; prompt: string; provider: string; durationMs: number }>(
       "/library/sheets",

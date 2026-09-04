@@ -486,6 +486,7 @@ interface CreateJobBody {
   artStyleOverride?: string;
   characterLock?: string;
   locationLock?: string;
+  objectLock?: string;
   locationReferenceImage?: string; // base64 location bible board
   providers?: {
     llm?: string;
@@ -540,6 +541,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     artStyleOverride,
     characterLock,
     locationLock,
+    objectLock,
     locationReferenceImage,
     providers,
     keys,
@@ -624,6 +626,15 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     }
   }
 
+  if (objectLock != null) {
+    if (typeof objectLock !== "string") {
+      return reply.status(400).send({ error: "objectLock must be a string" });
+    }
+    if (Buffer.byteLength(objectLock, "utf-8") > 49152) {
+      return reply.status(400).send({ error: "objectLock exceeds 48KB limit" });
+    }
+  }
+
   if (locationReferenceImage != null) {
     if (typeof locationReferenceImage !== "string") {
       return reply.status(400).send({ error: "locationReferenceImage must be a base64 string" });
@@ -674,6 +685,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     ...(artStyleOverride?.trim() ? { artStyleOverride: artStyleOverride.trim() } : {}),
     ...(characterLock?.trim() ? { characterLock: characterLock.trim() } : {}),
     ...(locationLock?.trim() ? { locationLock: locationLock.trim() } : {}),
+    ...(objectLock?.trim() ? { objectLock: objectLock.trim() } : {}),
     ...(locationReferenceImage ? { locationReferenceImage } : {}),
     providers: {
       llm: providers?.llm ?? "anthropic",

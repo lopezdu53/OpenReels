@@ -6,11 +6,14 @@ import { createUser } from "../auth/store.js";
 import {
   deleteCharacter,
   deleteLocation,
+  deleteObject,
   parseCharacterBundle,
   parseLocationBundle,
+  parseObjectBundle,
   parseStyleBundle,
   upsertCharacter,
   upsertLocation,
+  upsertObject,
   upsertVisualStyle,
 } from "./store.js";
 
@@ -111,5 +114,25 @@ describe("library store", () => {
     }).name).toBe("Oficina");
     expect(deleteLocation(user.id, created.id)).toBe(true);
     expect(deleteLocation(user.id, created.id)).toBe(false);
+  });
+
+  it("creates, exports and deletes an object from a prompt", async () => {
+    const user = await createUser({ email: "obj@test.com", name: "O", password: "secret123" });
+    const created = upsertObject(user.id, {
+      name: "Mustang",
+      prompt: "Fastback 1967 rojo cereza, cromados, llantas de radios",
+      aliases: "el auto, el Mustang",
+    });
+    expect(created.id).toBeTruthy();
+    expect(created.prompt).toContain("1967");
+    const updated = upsertObject(user.id, { ...created, notes: "sin conductor" });
+    expect(updated.notes).toContain("conductor");
+    expect(parseObjectBundle({
+      openreels: "object",
+      version: 1,
+      object: { name: "Balón", prompt: "balón de fútbol Adidas Telstar blanco y negro" },
+    }).name).toBe("Balón");
+    expect(deleteObject(user.id, created.id)).toBe(true);
+    expect(deleteObject(user.id, created.id)).toBe(false);
   });
 });

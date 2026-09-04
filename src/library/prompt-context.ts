@@ -6,6 +6,7 @@
 export function buildShotContext(opts: {
   characterLock?: string;
   locationLock?: string;
+  objectLock?: string;
   artStyle?: string;
   shotType?: string;
   cameraMove?: string;
@@ -18,6 +19,9 @@ export function buildShotContext(opts: {
   }
   if (opts.locationLock?.trim()) {
     lines.push(`location_bible: ${opts.locationLock.trim()}`);
+  }
+  if (opts.objectLock?.trim()) {
+    lines.push(`object_bible: ${opts.objectLock.trim()}`);
   }
   if (opts.artStyle?.trim()) {
     lines.push(`art_style_lock: ${opts.artStyle.trim()}`);

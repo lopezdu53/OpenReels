@@ -8,7 +8,7 @@ import { z } from "zod";
 import { generateDirectorScore, reviseDirectorScore } from "../agents/creative-director.js";
 import { evaluate, type CriticEvalOptions } from "../agents/critic.js";
 import { summarizeVideoFallbacks } from "../agents/critic-audit.js";
-import { applyVisualIdentity, characterSheetFitsScene, identityLockLead, locationSheetFitsScene, parseCastMembers, parseLocationMembers, planSceneCastFocus, planSceneLocationFocus } from "../library/identity.js";
+import { applyVisualIdentity, characterSheetFitsScene, identityLockLead, locationSheetFitsScene, parseCastMembers, parseLocationMembers, planSceneCastFocus, planSceneLocationFocus, planSceneObjectFocus } from "../library/identity.js";
 import { optimizeImagePrompt } from "../agents/image-prompter.js";
 import { generateOrientedImage } from "../providers/image/dimensions.js";
 import { lookupRemoteUrl } from "../providers/runpod/client.js";
@@ -29,6 +29,7 @@ import { getArchetype } from "../config/archetype-registry.js";
 import { getPlatformAspectRatio, getPlatformConfig } from "../config/platforms.js";
 import { resolveMusic, type MusicResolution } from "./music-resolver.js";
 import { applyVideoSceneMode } from "./video-scene-mode.js";
+import { isFilmOneMinute, isFilmTestMinutes, normalizeFilmMinutes } from "../config/film-duration.js";
 import { resolveAllowedVisualTypes } from "./visual-types.js";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
@@ -167,6 +168,7 @@ async function generateAIImage(
     sheetReference?: SheetReference;
     sceneLock?: string;
     locationLock?: string;
+    objectLock?: string;
   },
   referenceImageUrl?: string,
 ): Promise<VisualAssetResult> {
@@ -174,9 +176,11 @@ async function generateAIImage(
   let usage: LLMUsage | null = null;
   const sceneLock = shot?.sceneLock?.trim() || opts.characterLock;
   const sceneLocationLock = shot?.locationLock?.trim() || opts.locationLock;
+  const sceneObjectLock = shot?.objectLock?.trim() || opts.objectLock;
   const shotContext = buildShotContext({
     characterLock: sceneLock,
     locationLock: sceneLocationLock,
+    objectLock: sceneObjectLock,
     artStyle: opts.artStyleOverride,
     shotType: shot?.shotType,
     cameraMove: shot?.cameraMove,
@@ -188,6 +192,7 @@ async function generateAIImage(
     ...(opts.artStyleOverride ? { artStyleOverride: opts.artStyleOverride } : {}),
     ...(sceneLock ? { characterLock: sceneLock } : {}),
     ...(sceneLocationLock ? { locationLock: sceneLocationLock } : {}),
+    ...(sceneObjectLock ? { objectLock: sceneObjectLock } : {}),
     ...(aspectRatio ? { aspectRatio } : {}),
     ...(shotContext ? { shotContext } : {}),
   };
@@ -319,6 +324,7 @@ async function resolveVisualAsset(
     sheetReference?: SheetReference;
     sceneLock?: string;
     locationLock?: string;
+    objectLock?: string;
   },
   referenceImageUrl?: string,
 ): Promise<VisualAssetResult> {
@@ -330,6 +336,7 @@ async function resolveVisualAsset(
     sheetReference: shot?.sheetReference,
     sceneLock: shot?.sceneLock,
     locationLock: shot?.locationLock,
+    objectLock: shot?.objectLock,
   };
   switch (scene.visual_type) {
     case "ai_image":
@@ -391,6 +398,7 @@ async function resolveVisualAsset(
         aspectRatio,
         characterLock: shot?.sceneLock ?? opts.characterLock,
         locationLock: shot?.locationLock ?? opts.locationLock,
+        objectLock: shot?.objectLock ?? opts.objectLock,
       });
 
       // Adjust imageGenTimeMs in the resolution metadata
@@ -566,13 +574,14 @@ function buildPipelineWorkflow(
         platform: opts.platform,
         characterLock: opts.characterLock,
         locationLock: opts.locationLock,
+        objectLock: opts.objectLock,
         artStyleOverride: opts.artStyleOverride,
         videoSceneMode: opts.videoSceneMode,
       };
 
       // ── Replay mode: use provided score, skip generation + revision ──
       if (opts.replayScore) {
-        const score = applyVisualIdentity(opts.replayScore, opts.characterLock, opts.locationLock);
+        const score = applyVisualIdentity(opts.replayScore, opts.characterLock, opts.locationLock, opts.objectLock);
         directorResult.score = score;
         directorResult.config = getArchetype(score.archetype);
 
@@ -704,7 +713,7 @@ function buildPipelineWorkflow(
         scenes: applyVideoSceneMode(score.scenes, opts.videoSceneMode),
       };
 
-      score = applyVisualIdentity(score, opts.characterLock, opts.locationLock);
+      score = applyVisualIdentity(score, opts.characterLock, opts.locationLock, opts.objectLock);
 
       // ── Store final score on shared closure state ──
       directorResult.score = score;
@@ -821,6 +830,7 @@ function buildPipelineWorkflow(
           ? opts.characterReferenceImage
           : undefined;
       const sceneLoc = planSceneLocationFocus(score.scenes, opts.locationLock);
+      const sceneObj = planSceneObjectFocus(score.scenes, opts.objectLock);
       const locRoster = parseLocationMembers(opts.locationLock);
       const locSheetOwner = locRoster[0]?.name;
       const locationSheet =
@@ -874,6 +884,7 @@ function buildPipelineWorkflow(
           sheetReference: sheet,
           sceneLock: sceneCast[i]?.lock,
           locationLock: sceneLoc[i]?.lock,
+          objectLock: sceneObj[i]?.lock,
           location: sceneLoc[i]?.name || score.scenes[i]?.location,
         };
       };
@@ -1138,7 +1149,16 @@ function buildPipelineWorkflow(
         opts.noSubtitles,
       );
 
-      const totalFrames = getTotalDurationInFrames(compositionProps, platformConfig.fps);
+      const filmMinutes = normalizeFilmMinutes(opts.targetDurationMinutes);
+      const padToRequestedCut =
+        opts.platform === "youtube_horizontal" &&
+        filmMinutes != null &&
+        (isFilmOneMinute(filmMinutes) || isFilmTestMinutes(filmMinutes))
+          ? filmMinutes * 60
+          : undefined;
+      const totalFrames = getTotalDurationInFrames(compositionProps, platformConfig.fps, {
+        minDurationSeconds: padToRequestedCut,
+      });
 
       cb.onProgress?.("assembly", { type: "bundling" });
 

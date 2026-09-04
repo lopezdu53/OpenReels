@@ -7,6 +7,7 @@ import {
   type JobSummary,
   type LibraryCharacter,
   type LibraryLocation,
+  type LibraryObject,
   type LibraryVisualStyle,
   type ProviderOptions,
 } from "@/hooks/useApi";
@@ -26,6 +27,7 @@ import { VisualTypeGrid } from "@/components/new-short/VisualTypeGrid";
 import { CostEstimatePanel } from "@/components/new-short/CostEstimatePanel";
 import { CharacterStudio } from "@/components/film/CharacterStudio";
 import { LocationStudio } from "@/components/film/LocationStudio";
+import { ObjectStudio } from "@/components/film/ObjectStudio";
 import { VisualStyleStudio } from "@/components/film/VisualStyleStudio";
 import { estimateJobCost } from "@/lib/job-cost-preview";
 import { VIDEO_SCENE_MODE_OPTIONS } from "@/lib/video-scene-modes";
@@ -66,6 +68,7 @@ function parseYoutubeUrls(text: string): string[] {
 
 const MAX_FILM_CAST = 3;
 const MAX_FILM_LOCATIONS = 3;
+const MAX_FILM_OBJECTS = 10;
 
 function lockFromCharacter(character: LibraryCharacter): string {
   return [
@@ -108,6 +111,24 @@ function lockFromLocations(places: LibraryLocation[]): string {
   if (members.length === 1) return lockFromLocation(members[0]!);
   return `LOCATIONS of ${members.length} named places (never combine two places in one frame). ${members
     .map((l, i) => `[${i + 1}] ${lockFromLocation(l)}`)
+    .join(" | ")}`;
+}
+
+function lockFromObject(obj: LibraryObject): string {
+  return [
+    `Name: ${obj.name}`,
+    obj.aliases ? `Aliases (same prop): ${obj.aliases}` : "",
+    `Look (LOCKED): ${obj.prompt}`,
+    obj.notes ? `Notes: ${obj.notes}` : "",
+  ].filter(Boolean).join(". ");
+}
+
+function lockFromObjects(items: LibraryObject[]): string {
+  const members = items.slice(0, MAX_FILM_OBJECTS);
+  if (members.length === 0) return "";
+  if (members.length === 1) return lockFromObject(members[0]!);
+  return `OBJECTS of ${members.length} named props (may appear together when the scene needs them; do not invent extras). ${members
+    .map((o, i) => `[${i + 1}] ${lockFromObject(o)}`)
     .join(" | ")}`;
 }
 
@@ -206,7 +227,7 @@ function sequelBriefFromJob(job: JobSummary): string {
 
 function durationHint(minutes: number): string {
   if (minutes > 0 && minutes < 0.75) return "~75 palabras · 6 escenas · video en todas · sin tarjetas";
-  if (minutes >= 0.75 && minutes < 1.5) return "~150 palabras · 13 escenas · 1920×1080 · sin tarjetas";
+  if (minutes >= 0.75 && minutes < 1.5) return "~180 palabras · 15 escenas · 1920×1080 · sin tarjetas";
   return `~${minutes * 150} palabras · 1920×1080 · sin tarjetas`;
 }
 
@@ -245,8 +266,10 @@ export function FilmPage() {
   const [styleId, setStyleId] = useState("");
   const [characterIds, setCharacterIds] = useState<string[]>([]);
   const [locationIds, setLocationIds] = useState<string[]>([]);
+  const [objectIds, setObjectIds] = useState<string[]>([]);
   const [characters, setCharacters] = useState<LibraryCharacter[]>([]);
   const [locations, setLocations] = useState<LibraryLocation[]>([]);
+  const [objects, setObjects] = useState<LibraryObject[]>([]);
   const [userStyles, setUserStyles] = useState<LibraryVisualStyle[]>([]);
   const [builtinStyles, setBuiltinStyles] = useState<BuiltinVisualStyle[]>([]);
   const [providers, setProviders] = useState<ProviderOptions | null>(null);
@@ -271,6 +294,7 @@ export function FilmPage() {
     fetchUsdToCopRate().then(setUsdToCop).catch(() => {});
     api.listCharacters().then((r) => setCharacters(r.characters)).catch(() => {});
     api.listLocations().then((r) => setLocations(r.locations)).catch(() => {});
+    api.listObjects().then((r) => setObjects(r.objects)).catch(() => {});
     api.listVisualStyles().then((r) => {
       setBuiltinStyles(r.builtins ?? []);
       setUserStyles(r.styles ?? []);
@@ -436,6 +460,10 @@ export function FilmPage() {
           .map((id) => locations.find((l) => l.id === id))
           .filter((l): l is LibraryLocation => Boolean(l))
           .map((l) => ({ name: l.name, place: l.place })),
+        objects: objectIds
+          .map((id) => objects.find((o) => o.id === id))
+          .filter((o): o is LibraryObject => Boolean(o))
+          .map((o) => ({ name: o.name, prompt: o.prompt })),
         previousStory: sequelJob ? sequelBriefFromJob(sequelJob) : undefined,
       });
       setScripts((prev) => {
@@ -474,6 +502,10 @@ export function FilmPage() {
           .filter((l): l is LibraryLocation => Boolean(l));
         const locationLock = lockFromLocations(places);
         const locationReferenceImage = places.find((l) => l.referenceImage)?.referenceImage;
+        const props = objectIds
+          .map((id) => objects.find((o) => o.id === id))
+          .filter((o): o is LibraryObject => Boolean(o));
+        const objectLock = lockFromObjects(props);
         const style = userStyles.find((s) => s.id === styleId);
         const styleReferenceImage = style?.referenceImage;
         const direction = [
@@ -488,6 +520,11 @@ export function FilmPage() {
             ? places.length > 1
               ? `\n## Locaciones (una por plano, ${places.length})\n${locationLock}\nCada escena ocurre en UNA sola locación. Nunca combines dos lugares en el mismo plano.`
               : `\n## Locación (entorno bloqueado)\n${locationLock}`
+            : "",
+          objectLock
+            ? props.length > 1
+              ? `\n## Objetos (pueden coincidir, ${props.length})\n${objectLock}\nSi la locución o la acción los necesita, pueden aparecer todos juntos en el mismo plano. No inventes props fuera de esta lista.`
+              : `\n## Objeto (look bloqueado)\n${objectLock}`
             : "",
           youtubeUrls.length
             ? `\n## Referencias YouTube (formato, no identidad)\n${youtubeUrls.map((u) => `- ${u}`).join("\n")}`
@@ -528,6 +565,7 @@ export function FilmPage() {
           ...(characterReferenceImage ? { characterReferenceImage } : {}),
           ...(locationLock ? { locationLock } : {}),
           ...(locationReferenceImage ? { locationReferenceImage } : {}),
+          ...(objectLock ? { objectLock } : {}),
           ...(styleReferenceImage ? { styleReferenceImage } : {}),
           ...(allowedVisualTypes.includes("ai_video") && videoSceneMode && videoSceneMode !== "auto" && videoSceneMode !== "all"
             ? { videoSceneMode }
@@ -820,6 +858,42 @@ export function FilmPage() {
         />
         <p className="text-xs text-muted-foreground">
           Hasta 3 locaciones. Un plano ocurre en un solo entorno: nunca se mezclan dos lugares en la misma escena.
+        </p>
+
+        <ObjectStudio
+          objects={objects}
+          selectedIds={objectIds}
+          maxSelect={MAX_FILM_OBJECTS}
+          imageProviders={providers?.image ?? FALLBACK.image}
+          onToggle={(id) => {
+            setObjectIds((prev) => {
+              if (prev.includes(id)) return prev.filter((x) => x !== id);
+              if (prev.length >= MAX_FILM_OBJECTS) return prev;
+              return [...prev, id];
+            });
+          }}
+          onSave={async (body) => {
+            const { object } = body.id
+              ? await api.updateObject(String(body.id), body)
+              : await api.saveObject(body);
+            setObjects((prev) => {
+              const rest = prev.filter((o) => o.id !== object.id);
+              return [object, ...rest];
+            });
+            setObjectIds((prev) => {
+              if (prev.includes(object.id)) return prev;
+              if (prev.length >= MAX_FILM_OBJECTS) return prev;
+              return [...prev, object.id];
+            });
+          }}
+          onDelete={async (id) => {
+            await api.deleteObject(id);
+            setObjects((prev) => prev.filter((o) => o.id !== id));
+            setObjectIds((prev) => prev.filter((x) => x !== id));
+          }}
+        />
+        <p className="text-xs text-muted-foreground">
+          Hasta 10 objetos. Si forman parte de la escena, pueden aparecer todos juntos. Un prompt basta para generar la ficha (auto, balón, avión, reloj…).
         </p>
 
         <VisualStyleStudio

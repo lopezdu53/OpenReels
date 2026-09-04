@@ -18,6 +18,7 @@ export interface CharacterBible {
 
 const IDENTITY_MARKER = "IDENTITY LOCK:";
 const LOCATION_MARKER = "LOCATION LOCK:";
+const OBJECT_MARKER = "OBJECT LOCK:";
 
 export function formatCharacterLock(c: CharacterBible): string {
   const lines = [
@@ -346,6 +347,106 @@ export function locationSheetFitsScene(
   return onLocationName.toLowerCase() === sheetOwner.toLowerCase();
 }
 
+export interface ObjectBible {
+  name: string;
+  prompt: string;
+  notes?: string;
+  aliases?: string;
+}
+
+export const MAX_FILM_OBJECTS = 10;
+
+export function formatObjectLock(obj: ObjectBible): string {
+  const lines = [
+    `Name: ${obj.name.trim()}`,
+    obj.aliases?.trim() ? `Aliases (same prop): ${obj.aliases.trim()}` : "",
+    `Look (LOCKED): ${obj.prompt.trim()}`,
+    obj.notes?.trim() ? `Notes: ${obj.notes.trim()}` : "",
+  ].filter(Boolean);
+  return lines.join(". ");
+}
+
+export function formatObjectRoster(objects: ObjectBible[]): string {
+  const members = objects.slice(0, MAX_FILM_OBJECTS);
+  if (members.length === 0) return "";
+  if (members.length === 1) return formatObjectLock(members[0]!);
+  const numbered = members.map((o, i) => `[${i + 1}] ${formatObjectLock(o)}`);
+  return `OBJECTS of ${members.length} named props (may appear together when the scene needs them; do not invent extras). ${numbered.join(" | ")}`;
+}
+
+export interface ObjectMemberLock {
+  name: string;
+  aliases: string[];
+  lock: string;
+}
+
+export interface SceneObjectFocus {
+  lock: string;
+  names: string[];
+}
+
+function splitObjectChunks(lock: string): string[] {
+  const body = lock.replace(/^OBJECTS of \d+[^.]*\.\s*/i, "").trim();
+  if (/\[\d+\]/.test(body) || (body.match(/\bName:\s*/gi)?.length ?? 0) >= 2) {
+    return body
+      .split(/\s\|\s/)
+      .map((part) => part.replace(/^\[\d+\]\s*/, "").trim())
+      .filter(Boolean);
+  }
+  return body ? [body] : [];
+}
+
+export function parseObjectMembers(lock?: string): ObjectMemberLock[] {
+  const text = lock?.trim() ?? "";
+  if (!text) return [];
+  return splitObjectChunks(text)
+    .map((chunk) => {
+      const name = chunk.match(/\bName:\s*([^.|]+)/i)?.[1]?.trim() ?? "";
+      const aliasRaw = chunk.match(/Aliases[^:]*:\s*([^.|]+)/i)?.[1] ?? "";
+      const aliases = aliasRaw
+        .split(/,| y | and /i)
+        .map((s) => s.trim())
+        .filter((s) => s.length >= 2);
+      return { name, aliases, lock: chunk };
+    })
+    .filter((m) => m.name.length >= 2);
+}
+
+export function mentionsObjectMember(text: string, member: ObjectMemberLock): boolean {
+  const hay = text ?? "";
+  if (!hay.trim()) return false;
+  const labels = [member.name, ...member.aliases].filter((n) => n.trim().length >= 2);
+  return labels.some((label) => new RegExp(`\\b${escapeRegExp(label.trim())}\\b`, "i").test(hay));
+}
+
+export function focusObjectLock(
+  fullLock: string,
+  onProps: ObjectMemberLock[],
+  roster: ObjectMemberLock[] = parseObjectMembers(fullLock),
+): string {
+  if (roster.length === 0) return "";
+  if (onProps.length === 0) {
+    const names = roster.map((m) => m.name).join(", ");
+    return `ON PROPS: no named prop required this shot. You MAY show any roster prop if it naturally belongs. Do not invent objects outside: ${names}.`;
+  }
+  const locks = onProps.map((m, i) => (onProps.length > 1 ? `[${i + 1}] ${m.lock}` : m.lock)).join(" | ");
+  const names = onProps.map((m) => m.name);
+  return `ON PROPS: include ${names.join(" and ")} (they MAY appear together). Other roster props optional if they belong. ${locks}`;
+}
+
+export function planSceneObjectFocus(
+  scenes: Array<{ script_line: string }>,
+  objectLock?: string,
+): SceneObjectFocus[] {
+  const full = objectLock?.trim() ?? "";
+  const roster = parseObjectMembers(full);
+  if (roster.length === 0) return scenes.map(() => ({ lock: "", names: [] }));
+  return scenes.map((scene) => {
+    const mentioned = roster.filter((m) => mentionsObjectMember(scene.script_line, m));
+    return { lock: focusObjectLock(full, mentioned, roster), names: mentioned.map((m) => m.name) };
+  });
+}
+
 export function identityLockLead(lock?: string): string {
   if (/ON SCREEN:\s*none/i.test(lock ?? "")) {
     return `IDENTITY LOCK — no named CAST member in this frame.`;
@@ -366,11 +467,13 @@ function stripLockPrefixes(prompt: string): string {
   const scene = prompt
     .replace(/^IDENTITY LOCK[:\s—-][^\n]*\n?/i, "")
     .replace(/^LOCATION LOCK[:\s—-][^\n]*\n?/i, "")
+    .replace(/^OBJECT LOCK[:\s—-][^\n]*\n?/i, "")
     .replace(/CAST of \d+[^.]*\.\s*/gi, "")
     .replace(/LOCATIONS of \d+[^.]*\.\s*/gi, "")
+    .replace(/OBJECTS of \d+[^.]*\.\s*/gi, "")
     .trim();
   if (/^(?:\[\d+\]\s*)?Name:/i.test(scene)) return "";
-  if (/^ON (?:SCREEN|LOCATION):/i.test(scene)) return "";
+  if (/^ON (?:SCREEN|LOCATION|PROPS):/i.test(scene)) return "";
   return scene;
 }
 
@@ -385,7 +488,7 @@ function locationLockLead(lock?: string): string {
   return "same named place every shot, never morph into another location.";
 }
 
-function prefixLocks(prompt: string, characterLock?: string, locationLock?: string): string {
+function prefixLocks(prompt: string, characterLock?: string, locationLock?: string, objectLock?: string): string {
   const scene = stripLockPrefixes(prompt);
   const bits: string[] = [];
   if (characterLock?.trim()) {
@@ -404,6 +507,9 @@ function prefixLocks(prompt: string, characterLock?: string, locationLock?: stri
     const lock = locationLock.trim();
     bits.push(`${LOCATION_MARKER} ${locationLockLead(lock)} ${lock}.`);
   }
+  if (objectLock?.trim()) {
+    bits.push(`${OBJECT_MARKER} named props may appear together when they belong. ${objectLock.trim()}`);
+  }
   if (!bits.length) return prompt;
   return scene ? `${bits.join(" ")} SCENE: ${scene}` : bits.join(" ");
 }
@@ -416,18 +522,22 @@ export function applyVisualIdentity(
   score: DirectorScore,
   characterLock?: string,
   locationLock?: string,
+  objectLock?: string,
 ): DirectorScore {
   const lock = characterLock?.trim();
   const locFull = locationLock?.trim();
+  const objFull = objectLock?.trim();
   const focus = lock ? planSceneCastFocus(score.scenes, lock) : [];
   const locFocus = locFull ? planSceneLocationFocus(score.scenes, locFull) : [];
+  const objFocus = objFull ? planSceneObjectFocus(score.scenes, objFull) : [];
   const scenes = score.scenes.map((scene, i) => {
     const next = score.scenes[i + 1];
     let visual_prompt = scene.visual_prompt;
     const sceneLock = focus[i]?.lock || lock;
     const sceneLoc = locFocus[i]?.lock || locFull;
-    if ((sceneLock || sceneLoc) && (scene.visual_type === "ai_image" || scene.visual_type === "ai_video")) {
-      visual_prompt = prefixLocks(visual_prompt, sceneLock, sceneLoc);
+    const sceneObj = objFocus[i]?.lock || "";
+    if ((sceneLock || sceneLoc || sceneObj) && (scene.visual_type === "ai_image" || scene.visual_type === "ai_video")) {
+      visual_prompt = prefixLocks(visual_prompt, sceneLock, sceneLoc, sceneObj);
     }
 
     let motion = scene.motion;

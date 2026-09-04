@@ -33,6 +33,7 @@ export interface ImagePromptOptions {
   artStyleOverride?: string;
   characterLock?: string;
   locationLock?: string;
+  objectLock?: string;
   aspectRatio?: string;
   shotType?: string;
   cameraMove?: string;
@@ -119,6 +120,14 @@ ${
     : "Stay in this named place. Do not morph it into another location or collage a second environment."
 }
 Locked place: ${lock}`;
+  }
+
+  if (opts?.objectLock?.trim()) {
+    systemPrompt += `
+
+## OBJECT / PROP LOCK
+Named props MAY appear together when they belong in this shot. Include those the lock names. Do not invent objects outside the roster. Do not swap the locked look for a generic substitute.
+Locked props: ${opts.objectLock.trim()}`;
   }
 
   if (opts?.shotContext?.trim()) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyVisualIdentity, countLockedCharacters, countLockedLocations, focusCastLock, focusLocationLock, formatCastLock, formatCharacterLock, formatLocationLock, formatLocationRoster, identityLockLead, parseCastMembers, parseLocationMembers, planSceneCastFocus, planSceneLocationFocus } from "./identity.js";
+import { applyVisualIdentity, countLockedCharacters, countLockedLocations, focusCastLock, focusLocationLock, focusObjectLock, formatCastLock, formatCharacterLock, formatLocationLock, formatLocationRoster, formatObjectLock, formatObjectRoster, identityLockLead, parseCastMembers, parseLocationMembers, parseObjectMembers, planSceneCastFocus, planSceneLocationFocus, planSceneObjectFocus } from "./identity.js";
 import type { DirectorScore } from "../schema/director-score.js";
 
 function score(over: Partial<DirectorScore> = {}): DirectorScore {
@@ -165,5 +165,37 @@ describe("visual identity lock", () => {
     expect(text).toContain("Name: Claro del bosque");
     expect(text).toContain("Aliases (same place): el claro");
     expect(text).toContain("kapok");
+  });
+
+  it("lets named props share a frame when the line names several", () => {
+    const lock = formatObjectRoster([
+      { name: "Mustang", prompt: "Fastback 1967 rojo cereza", aliases: "el auto" },
+      { name: "Balón", prompt: "balón de fútbol Adidas Telstar" },
+      { name: "Reloj", prompt: "reloj de oro Rolex Day-Date" },
+    ]);
+    expect(lock).toContain("OBJECTS of 3");
+    expect(lock).toMatch(/may appear together/i);
+    expect(parseObjectMembers(lock).map((m) => m.name)).toEqual(["Mustang", "Balón", "Reloj"]);
+    expect(formatObjectLock({ name: "Avión", prompt: "Cessna 172 blanco y azul" })).toContain("Look (LOCKED)");
+
+    const together = focusObjectLock(lock, parseObjectMembers(lock).slice(0, 2));
+    expect(together).toContain("ON PROPS: include Mustang and Balón");
+    expect(together).toMatch(/MAY appear together/i);
+
+    const film = score({
+      scenes: [
+        { visual_type: "ai_image", visual_prompt: "street", motion: "static", script_line: "El Mustang y el Balón esperan en la acera.", transition: "none" },
+        { visual_type: "ai_image", visual_prompt: "wrist", motion: "zoom_in", script_line: "Nadie mira el cielo.", transition: "none" },
+      ],
+    });
+    const focus = planSceneObjectFocus(film.scenes, lock);
+    expect(focus[0]!.names).toEqual(["Mustang", "Balón"]);
+    expect(focus[0]!.lock).toContain("Mustang and Balón");
+    expect(focus[1]!.names).toEqual([]);
+    expect(focus[1]!.lock).toMatch(/no named prop required/i);
+
+    const next = applyVisualIdentity(film, undefined, undefined, lock);
+    expect(next.scenes[0]!.visual_prompt).toContain("OBJECT LOCK");
+    expect(next.scenes[0]!.visual_prompt).toContain("Mustang and Balón");
   });
 });

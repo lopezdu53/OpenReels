@@ -167,6 +167,11 @@ function locationSection(lock?: string): string {
   return `\n## LOCATION LOCK\n${lock.trim()}\nThe SAME named place in every visual_prompt unless the narration clearly moves. Do not morph it into a different building or landscape.\n`;
 }
 
+function objectSection(lock?: string): string {
+  if (!lock?.trim()) return "";
+  return `\n## OBJECT / PROP ROSTER (may appear together)\n${lock.trim()}\nThese named props MAY share a frame when the action needs them. Include the ones the script_line names; others are optional if they belong in that place. Do not invent objects outside this roster. Do not turn a prop into a different model/brand.\n`;
+}
+
 function buildVisualTypesInstruction(allowedVisualTypes?: string[], videoEnabled?: boolean): { visualTypes: string; hasVideo: boolean } {
   // Derive allowed set: explicit list wins, else fall back to videoEnabled flag
   const allowed = allowedVisualTypes && allowedVisualTypes.length > 0
@@ -184,7 +189,7 @@ export async function generateDirectorScore(
   llm: LLMProvider,
   topic: string,
   researchContext: ResearchResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; artStyleOverride?: string; videoSceneMode?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; objectLock?: string; artStyleOverride?: string; videoSceneMode?: string },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes, options?.platform);
 
@@ -226,7 +231,7 @@ ${archetypeInstruction}
 
 ${pacingInstruction}
 Use ${visualTypes}.${videoGuidance}
-${directionSection}${characterSection(options?.characterLock)}${locationSection(options?.locationLock)}${options?.artStyleOverride?.trim() ? `\n## ART STYLE LOCK\n${options.artStyleOverride.trim()}\nEvery visual_prompt stays in this look. Do not switch photoreal ↔ cartoon/watercolor.\n` : ""}CRITICAL RULE: Never use the same visual_type more than 2 times in a row. With more scenes, plan your visual_type sequence BEFORE writing scenes to ensure variety.
+${directionSection}${characterSection(options?.characterLock)}${locationSection(options?.locationLock)}${objectSection(options?.objectLock)}${options?.artStyleOverride?.trim() ? `\n## ART STYLE LOCK\n${options.artStyleOverride.trim()}\nEvery visual_prompt stays in this look. Do not switch photoreal ↔ cartoon/watercolor.\n` : ""}CRITICAL RULE: Never use the same visual_type more than 2 times in a row. With more scenes, plan your visual_type sequence BEFORE writing scenes to ensure variety.
 Every scene MUST have a script_line (the voiceover text).
 The first scene should be a strong hook.
 ${isLongForm
@@ -450,7 +455,7 @@ export async function reviseDirectorScore(
   researchContext: ResearchResult,
   originalScore: DirectorScore,
   critique: CritiqueResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; artStyleOverride?: string; videoSceneMode?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; objectLock?: string; artStyleOverride?: string; videoSceneMode?: string },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes, options?.platform);
 
@@ -479,7 +484,7 @@ Mood: ${researchContext.mood}
 
 ${pacingInstruction}
 Use ${visualTypes}.${videoGuidance}
-${directionSection}${characterSection(options?.characterLock)}${locationSection(options?.locationLock)}
+${directionSection}${characterSection(options?.characterLock)}${locationSection(options?.locationLock)}${objectSection(options?.objectLock)}
 ## Current Plan (score: ${critique.score}/10)
 
 ${JSON.stringify(originalScore, null, 2)}

@@ -86,6 +86,8 @@ export interface PipelineOptions {
   characterLock?: string;
   /** Locked location roster; each scene uses exactly one named place. */
   locationLock?: string;
+  /** Named props; may appear together when the scene needs them. */
+  objectLock?: string;
   /** Approved location bible board — per-scene when the roster has 2–3 places. */
   locationReferenceImage?: Buffer;
 }

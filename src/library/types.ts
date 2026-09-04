@@ -47,3 +47,14 @@ export interface StoredLocation {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface StoredObject {
+  id: string;
+  name: string;
+  prompt: string;
+  notes: string;
+  aliases?: string;
+  referenceImage?: string;
+  createdAt: string;
+  updatedAt: string;
+}

@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { getUserById, saveUser, type UserRecord } from "../auth/store.js";
 import { normalizeCharacterKind } from "./sheets.js";
-import type { StoredCharacter, StoredLocation, StoredVisualStyle } from "./types.js";
+import type { StoredCharacter, StoredLocation, StoredObject, StoredVisualStyle } from "./types.js";
 
-export type { StoredCharacter, StoredLocation, StoredVisualStyle } from "./types.js";
+export type { StoredCharacter, StoredLocation, StoredObject, StoredVisualStyle } from "./types.js";
 
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_ITEMS = 80;
@@ -135,6 +135,34 @@ export function parseLocationBundle(raw: unknown): Record<string, unknown> {
   return obj;
 }
 
+export function parseObjectInput(body: Record<string, unknown>, existing?: StoredObject): StoredObject {
+  const name = asText(body.name, 80);
+  const prompt = asText(body.prompt, 2000);
+  if (name.length < 2) throw new Error("El objeto necesita un nombre");
+  if (prompt.length < 8) throw new Error("Describe el objeto: un prompt basta (auto rojo, balón de fútbol, reloj de oro…)");
+  const referenceImage = parseOptionalImage(body, existing?.referenceImage);
+  const ts = now();
+  return {
+    id: existing?.id ?? (asText(body.id, 40) || newId()),
+    name,
+    prompt,
+    notes: asText(body.notes, 800),
+    aliases: asText(body.aliases, 240),
+    ...(referenceImage ? { referenceImage } : {}),
+    createdAt: existing?.createdAt ?? ts,
+    updatedAt: ts,
+  };
+}
+
+export function parseObjectBundle(raw: unknown): Record<string, unknown> {
+  if (typeof raw !== "object" || raw == null) throw new Error("JSON de objeto inválido");
+  const obj = raw as Record<string, unknown>;
+  if (obj.openreels === "object" && obj.object && typeof obj.object === "object") {
+    return obj.object as Record<string, unknown>;
+  }
+  return obj;
+}
+
 function requireUser(userId: string): UserRecord {
   const user = getUserById(userId);
   if (!user) throw new Error("Usuario no encontrado");
@@ -221,6 +249,33 @@ export function deleteLocation(userId: string, id: string): boolean {
   const before = user.locations?.length ?? 0;
   user.locations = (user.locations ?? []).filter((l) => l.id !== id);
   if ((user.locations?.length ?? 0) === before) return false;
+  saveUser(user);
+  return true;
+}
+
+export function listObjects(userId: string): StoredObject[] {
+  return requireUser(userId).objects ?? [];
+}
+
+export function upsertObject(userId: string, body: Record<string, unknown>): StoredObject {
+  const user = requireUser(userId);
+  const list = user.objects ?? [];
+  const id = typeof body.id === "string" ? body.id : "";
+  const existing = id ? list.find((o) => o.id === id) : undefined;
+  if (!existing && list.length >= MAX_ITEMS) throw new Error("Límite de 80 objetos");
+  const next = parseObjectInput(body, existing);
+  user.objects = existing
+    ? list.map((o) => (o.id === existing.id ? next : o))
+    : [next, ...list];
+  saveUser(user);
+  return next;
+}
+
+export function deleteObject(userId: string, id: string): boolean {
+  const user = requireUser(userId);
+  const before = user.objects?.length ?? 0;
+  user.objects = (user.objects ?? []).filter((o) => o.id !== id);
+  if ((user.objects?.length ?? 0) === before) return false;
   saveUser(user);
   return true;
 }

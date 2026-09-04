@@ -22,6 +22,8 @@ export function normalizeFilmMinutes(raw?: number): number | undefined {
 }
 
 export function filmWordsTarget(minutes: number): number {
+  // Fast TTS (Kokoro / ElevenLabs) often speaks ~180 wpm. 150 words lands near 46–50s.
+  if (isFilmOneMinute(minutes)) return 180;
   return Math.round(minutes * FILM_WORDS_PER_MINUTE);
 }
 

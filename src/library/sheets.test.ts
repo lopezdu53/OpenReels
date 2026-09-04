@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCharacterSheetPrompt,
   buildLocationSheetPrompt,
+  buildObjectSheetPrompt,
   buildStyleSheetPrompt,
   normalizeCharacterKind,
   normalizeSheetProvider,
@@ -58,6 +59,20 @@ describe("concept sheets", () => {
     expect(prompt).toContain("Villa Santorini");
     expect(prompt).toContain("ONE named place");
     expect(prompt).toContain("oficina");
+    expect(prompt).toMatch(/letterbox/i);
+  });
+
+  it("builds a single-object prop board from a prompt", () => {
+    const prompt = buildObjectSheetPrompt({
+      name: "Mustang",
+      prompt: "Fastback 1967 rojo cereza, cromados",
+      notes: "sin conductor",
+    });
+    expect(prompt).toContain("OBJECT");
+    expect(prompt).toContain("HERO");
+    expect(prompt).toContain("Mustang");
+    expect(prompt).toContain("1967");
+    expect(prompt).toContain("ONE named object");
     expect(prompt).toMatch(/letterbox/i);
   });
 });

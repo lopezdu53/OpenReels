@@ -293,4 +293,37 @@ describe("getTotalDurationInFrames", () => {
     expect(second).toBe(first);
     expect(props.scenes[2]!.durationInFrames).toBe(lastSceneAfterFirst);
   });
+
+  it("does not clip the voiceover when the last scene is a short AI clip", () => {
+    const props = mapScoreToProps(
+      {
+        ...baseScore,
+        scenes: [
+          { visual_type: "ai_image", visual_prompt: "still", motion: "zoom_in", script_line: "Uno.", transition: "crossfade" },
+          { visual_type: "ai_video", visual_prompt: "clip", motion: "static", script_line: "Dos y el final de la locución.", transition: "none" },
+        ],
+      },
+      {
+        ...baseAssets,
+        sceneAssets: ["/images/a.png", "/videos/b.mp4"],
+        sceneWords: [makeWords(0, 20), makeWords(20, 46)],
+        allWords: [
+          { word: "Uno", start: 0, end: 2 },
+          { word: "final", start: 40, end: 46 },
+        ],
+        sceneSourceDurations: [null, 5],
+        voiceoverDurationSeconds: 46,
+      },
+      30,
+    );
+    props.scenes[0]!.transition = "crossfade";
+    props.scenes[0]!.transitionDurationFrames = 18;
+    props.scenes[1]!.visualType = "ai_video";
+    props.scenes[1]!.sourceDurationInSeconds = 5;
+
+    const total = getTotalDurationInFrames(props, 30, { minDurationSeconds: 60 });
+    expect(total).toBeGreaterThanOrEqual(Math.ceil(60 * 30));
+    expect(total).toBeGreaterThanOrEqual(Math.ceil(46 * 30));
+    expect(props.scenes[0]!.durationInFrames).toBeGreaterThan(2);
+  });
 });

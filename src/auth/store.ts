@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { StoredCharacter, StoredLocation, StoredVisualStyle } from "../library/types.js";
+import type { StoredCharacter, StoredLocation, StoredObject, StoredVisualStyle } from "../library/types.js";
 import type { SocialAccount, SocialPlatform, SocialPublication } from "../publish/types.js";
 import { hashPassword, verifyPassword } from "./password.js";
 
@@ -58,6 +58,7 @@ export interface UserRecord {
   characters: StoredCharacter[];
   visualStyles: StoredVisualStyle[];
   locations: StoredLocation[];
+  objects: StoredObject[];
   social?: Partial<Record<SocialPlatform, SocialAccount>>;
   publications?: SocialPublication[];
 }
@@ -159,6 +160,7 @@ export function hydrateUser(raw: UserRecord): UserRecord {
     characters: Array.isArray(raw.characters) ? raw.characters : [],
     visualStyles: Array.isArray(raw.visualStyles) ? raw.visualStyles : [],
     locations: Array.isArray(raw.locations) ? raw.locations : [],
+    objects: Array.isArray(raw.objects) ? raw.objects : [],
     publications: Array.isArray(raw.publications) ? raw.publications : [],
     social: raw.social && typeof raw.social === "object" ? raw.social : {},
   };
@@ -232,6 +234,7 @@ export async function createUser(opts: {
     characters: [],
     visualStyles: [],
     locations: [],
+    objects: [],
     social: {},
     publications: [],
   };

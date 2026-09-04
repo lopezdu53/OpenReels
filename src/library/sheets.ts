@@ -134,3 +134,26 @@ export function buildLocationSheetPrompt(input: {
     .filter(Boolean)
     .join(" ");
 }
+
+export function buildObjectSheetPrompt(input: {
+  name: string;
+  prompt: string;
+  notes?: string;
+}): string {
+  return [
+    "OBJECT / PROP CONCEPT SHEET, single wide 16:9 landscape image, professional product/prop design board.",
+    "ONE named object only. No unique human faces. No second product.",
+    `Object name: ${input.name}.`,
+    `Look LOCKED (copy exactly): ${input.prompt}.`,
+    input.notes ? `Notes: ${input.notes}.` : "",
+    "LAYOUT (one cohesive 16:9 board, same object in every panel, seamless studio or matching matte):",
+    "1) LEFT: large hero 3/4 view of the object, clear silhouette, readable materials.",
+    "2) TOP RIGHT: front or top view, details and markings.",
+    "3) BOTTOM CENTER: side profile.",
+    "4) BOTTOM RIGHT: back or material close-up (logo, texture, wear).",
+    "Optional tiny labels: HERO, FRONT, SIDE, DETAIL. No watermarks, no extra objects.",
+    "16:9 landscape only. Fill the frame edge to edge, no black letterbox bars.",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}

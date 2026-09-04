@@ -13,6 +13,7 @@ import { ViviImage } from "../providers/image/vivi.js";
 import {
   buildCharacterSheetPrompt,
   buildLocationSheetPrompt,
+  buildObjectSheetPrompt,
   buildStyleSheetPrompt,
   normalizeCharacterKind,
   normalizeSheetProvider,
@@ -20,14 +21,18 @@ import {
 import {
   deleteCharacter,
   deleteLocation,
+  deleteObject,
   deleteVisualStyle,
   listCharacters,
   listLocations,
+  listObjects,
   listVisualStyles,
   parseCharacterBundle,
   parseLocationBundle,
+  parseObjectBundle,
   parseStyleBundle,
   upsertCharacter,
+  upsertObject,
   upsertLocation,
   upsertVisualStyle,
 } from "./store.js";
@@ -147,6 +152,41 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
     return { ok: true };
   });
 
+  app.get("/api/v1/library/objects", async (request: AuthedRequest, reply) => {
+    if (!requireUser(request, reply)) return;
+    return { objects: listObjects(request.user!.id) };
+  });
+
+  app.post("/api/v1/library/objects", async (request: AuthedRequest, reply) => {
+    if (!requireUser(request, reply)) return;
+    try {
+      const body = parseObjectBundle(request.body ?? {});
+      return { object: upsertObject(request.user!.id, body) };
+    } catch (err) {
+      return fail(reply, err);
+    }
+  });
+
+  app.patch("/api/v1/library/objects/:id", async (request: AuthedRequest, reply) => {
+    if (!requireUser(request, reply)) return;
+    const { id } = request.params as { id: string };
+    try {
+      const existing = listObjects(request.user!.id).find((o) => o.id === id);
+      if (!existing) return reply.status(404).send({ error: "Objeto no encontrado" });
+      const body = { ...parseObjectBundle(request.body ?? {}), id };
+      return { object: upsertObject(request.user!.id, body) };
+    } catch (err) {
+      return fail(reply, err);
+    }
+  });
+
+  app.delete("/api/v1/library/objects/:id", async (request: AuthedRequest, reply) => {
+    if (!requireUser(request, reply)) return;
+    const { id } = request.params as { id: string };
+    if (!deleteObject(request.user!.id, id)) return reply.status(404).send({ error: "Objeto no encontrado" });
+    return { ok: true };
+  });
+
   app.post("/api/v1/library/sheets", async (request: AuthedRequest, reply) => {
     if (!requireUser(request, reply)) return;
     request.raw.setTimeout(180_000);
@@ -157,6 +197,7 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
       character?: Record<string, unknown>;
       style?: Record<string, unknown>;
       location?: Record<string, unknown>;
+      object?: Record<string, unknown>;
     };
     const provider = normalizeSheetProvider(body.provider);
     let prompt = "";
@@ -174,6 +215,18 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
           lighting: typeof s.lighting === "string" ? s.lighting : undefined,
           palette: typeof s.palette === "string" ? s.palette : undefined,
           notes: typeof s.notes === "string" ? s.notes : undefined,
+        });
+      } else if (body.type === "object") {
+        const o = body.object ?? {};
+        const name = typeof o.name === "string" ? o.name.trim() : "";
+        const look = typeof o.prompt === "string" ? o.prompt.trim() : "";
+        if (name.length < 2 || look.length < 8) {
+          return reply.status(400).send({ error: "Nombre y prompt del objeto son obligatorios" });
+        }
+        prompt = buildObjectSheetPrompt({
+          name,
+          prompt: look,
+          notes: typeof o.notes === "string" ? o.notes : undefined,
         });
       } else if (body.type === "location") {
         const loc = body.location ?? {};
