@@ -232,18 +232,6 @@ export function FilmPage() {
   const [storyLibrary, setStoryLibrary] = useState<JobSummary[]>([]);
   const [sequelId, setSequelId] = useState("");
   const [sequelJob, setSequelJob] = useState<JobSummary | null>(null);
-  const [artStyleOverride, setArtStyleOverride] = useState("");
-  const [styleId, setStyleId] = useState("");
-  const [characterIds, setCharacterIds] = useState<string[]>([]);
-  const [characters, setCharacters] = useState<LibraryCharacter[]>([]);
-  const [userStyles, setUserStyles] = useState<LibraryVisualStyle[]>([]);
-  const [builtinStyles, setBuiltinStyles] = useState<BuiltinVisualStyle[]>([]);
-  const [providers, setProviders] = useState<ProviderOptions | null>(null);
-  const [usdToCop, setUsdToCop] = useState(4100);
-  const [scriptLoading, setScriptLoading] = useState(false);
-  const [producing, setProducing] = useState(false);
-  const [error, setError] = useState("");
-  const [jobs, setJobs] = useState<JobSummary[]>([]);
 
   useEffect(() => {
     api.listProviders().then(setProviders).catch(() => {});
