@@ -87,11 +87,15 @@ ${
 }`;
 
   if (opts?.characterLock?.trim()) {
+    const named = opts.characterLock.match(/\bName:\s*/gi)?.length ?? 0;
+    const lockRule = named >= 2
+      ? `Named CAST of ${named}. Each named individual must keep their own species, race, age, face, markings, and body type. Do not merge, swap, or replace anyone.`
+      : "The SAME individual must appear in every shot. Never change species, race, age, face, markings, or body type to create variety.";
     systemPrompt += `
 
 ## CHARACTER IDENTITY LOCK (overrides visual contrast)
-The SAME individual must appear in every shot. Never change species, race, age, face, markings, or body type to create variety. Contrast only via camera angle, time of day, emotion, and framing.
-Locked character: ${opts.characterLock.trim()}
+${lockRule} Contrast only via camera angle, time of day, emotion, framing, and who is on screen.
+Locked character${named >= 2 ? "s" : ""}: ${opts.characterLock.trim()}
 If the lock says coatí / Nasua, it is NOT a fox, raccoon, cat, or tiger. Repeat the locked species in the prompt.`;
   }
 

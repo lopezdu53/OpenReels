@@ -61,6 +61,30 @@ function parseYoutubeUrls(text: string): string[] {
   return out.slice(0, 10);
 }
 
+const MAX_FILM_CAST = 3;
+
+function lockFromCharacter(character: LibraryCharacter): string {
+  return [
+    `Name: ${character.name}`,
+    character.aliases ? `Aliases (same individual): ${character.aliases}` : "",
+    character.kind ? `Kind: ${character.kind}` : "",
+    `Species/race (LOCKED): ${character.species}`,
+    character.age ? `Age: ${character.age}` : "",
+    `Appearance: ${character.appearance}`,
+    character.mustKeep ? `MUST keep: ${character.mustKeep}` : "",
+    character.mustAvoid ? `MUST avoid: ${character.mustAvoid}` : "",
+  ].filter(Boolean).join(". ");
+}
+
+function lockFromCast(cast: LibraryCharacter[]): string {
+  const members = cast.slice(0, MAX_FILM_CAST);
+  if (members.length === 0) return "";
+  if (members.length === 1) return lockFromCharacter(members[0]!);
+  return `CAST of ${members.length} named individuals (do not merge or swap identities). ${members
+    .map((c, i) => `[${i + 1}] ${lockFromCharacter(c)}`)
+    .join(" | ")}`;
+}
+
 const FALLBACK = {
   llm: [
     { key: "anthropic", label: "Anthropic (Claude)" },
@@ -161,7 +185,7 @@ export function FilmPage() {
   const [stockAvailable, setStockAvailable] = useState(true);
   const [artStyleOverride, setArtStyleOverride] = useState("");
   const [styleId, setStyleId] = useState("");
-  const [characterId, setCharacterId] = useState("");
+  const [characterIds, setCharacterIds] = useState<string[]>([]);
   const [characters, setCharacters] = useState<LibraryCharacter[]>([]);
   const [userStyles, setUserStyles] = useState<LibraryVisualStyle[]>([]);
   const [builtinStyles, setBuiltinStyles] = useState<BuiltinVisualStyle[]>([]);
@@ -297,6 +321,10 @@ export function FilmPage() {
         llmModel: llmModel || undefined,
         youtubeUrls,
         youtubeText: youtubeDraft,
+        characters: characterIds
+          .map((id) => characters.find((c) => c.id === id))
+          .filter((c): c is LibraryCharacter => Boolean(c))
+          .map((c) => ({ name: c.name, species: c.species, kind: c.kind })),
       });
       setScripts((prev) => {
         const empty = prev.find((s) => !s.body.trim());
@@ -324,32 +352,29 @@ export function FilmPage() {
     try {
       for (const slot of readyScripts) {
         const title = (slot.title.trim() || slot.body.trim().split("\n")[0] || "Film YouTube").slice(0, 200);
-        const character = characters.find((c) => c.id === characterId);
+        const cast = characterIds
+          .map((id) => characters.find((c) => c.id === id))
+          .filter((c): c is LibraryCharacter => Boolean(c));
+        const characterLock = lockFromCast(cast);
+        const characterReferenceImage = cast.find((c) => c.referenceImage)?.referenceImage;
         const style = userStyles.find((s) => s.id === styleId);
-        const characterLock = character
-          ? [
-              `Name: ${character.name}`,
-              character.aliases ? `Aliases (same individual): ${character.aliases}` : "",
-              character.kind ? `Kind: ${character.kind}` : "",
-              `Species/race (LOCKED): ${character.species}`,
-              character.age ? `Age: ${character.age}` : "",
-              `Appearance: ${character.appearance}`,
-              character.mustKeep ? `MUST keep: ${character.mustKeep}` : "",
-              character.mustAvoid ? `MUST avoid: ${character.mustAvoid}` : "",
-            ].filter(Boolean).join(". ")
-          : "";
-        const characterReferenceImage = character?.referenceImage;
         const styleReferenceImage = style?.referenceImage;
         const direction = [
           "## Guion (locución — honrar estas líneas; no reescribir el texto hablado)",
           slot.body.trim(),
-          characterLock ? `\n## Personaje (identidad bloqueada)\n${characterLock}` : "",
+          characterLock
+            ? cast.length > 1
+              ? `\n## Personajes (identidad bloqueada, ${cast.length})\n${characterLock}`
+              : `\n## Personaje (identidad bloqueada)\n${characterLock}`
+            : "",
           youtubeUrls.length
             ? `\n## Referencias YouTube (formato, no identidad)\n${youtubeUrls.map((u) => `- ${u}`).join("\n")}`
             : "",
           "\n## Formato\nVideo horizontal 16:9 para YouTube (1920x1080). No es un Short vertical.",
           durationMinutes > 0 && durationMinutes < 2
-            ? "\n## Prueba 30s\nMismo individuo en TODOS los planos: misma cresta, mismas manchas negras, mismos ojos, misma especie. Cero text_card. Todas las escenas ai_video."
+            ? cast.length > 1
+              ? `\n## Prueba 30s\nElenco bloqueado (${cast.map((c) => c.name).join(", ")}): cada uno conserva especie, marcas y cara. Cero text_card. Todas las escenas ai_video.`
+              : "\n## Prueba 30s\nMismo individuo en TODOS los planos: misma cresta, mismas manchas negras, mismos ojos, misma especie. Cero text_card. Todas las escenas ai_video."
             : "",
         ].join("\n");
         if (new TextEncoder().encode(direction).length > 65536) {
@@ -557,9 +582,16 @@ export function FilmPage() {
 
         <CharacterStudio
           characters={characters}
-          selectedId={characterId}
+          selectedIds={characterIds}
+          maxSelect={MAX_FILM_CAST}
           imageProviders={providers?.image ?? FALLBACK.image}
-          onSelect={setCharacterId}
+          onToggle={(id) => {
+            setCharacterIds((prev) => {
+              if (prev.includes(id)) return prev.filter((x) => x !== id);
+              if (prev.length >= MAX_FILM_CAST) return prev;
+              return [...prev, id];
+            });
+          }}
           onSave={async (body) => {
             const { character } = body.id
               ? await api.updateCharacter(String(body.id), body)
@@ -568,16 +600,20 @@ export function FilmPage() {
               const rest = prev.filter((c) => c.id !== character.id);
               return [character, ...rest];
             });
-            setCharacterId(character.id);
+            setCharacterIds((prev) => {
+              if (prev.includes(character.id)) return prev;
+              if (prev.length >= MAX_FILM_CAST) return prev;
+              return [...prev, character.id];
+            });
           }}
           onDelete={async (id) => {
             await api.deleteCharacter(id);
             setCharacters((prev) => prev.filter((c) => c.id !== id));
-            if (characterId === id) setCharacterId("");
+            setCharacterIds((prev) => prev.filter((x) => x !== id));
           }}
         />
         <p className="text-xs text-muted-foreground">
-          Si el personaje tiene ficha 16:9, cada still usa esa ficha como ancla de identidad (cara, marcas, especie). No se copia el collage de paneles: se pinta un plano nuevo.
+          Hasta 3 personajes. Si hay ficha 16:9, el primer still con imagen ancla identidad (cara, marcas, especie). No se copia el collage de paneles: se pinta un plano nuevo.
         </p>
 
         <VisualStyleStudio

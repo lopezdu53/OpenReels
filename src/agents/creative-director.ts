@@ -11,6 +11,7 @@ import {
   isFilmTestMinutes,
   normalizeFilmMinutes,
 } from "../config/film-duration.js";
+import { countLockedCharacters } from "../library/identity.js";
 import { DirectorScore, DirectorScoreBase, Motion, MusicMood, TransitionType, VisualType } from "../schema/director-score.js";
 import type { LLMProvider, LLMUsage } from "../schema/providers.js";
 import type { ResearchResult } from "./research.js";
@@ -130,6 +131,10 @@ const ALL_VISUAL_TYPES = ["ai_image", "stock_image", "stock_video", "text_card",
 
 function characterSection(lock?: string): string {
   if (lock?.trim()) {
+    const named = lock.match(/\bName:\s*/gi)?.length ?? 0;
+    if (named >= 2) {
+      return `\n## CHARACTER IDENTITY LOCK\n${lock.trim()}\nNamed CAST of ${named}. Each named individual keeps their own species, race, markings, age, and face. Do not merge, swap, or replace anyone. Contrast via camera, emotion, and who is on screen — never by changing identity.\n`;
+    }
     return `\n## CHARACTER IDENTITY LOCK\n${lock.trim()}\nThe SAME individual in every visual_prompt. Never change species, race, markings, age, or face. Do not swap an ocelot for a Bengal tiger, a coatí for a fox/raccoon, or a cub for an adult. Contrast via camera and emotion only.\n`;
   }
   return `\n## CHARACTER CONTINUITY\nIf the story has a recurring character (animal or person), lock species, race, age, markings, and face in EVERY visual_prompt. Repeat the exact description. Never morph to a similar species.\n`;
@@ -179,6 +184,7 @@ export async function generateDirectorScore(
   const wordsTarget = isLongForm && filmMinutes ? filmWordsTarget(filmMinutes) : null;
   const sceneTarget = isLongForm && filmMinutes ? filmSceneTarget(filmMinutes) : null;
   const wordsPerSceneTarget = isLongForm && wordsTarget && sceneTarget ? Math.round(wordsTarget / sceneTarget) : null;
+  const castCount = countLockedCharacters(options?.characterLock);
 
   const userMessage = `Topic: ${topic}
 
@@ -199,7 +205,11 @@ Every scene MUST have a script_line (the voiceover text).
 The first scene should be a strong hook.
 ${isLongForm
   ? isTest
-    ? `MANDATORY: This is a 30-second TEST film. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total ~${wordsTarget} words. NO text_card. If ai_video is allowed, every scene is ai_video. Same character (crest, patches, species) in every visual_prompt.`
+    ? `MANDATORY: This is a 30-second TEST film. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total ~${wordsTarget} words. NO text_card. If ai_video is allowed, every scene is ai_video. ${
+        castCount >= 2
+          ? "Keep each CAST member's species, markings and face. Do not merge or swap identities."
+          : "Same character (crest, patches, species) in every visual_prompt."
+      }`
     : `MANDATORY: This is a ${filmMinutes}-minute video. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total word count MUST be ~${wordsTarget} words. Break topic into chapters separated by text_card chapter titles. Stop at exactly ${sceneTarget} scenes.`
   : "If over budget, cut a scene rather than cramming."
 }${options?.platform === "youtube_horizontal" ? "\nEvery AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars.\nFor every ai_image/ai_video scene set shot_type (wide_establishing|wide|medium|close_up|extreme_close_up|over_shoulder|aerial|insert), camera_move (static|push_in|pull_out|pan|track), and location (a short reusable place name). Neighboring AI shots must not share the same shot_type. Repeat the same location name when the action stays in that place." : ""}`;

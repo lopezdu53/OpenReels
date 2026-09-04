@@ -8,6 +8,7 @@ import { OpenRouterLLM } from "../providers/llm/openrouter.js";
 import { ViviLLM } from "../providers/llm/vivi.js";
 import type { LLMProvider } from "../schema/providers.js";
 import { filmWordsTarget, isFilmTestMinutes, normalizeFilmMinutes } from "../config/film-duration.js";
+import { MAX_FILM_CHARACTERS } from "../library/identity.js";
 
 export const filmScriptSchema = z.object({
   title: z.string(),
@@ -62,6 +63,19 @@ export function buildFilmDirection(script: string, youtubeUrls: string[] = []): 
   return parts.join("\n");
 }
 
+export function buildCastBrief(
+  cast: Array<{ name: string; species?: string; kind?: string }>,
+): string {
+  const members = cast.filter((c) => c.name?.trim()).slice(0, MAX_FILM_CHARACTERS);
+  if (!members.length) return "";
+  const lines = members.map((c, i) => {
+    const bits = [c.name.trim(), c.kind?.trim(), c.species?.trim()].filter(Boolean).join(" — ");
+    return `${i + 1}. ${bits}`;
+  });
+  const n = members.length;
+  return `Reparto bloqueado (${n} personaje${n === 1 ? "" : "s"}; usa estos nombres en la locución, no inventes protagonistas extra):\n${lines.join("\n")}`;
+}
+
 export function pickFilmLlm(provider?: string, model?: string): LLMProvider {
   switch (provider) {
     case "openai":
@@ -87,10 +101,12 @@ export async function generateFilmScript(opts: {
   llm?: string;
   llmModel?: string;
   youtubeUrls?: string[];
+  characters?: Array<{ name: string; species?: string; kind?: string }>;
 }): Promise<FilmScript> {
   const minutes = normalizeFilmMinutes(opts.durationMinutes) ?? 8;
   const words = filmWordsTarget(minutes);
   const refs = (opts.youtubeUrls ?? []).slice(0, 10);
+  const cast = buildCastBrief(opts.characters ?? []);
   const llm = pickFilmLlm(opts.llm, opts.llmModel);
   const result = await llm.generate({
     systemPrompt:
@@ -98,8 +114,11 @@ export async function generateFilmScript(opts: {
     userMessage: [
       `Idea: ${opts.idea.trim()}`,
       isFilmTestMinutes(minutes)
-        ? `Duración objetivo: 30 segundos (~${words} palabras de locución). Prueba rápida, un solo personaje, sin letreros.`
+        ? `Duración objetivo: 30 segundos (~${words} palabras de locución). Prueba rápida, ${
+            (opts.characters?.length ?? 0) > 1 ? "solo el elenco bloqueado" : "un solo personaje"
+          }, sin letreros.`
         : `Duración objetivo: ${minutes} minutos (~${words} palabras de locución).`,
+      cast,
       refs.length ? `Referencias de formato (no copies identidad):\n${refs.map((u) => `- ${u}`).join("\n")}` : "",
       "title = título propio de YouTube, ≤ 70 caracteres.",
       "hook = primera frase hablada, ≤ 160 caracteres.",

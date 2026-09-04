@@ -56,8 +56,14 @@ export function isLongFormJob(opts: CriticEvalOptions): boolean {
 }
 
 export function extractLockTokens(characterLock: string): { species: string; appearance: string; tokens: string[] } {
-  const species = characterLock.match(/Species\/race[^:]*:\s*([^.\n]+)/i)?.[1]?.trim() ?? "";
-  const appearance = characterLock.match(/Appearance[^:]*:\s*([^.\n]+)/i)?.[1]?.trim() ?? "";
+  const species = [...characterLock.matchAll(/Species\/race[^:]*:\s*([^.\n]+)/gi)]
+    .map((m) => m[1]!.trim())
+    .filter(Boolean)
+    .join(" ");
+  const appearance = [...characterLock.matchAll(/Appearance[^:]*:\s*([^.\n]+)/gi)]
+    .map((m) => m[1]!.trim())
+    .filter(Boolean)
+    .join(" ");
   const raw = `${species} ${appearance}`.toLowerCase();
   const tokens = [...new Set(raw.split(/[^a-záéíóúüñ0-9]+/i).filter((w) => w.length >= 4))];
   return { species, appearance, tokens };
@@ -115,7 +121,9 @@ export function auditDirectorScore(score: DirectorScore, opts: CriticEvalOptions
       "El crítico no ve los fotogramas. Solo comprueba que el prompt lleva el lock; revisa a ojo pelaje, especie y cara en el video.",
     );
     const { species, tokens } = extractLockTokens(lock);
-    const animal = /Kind:\s*animal/i.test(lock) || /gato|ocelote|tigrillo|perro|animal/i.test(lock);
+    const animal =
+      (/Kind:\s*animal/i.test(lock) || /gato|ocelote|tigrillo|perro|animal/i.test(lock)) &&
+      !/Kind:\s*human/i.test(lock);
     const distinctive = tokens.filter((t) => !["same", "individual", "locked", "appearance", "species"].includes(t));
     for (let i = 0; i < score.scenes.length; i++) {
       const scene = score.scenes[i]!;

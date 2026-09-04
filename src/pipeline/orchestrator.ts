@@ -8,7 +8,7 @@ import { z } from "zod";
 import { generateDirectorScore, reviseDirectorScore } from "../agents/creative-director.js";
 import { evaluate, type CriticEvalOptions } from "../agents/critic.js";
 import { summarizeVideoFallbacks } from "../agents/critic-audit.js";
-import { applyVisualIdentity } from "../library/identity.js";
+import { applyVisualIdentity, identityLockLead } from "../library/identity.js";
 import { optimizeImagePrompt } from "../agents/image-prompter.js";
 import { generateOrientedImage } from "../providers/image/dimensions.js";
 import { lookupRemoteUrl } from "../providers/runpod/client.js";
@@ -208,7 +208,7 @@ async function generateAIImage(
   }
 
   if (opts.characterLock?.trim()) {
-    prompt = `IDENTITY LOCK — same individual every shot, never change species, markings, age or face. Not a fox, raccoon, cat, or tiger unless the lock says so. ${opts.characterLock.trim()} Scene: ${prompt}`;
+    prompt = `${identityLockLead(opts.characterLock)} Not a fox, raccoon, cat, or tiger unless the lock says so. ${opts.characterLock.trim()} Scene: ${prompt}`;
   }
   if (sheetHint) {
     prompt = `${sheetHint} ${prompt}`;
@@ -257,7 +257,7 @@ async function generateAIImage(
     }
 
     if (opts.characterLock?.trim()) {
-      prompt = `IDENTITY LOCK — same individual every shot, never change species, markings, age or face. ${opts.characterLock.trim()} Scene: ${prompt}`;
+      prompt = `${identityLockLead(opts.characterLock)} ${opts.characterLock.trim()} Scene: ${prompt}`;
     }
     if (sheetHint) {
       prompt = `${sheetHint} ${prompt}`;

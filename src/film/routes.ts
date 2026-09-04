@@ -13,6 +13,7 @@ export async function registerFilmRoutes(app: FastifyInstance): Promise<void> {
       llmModel?: string;
       youtubeUrls?: string[];
       youtubeText?: string;
+      characters?: Array<{ name: string; species?: string; kind?: string }>;
     };
     const idea = body.idea?.trim() ?? "";
     if (idea.length < 4) return reply.status(400).send({ error: "Escribe una idea (mín. 4 caracteres)" });
@@ -25,6 +26,7 @@ export async function registerFilmRoutes(app: FastifyInstance): Promise<void> {
         llm: body.llm,
         llmModel: body.llmModel,
         youtubeUrls,
+        characters: Array.isArray(body.characters) ? body.characters.slice(0, 3) : undefined,
       });
       return { script, youtubeUrls };
     } catch (err) {

@@ -606,8 +606,8 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     if (typeof characterLock !== "string") {
       return reply.status(400).send({ error: "characterLock must be a string" });
     }
-    if (Buffer.byteLength(characterLock, "utf-8") > 8192) {
-      return reply.status(400).send({ error: "characterLock exceeds 8KB limit" });
+    if (Buffer.byteLength(characterLock, "utf-8") > 24576) {
+      return reply.status(400).send({ error: "characterLock exceeds 24KB limit" });
     }
   }
 

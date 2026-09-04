@@ -36,17 +36,58 @@ export function formatCharacterLock(c: CharacterBible): string {
   return lines.join(". ");
 }
 
+export const MAX_FILM_CHARACTERS = 3;
+
+export function countLockedCharacters(lock?: string): number {
+  const text = lock?.trim() ?? "";
+  if (!text) return 0;
+  const named = text.match(/\bName:\s*/gi);
+  if (named?.length) return named.length;
+  return 1;
+}
+
+export function formatCastLock(cast: CharacterBible[]): string {
+  const members = cast.slice(0, MAX_FILM_CHARACTERS);
+  if (members.length === 0) return "";
+  if (members.length === 1) return formatCharacterLock(members[0]!);
+  const numbered = members.map((c, i) => `[${i + 1}] ${formatCharacterLock(c)}`);
+  return `CAST of ${members.length} named individuals (do not merge or swap identities). ${numbered.join(" | ")}`;
+}
+
 export function characterDirectionBlock(c: CharacterBible): string {
+  return characterDirectionBlockForCast([c]);
+}
+
+export function characterDirectionBlockForCast(cast: CharacterBible[]): string {
+  const members = cast.slice(0, MAX_FILM_CHARACTERS);
+  if (members.length === 0) return "";
+  if (members.length === 1) {
+    return [
+      "## Personaje (identidad bloqueada)",
+      formatCharacterLock(members[0]!),
+      "El mismo individuo en TODAS las escenas. No cambies especie, raza, edad, marcas ni cara. El contraste va por encuadre, luz y emoción, nunca por otro animal.",
+    ].join("\n");
+  }
   return [
-    "## Personaje (identidad bloqueada)",
-    formatCharacterLock(c),
-    "El mismo individuo en TODAS las escenas. No cambies especie, raza, edad, marcas ni cara. El contraste va por encuadre, luz y emoción, nunca por otro animal.",
+    `## Personajes (identidad bloqueada, ${members.length})`,
+    ...members.map((c, i) => `[${i + 1}] ${formatCharacterLock(c)}`),
+    "Cada nombre es un individuo distinto. No los fusiones, no intercambies especie/marcas, no sustituyas a nadie por un extra.",
   ].join("\n");
+}
+
+export function identityLockLead(lock?: string): string {
+  const n = countLockedCharacters(lock);
+  if (n >= 2) {
+    return `IDENTITY LOCK — named CAST of ${n}: each keeps their own species, markings, age and face. Do not merge, swap, or replace anyone.`;
+  }
+  return `IDENTITY LOCK — same individual every shot, never change species, markings, age or face.`;
 }
 
 function prefixIdentity(prompt: string, lock: string): string {
   if (prompt.includes(IDENTITY_MARKER)) return prompt;
-  return `${IDENTITY_MARKER} same individual every shot. ${lock}. SCENE: ${prompt}`;
+  const n = countLockedCharacters(lock);
+  const lead = n >= 2 ? `named CAST of ${n}, do not merge or swap.` : "same individual every shot.";
+  return `${IDENTITY_MARKER} ${lead} ${lock}. SCENE: ${prompt}`;
 }
 
 const STILL = new Set(["ai_image", "stock_image", "text_card"]);

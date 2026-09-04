@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyVisualIdentity, formatCharacterLock } from "./identity.js";
+import { applyVisualIdentity, countLockedCharacters, formatCastLock, formatCharacterLock, identityLockLead } from "./identity.js";
 import type { DirectorScore } from "../schema/director-score.js";
 
 function score(over: Partial<DirectorScore> = {}): DirectorScore {
@@ -39,6 +39,37 @@ describe("visual identity lock", () => {
       aliases: "el coatí, Coco el Coatí",
     });
     expect(text).toContain("Aliases (same individual): el coatí, Coco el Coatí");
+  });
+
+  it("formats a 2–3 character CAST without merging identities", () => {
+    const text = formatCastLock([
+      { name: "Coco", kind: "animal", species: "coatí", appearance: "cola anillada" },
+      { name: "Tambo", kind: "animal", species: "gallito de las rocas", appearance: "cresta disco naranja" },
+      { name: "Luz", kind: "human", species: "humano", appearance: "pelo corto" },
+    ]);
+    expect(text).toContain("CAST of 3");
+    expect(text).toContain("[1] Name: Coco");
+    expect(text).toContain("[2] Name: Tambo");
+    expect(text).toContain("[3] Name: Luz");
+    expect(countLockedCharacters(text)).toBe(3);
+    expect(identityLockLead(text)).toContain("named CAST of 3");
+  });
+
+  it("caps CAST formatting at 3 characters", () => {
+    const extra = {
+      name: "Cuatro",
+      kind: "animal" as const,
+      species: "zorro",
+      appearance: "naranja",
+    };
+    const text = formatCastLock([
+      { name: "Uno", kind: "animal", species: "coatí", appearance: "a" },
+      { name: "Dos", kind: "animal", species: "tucán", appearance: "b" },
+      { name: "Tres", kind: "animal", species: "rana", appearance: "c" },
+      extra,
+    ]);
+    expect(countLockedCharacters(text)).toBe(3);
+    expect(text).not.toContain("Cuatro");
   });
 
   it("prefixes AI prompts and never leaves still↔motion as a hard cut", () => {

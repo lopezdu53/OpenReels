@@ -77,18 +77,20 @@ function slug(name: string) {
 
 interface Props {
   characters: LibraryCharacter[];
-  selectedId: string;
+  selectedIds: string[];
+  maxSelect?: number;
   imageProviders?: ProviderOption[];
-  onSelect: (id: string) => void;
+  onToggle: (id: string) => void;
   onSave: (body: Record<string, unknown>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }
 
 export function CharacterStudio({
   characters,
-  selectedId,
+  selectedIds,
+  maxSelect = 3,
   imageProviders,
-  onSelect,
+  onToggle,
   onSave,
   onDelete,
 }: Props) {
@@ -99,9 +101,12 @@ export function CharacterStudio({
   const [sheetProvider, setSheetProvider] = useState("vivi");
   const importRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
-  const selected = characters.find((c) => c.id === selectedId);
+  const [peekId, setPeekId] = useState("");
+  const previewId = selectedIds.includes(peekId) ? peekId : (selectedIds[selectedIds.length - 1] ?? "");
+  const selected = characters.find((c) => c.id === previewId);
   const providers = imageProviders?.length ? imageProviders : DEFAULT_PROVIDERS;
   const kind = editing?.kind ?? "animal";
+  const atCap = selectedIds.length >= maxSelect;
 
   async function commit() {
     if (!editing) return;
@@ -151,8 +156,10 @@ export function CharacterStudio({
     <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">Personaje</p>
-          <p className="text-sm font-medium">Ficha 16:9 — frente, retrato, perfil y espalda</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
+            Personajes ({selectedIds.length}/{maxSelect})
+          </p>
+          <p className="text-sm font-medium">Elige de 1 a {maxSelect} fichas 16:9 — frente, retrato, perfil y espalda</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" size="sm" onClick={() => { setSheetError(""); setEditing(emptyForm()); }}>
@@ -183,20 +190,35 @@ export function CharacterStudio({
 
       {characters.length === 0 && !editing ? (
         <p className="text-xs text-muted-foreground">
-          Humano, animal o ficticio. Genera una ficha de concepto (como un model sheet) y reutilízala para que no cambie de especie ni de cara.
+          Humano, animal o ficticio. Genera una ficha de concepto (como un model sheet) y reutilízala para que no cambie de especie ni de cara. En el Film puedes marcar hasta {maxSelect}.
         </p>
       ) : (
         <div className="flex flex-wrap gap-2">
-          {characters.map((c) => (
+          {characters.map((c) => {
+            const order = selectedIds.indexOf(c.id);
+            const isOn = order >= 0;
+            const blocked = !isOn && atCap;
+            return (
             <button
               key={c.id}
               type="button"
-              onClick={() => onSelect(c.id === selectedId ? "" : c.id)}
+              disabled={blocked}
+              onClick={() => {
+                if (blocked) return;
+                onToggle(c.id);
+                setPeekId(c.id);
+              }}
               className={cn(
                 "flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs",
-                c.id === selectedId ? "border-primary bg-primary/10" : "border-border hover:border-primary/40",
+                isOn ? "border-primary bg-primary/10" : "border-border hover:border-primary/40",
+                blocked ? "cursor-not-allowed opacity-40" : "",
               )}
             >
+              {isOn ? (
+                <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                  {order + 1}
+                </span>
+              ) : null}
               {c.referenceImage ? (
                 <img src={`data:image/png;base64,${c.referenceImage}`} alt="" className="h-8 w-14 rounded object-cover" />
               ) : (
@@ -207,9 +229,19 @@ export function CharacterStudio({
                 <span className="text-[10px] text-muted-foreground">{kindLabel(c.kind)} · {c.species}</span>
               </span>
             </button>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      {selectedIds.length > 1 && !editing ? (
+        <p className="text-[11px] text-muted-foreground">
+          Elenco: {selectedIds.map((id, i) => {
+            const c = characters.find((x) => x.id === id);
+            return c ? `${i + 1}. ${c.name}` : null;
+          }).filter(Boolean).join(" · ")}
+        </p>
+      ) : null}
 
       {selected && !editing ? (
         <div className="rounded-xl border border-border bg-surface-inset p-3 space-y-2 text-xs">

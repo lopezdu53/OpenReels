@@ -3,6 +3,7 @@ import type { DirectorScore } from "../schema/director-score.js";
 import {
   applyAuditToCritique,
   auditDirectorScore,
+  extractLockTokens,
   formatPacingForCritic,
   summarizeVideoFallbacks,
 } from "./critic-audit.js";
@@ -125,6 +126,15 @@ describe("critic audit", () => {
       characterLock: "Kind: animal. Species/race (LOCKED): coatí. Appearance: cola anillada. MUST avoid: niño humano",
     });
     expect(audit.findings.some((f) => /mete un humano/.test(f))).toBe(false);
+  });
+
+  it("collects species tokens from every CAST member", () => {
+    const { species, tokens } = extractLockTokens(
+      "CAST of 2. [1] Name: Coco. Kind: animal. Species/race (LOCKED): coatí. Appearance: cola anillada. [2] Name: Tambo. Kind: animal. Species/race (LOCKED): gallito de las rocas. Appearance: cresta disco naranja",
+    );
+    expect(species.toLowerCase()).toContain("coatí");
+    expect(species.toLowerCase()).toContain("gallito");
+    expect(tokens).toEqual(expect.arrayContaining(["coatí", "gallito", "rocas", "anillada", "cresta"]));
   });
 
   it("asks Film scores for shot_type variety", () => {

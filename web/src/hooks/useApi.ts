@@ -449,6 +449,7 @@ export const api = {
     llmModel?: string;
     youtubeText?: string;
     youtubeUrls?: string[];
+    characters?: Array<{ name: string; species?: string; kind?: string }>;
   }) {
     return fetchJson<{ script: { title: string; hook: string; script: string }; youtubeUrls: string[] }>(
       "/film/script",
