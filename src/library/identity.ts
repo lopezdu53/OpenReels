@@ -72,22 +72,148 @@ export function characterDirectionBlockForCast(cast: CharacterBible[]): string {
     `## Personajes (identidad bloqueada, ${members.length})`,
     ...members.map((c, i) => `[${i + 1}] ${formatCharacterLock(c)}`),
     "Cada nombre es un individuo distinto. No los fusiones, no intercambies especie/marcas, no sustituyas a nadie por un extra.",
+    "ON SCREEN: solo quien nombra esa frase de locución. Si la línea es de un personaje, los demás NO aparecen ni de fondo. Juntos solo cuando la frase nombra a más de uno.",
   ].join("\n");
 }
 
+export interface CastMemberLock {
+  name: string;
+  aliases: string[];
+  lock: string;
+}
+
+export interface SceneCastFocus {
+  lock: string;
+  names: string[];
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function splitCastChunks(lock: string): string[] {
+  const body = lock.replace(/^CAST of \d+[^.]*\.\s*/i, "").trim();
+  if (/\[\d+\]/.test(body) || (body.match(/\bName:\s*/gi)?.length ?? 0) >= 2) {
+    return body
+      .split(/\s\|\s/)
+      .map((part) => part.replace(/^\[\d+\]\s*/, "").trim())
+      .filter(Boolean);
+  }
+  return body ? [body] : [];
+}
+
+export function parseCastMembers(lock?: string): CastMemberLock[] {
+  const text = lock?.trim() ?? "";
+  if (!text) return [];
+  return splitCastChunks(text)
+    .map((chunk) => {
+      const name = chunk.match(/\bName:\s*([^.|]+)/i)?.[1]?.trim() ?? "";
+      const aliasRaw = chunk.match(/Aliases[^:]*:\s*([^.|]+)/i)?.[1] ?? "";
+      const aliases = aliasRaw
+        .split(/,| y | and /i)
+        .map((s) => s.trim())
+        .filter((s) => s.length >= 2);
+      return { name, aliases, lock: chunk };
+    })
+    .filter((m) => m.name.length >= 2);
+}
+
+export function mentionsCastMember(text: string, member: CastMemberLock): boolean {
+  const hay = text ?? "";
+  if (!hay.trim()) return false;
+  const labels = [member.name, ...member.aliases].filter((n) => n.trim().length >= 2);
+  return labels.some((label) => new RegExp(`\\b${escapeRegExp(label.trim())}\\b`, "i").test(hay));
+}
+
+export function focusCastLock(
+  fullLock: string,
+  onScreen: CastMemberLock[],
+  roster: CastMemberLock[] = parseCastMembers(fullLock),
+): string {
+  if (roster.length <= 1) return fullLock.trim();
+  const others = roster.filter((m) => !onScreen.some((s) => s.name.toLowerCase() === m.name.toLowerCase()));
+  const off = others.map((m) => m.name);
+  if (onScreen.length === 0) {
+    const names = roster.map((m) => m.name).join(", ");
+    return `ON SCREEN: none of the named CAST (${names}). Location or atmosphere only. Do not depict ${names}.`;
+  }
+  if (onScreen.length === 1) {
+    const m = onScreen[0]!;
+    const ban = off.length ? ` Do not depict ${off.join(" or ")} — not even in the background.` : "";
+    return `ON SCREEN: only ${m.name} (solo, no companion).${ban} ${m.lock}`;
+  }
+  const names = onScreen.map((m) => m.name);
+  const locks = onScreen.map((m, i) => `[${i + 1}] ${m.lock}`).join(" | ");
+  const ban = off.length ? ` Do not add ${off.join(" or ")}.` : "";
+  return `ON SCREEN: ${names.join(" and ")} together in this shot.${ban} CAST of ${names.length}. ${locks}`;
+}
+
+export function planSceneCastFocus(
+  scenes: Array<{ script_line: string }>,
+  characterLock?: string,
+): SceneCastFocus[] {
+  const full = characterLock?.trim() ?? "";
+  const roster = parseCastMembers(full);
+  if (roster.length <= 1) {
+    return scenes.map(() => ({ lock: full, names: roster.map((m) => m.name) }));
+  }
+  let last: CastMemberLock[] = [];
+  return scenes.map((scene) => {
+    const mentioned = roster.filter((m) => mentionsCastMember(scene.script_line, m));
+    const onScreen = mentioned.length ? mentioned : last;
+    if (mentioned.length) last = mentioned;
+    return { lock: focusCastLock(full, onScreen, roster), names: onScreen.map((m) => m.name) };
+  });
+}
+
+export function characterSheetFitsScene(
+  rosterCount: number,
+  sheetOwner: string | undefined,
+  onScreenNames: string[],
+): boolean {
+  if (rosterCount < 2) return true;
+  if (!sheetOwner || onScreenNames.length === 0) return false;
+  return onScreenNames.some((n) => n.toLowerCase() === sheetOwner.toLowerCase());
+}
+
 export function identityLockLead(lock?: string): string {
+  if (/ON SCREEN:\s*none/i.test(lock ?? "")) {
+    return `IDENTITY LOCK — no named CAST member in this frame.`;
+  }
+  if (/ON SCREEN:\s*only/i.test(lock ?? "")) {
+    return `IDENTITY LOCK — only the named ON SCREEN person; other CAST members stay off camera.`;
+  }
   const n = countLockedCharacters(lock);
   if (n >= 2) {
-    return `IDENTITY LOCK — named CAST of ${n}: each keeps their own species, markings, age and face. Do not merge, swap, or replace anyone.`;
+    return `IDENTITY LOCK — named CAST of ${n} ON SCREEN: each keeps their own species, markings, age and face. Do not merge, swap, or replace anyone.`;
   }
   return `IDENTITY LOCK — same individual every shot, never change species, markings, age or face.`;
 }
 
+function stripIdentityPrefix(prompt: string): string {
+  const parts = prompt.split(/\bSCENE:\s*/i);
+  if (parts.length > 1) return parts.slice(1).join(" ").trim();
+  const scene = prompt
+    .replace(/^IDENTITY LOCK[:\s—-][^\n]*\n?/i, "")
+    .replace(/CAST of \d+[^.]*\.\s*/gi, "")
+    .trim();
+  if (/^(?:\[\d+\]\s*)?Name:/i.test(scene)) return "";
+  return scene;
+}
+
 function prefixIdentity(prompt: string, lock: string): string {
-  if (prompt.includes(IDENTITY_MARKER)) return prompt;
+  const scene = stripIdentityPrefix(prompt);
   const n = countLockedCharacters(lock);
-  const lead = n >= 2 ? `named CAST of ${n}, do not merge or swap.` : "same individual every shot.";
-  return `${IDENTITY_MARKER} ${lead} ${lock}. SCENE: ${prompt}`;
+  const lead = /ON SCREEN:\s*none/i.test(lock)
+    ? "no named CAST on screen."
+    : /ON SCREEN:\s*only/i.test(lock)
+      ? "only the ON SCREEN person; other CAST members absent."
+      : n >= 2
+        ? `named CAST of ${n} ON SCREEN, do not merge or swap.`
+        : "same individual every shot.";
+  return scene
+    ? `${IDENTITY_MARKER} ${lead} ${lock}. SCENE: ${scene}`
+    : `${IDENTITY_MARKER} ${lead} ${lock}.`;
 }
 
 const STILL = new Set(["ai_image", "stock_image", "text_card"]);
@@ -99,11 +225,13 @@ export function applyVisualIdentity(
   characterLock?: string,
 ): DirectorScore {
   const lock = characterLock?.trim();
+  const focus = lock ? planSceneCastFocus(score.scenes, lock) : [];
   const scenes = score.scenes.map((scene, i) => {
     const next = score.scenes[i + 1];
     let visual_prompt = scene.visual_prompt;
-    if (lock && (scene.visual_type === "ai_image" || scene.visual_type === "ai_video")) {
-      visual_prompt = prefixIdentity(visual_prompt, lock);
+    const sceneLock = focus[i]?.lock || lock;
+    if (sceneLock && (scene.visual_type === "ai_image" || scene.visual_type === "ai_video")) {
+      visual_prompt = prefixIdentity(visual_prompt, sceneLock);
     }
 
     let motion = scene.motion;

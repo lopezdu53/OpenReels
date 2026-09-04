@@ -4,6 +4,8 @@
  * Sheets are identity/style anchors — never a collage to copy.
  */
 
+import { countLockedCharacters } from "../library/identity.js";
+
 export type SheetReference = "character" | "style" | null;
 
 export interface VisualRefPlan {
@@ -22,8 +24,18 @@ export function planVisualReferences(opts: {
   styleReferenceImage?: Buffer;
   atelierMode?: boolean;
   imageProvider?: string;
+  characterLock?: string;
 }): VisualRefPlan {
   const clonesLayout = LAYOUT_CLONE_PROVIDERS.has(opts.imageProvider ?? "");
+  const multiCast = countLockedCharacters(opts.characterLock) >= 2;
+  if (multiCast) {
+    // One sheet / scene-0 still would glue the whole CAST into every later frame.
+    return {
+      globalReference: undefined,
+      useAtelier: false,
+      sheetReference: null,
+    };
+  }
   if (opts.characterReferenceImage && opts.characterReferenceImage.length > 100) {
     if (clonesLayout) {
       return {

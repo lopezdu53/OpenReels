@@ -87,15 +87,22 @@ ${
 }`;
 
   if (opts?.characterLock?.trim()) {
-    const named = opts.characterLock.match(/\bName:\s*/gi)?.length ?? 0;
-    const lockRule = named >= 2
-      ? `Named CAST of ${named}. Each named individual must keep their own species, race, age, face, markings, and body type. Do not merge, swap, or replace anyone.`
-      : "The SAME individual must appear in every shot. Never change species, race, age, face, markings, or body type to create variety.";
+    const lock = opts.characterLock.trim();
+    const named = lock.match(/\bName:\s*/gi)?.length ?? 0;
+    const solo = /ON SCREEN:\s*only/i.test(lock);
+    const empty = /ON SCREEN:\s*none/i.test(lock);
+    const lockRule = empty
+      ? "No named CAST member appears in this frame. Location, object, or atmosphere only."
+      : solo
+        ? "ONLY the named ON SCREEN person. Other CAST members must be completely absent — not in the background, not as a reflection, not as a silhouette."
+        : named >= 2
+          ? `Named CAST of ${named} ON SCREEN together. Each named individual must keep their own species, race, age, face, markings, and body type. Do not merge, swap, or replace anyone.`
+          : "The SAME individual must appear in every shot. Never change species, race, age, face, markings, or body type to create variety.";
     systemPrompt += `
 
 ## CHARACTER IDENTITY LOCK (overrides visual contrast)
 ${lockRule} Contrast only via camera angle, time of day, emotion, framing, and who is on screen.
-Locked character${named >= 2 ? "s" : ""}: ${opts.characterLock.trim()}
+Locked character${named >= 2 ? "s" : ""}: ${lock}
 If the lock says coatí / Nasua, it is NOT a fox, raccoon, cat, or tiger. Repeat the locked species in the prompt.`;
   }
 

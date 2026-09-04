@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyVisualIdentity, countLockedCharacters, formatCastLock, formatCharacterLock, identityLockLead } from "./identity.js";
+import { applyVisualIdentity, countLockedCharacters, focusCastLock, formatCastLock, formatCharacterLock, identityLockLead, parseCastMembers, planSceneCastFocus } from "./identity.js";
 import type { DirectorScore } from "../schema/director-score.js";
 
 function score(over: Partial<DirectorScore> = {}): DirectorScore {
@@ -80,5 +80,43 @@ describe("visual identity lock", () => {
     expect(next.scenes[0]!.transition).toBe("crossfade");
     expect(next.scenes[1]!.transition).toBe("crossfade");
     expect(next.scenes[2]!.visual_prompt).toContain("IDENTITY LOCK");
+  });
+
+  it("puts only the named character on screen when the VO splits a CAST", () => {
+    const lock = formatCastLock([
+      { name: "Tania", kind: "human", species: "Rubia", appearance: "escote" },
+      { name: "Casimiro", kind: "human", species: "hombre", appearance: "gafas" },
+    ]);
+    expect(parseCastMembers(lock).map((m) => m.name)).toEqual(["Tania", "Casimiro"]);
+
+    const taniaOnly = focusCastLock(lock, parseCastMembers(lock).slice(0, 1));
+    expect(taniaOnly).toContain("ON SCREEN: only Tania");
+    expect(taniaOnly).toContain("Do not depict Casimiro");
+    expect(taniaOnly).not.toMatch(/Name: Casimiro/);
+
+    const film = score({
+      scenes: [
+        { visual_type: "ai_image", visual_prompt: "beach", motion: "static", script_line: "En una isla paradisíaca.", transition: "none" },
+        { visual_type: "ai_image", visual_prompt: "CAST of 2 named individuals. [1] Name: Tania. | [2] Name: Casimiro.", motion: "zoom_in", script_line: "Tania camina descalza por la arena.", transition: "none" },
+        { visual_type: "text_card", visual_prompt: "EL MILLONARIO", motion: "static", script_line: "Mientras tanto, Casimiro apenas puede creer su suerte.", transition: null },
+        { visual_type: "ai_image", visual_prompt: "office", motion: "zoom_in", script_line: "Hace tres meses ganó un millón de dólares.", transition: "none" },
+        { visual_type: "ai_image", visual_prompt: "pool", motion: "zoom_in", script_line: "Tania nada hasta el borde donde está Casimiro.", transition: "none" },
+      ],
+    });
+    const focus = planSceneCastFocus(film.scenes, lock);
+    expect(focus[0]!.names).toEqual([]);
+    expect(focus[0]!.lock).toContain("ON SCREEN: none");
+    expect(focus[1]!.names).toEqual(["Tania"]);
+    expect(focus[3]!.names).toEqual(["Casimiro"]);
+    expect(focus[4]!.names).toEqual(["Tania", "Casimiro"]);
+
+    const next = applyVisualIdentity(film, lock);
+    expect(next.scenes[1]!.visual_prompt).toContain("only Tania");
+    expect(next.scenes[1]!.visual_prompt).toContain("Do not depict Casimiro");
+    expect(next.scenes[1]!.visual_prompt).not.toMatch(/Name: Casimiro/);
+    expect(next.scenes[3]!.visual_prompt).toContain("only Casimiro");
+    expect(next.scenes[3]!.visual_prompt).toContain("Do not depict Tania");
+    expect(next.scenes[4]!.visual_prompt).toContain("Tania and Casimiro together");
+    expect(identityLockLead(focus[1]!.lock)).toMatch(/only the named ON SCREEN/i);
   });
 });

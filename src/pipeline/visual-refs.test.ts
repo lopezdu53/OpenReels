@@ -17,6 +17,19 @@ describe("planVisualReferences", () => {
     expect(plan.sheetReference).toBe("character");
   });
 
+  it("does not glue a CAST to one character sheet / Atelier still", () => {
+    const plan = planVisualReferences({
+      characterReferenceImage: sheet,
+      atelierMode: true,
+      imageProvider: "vivi",
+      characterLock:
+        "CAST of 2 named individuals (do not merge or swap identities). [1] Name: Tania. Kind: human. Species/race (LOCKED): Rubia. Appearance: rubia. | [2] Name: Casimiro. Kind: human. Species/race (LOCKED): hombre. Appearance: gafas",
+    });
+    expect(plan.globalReference).toBeUndefined();
+    expect(plan.useAtelier).toBe(false);
+    expect(plan.sheetReference).toBeNull();
+  });
+
   it("does not img2img a model sheet on RunPod (FLUX copies the collage)", () => {
     const plan = planVisualReferences({
       characterReferenceImage: sheet,

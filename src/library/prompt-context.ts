@@ -23,7 +23,7 @@ export function buildShotContext(opts: {
   if (opts.location?.trim()) lines.push(`location: ${opts.location.trim()}`);
   if (opts.previousVisualPrompt?.trim()) {
     lines.push(
-      `previous_shot (keep the same named characters and world, change camera or action): ${opts.previousVisualPrompt.trim().slice(0, 400)}`,
+      `previous_shot (keep the world and location; follow ON SCREEN for who appears — do not carry off-screen CAST members from the previous frame): ${opts.previousVisualPrompt.trim().slice(0, 400)}`,
     );
   }
   return lines.join("\n");

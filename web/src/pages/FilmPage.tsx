@@ -364,7 +364,7 @@ export function FilmPage() {
           slot.body.trim(),
           characterLock
             ? cast.length > 1
-              ? `\n## Personajes (identidad bloqueada, ${cast.length})\n${characterLock}`
+              ? `\n## Personajes (identidad bloqueada, ${cast.length})\n${characterLock}\nSolo en cuadro quien nombra esa frase. Si la locución es de uno, los demás no aparecen ni de fondo. Juntos solo cuando la frase nombra a más de uno.`
               : `\n## Personaje (identidad bloqueada)\n${characterLock}`
             : "",
           youtubeUrls.length
@@ -373,7 +373,7 @@ export function FilmPage() {
           "\n## Formato\nVideo horizontal 16:9 para YouTube (1920x1080). No es un Short vertical.",
           durationMinutes > 0 && durationMinutes < 2
             ? cast.length > 1
-              ? `\n## Prueba 30s\nElenco bloqueado (${cast.map((c) => c.name).join(", ")}): cada uno conserva especie, marcas y cara. Cero text_card. Todas las escenas ai_video.`
+              ? `\n## Prueba 30s\nElenco bloqueado (${cast.map((c) => c.name).join(", ")}): cada uno conserva especie, marcas y cara. En cada plano solo quien nombra la locución. Cero text_card. Todas las escenas ai_video.`
               : "\n## Prueba 30s\nMismo individuo en TODOS los planos: misma cresta, mismas manchas negras, mismos ojos, misma especie. Cero text_card. Todas las escenas ai_video."
             : "",
         ].join("\n");
@@ -613,7 +613,7 @@ export function FilmPage() {
           }}
         />
         <p className="text-xs text-muted-foreground">
-          Hasta 3 personajes. Si hay ficha 16:9, el primer still con imagen ancla identidad (cara, marcas, especie). No se copia el collage de paneles: se pinta un plano nuevo.
+          Hasta 3 personajes. Cada plano muestra solo a quien nombra la locución; juntos solo si la frase nombra a más de uno. La ficha 16:9 ancla al primero con imagen cuando está en cuadro.
         </p>
 
         <VisualStyleStudio

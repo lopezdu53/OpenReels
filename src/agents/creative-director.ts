@@ -133,7 +133,7 @@ function characterSection(lock?: string): string {
   if (lock?.trim()) {
     const named = lock.match(/\bName:\s*/gi)?.length ?? 0;
     if (named >= 2) {
-      return `\n## CHARACTER IDENTITY LOCK\n${lock.trim()}\nNamed CAST of ${named}. Each named individual keeps their own species, race, markings, age, and face. Do not merge, swap, or replace anyone. Contrast via camera, emotion, and who is on screen — never by changing identity.\n`;
+      return `\n## CHARACTER IDENTITY LOCK\n${lock.trim()}\nNamed CAST of ${named}. Each named individual keeps their own species, race, markings, age, and face. Do not merge, swap, or replace anyone.\nON SCREEN RULE: a visual_prompt may show ONLY the character(s) named in THAT scene's script_line. If the line is about one person, the others must be absent — not even in the background. Show two or more together only when the line names them together. Do NOT paste the full CAST bible into every visual_prompt; copy only the on-screen person's appearance.\n`;
     }
     return `\n## CHARACTER IDENTITY LOCK\n${lock.trim()}\nThe SAME individual in every visual_prompt. Never change species, race, markings, age, or face. Do not swap an ocelot for a Bengal tiger, a coatí for a fox/raccoon, or a cub for an adult. Contrast via camera and emotion only.\n`;
   }
@@ -449,7 +449,7 @@ ${revisionGuidance}
 Revise the DirectorScore to address the weaknesses while preserving the strengths.
 Keep the same archetype. Maintain the GOLDEN RULE: never use the same visual_type more than 2 times in a row.
 ${options?.direction?.trim() ? "LOCKED NARRATION: do not rewrite script_line. Only change visual_type, visual_prompt, motion, transition, shot_type, camera_move, and location." : ""}
-${options?.characterLock?.trim() ? `IDENTITY: every AI visual_prompt must keep this lock: ${options.characterLock.trim()}` : ""}
+${options?.characterLock?.trim() ? `IDENTITY: keep each CAST member's appearance when they are ON SCREEN. Do not paste the full CAST into every visual_prompt. If script_line names one person, the others stay off camera.` : ""}
 ${options?.artStyleOverride?.trim() ? `ART STYLE LOCK: ${options.artStyleOverride.trim()}. Do not switch photoreal ↔ cartoon.` : ""}
 ${options?.platform === "youtube_horizontal" ? "Every AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars. Fill shot_type, camera_move, and a reusable location. Neighboring AI shots must not share the same shot_type." : ""}`;
 

@@ -8,7 +8,7 @@ import { z } from "zod";
 import { generateDirectorScore, reviseDirectorScore } from "../agents/creative-director.js";
 import { evaluate, type CriticEvalOptions } from "../agents/critic.js";
 import { summarizeVideoFallbacks } from "../agents/critic-audit.js";
-import { applyVisualIdentity, identityLockLead } from "../library/identity.js";
+import { applyVisualIdentity, characterSheetFitsScene, identityLockLead, parseCastMembers, planSceneCastFocus } from "../library/identity.js";
 import { optimizeImagePrompt } from "../agents/image-prompter.js";
 import { generateOrientedImage } from "../providers/image/dimensions.js";
 import { lookupRemoteUrl } from "../providers/runpod/client.js";
@@ -164,13 +164,15 @@ async function generateAIImage(
     location?: string;
     previousVisualPrompt?: string;
     sheetReference?: SheetReference;
+    sceneLock?: string;
   },
   referenceImageUrl?: string,
 ): Promise<VisualAssetResult> {
   let prompt = visualPrompt;
   let usage: LLMUsage | null = null;
+  const sceneLock = shot?.sceneLock?.trim() || opts.characterLock;
   const shotContext = buildShotContext({
-    characterLock: opts.characterLock,
+    characterLock: sceneLock,
     artStyle: opts.artStyleOverride,
     shotType: shot?.shotType,
     cameraMove: shot?.cameraMove,
@@ -180,7 +182,7 @@ async function generateAIImage(
   const sheetHint = sheetToSceneHint(shot?.sheetReference ?? null);
   const imagePromptOpts = {
     ...(opts.artStyleOverride ? { artStyleOverride: opts.artStyleOverride } : {}),
-    ...(opts.characterLock ? { characterLock: opts.characterLock } : {}),
+    ...(sceneLock ? { characterLock: sceneLock } : {}),
     ...(aspectRatio ? { aspectRatio } : {}),
     ...(shotContext ? { shotContext } : {}),
   };
@@ -207,8 +209,8 @@ async function generateAIImage(
     }
   }
 
-  if (opts.characterLock?.trim()) {
-    prompt = `${identityLockLead(opts.characterLock)} Not a fox, raccoon, cat, or tiger unless the lock says so. ${opts.characterLock.trim()} Scene: ${prompt}`;
+  if (sceneLock?.trim()) {
+    prompt = `${identityLockLead(sceneLock)} Not a fox, raccoon, cat, or tiger unless the lock says so. ${sceneLock.trim()} Scene: ${prompt}`;
   }
   if (sheetHint) {
     prompt = `${sheetHint} ${prompt}`;
@@ -256,8 +258,8 @@ async function generateAIImage(
       throw err;
     }
 
-    if (opts.characterLock?.trim()) {
-      prompt = `${identityLockLead(opts.characterLock)} ${opts.characterLock.trim()} Scene: ${prompt}`;
+    if (sceneLock?.trim()) {
+      prompt = `${identityLockLead(sceneLock)} ${sceneLock.trim()} Scene: ${prompt}`;
     }
     if (sheetHint) {
       prompt = `${sheetHint} ${prompt}`;
@@ -304,6 +306,7 @@ async function resolveVisualAsset(
   shot?: {
     previousVisualPrompt?: string;
     sheetReference?: SheetReference;
+    sceneLock?: string;
   },
   referenceImageUrl?: string,
 ): Promise<VisualAssetResult> {
@@ -313,6 +316,7 @@ async function resolveVisualAsset(
     location: scene.location,
     previousVisualPrompt: shot?.previousVisualPrompt,
     sheetReference: shot?.sheetReference,
+    sceneLock: shot?.sceneLock,
   };
   switch (scene.visual_type) {
     case "ai_image":
@@ -372,7 +376,7 @@ async function resolveVisualAsset(
         totalScenes,
         sceneDurationSeconds,
         aspectRatio,
-        characterLock: opts.characterLock,
+        characterLock: shot?.sceneLock ?? opts.characterLock,
       });
 
       // Adjust imageGenTimeMs in the resolution metadata
@@ -831,39 +835,57 @@ function buildPipelineWorkflow(
 
       const aspectRatio = getPlatformAspectRatio(opts.platform);
 
+      const sceneCast = planSceneCastFocus(score.scenes, opts.characterLock);
+      const roster = parseCastMembers(opts.characterLock);
+      const sheetOwner = roster[0]?.name;
+      const characterSheet =
+        opts.characterReferenceImage && opts.characterReferenceImage.length > 100
+          ? opts.characterReferenceImage
+          : undefined;
+
       const refPlan = planVisualReferences({
         characterReferenceImage: opts.characterReferenceImage,
         styleReferenceImage: opts.styleReferenceImage,
         atelierMode: opts.atelierMode,
         imageProvider: opts.imageProvider,
+        characterLock: opts.characterLock,
       });
       const globalReference = refPlan.globalReference;
       const atelierMode = refPlan.useAtelier;
       const sheetReference = refPlan.sheetReference;
+      const multiCast = roster.length >= 2;
 
       // Long-form platforms using VIVI benefit from sequential generation with a
       // reference image fed forward so characters/setting/style stay consistent.
       const runpodIdentityLock = opts.imageProvider === "runpod" && atelierMode;
       const continuityEnabled =
-        runpodIdentityLock ||
-        (!globalReference &&
-          !atelierMode &&
-          opts.platform !== "youtube" &&
-          opts.platform !== "tiktok" &&
-          opts.platform !== "instagram" &&
-          opts.imageProvider === "vivi");
+        !multiCast &&
+        (runpodIdentityLock ||
+          (!globalReference &&
+            !atelierMode &&
+            opts.platform !== "youtube" &&
+            opts.platform !== "tiktok" &&
+            opts.platform !== "instagram" &&
+            opts.imageProvider === "vivi"));
 
-      const shotFor = (i: number) => ({
+      const shotFor = (i: number, useSheet: boolean) => ({
         previousVisualPrompt: i > 0 ? score.scenes[i - 1]?.visual_prompt : undefined,
-        sheetReference,
+        sheetReference: useSheet ? ("character" as const) : sheetReference,
+        sceneLock: sceneCast[i]?.lock,
       });
+
+      const refForScene = (i: number, fallback?: Buffer) => {
+        if (!multiCast) return fallback;
+        const names = sceneCast[i]?.names ?? [];
+        return characterSheetFitsScene(roster.length, sheetOwner, names) ? characterSheet : undefined;
+      };
 
       const scenePromise = globalReference
         ? Promise.all(
             score.scenes.map(async (scene, i) => {
               try {
                 const sceneDuration = sceneDurations[i];
-                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, globalReference, aspectRatio, shotFor(i));
+                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, globalReference, aspectRatio, shotFor(i, false));
               } catch (err) {
                 cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
                 return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
@@ -876,7 +898,7 @@ function buildPipelineWorkflow(
             const firstScene = score.scenes[0]!;
             let firstResult: VisualAssetResult;
             try {
-              firstResult = await resolveVisualAsset(firstScene, 0, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[0], undefined, aspectRatio, shotFor(0));
+              firstResult = await resolveVisualAsset(firstScene, 0, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[0], undefined, aspectRatio, shotFor(0, false));
             } catch (err) {
               cb.onProgress?.("visuals", { type: "asset_failed", scene: 0, error: String(err) });
               firstResult = { path: null, usage: null, durationSeconds: null };
@@ -898,7 +920,7 @@ function buildPipelineWorkflow(
               score.scenes.slice(1).map(async (scene, idx) => {
                 const i = idx + 1;
                 try {
-                  return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[i], atelierRef, aspectRatio, shotFor(i), atelierUrl);
+                  return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[i], atelierRef, aspectRatio, shotFor(i, false), atelierUrl);
                 } catch (err) {
                   cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
                   return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
@@ -927,7 +949,7 @@ function buildPipelineWorkflow(
                   sceneDuration,
                   previousImage,
                   aspectRatio,
-                  shotFor(i),
+                  shotFor(i, false),
                   previousImageUrl,
                 );
                 results.push(result);
@@ -951,7 +973,8 @@ function buildPipelineWorkflow(
             score.scenes.map(async (scene, i) => {
               try {
                 const sceneDuration = sceneDurations[i];
-                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, undefined, aspectRatio, shotFor(i));
+                const useSheet = Boolean(refForScene(i));
+                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, refForScene(i), aspectRatio, shotFor(i, useSheet));
               } catch (err) {
                 cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
                 return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
