@@ -1,4 +1,5 @@
 import type { ApiPrices } from "@/pages/LabPage";
+import { countVideoScenesForPreview } from "@/lib/video-scene-modes";
 import { VIVI_IMAGE_CNY, VIVI_LLM_CNY, VIVI_VIDEO_CNY } from "@/lib/vivi-prices";
 
 export interface JobCostPreviewInput {
@@ -50,22 +51,7 @@ function llmCallCost(prices: ApiPrices, provider: string, est: { input: number; 
 }
 
 function countVideos(sceneCount: number, mode: string | undefined, hasVideo: boolean): number {
-  if (!hasVideo || sceneCount <= 0) return 0;
-  switch (mode) {
-    case "first":
-    case "force_first":
-      return 1;
-    case "first3":
-    case "force_first3":
-      return Math.min(3, sceneCount);
-    case "first_every2":
-    case "force_first_every2":
-      return Math.ceil(sceneCount / 2);
-    case "all":
-      return sceneCount;
-    default:
-      return Math.max(2, Math.round(sceneCount / 4));
-  }
+  return countVideoScenesForPreview(sceneCount, mode, hasVideo);
 }
 
 export function estimateJobCost(input: JobCostPreviewInput, prices: ApiPrices): JobCostPreview {

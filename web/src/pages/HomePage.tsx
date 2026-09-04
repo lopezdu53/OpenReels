@@ -34,6 +34,7 @@ import { CostEstimatePanel } from "@/components/new-short/CostEstimatePanel";
 import { KokoroVoiceMixer } from "@/components/new-short/KokoroVoiceMixer";
 import { VisualTypeGrid } from "@/components/new-short/VisualTypeGrid";
 import { estimateJobCost } from "@/lib/job-cost-preview";
+import { VIDEO_SCENE_MODE_OPTIONS } from "@/lib/video-scene-modes";
 import { fetchUsdToCopRate } from "@/lib/cop-rate";
 import { loadPrices } from "@/pages/LabPage";
 
@@ -182,7 +183,7 @@ export function HomePage() {
   const [runpodVideoResolution, setRunpodVideoResolution] = useState("720p");
   const [runpodImageEndpointId, setRunpodImageEndpointId] = useState("");
   const [runpodVideoEndpointId, setRunpodVideoEndpointId] = useState("");
-  const [videoSceneMode, setVideoSceneMode] = useState("all");
+  const [videoSceneMode, setVideoSceneMode] = useState("auto");
   const [pacing, setPacing] = useState("");
   const [targetDurationMinutes, setTargetDurationMinutes] = useState(5);
   const [dryRun, setDryRun] = useState(false);
@@ -284,7 +285,9 @@ export function HomePage() {
         ...(directionText.trim() ? { direction: directionText.trim() } : {}),
         ...(scoreJson ? { score: scoreJson } : {}),
         allowedVisualTypes: allowedVisualTypes.length > 0 ? allowedVisualTypes : undefined,
-        ...(allowedVisualTypes.includes("ai_video") && videoSceneMode !== "all" ? { videoSceneMode } : {}),
+        ...(allowedVisualTypes.includes("ai_video") && videoSceneMode && videoSceneMode !== "auto" && videoSceneMode !== "all"
+          ? { videoSceneMode }
+          : {}),
         ...(styleReferenceMode && styleReferenceImage ? { styleReferenceImage } : {}),
         atelierMode,
         ...(artStyleOverride ? { artStyleOverride } : {}),
@@ -570,17 +573,17 @@ export function HomePage() {
                   </Field>
                 )}
                 {allowedVisualTypes.includes("ai_video") && (
-                  <Field label="Escenas de video">
-                    <Select value={videoSceneMode} onValueChange={(v) => setVideoSceneMode(v ?? "all")}>
-                      <SelectTrigger className={field}><SelectValue /></SelectTrigger>
+                  <Field label="Escenas en movimiento">
+                    <Select value={videoSceneMode} onValueChange={(v) => setVideoSceneMode(v ?? "auto")}>
+                      <SelectTrigger className={field}>
+                        <SelectValue>
+                          {VIDEO_SCENE_MODE_OPTIONS.find((o) => o.value === videoSceneMode)?.label ?? videoSceneMode}
+                        </SelectValue>
+                      </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Todas las escenas AI</SelectItem>
-                        <SelectItem value="first">Solo 1ª escena AI</SelectItem>
-                        <SelectItem value="first3">Primeras 3</SelectItem>
-                        <SelectItem value="first_every2">1ª + cada 2</SelectItem>
-                        <SelectItem value="force_first">Forzar escena #1</SelectItem>
-                        <SelectItem value="force_first3">Forzar #1–#3</SelectItem>
-                        <SelectItem value="force_first_every2">Forzar #1, #3, #5…</SelectItem>
+                        {VIDEO_SCENE_MODE_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </Field>
@@ -681,7 +684,7 @@ export function HomePage() {
                     );
                     if (key === "ai_video" && !nextChecked) {
                       setVideoProvider("");
-                      setVideoSceneMode("all");
+                      setVideoSceneMode("auto");
                     }
                   }}
                 />

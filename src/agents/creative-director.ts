@@ -13,6 +13,7 @@ import {
   normalizeFilmMinutes,
 } from "../config/film-duration.js";
 import { countLockedCharacters, countLockedLocations } from "../library/identity.js";
+import { videoSceneModeGuidance } from "../pipeline/video-scene-mode.js";
 import { DirectorScore, DirectorScoreBase, Motion, MusicMood, TransitionType, VisualType } from "../schema/director-score.js";
 import type { LLMProvider, LLMUsage } from "../schema/providers.js";
 import type { ResearchResult } from "./research.js";
@@ -166,7 +167,7 @@ function locationSection(lock?: string): string {
   return `\n## LOCATION LOCK\n${lock.trim()}\nThe SAME named place in every visual_prompt unless the narration clearly moves. Do not morph it into a different building or landscape.\n`;
 }
 
-function buildVisualTypesInstruction(allowedVisualTypes?: string[], videoEnabled?: boolean): { visualTypes: string; videoGuidance: string } {
+function buildVisualTypesInstruction(allowedVisualTypes?: string[], videoEnabled?: boolean): { visualTypes: string; hasVideo: boolean } {
   // Derive allowed set: explicit list wins, else fall back to videoEnabled flag
   const allowed = allowedVisualTypes && allowedVisualTypes.length > 0
     ? allowedVisualTypes
@@ -176,17 +177,14 @@ function buildVisualTypesInstruction(allowedVisualTypes?: string[], videoEnabled
 
   const hasVideo = allowed.includes("ai_video");
   const visualTypes = `ONLY these visual types: ${allowed.join(", ")}. Do NOT use any other type.`;
-  const videoGuidance = hasVideo
-    ? "\nai_video: Use for 1-3 scenes where MOTION is the story. ai_video costs ~$0.30/scene vs ~$0.04 for ai_image. Use selectively. Set motion to 'static' for ai_video scenes."
-    : "";
-  return { visualTypes, videoGuidance };
+  return { visualTypes, hasVideo };
 }
 
 export async function generateDirectorScore(
   llm: LLMProvider,
   topic: string,
   researchContext: ResearchResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; artStyleOverride?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; artStyleOverride?: string; videoSceneMode?: string },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes, options?.platform);
 
@@ -195,7 +193,8 @@ export async function generateDirectorScore(
     ? `Use the "${options.archetype}" archetype. Do not switch to watercolor, anime, or another look.`
     : `Choose from: ${archetypes.join(", ")}`;
 
-  const { visualTypes, videoGuidance } = buildVisualTypesInstruction(options?.allowedVisualTypes, options?.videoEnabled);
+  const { visualTypes, hasVideo } = buildVisualTypesInstruction(options?.allowedVisualTypes, options?.videoEnabled);
+  const videoGuidance = videoSceneModeGuidance(options?.videoSceneMode, hasVideo);
 
   // Resolve pacing tier: explicit --pacing override > archetype default > lookup table
   const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing, options?.targetDurationMinutes, options?.platform);
@@ -451,7 +450,7 @@ export async function reviseDirectorScore(
   researchContext: ResearchResult,
   originalScore: DirectorScore,
   critique: CritiqueResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; artStyleOverride?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; artStyleOverride?: string; videoSceneMode?: string },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes, options?.platform);
 
@@ -461,7 +460,8 @@ export async function reviseDirectorScore(
 
   const pacingInstruction = buildPacingInstruction(options?.archetype, options?.pacing, options?.targetDurationMinutes, options?.platform);
 
-  const { visualTypes } = buildVisualTypesInstruction(options?.allowedVisualTypes, options?.videoEnabled);
+  const { visualTypes, hasVideo: reviseHasVideo } = buildVisualTypesInstruction(options?.allowedVisualTypes, options?.videoEnabled);
+  const videoGuidance = videoSceneModeGuidance(options?.videoSceneMode, reviseHasVideo);
 
   const directionSection = options?.direction?.trim()
     ? `\n## Creative Direction (from the producer)\n\n${options.direction}\n\nHonor these creative constraints while exercising your judgment on anything not specified.\n`
@@ -478,7 +478,7 @@ ${researchContext.key_facts.map((f) => `- ${f}`).join("\n")}
 Mood: ${researchContext.mood}
 
 ${pacingInstruction}
-Use ${visualTypes}.
+Use ${visualTypes}.${videoGuidance}
 ${directionSection}${characterSection(options?.characterLock)}${locationSection(options?.locationLock)}
 ## Current Plan (score: ${critique.score}/10)
 

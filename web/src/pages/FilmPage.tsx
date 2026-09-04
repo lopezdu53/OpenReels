@@ -28,6 +28,7 @@ import { CharacterStudio } from "@/components/film/CharacterStudio";
 import { LocationStudio } from "@/components/film/LocationStudio";
 import { VisualStyleStudio } from "@/components/film/VisualStyleStudio";
 import { estimateJobCost } from "@/lib/job-cost-preview";
+import { VIDEO_SCENE_MODE_OPTIONS } from "@/lib/video-scene-modes";
 import { fetchUsdToCopRate } from "@/lib/cop-rate";
 import { loadPrices } from "@/pages/LabPage";
 import {
@@ -229,7 +230,7 @@ export function FilmPage() {
   const [kokoroSpeed, setKokoroSpeed] = useState(1);
   const [imageProvider, setImageProvider] = useState("gemini");
   const [videoProvider, setVideoProvider] = useState("");
-  const [videoSceneMode, setVideoSceneMode] = useState("all");
+  const [videoSceneMode, setVideoSceneMode] = useState("every2");
   const [musicProvider, setMusicProvider] = useState("bundled");
   const [runpodImageModel, setRunpodImageModel] = useState("p-image-t2i");
   const [runpodVideoModel, setRunpodVideoModel] = useState("p-video");
@@ -528,7 +529,9 @@ export function FilmPage() {
           ...(locationLock ? { locationLock } : {}),
           ...(locationReferenceImage ? { locationReferenceImage } : {}),
           ...(styleReferenceImage ? { styleReferenceImage } : {}),
-          ...(allowedVisualTypes.includes("ai_video") && videoSceneMode !== "all" ? { videoSceneMode } : {}),
+          ...(allowedVisualTypes.includes("ai_video") && videoSceneMode && videoSceneMode !== "auto" && videoSceneMode !== "all"
+            ? { videoSceneMode }
+            : {}),
           providers: providersPayload(),
         });
         created.push({
@@ -605,10 +608,11 @@ export function FilmPage() {
                       nextTypes.add("ai_video");
                       return [...nextTypes];
                     });
-                    setVideoSceneMode("all");
+                    setVideoSceneMode("force_all");
                     if (!videoProvider) setVideoProvider("runpod");
                   } else {
                     setAllowedVisualTypes((prev) => prev.filter((t) => t !== "text_card"));
+                    setVideoSceneMode((prev) => (prev === "all" || prev === "force_all" ? "every2" : prev));
                   }
                 }}
               >
@@ -977,19 +981,23 @@ export function FilmPage() {
               />
             ) : null}
             {allowedVisualTypes.includes("ai_video") ? (
-              <Field label="Escenas de video">
+              <Field label="Escenas en movimiento">
                 <Select value={videoSceneMode} onValueChange={(v) => v && setVideoSceneMode(v)}>
-                  <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
+                  <SelectTrigger className={FIELD}>
+                    <SelectValue>
+                      {VIDEO_SCENE_MODE_OPTIONS.find((o) => o.value === videoSceneMode)?.label ?? videoSceneMode}
+                    </SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todas las escenas AI</SelectItem>
-                    <SelectItem value="first">Solo 1ª escena AI</SelectItem>
-                    <SelectItem value="first3">Primeras 3</SelectItem>
-                    <SelectItem value="first_every2">1ª + cada 2</SelectItem>
-                    <SelectItem value="force_first">Forzar escena #1</SelectItem>
-                    <SelectItem value="force_first3">Forzar #1–#3</SelectItem>
-                    <SelectItem value="force_first_every2">Forzar #1, #3, #5…</SelectItem>
+                    {VIDEO_SCENE_MODE_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {VIDEO_SCENE_MODE_OPTIONS.find((o) => o.value === videoSceneMode)?.hint
+                    ?? "El patrón se aplica a escenas IA; no mezcla tarjetas ni stock."}
+                </p>
               </Field>
             ) : null}
             {(imageProvider === "runpod" || videoProvider === "runpod") ? (
@@ -1064,7 +1072,7 @@ export function FilmPage() {
                   setAllowedVisualTypes((prev) => (on ? [...prev, key] : prev.filter((k) => k !== key)));
                   if (key === "ai_video" && !on) {
                     setVideoProvider("");
-                    setVideoSceneMode("all");
+                    setVideoSceneMode("every2");
                   }
                 }}
                 atelierMode

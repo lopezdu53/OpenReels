@@ -20,6 +20,7 @@ import {
 import type { SceneFallbacks } from "@/lib/scene-assets";
 import { useSSE } from "@/hooks/useSSE";
 import { formatArchetypeName } from "@/lib/utils";
+import { VIDEO_SCENE_MODE_LABELS } from "@/lib/video-scene-modes";
 
 const STAGES = ["research", "director", "tts", "visuals", "assembly", "critic"] as const;
 
@@ -566,16 +567,6 @@ const PROVIDER_LABELS: Record<string, string> = {
   lyria: "Lyria 3",
 };
 
-const VIDEO_SCENE_LABELS: Record<string, string> = {
-  all: "Todas las escenas IA",
-  first: "1ª escena IA",
-  first3: "Primeras 3 escenas IA",
-  first_every2: "1ª + cada 2ª IA",
-  force_first: "Forzar escena #1",
-  force_first3: "Forzar #1–#3",
-  force_first_every2: "Forzar #1, #3, #5…",
-};
-
 function providerLabel(key: string | undefined): string {
   if (!key) return "";
   return PROVIDER_LABELS[key] ?? key;
@@ -592,7 +583,7 @@ function ConfigBadges({ config }: { config: JobConfig }) {
   if (config.video && !config.noVideo) items.push({ label: "Video", value: providerLabel(config.video), color: "orange" });
   if (config.music) items.push({ label: "Música", value: providerLabel(config.music), color: "pink" });
   if (config.videoSceneMode && config.videoSceneMode !== "all" && !config.noVideo) {
-    items.push({ label: "Escenas", value: VIDEO_SCENE_LABELS[config.videoSceneMode] ?? config.videoSceneMode, color: "yellow" });
+    items.push({ label: "Escenas", value: VIDEO_SCENE_MODE_LABELS[config.videoSceneMode] ?? config.videoSceneMode, color: "yellow" });
   }
   if (config.pacing) items.push({ label: "Ritmo", value: config.pacing });
   if (config.noSubtitles) items.push({ label: "Subtítulos", value: "Off" });
