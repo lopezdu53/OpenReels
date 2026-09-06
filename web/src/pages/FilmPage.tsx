@@ -347,11 +347,15 @@ export function FilmPage() {
           platform: "youtube_horizontal",
           targetDurationMinutes: durationMinutes,
           allowedVisualTypes,
-          videoSceneMode: allowedVisualTypes.includes("ai_video") ? videoSceneMode : undefined,
+          videoSceneMode: allowedVisualTypes.includes("ai_video")
+            ? castMode === "hero"
+              ? "force_all"
+              : videoSceneMode
+            : undefined,
         },
         prices,
       ),
-    [llmProvider, ttsProvider, imageProvider, videoProvider, musicProvider, durationMinutes, allowedVisualTypes, videoSceneMode, prices],
+    [llmProvider, ttsProvider, imageProvider, videoProvider, musicProvider, durationMinutes, allowedVisualTypes, videoSceneMode, castMode, prices],
   );
 
   const readyScripts = scripts.filter((s) => s.body.trim().length >= 20);
@@ -517,13 +521,13 @@ export function FilmPage() {
           characterLock
             ? castMode === "hero"
               ? cast.length > 1
-                ? `\n## Personajes (modo héroe, ${cast.length})\nHÉROE (siempre en cuadro): ${cast[0]!.name}\n${characterLock}\nEl héroe NUNCA sale de cámara. Los demás solo cuando la locución los nombra. Locación y objetos se pegan a su cuerpo.`
-                : `\n## Personaje (modo héroe — siempre en cámara)\n${characterLock}\nAparece en TODOS los planos. El mundo se pega a su cuerpo. Nunca un plano de solo locación.`
+                ? `\n## Personajes (FOLLOW-CAM héroe, ${cast.length})\nHÉROE (eje óptico, siempre en cuadro): ${cast[0]!.name}\n${characterLock}\nUn plano continuo: la cámara sigue al héroe; el mundo se pega o se desplaza a su cuerpo. Hereda pose y viaje de cámara. Los demás solo cuando la locución los nombra.`
+                : `\n## Personaje (FOLLOW-CAM héroe — plano continuo)\n${characterLock}\nLa cámara lo sigue en TODOS los planos. El mundo se pega a su cuerpo. Tres beats por clip; cierra con una pose que el siguiente herede. Nunca un retrato nuevo ni un plano de solo locación.`
               : cast.length > 1
                 ? `\n## Personajes (identidad bloqueada, ${cast.length})\n${characterLock}\nSolo en cuadro quien nombra esa frase. Si la locución es de uno, los demás no aparecen ni de fondo. Juntos solo cuando la frase nombra a más de uno.`
                 : `\n## Personaje (identidad bloqueada)\n${characterLock}`
             : castMode === "hero"
-              ? "\n## Modo héroe\nUn protagonista permanece en cámara en todos los planos. Nunca atmósfera sola."
+              ? "\n## FOLLOW-CAM héroe\nUn protagonista es el eje óptico de un plano continuo. La cámara lo sigue; el mundo se pega a su cuerpo. Nunca atmósfera sola ni un retrato nuevo."
               : "",
           locationLock
             ? places.length > 1
@@ -577,9 +581,13 @@ export function FilmPage() {
           ...(locationReferenceImage ? { locationReferenceImage } : {}),
           ...(objectLock ? { objectLock } : {}),
           ...(styleReferenceImage ? { styleReferenceImage } : {}),
-          ...(allowedVisualTypes.includes("ai_video") && videoSceneMode && videoSceneMode !== "auto" && videoSceneMode !== "all"
-            ? { videoSceneMode }
-            : {}),
+          ...(castMode === "hero"
+            ? allowedVisualTypes.includes("ai_video")
+              ? { videoSceneMode: "force_all" }
+              : {}
+            : allowedVisualTypes.includes("ai_video") && videoSceneMode && videoSceneMode !== "auto" && videoSceneMode !== "all"
+              ? { videoSceneMode }
+              : {}),
           providers: providersPayload(),
         });
         created.push({
@@ -798,7 +806,14 @@ export function FilmPage() {
           ) : null}
         </section>
 
-        <CastModePicker value={castMode} onChange={setCastMode} />
+        <CastModePicker
+          value={castMode}
+          onChange={(mode) => {
+            setCastMode(mode);
+            if (mode === "hero") setVideoSceneMode("force_all");
+            else if (videoSceneMode === "force_all") setVideoSceneMode("every2");
+          }}
+        />
 
         <CharacterStudio
           characters={characters}
@@ -834,7 +849,7 @@ export function FilmPage() {
         />
         <p className="text-xs text-muted-foreground">
           {castMode === "hero"
-            ? "Hasta 3 personajes. El primero es el héroe y no sale de cuadro; los invitados entran solo si la locución los nombra. La ficha 16:9 ancla al héroe."
+            ? "Hasta 3 personajes. El primero es el eje óptico: la cámara lo sigue en un plano continuo; los invitados entran solo si la locución los nombra. Todas las escenas IA se animan."
             : "Hasta 3 personajes. Cada plano muestra solo a quien nombra la locución; juntos solo si la frase nombra a más de uno. La ficha 16:9 ancla al primero con imagen cuando está en cuadro."}
         </p>
 
@@ -1070,22 +1085,30 @@ export function FilmPage() {
             ) : null}
             {allowedVisualTypes.includes("ai_video") ? (
               <Field label="Escenas en movimiento">
-                <Select value={videoSceneMode} onValueChange={(v) => v && setVideoSceneMode(v)}>
-                  <SelectTrigger className={FIELD}>
-                    <SelectValue>
-                      {VIDEO_SCENE_MODE_OPTIONS.find((o) => o.value === videoSceneMode)?.label ?? videoSceneMode}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VIDEO_SCENE_MODE_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {VIDEO_SCENE_MODE_OPTIONS.find((o) => o.value === videoSceneMode)?.hint
-                    ?? "El patrón se aplica a escenas IA; no mezcla tarjetas ni stock."}
-                </p>
+                {castMode === "hero" ? (
+                  <p className="mt-1 text-sm text-foreground">
+                    Todas las escenas IA — Modo Héroe es un plano continuo; no se intercalan fotos fijas.
+                  </p>
+                ) : (
+                  <>
+                    <Select value={videoSceneMode} onValueChange={(v) => v && setVideoSceneMode(v)}>
+                      <SelectTrigger className={FIELD}>
+                        <SelectValue>
+                          {VIDEO_SCENE_MODE_OPTIONS.find((o) => o.value === videoSceneMode)?.label ?? videoSceneMode}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {VIDEO_SCENE_MODE_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {VIDEO_SCENE_MODE_OPTIONS.find((o) => o.value === videoSceneMode)?.hint
+                        ?? "El patrón se aplica a escenas IA; no mezcla tarjetas ni stock."}
+                    </p>
+                  </>
+                )}
               </Field>
             ) : null}
             {(imageProvider === "runpod" || videoProvider === "runpod") ? (

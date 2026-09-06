@@ -24,6 +24,17 @@ describe("buildShotContext", () => {
     expect(text).toContain("kapok");
   });
 
+  it("asks hero follow-cam shots to inherit the last pose", () => {
+    const text = buildShotContext({
+      characterLock: "FOLLOW-CAM HERO ON CAMERA: always Tania. Name: Tania.",
+      previousVisualPrompt: "Tania mid-stride holding a lantern, facing right",
+    });
+    expect(text).toContain("inherit the last pose");
+    expect(text).toContain("camera tracks the body");
+    expect(text).toContain("lantern");
+    expect(text).not.toContain("do not carry off-screen CAST");
+  });
+
   it("omits empty fields", () => {
     expect(buildShotContext({})).toBe("");
     expect(buildShotContext({ shotType: "close_up" })).toBe("shot_type: close_up");

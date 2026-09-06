@@ -49,8 +49,8 @@ describe("film script helpers", () => {
       ],
       "hero",
     );
-    expect(brief).toContain("Héroe de cámara: Tania");
-    expect(brief).toContain("TODOS los planos");
+    expect(brief).toContain("Héroe FOLLOW-CAM: Tania");
+    expect(brief).toContain("plano continuo");
     expect(brief).toContain("Casimiro");
   });
 

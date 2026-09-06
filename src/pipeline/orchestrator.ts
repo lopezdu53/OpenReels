@@ -13,7 +13,7 @@ import { optimizeImagePrompt } from "../agents/image-prompter.js";
 import { generateOrientedImage } from "../providers/image/dimensions.js";
 import { lookupRemoteUrl } from "../providers/runpod/client.js";
 import { buildShotContext } from "../library/prompt-context.js";
-import { planVisualReferences, sheetToSceneHint, type SheetReference } from "./visual-refs.js";
+import { imageProviderClonesLayout, planVisualReferences, sheetToSceneHint, type SheetReference } from "./visual-refs.js";
 import { research } from "../agents/research.js";
 import { resolveStockAdaptive, type StockResolution } from "../providers/stock/adaptive-resolver.js";
 import { resolveAIVideo, type VideoResolution } from "../providers/video/video-resolver.js";
@@ -28,7 +28,7 @@ import { ProgressDisplay } from "../cli/progress.js";
 import { getArchetype } from "../config/archetype-registry.js";
 import { getPlatformAspectRatio, getPlatformConfig } from "../config/platforms.js";
 import { resolveMusic, type MusicResolution } from "./music-resolver.js";
-import { applyVideoSceneMode } from "./video-scene-mode.js";
+import { applyVideoSceneMode, resolveVideoSceneMode } from "./video-scene-mode.js";
 import { isFilmOneMinute, isFilmTestMinutes, normalizeFilmMinutes } from "../config/film-duration.js";
 import { resolveAllowedVisualTypes } from "./visual-types.js";
 import { bundle } from "@remotion/bundler";
@@ -399,6 +399,16 @@ async function resolveVisualAsset(
         characterLock: shot?.sceneLock ?? opts.characterLock,
         locationLock: shot?.locationLock ?? opts.locationLock,
         objectLock: shot?.objectLock ?? opts.objectLock,
+        shotContext: buildShotContext({
+          characterLock: shot?.sceneLock ?? opts.characterLock,
+          locationLock: shot?.locationLock ?? opts.locationLock,
+          objectLock: shot?.objectLock ?? opts.objectLock,
+          artStyle: opts.artStyleOverride,
+          shotType: scene.shot_type,
+          cameraMove: scene.camera_move,
+          location: scene.location,
+          previousVisualPrompt: shot?.previousVisualPrompt,
+        }),
       });
 
       // Adjust imageGenTimeMs in the resolution metadata
@@ -564,6 +574,12 @@ function buildPipelineWorkflow(
         stockEnabled,
         forbidTextCard: opts.platform === "youtube_horizontal",
       });
+      const heroFollowCam = normalizeCastMode(opts.castMode) === "hero";
+      const resolvedVideoMode = resolveVideoSceneMode({
+        requested: opts.videoSceneMode,
+        heroFollowCam,
+        videoAllowed: videoEnabled && allowedVisualTypes.includes("ai_video"),
+      });
       const directorOpts = {
         archetype: opts.archetype ?? (opts.artStyleOverride ? "cinematic_documentary" : undefined),
         pacing: opts.pacing,
@@ -576,7 +592,7 @@ function buildPipelineWorkflow(
         locationLock: opts.locationLock,
         objectLock: opts.objectLock,
         artStyleOverride: opts.artStyleOverride,
-        videoSceneMode: opts.videoSceneMode,
+        videoSceneMode: resolvedVideoMode,
         castMode: opts.castMode,
       };
 
@@ -696,7 +712,7 @@ function buildPipelineWorkflow(
       score = bestScore;
 
       // VIDU credits are expensive: when the producer left the mix to the director, keep one clip.
-      const leaveDirectorMix = !opts.videoSceneMode || opts.videoSceneMode === "all" || opts.videoSceneMode === "auto";
+      const leaveDirectorMix = !resolvedVideoMode || resolvedVideoMode === "all" || resolvedVideoMode === "auto";
       if (leaveDirectorMix && opts.videoProvider?.startsWith("vidu")) {
         let firstVideoSeen = false;
         score = {
@@ -711,7 +727,7 @@ function buildPipelineWorkflow(
 
       score = {
         ...score,
-        scenes: applyVideoSceneMode(score.scenes, opts.videoSceneMode),
+        scenes: applyVideoSceneMode(score.scenes, resolvedVideoMode),
       };
 
       score = applyVisualIdentity(score, opts.characterLock, opts.locationLock, opts.objectLock, normalizeCastMode(opts.castMode));
@@ -839,6 +855,7 @@ function buildPipelineWorkflow(
           ? opts.locationReferenceImage
           : undefined;
 
+      const heroFollowCam = normalizeCastMode(opts.castMode) === "hero";
       const refPlan = planVisualReferences({
         characterReferenceImage: opts.characterReferenceImage,
         styleReferenceImage: opts.styleReferenceImage,
@@ -847,6 +864,7 @@ function buildPipelineWorkflow(
         imageProvider: opts.imageProvider,
         characterLock: opts.characterLock,
         locationLock: opts.locationLock,
+        castMode: normalizeCastMode(opts.castMode),
       });
       const globalReference = refPlan.globalReference;
       const atelierMode = refPlan.useAtelier;
@@ -856,17 +874,20 @@ function buildPipelineWorkflow(
 
       // Long-form platforms using VIVI benefit from sequential generation with a
       // reference image fed forward so characters/setting/style stay consistent.
+      // Hero follow-cam always chains the previous frame (pose → pose), even with
+      // guests or a location change — that is the match-cut seed.
       const runpodIdentityLock = opts.imageProvider === "runpod" && atelierMode;
       const continuityEnabled =
-        !multiCast &&
-        !multiLocation &&
-        (runpodIdentityLock ||
-          (!globalReference &&
-            !atelierMode &&
-            opts.platform !== "youtube" &&
-            opts.platform !== "tiktok" &&
-            opts.platform !== "instagram" &&
-            opts.imageProvider === "vivi"));
+        heroFollowCam ||
+        (!multiCast &&
+          !multiLocation &&
+          (runpodIdentityLock ||
+            (!globalReference &&
+              !atelierMode &&
+              opts.platform !== "youtube" &&
+              opts.platform !== "tiktok" &&
+              opts.platform !== "instagram" &&
+              opts.imageProvider === "vivi")));
 
       const shotFor = (i: number, useSheet: boolean) => {
         const charNames = sceneCast[i]?.names ?? [];
@@ -955,7 +976,10 @@ function buildPipelineWorkflow(
         : continuityEnabled
         ? (async () => {
             const results: VisualAssetResult[] = [];
-            let previousImage: Buffer | undefined;
+            let previousImage: Buffer | undefined =
+              heroFollowCam && characterSheet && !imageProviderClonesLayout(opts.imageProvider)
+                ? characterSheet
+                : undefined;
             let previousImageUrl: string | undefined;
             for (let i = 0; i < score.scenes.length; i++) {
               const scene = score.scenes[i]!;

@@ -47,6 +47,10 @@ export function normalizeCastMode(raw?: string | null): CastMode {
   return raw === "hero" ? "hero" : "scene";
 }
 
+export function isHeroFollowCam(lock?: string): boolean {
+  return /HERO ON CAMERA:\s*always|FOLLOW-CAM/i.test(lock ?? "");
+}
+
 export function countLockedCharacters(lock?: string): number {
   const text = lock?.trim() ?? "";
   if (!text) return 0;
@@ -76,14 +80,14 @@ export function characterDirectionBlockForCast(cast: CharacterBible[], mode: Cas
       return [
         "## Personaje (modo héroe — siempre en cámara)",
         formatCharacterLock(hero),
-        "Este individuo es el HÉROE: aparece en TODOS los planos. El mundo (lugar, objetos, metáforas) se pega a su cuerpo. Nunca un plano de solo locación o atmósfera. Cierra cada escena con una pose que la siguiente herede.",
+        "FOLLOW-CAM: este individuo es el eje óptico de UN plano continuo. La cámara lo sigue (track/pan/push); el mundo se pega o se desplaza a su cuerpo. Nunca un retrato nuevo ni un plano de solo locación. Tres beats por clip; cierra con una pose que el siguiente herede (match-cut).",
       ].join("\n");
     }
     return [
       `## Personajes (modo héroe, ${members.length})`,
       `HÉROE (siempre en cuadro): ${formatCharacterLock(hero)}`,
       ...members.slice(1).map((c, i) => `Invitado [${i + 2}] ${formatCharacterLock(c)}`),
-      "El héroe NUNCA sale de cámara. Los demás solo cuando la locución los nombra. Locación y objetos se adjuntan al héroe, no lo sustituyen.",
+      "FOLLOW-CAM: el héroe NUNCA sale de cámara. Los demás solo cuando la locución los nombra. Locación y objetos se adjuntan al cuerpo del héroe. Un take continuo: hereda pose y viaje de cámara; no cortes a retrato.",
     ].join("\n");
   }
   if (members.length === 1) {
@@ -166,11 +170,11 @@ export function focusCastLock(
       .map((m) => m.name);
     const ban = off.length ? ` Do not depict ${off.join(" or ")} — not even in the background.` : "";
     if (guests.length === 0) {
-      return `HERO ON CAMERA: always ${hero.name}. Never atmosphere-only; camera follows this person; location and props attach to their body.${ban} ${hero.lock}`;
+      return `FOLLOW-CAM HERO ON CAMERA: always ${hero.name}. One continuous take; inherit last pose and camera travel; camera tracks the body; world and props attach or scroll around them. Never a new portrait or atmosphere-only plate.${ban} ${hero.lock}`;
     }
     const names = [hero.name, ...guests.map((g) => g.name)];
     const locks = [hero, ...guests].map((m, i) => `[${i + 1}] ${m.lock}`).join(" | ");
-    return `HERO ON CAMERA: always ${hero.name}, plus ${guests.map((g) => g.name).join(" and ")} this shot.${ban} CAST of ${names.length}. ${locks}`;
+    return `FOLLOW-CAM HERO ON CAMERA: always ${hero.name}, plus ${guests.map((g) => g.name).join(" and ")} this shot. Inherit last pose; camera tracks ${hero.name}; guests enter the same take, they do not replace the hero.${ban} CAST of ${names.length}. ${locks}`;
   }
   if (roster.length <= 1) return fullLock.trim();
   const others = roster.filter((m) => !onScreen.some((s) => s.name.toLowerCase() === m.name.toLowerCase()));
@@ -499,8 +503,8 @@ export function planSceneObjectFocus(
 }
 
 export function identityLockLead(lock?: string): string {
-  if (/HERO ON CAMERA:\s*always/i.test(lock ?? "")) {
-    return `IDENTITY LOCK — HERO stays in every frame; camera follows them; never atmosphere-only.`;
+  if (isHeroFollowCam(lock)) {
+    return `IDENTITY LOCK — FOLLOW-CAM: HERO stays in every frame; inherit last pose; camera tracks the body; never a new portrait or atmosphere-only.`;
   }
   if (/ON SCREEN:\s*none/i.test(lock ?? "")) {
     return `IDENTITY LOCK — no named CAST member in this frame.`;
@@ -548,8 +552,8 @@ function prefixLocks(prompt: string, characterLock?: string, locationLock?: stri
   if (characterLock?.trim()) {
     const lock = characterLock.trim();
     const n = countLockedCharacters(lock);
-    const lead = /HERO ON CAMERA:\s*always/i.test(lock)
-      ? "HERO stays in frame; camera follows them; never atmosphere-only."
+    const lead = isHeroFollowCam(lock)
+      ? "FOLLOW-CAM: HERO stays in frame; inherit last pose; camera tracks the body; never a new portrait."
       : /ON SCREEN:\s*none/i.test(lock)
         ? "no named CAST on screen."
         : /ON SCREEN:\s*only/i.test(lock)
@@ -601,10 +605,18 @@ export function applyVisualIdentity(
     if ((scene.visual_type === "ai_image" || scene.visual_type === "stock_image") && motion === "static") {
       motion = "zoom_in";
     }
+    if (castMode === "hero" && (scene.visual_type === "ai_image" || scene.visual_type === "stock_image")) {
+      const heroMoves = ["pan_left", "pan_right", "zoom_in"] as const;
+      if (motion === "static" || motion === "zoom_in") {
+        motion = heroMoves[i % heroMoves.length];
+      }
+    }
 
     let transition = scene.transition;
     const last = i === score.scenes.length - 1;
-    if (!last && next) {
+    if (castMode === "hero" && !last) {
+      transition = "crossfade";
+    } else if (!last && next) {
       const stillToMotion = STILL.has(scene.visual_type) && MOTION.has(next.visual_type);
       const motionToStill = MOTION.has(scene.visual_type) && STILL.has(next.visual_type);
       if (stillToMotion || motionToStill || transition == null || transition === "none") {

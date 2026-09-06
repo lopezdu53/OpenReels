@@ -56,6 +56,7 @@ export async function resolveAIVideo(
     characterLock?: string;
     locationLock?: string;
     objectLock?: string;
+    shotContext?: string;
   },
 ): Promise<{
   path: string;
@@ -77,7 +78,14 @@ export async function resolveAIVideo(
       sceneIndex,
       opts.totalScenes ?? 1,
       opts.archetype,
-      { mode: "video", characterLock: opts.characterLock, locationLock: opts.locationLock, objectLock: opts.objectLock, aspectRatio: opts.aspectRatio },
+      {
+        mode: "video",
+        characterLock: opts.characterLock,
+        locationLock: opts.locationLock,
+        objectLock: opts.objectLock,
+        aspectRatio: opts.aspectRatio,
+        ...(opts.shotContext ? { shotContext: opts.shotContext } : {}),
+      },
     );
     motionPrompt = optimized.prompt;
     prompterUsage = optimized.usage;

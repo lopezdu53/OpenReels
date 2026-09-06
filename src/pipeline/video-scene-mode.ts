@@ -17,6 +17,21 @@ export type VideoSceneMode = (typeof VIDEO_SCENE_MODES)[number];
  * Collapse the old dual taxonomy (filter vs force_*) onto one assigner.
  * `all` / omitted = leave the director's mix (legacy).
  */
+/**
+ * Hero follow-cam is one continuous take: every convertible AI scene must move.
+ * When video is off, keep the producer pattern (stills only).
+ */
+export function resolveVideoSceneMode(opts: {
+  requested?: string | null;
+  heroFollowCam?: boolean;
+  videoAllowed?: boolean;
+}): VideoSceneMode {
+  if (opts.heroFollowCam && opts.videoAllowed !== false) {
+    return "force_all";
+  }
+  return normalizeVideoSceneMode(opts.requested);
+}
+
 export function normalizeVideoSceneMode(raw?: string | null): VideoSceneMode {
   switch (raw) {
     case "auto":

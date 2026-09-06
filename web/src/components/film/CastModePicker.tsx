@@ -24,7 +24,7 @@ const OPTIONS: {
     id: "hero",
     icon: User,
     title: "Modo Héroe",
-    body: "El primer personaje nunca sale de cámara. El mundo se pega a su cuerpo; los demás entran solo si la frase los nombra.",
+    body: "Plano continuo: la cámara sigue al primer personaje; el mundo se pega o se desplaza a su cuerpo. Todas las escenas IA se animan.",
   },
 ];
 

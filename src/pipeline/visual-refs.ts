@@ -4,7 +4,7 @@
  * Sheets are identity/style anchors — never a collage to copy.
  */
 
-import { countLockedCharacters, countLockedLocations } from "../library/identity.js";
+import { countLockedCharacters, countLockedLocations, normalizeCastMode, type CastMode } from "../library/identity.js";
 
 export type SheetReference = "character" | "style" | "location" | null;
 
@@ -19,6 +19,10 @@ export interface VisualRefPlan {
 /** FLUX / img2img clones the reference composition. A 4-panel sheet becomes 25 sheets. */
 const LAYOUT_CLONE_PROVIDERS = new Set(["runpod", "fal", "openai"]);
 
+export function imageProviderClonesLayout(provider?: string): boolean {
+  return LAYOUT_CLONE_PROVIDERS.has(provider ?? "");
+}
+
 export function planVisualReferences(opts: {
   characterReferenceImage?: Buffer;
   styleReferenceImage?: Buffer;
@@ -27,10 +31,20 @@ export function planVisualReferences(opts: {
   imageProvider?: string;
   characterLock?: string;
   locationLock?: string;
+  castMode?: CastMode | string;
 }): VisualRefPlan {
-  const clonesLayout = LAYOUT_CLONE_PROVIDERS.has(opts.imageProvider ?? "");
+  const clonesLayout = imageProviderClonesLayout(opts.imageProvider);
+  const heroFollowCam = normalizeCastMode(opts.castMode) === "hero";
   const multiCast = countLockedCharacters(opts.characterLock) >= 2;
   const multiLocation = countLockedLocations(opts.locationLock) >= 2;
+  if (heroFollowCam) {
+    // Sequential previous-frame (orchestrator continuity), not a glued sheet or scene-0 collage.
+    return {
+      globalReference: undefined,
+      useAtelier: false,
+      sheetReference: null,
+    };
+  }
   if (multiCast || multiLocation) {
     // One sheet / scene-0 still would glue the whole CAST or two places into every later frame.
     return {

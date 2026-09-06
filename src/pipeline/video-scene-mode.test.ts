@@ -3,6 +3,7 @@ import {
   applyVideoSceneMode,
   countVideoSceneTargets,
   normalizeVideoSceneMode,
+  resolveVideoSceneMode,
   videoSceneModeGuidance,
 } from "./video-scene-mode.js";
 
@@ -19,6 +20,18 @@ describe("normalizeVideoSceneMode", () => {
     expect(normalizeVideoSceneMode("all")).toBe("all");
     expect(normalizeVideoSceneMode("auto")).toBe("auto");
     expect(normalizeVideoSceneMode(undefined)).toBe("all");
+  });
+});
+
+describe("resolveVideoSceneMode", () => {
+  it("forces every AI scene to move in hero follow-cam when video is on", () => {
+    expect(resolveVideoSceneMode({ requested: "every2", heroFollowCam: true, videoAllowed: true })).toBe("force_all");
+    expect(resolveVideoSceneMode({ requested: "skip", heroFollowCam: true })).toBe("force_all");
+  });
+
+  it("keeps the producer pattern when video is off or mode is scene", () => {
+    expect(resolveVideoSceneMode({ requested: "every2", heroFollowCam: true, videoAllowed: false })).toBe("every2");
+    expect(resolveVideoSceneMode({ requested: "first3", heroFollowCam: false, videoAllowed: true })).toBe("first3");
   });
 });
 

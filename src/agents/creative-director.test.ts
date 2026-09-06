@@ -240,6 +240,16 @@ describe("repairGoldenRule", () => {
     expect(scenes[2]!.visual_type).not.toBe("stock_video");
   });
 
+  it("skips repair in follow-cam hero so every clip can stay ai_video", () => {
+    const scenes = [
+      { visual_type: "ai_video" },
+      { visual_type: "ai_video" },
+      { visual_type: "ai_video" },
+    ];
+    repairGoldenRule(scenes, ["ai_image", "ai_video"], true);
+    expect(scenes.map((s) => s.visual_type)).toEqual(["ai_video", "ai_video", "ai_video"]);
+  });
+
   it("skips repair when only one real visual type is allowed", () => {
     const scenes = [
       { visual_type: "ai_image" },

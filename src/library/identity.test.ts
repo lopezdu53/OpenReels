@@ -148,6 +148,11 @@ describe("visual identity lock", () => {
     const next = applyVisualIdentity(film, lock, undefined, undefined, "hero");
     expect(next.scenes[0]!.visual_prompt).toContain("HERO ON CAMERA");
     expect(next.scenes[0]!.visual_prompt).toContain("always Tania");
+    expect(next.scenes[0]!.visual_prompt).toContain("FOLLOW-CAM");
+    expect(next.scenes[0]!.motion).toBe("pan_left");
+    expect(next.scenes[1]!.motion).toBe("pan_right");
+    expect(next.scenes[0]!.transition).toBe("crossfade");
+    expect(identityLockLead(focus[0]!.lock)).toMatch(/FOLLOW-CAM/i);
     expect(identityLockLead(focus[0]!.lock)).toMatch(/HERO stays in every frame/i);
 
     const block = characterDirectionBlockForCast(
@@ -159,6 +164,7 @@ describe("visual identity lock", () => {
     );
     expect(block).toContain("modo héroe");
     expect(block).toContain("HÉROE (siempre en cuadro)");
+    expect(block).toContain("FOLLOW-CAM");
   });
 
   it("never combines two roster locations in one scene", () => {

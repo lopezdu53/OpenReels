@@ -3,6 +3,8 @@
  * Same character bible + named location every shot; only camera and action change.
  */
 
+import { isHeroFollowCam } from "./identity.js";
+
 export function buildShotContext(opts: {
   characterLock?: string;
   locationLock?: string;
@@ -30,8 +32,11 @@ export function buildShotContext(opts: {
   if (opts.cameraMove?.trim()) lines.push(`camera_move: ${opts.cameraMove.trim()}`);
   if (opts.location?.trim()) lines.push(`location: ${opts.location.trim()}`);
   if (opts.previousVisualPrompt?.trim()) {
+    const last = opts.previousVisualPrompt.trim().slice(0, 400);
     lines.push(
-      `previous_shot (keep the world; follow ON SCREEN for who appears and ON LOCATION for the place — do not carry off-screen CAST or a second roster location from the previous frame): ${opts.previousVisualPrompt.trim().slice(0, 400)}`,
+      isHeroFollowCam(opts.characterLock)
+        ? `previous_shot: inherit the last pose, facing, stride, and object in hand. Continue as the next beat of ONE take — camera tracks the body; the world scrolls or transforms around them. Do not start a new portrait. Last frame: ${last}`
+        : `previous_shot (keep the world; follow ON SCREEN for who appears and ON LOCATION for the place — do not carry off-screen CAST or a second roster location from the previous frame): ${last}`,
     );
   }
   return lines.join("\n");

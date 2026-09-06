@@ -76,7 +76,7 @@ export function buildCastBrief(
   const n = members.length;
   if (normalizeCastMode(mode) === "hero") {
     const hero = members[0]!.name.trim();
-    return `Héroe de cámara: ${hero} (aparece en TODOS los planos; nómbralo con naturalidad). ${n > 1 ? "Los demás solo cuando la locución los necesita. " : ""}Reparto (${n}):\n${lines.join("\n")}`;
+    return `Héroe FOLLOW-CAM: ${hero} (eje óptico de un plano continuo; nómbralo con naturalidad). ${n > 1 ? "Los demás solo cuando la locución los necesita. " : ""}La cámara lo sigue; el mundo se pega a su cuerpo. Reparto (${n}):\n${lines.join("\n")}`;
   }
   return `Reparto bloqueado (${n} personaje${n === 1 ? "" : "s"}; usa estos nombres en la locución, no inventes protagonistas extra):\n${lines.join("\n")}`;
 }

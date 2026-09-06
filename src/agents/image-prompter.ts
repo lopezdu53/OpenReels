@@ -91,11 +91,11 @@ ${
   if (opts?.characterLock?.trim()) {
     const lock = opts.characterLock.trim();
     const named = lock.match(/\bName:\s*/gi)?.length ?? 0;
-    const hero = /HERO ON CAMERA:\s*always/i.test(lock);
+    const hero = /HERO ON CAMERA:\s*always|FOLLOW-CAM/i.test(lock);
     const solo = /ON SCREEN:\s*only/i.test(lock);
     const empty = /ON SCREEN:\s*none/i.test(lock);
     const lockRule = hero
-      ? "The HERO stays in this frame. Camera follows them. Never cut to an empty location. Location and props attach to the hero's body."
+      ? "FOLLOW-CAM: this frame is the next beat of ONE take. Inherit the last pose, facing, and camera travel. Camera tracks the HERO; the world and props attach or scroll around their body. Never a new portrait or empty location."
       : empty
         ? "No named CAST member appears in this frame. Location, object, or atmosphere only."
         : solo
@@ -163,9 +163,12 @@ Narration: ${scriptLine}`;
     userMessage += `\n\n## CONTEXT FROM STOCK SEARCH\n${rejectionContext}`;
   }
 
+  const heroFollow = /HERO ON CAMERA:\s*always|FOLLOW-CAM/i.test(opts?.characterLock ?? "");
   userMessage +=
     mode === "video"
-      ? `\n\nGenerate an optimized video generation prompt for this scene. Focus on motion and camera movement. Put the full text in optimized_prompt.`
+      ? heroFollow
+        ? `\n\nGenerate a motion prompt that CONTINUES from the last pose. Camera tracks the hero (dolly/track/pan); the environment scrolls or transforms around them. Three beats in this clip (start / mid / end). End pose is the next clip's match-cut start. Put the full text in optimized_prompt.`
+        : `\n\nGenerate an optimized video generation prompt for this scene. Focus on motion and camera movement. Put the full text in optimized_prompt.`
       : `\n\nGenerate an optimized image generation prompt for this scene. Put the full text in the optimized_prompt field. ${landscape ? "The image MUST be 16:9 landscape, full-bleed, no letterbox bars." : "The image MUST be 9:16 portrait."}`;
 
   const result = await llm.generate({
