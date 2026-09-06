@@ -264,7 +264,12 @@ ${isLongForm
         ? `MANDATORY: This is a ${filmMinutes}-minute YouTube horizontal film. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total word count MUST be ~${wordsTarget} words. NO text_card. No chapter title cards. Stop at exactly ${sceneTarget} scenes.`
         : `MANDATORY: This is a ${filmMinutes}-minute video. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total word count MUST be ~${wordsTarget} words. Break topic into chapters separated by text_card chapter titles. Stop at exactly ${sceneTarget} scenes.`
   : "If over budget, cut a scene rather than cramming."
-}${options?.platform === "youtube_horizontal" ? `\nEvery AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars.\nFor every ai_image/ai_video scene set shot_type (wide_establishing|wide|medium|close_up|extreme_close_up|over_shoulder|aerial|insert), camera_move (static|push_in|pull_out|pan|track), and location (${
+}${options?.platform === "youtube_horizontal"
+  ? options?.castMode === "hero"
+    ? `\nEvery AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars.\nFOLLOW-CAM FRAMING (overrides shot variety): shot_type is only medium or wide. Do NOT use close_up, extreme_close_up, over_shoulder, aerial, insert, or empty wide_establishing. Neighboring shots MAY share shot_type — keep the hero the same size in frame. camera_move is track, pan, or push_in (never static). The environment morphs or scrolls around the body; extras must not be a second copy of the hero. location is ${
+        locationCount >= 2 ? "the exact Name of ONE roster place" : "a short reusable place name"
+      }.`
+    : `\nEvery AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars.\nFor every ai_image/ai_video scene set shot_type (wide_establishing|wide|medium|close_up|extreme_close_up|over_shoulder|aerial|insert), camera_move (static|push_in|pull_out|pan|track), and location (${
     locationCount >= 2
       ? "the exact Name of ONE roster place — never two names"
       : "a short reusable place name"
@@ -272,7 +277,8 @@ ${isLongForm
     locationCount >= 2
       ? "Never combine two roster locations in one frame."
       : "Repeat the same location name when the action stays in that place."
-  }` : ""}`;
+  }`
+  : ""}`;
 
   const maxRetries = 3;
   let lastError: Error | null = null;
@@ -533,7 +539,11 @@ ${options?.characterLock?.trim()
       : ""}
 ${options?.locationLock?.trim() ? `LOCATION: each scene is ONE roster place only. Never combine two locations in one frame. scene.location must be that place's Name.` : ""}
 ${options?.artStyleOverride?.trim() ? `ART STYLE LOCK: ${options.artStyleOverride.trim()}. Do not switch photoreal ↔ cartoon.` : ""}
-${options?.platform === "youtube_horizontal" ? "Every AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars. Fill shot_type, camera_move, and a reusable location. Neighboring AI shots must not share the same shot_type." : ""}`;
+${options?.platform === "youtube_horizontal"
+    ? options?.castMode === "hero"
+      ? "Every AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars. FOLLOW-CAM: shot_type stays medium or wide; camera_move is track/pan/push_in; neighboring shots MAY share shot_type; environment morphs around the hero."
+      : "Every AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars. Fill shot_type, camera_move, and a reusable location. Neighboring AI shots must not share the same shot_type."
+    : ""}`;
 
   const maxRetries = 2;
   let lastError: Error | null = null;

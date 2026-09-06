@@ -757,6 +757,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       characterReference: characterReferenceImage ? true : undefined,
       atelierMode: atelierMode !== false,
       artStyleOverride: artStyleOverride?.trim() || undefined,
+      ...(castMode === "hero" ? { castMode: "hero" } : {}),
     },
   };
   fs.writeFileSync(path.join(jobDir, "meta.json"), JSON.stringify(placeholderMeta, null, 2));

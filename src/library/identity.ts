@@ -51,6 +51,22 @@ export function isHeroFollowCam(lock?: string): boolean {
   return /HERO ON CAMERA:\s*always|FOLLOW-CAM/i.test(lock ?? "");
 }
 
+const HERO_SHOTS = new Set(["medium", "wide"]);
+const HERO_CAMERAS = ["track", "pan", "push_in"] as const;
+
+/** Follow-cam keeps the body in frame — no ECU / OTS / empty establishing plates. */
+export function clampHeroShotType(shot?: string, index = 0): string {
+  const s = (shot ?? "").trim().toLowerCase();
+  if (HERO_SHOTS.has(s)) return s;
+  return index % 2 === 0 ? "medium" : "wide";
+}
+
+export function clampHeroCameraMove(move?: string, index = 0): string {
+  const m = (move ?? "").trim().toLowerCase();
+  if (m === "track" || m === "pan" || m === "push_in") return m;
+  return HERO_CAMERAS[index % HERO_CAMERAS.length]!;
+}
+
 export function countLockedCharacters(lock?: string): number {
   const text = lock?.trim() ?? "";
   if (!text) return 0;
@@ -170,11 +186,11 @@ export function focusCastLock(
       .map((m) => m.name);
     const ban = off.length ? ` Do not depict ${off.join(" or ")} — not even in the background.` : "";
     if (guests.length === 0) {
-      return `FOLLOW-CAM HERO ON CAMERA: always ${hero.name}. One continuous take; inherit last pose and camera travel; camera tracks the body; world and props attach or scroll around them. Never a new portrait or atmosphere-only plate.${ban} ${hero.lock}`;
+      return `FOLLOW-CAM HERO ON CAMERA: always ${hero.name}. One continuous take; inherit last pose and camera travel; camera tracks the body; world and props attach or scroll around them. Exactly ONE ${hero.name} — extras (clerks, guards) must look different, never a second copy. Never a new portrait or atmosphere-only plate.${ban} ${hero.lock}`;
     }
     const names = [hero.name, ...guests.map((g) => g.name)];
     const locks = [hero, ...guests].map((m, i) => `[${i + 1}] ${m.lock}`).join(" | ");
-    return `FOLLOW-CAM HERO ON CAMERA: always ${hero.name}, plus ${guests.map((g) => g.name).join(" and ")} this shot. Inherit last pose; camera tracks ${hero.name}; guests enter the same take, they do not replace the hero.${ban} CAST of ${names.length}. ${locks}`;
+    return `FOLLOW-CAM HERO ON CAMERA: always ${hero.name}, plus ${guests.map((g) => g.name).join(" and ")} this shot. Inherit last pose; camera tracks ${hero.name}; guests enter the same take, they do not replace the hero. Exactly ONE ${hero.name}.${ban} CAST of ${names.length}. ${locks}`;
   }
   if (roster.length <= 1) return fullLock.trim();
   const others = roster.filter((m) => !onScreen.some((s) => s.name.toLowerCase() === m.name.toLowerCase()));
@@ -612,6 +628,13 @@ export function applyVisualIdentity(
       }
     }
 
+    let shot_type = scene.shot_type;
+    let camera_move = scene.camera_move;
+    if (castMode === "hero" && (scene.visual_type === "ai_image" || scene.visual_type === "ai_video")) {
+      shot_type = clampHeroShotType(scene.shot_type, i);
+      camera_move = clampHeroCameraMove(scene.camera_move, i);
+    }
+
     let transition = scene.transition;
     const last = i === score.scenes.length - 1;
     if (castMode === "hero" && !last) {
@@ -625,7 +648,7 @@ export function applyVisualIdentity(
     }
 
     const location = locFocus[i]?.name?.trim() || scene.location;
-    return { ...scene, visual_prompt, motion, transition, ...(location ? { location } : {}) };
+    return { ...scene, visual_prompt, motion, transition, shot_type, camera_move, ...(location ? { location } : {}) };
   });
 
   return { ...score, scenes };

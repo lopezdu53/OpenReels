@@ -167,7 +167,7 @@ Narration: ${scriptLine}`;
   userMessage +=
     mode === "video"
       ? heroFollow
-        ? `\n\nGenerate a motion prompt that CONTINUES from the last pose. Camera tracks the hero (dolly/track/pan); the environment scrolls or transforms around them. Three beats in this clip (start / mid / end). End pose is the next clip's match-cut start. Put the full text in optimized_prompt.`
+        ? `\n\nThe source image IS the last frame of the previous clip. Do not recompose or paint a new portrait. Animate FROM that exact frame: same face, body, wardrobe, and framing. Camera tracks the hero (dolly/track/pan); the environment scrolls or morphs around them. Three beats (start / mid / end). Extras must not be a second copy of the hero. End pose is the next clip's match-cut start. Put the full text in optimized_prompt.`
         : `\n\nGenerate an optimized video generation prompt for this scene. Focus on motion and camera movement. Put the full text in optimized_prompt.`
       : `\n\nGenerate an optimized image generation prompt for this scene. Put the full text in the optimized_prompt field. ${landscape ? "The image MUST be 16:9 landscape, full-bleed, no letterbox bars." : "The image MUST be 9:16 portrait."}`;
 

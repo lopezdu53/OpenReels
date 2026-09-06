@@ -19,6 +19,7 @@ export interface CriticEvalOptions {
   characterLock?: string;
   direction?: string;
   productionNotes?: string[];
+  castMode?: string;
 }
 
 export interface ScoreAudit {
@@ -96,9 +97,10 @@ export function auditDirectorScore(score: DirectorScore, opts: CriticEvalOptions
   const maxConsecutiveSameType = consecutiveSameType(score);
   const locked = isLockedScript(opts.direction);
   const longForm = isLongFormJob(opts);
+  const heroFollowCam = opts.castMode === "hero" || /FOLLOW-CAM|HERO ON CAMERA:\s*always/i.test(opts.characterLock ?? "");
   const mode: ScoreAudit["mode"] = locked ? "locked-script" : longForm ? "long" : "short";
 
-  if (maxConsecutiveSameType > 2) {
+  if (maxConsecutiveSameType > 2 && !heroFollowCam) {
     findings.push(
       `Regla de variedad: ${maxConsecutiveSameType} escenas seguidas del mismo visual_type (máximo 2).`,
     );
@@ -165,7 +167,7 @@ export function auditDirectorScore(score: DirectorScore, opts: CriticEvalOptions
 
     const aiShots = score.scenes.filter((s) => s.visual_type === "ai_image" || s.visual_type === "ai_video");
     const withShot = aiShots.filter((s) => s.shot_type?.trim());
-    if (aiShots.length >= 4 && withShot.length < aiShots.length * 0.5) {
+    if (!heroFollowCam && aiShots.length >= 4 && withShot.length < aiShots.length * 0.5) {
       findings.push(
         `Faltan shot_type en ${aiShots.length - withShot.length} planos de IA. Sin wide/medium/close el personaje sale siempre en el mismo encuadre.`,
       );
@@ -174,7 +176,7 @@ export function auditDirectorScore(score: DirectorScore, opts: CriticEvalOptions
       );
     }
     const shotKinds = withShot.map((s) => s.shot_type!.trim().toLowerCase());
-    if (shotKinds.length >= 4 && new Set(shotKinds).size <= 1) {
+    if (!heroFollowCam && shotKinds.length >= 4 && new Set(shotKinds).size <= 1) {
       findings.push("Todos los planos de IA usan el mismo shot_type. El Film se siente como un slideshow del mismo encuadre.");
       revisionFocus.push("Alterna wide / medium / close_up / over_shoulder entre escenas vecinas.");
     }

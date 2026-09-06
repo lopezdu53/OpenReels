@@ -152,6 +152,10 @@ describe("visual identity lock", () => {
     expect(next.scenes[0]!.motion).toBe("pan_left");
     expect(next.scenes[1]!.motion).toBe("pan_right");
     expect(next.scenes[0]!.transition).toBe("crossfade");
+    expect(next.scenes[0]!.visual_prompt).toMatch(/Exactly ONE Tania/i);
+    expect(next.scenes[0]!.shot_type).toBe("medium");
+    expect(next.scenes[3]!.shot_type).toBe("wide");
+    expect(["track", "pan", "push_in"]).toContain(next.scenes[1]!.camera_move);
     expect(identityLockLead(focus[0]!.lock)).toMatch(/FOLLOW-CAM/i);
     expect(identityLockLead(focus[0]!.lock)).toMatch(/HERO stays in every frame/i);
 

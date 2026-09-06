@@ -154,6 +154,22 @@ describe("critic audit", () => {
     expect(audit.findings.some((f) => /shot_type/i.test(f))).toBe(true);
   });
 
+  it("does not treat follow-cam all-ai_video as a slideshow", () => {
+    const score: DirectorScore = {
+      emotional_arc: "arc",
+      archetype: "cinematic_documentary",
+      music_mood: "warm_acoustic",
+      scenes: [
+        { visual_type: "ai_video", visual_prompt: "16:9 FOLLOW-CAM", motion: "static", script_line: "Uno.", transition: "crossfade", shot_type: "medium" },
+        { visual_type: "ai_video", visual_prompt: "16:9 FOLLOW-CAM", motion: "static", script_line: "Dos.", transition: "crossfade", shot_type: "medium" },
+        { visual_type: "ai_video", visual_prompt: "16:9 FOLLOW-CAM", motion: "static", script_line: "Tres.", transition: "crossfade", shot_type: "wide" },
+        { visual_type: "ai_video", visual_prompt: "16:9 FOLLOW-CAM", motion: "static", script_line: "Cuatro.", transition: "crossfade", shot_type: "medium" },
+      ],
+    };
+    const audit = auditDirectorScore(score, { platform: "youtube_horizontal", castMode: "hero" });
+    expect(audit.findings.some((f) => /variedad|slideshow|mismo shot_type/i.test(f))).toBe(false);
+  });
+
   it("summarizes Gemini credit exhaustion as a production note", () => {
     const notes = summarizeVideoFallbacks([
       {

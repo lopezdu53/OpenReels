@@ -29,6 +29,7 @@ import { getArchetype } from "../config/archetype-registry.js";
 import { getPlatformAspectRatio, getPlatformConfig } from "../config/platforms.js";
 import { resolveMusic, type MusicResolution } from "./music-resolver.js";
 import { applyVideoSceneMode, resolveVideoSceneMode } from "./video-scene-mode.js";
+import { extractLastFrame } from "./last-frame.js";
 import { isFilmOneMinute, isFilmTestMinutes, normalizeFilmMinutes } from "../config/film-duration.js";
 import { resolveAllowedVisualTypes } from "./visual-types.js";
 import { bundle } from "@remotion/bundler";
@@ -376,9 +377,18 @@ async function resolveVisualAsset(
       if (!opts.videoProviders?.length) {
         return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio, shotBag, referenceImageUrl);
       }
-      // Phase 1: Generate AI image (first frame)
+      const heroFollowCam = normalizeCastMode(opts.castMode) === "hero";
+      // Phase 1: first clip paints a still. Later hero clips start from the
+      // previous video's last frame so I2V continues the same take.
       const imageStart = Date.now();
-      const imgResult = await generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio, shotBag, referenceImageUrl);
+      const reuseLastFrame = heroFollowCam && index > 0 && Boolean(referenceImage && referenceImage.length > 80);
+      const imgResult = reuseLastFrame
+        ? (() => {
+            const filePath = path.join(assetsDir, `scene-${index}-ai.png`);
+            fs.writeFileSync(filePath, referenceImage!);
+            return { path: filePath, usage: null, durationSeconds: null, remoteUrl: referenceImageUrl } as VisualAssetResult;
+          })()
+        : await generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio, shotBag, referenceImageUrl);
       const imageGenTimeMs = Date.now() - imageStart;
       const imageBuffer = fs.readFileSync(imgResult.path!);
 
@@ -414,6 +424,10 @@ async function resolveVisualAsset(
       // Adjust imageGenTimeMs in the resolution metadata
       if (videoResult.videoResolution) {
         videoResult.videoResolution.imageGenTimeMs = imageGenTimeMs;
+      }
+
+      if (heroFollowCam && videoResult.path && videoResult.path.endsWith(".mp4")) {
+        extractLastFrame(videoResult.path, path.join(assetsDir, `scene-${index}-last.png`));
       }
 
       return {
@@ -454,6 +468,7 @@ function criticOptions(opts: PipelineOptions, extra: Partial<CriticEvalOptions> 
     targetDurationMinutes: opts.targetDurationMinutes,
     characterLock: opts.characterLock,
     direction: opts.direction,
+    castMode: opts.castMode,
     ...extra,
   };
 }
@@ -1001,11 +1016,18 @@ function buildPipelineWorkflow(
                 );
                 results.push(result);
                 try {
-                  previousImage = fs.readFileSync(path.join(assetsDir, `scene-${i}-ai.png`));
-                  const urlFile = path.join(assetsDir, `scene-${i}-ai.png.url`);
-                  previousImageUrl = fs.existsSync(urlFile)
-                    ? fs.readFileSync(urlFile, "utf-8").trim()
-                    : result.remoteUrl;
+                  const lastFrame = path.join(assetsDir, `scene-${i}-last.png`);
+                  const still = path.join(assetsDir, `scene-${i}-ai.png`);
+                  if (heroFollowCam && fs.existsSync(lastFrame)) {
+                    previousImage = fs.readFileSync(lastFrame);
+                    previousImageUrl = undefined;
+                  } else {
+                    previousImage = fs.readFileSync(still);
+                    const urlFile = path.join(assetsDir, `scene-${i}-ai.png.url`);
+                    previousImageUrl = fs.existsSync(urlFile)
+                      ? fs.readFileSync(urlFile, "utf-8").trim()
+                      : result.remoteUrl;
+                  }
                 } catch {
                   // No AI-generated frame for this scene (stock/text card) — keep the prior reference
                 }
