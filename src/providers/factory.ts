@@ -27,6 +27,15 @@ import { GrokImage } from "./image/grok.js";
 import { OpenAIImage } from "./image/openai.js";
 import { RunPodImage } from "./image/runpod.js";
 import { ViviImage } from "./image/vivi.js";
+import { SharpiiImage } from "./image/sharpii.js";
+import {
+  DEFAULT_SHARPII_IMAGE_MODEL,
+  DEFAULT_SHARPII_VIDEO_MODEL,
+  SHARPII_IMAGE_MODELS,
+  SHARPII_VIDEO_MODELS,
+  creditsToUsd,
+} from "./sharpii/catalog.js";
+export { SHARPII_IMAGE_MODELS, SHARPII_VIDEO_MODELS, creditsToUsd };
 import { AliCloudLLM } from "./llm/alicloud.js";
 import { AnthropicLLM } from "./llm/anthropic.js";
 import { GeminiLLM } from "./llm/gemini.js";
@@ -60,6 +69,7 @@ import { GrokVideo } from "./video/grok.js";
 import { RunPodVideo } from "./video/runpod.js";
 import { ViduVideo } from "./video/vidu.js";
 import { ViviVideo } from "./video/vivi.js";
+import { SharpiiVideo } from "./video/sharpii.js";
 
 export interface ProviderConfig {
   llm: LLMProviderKey;
@@ -85,6 +95,8 @@ export interface ProviderConfig {
   runpodImageSteps?: number;
   runpodImageGuidance?: number;
   runpodVideoResolution?: string;
+  sharpiiImageModel?: string;
+  sharpiiVideoModel?: string;
 }
 
 export interface Providers {
@@ -222,6 +234,7 @@ export function createProviders(config: ProviderConfig): Providers {
   const runpodImageEndpoint = k["RUNPOD_IMAGE_ENDPOINT_ID"] ?? process.env["RUNPOD_IMAGE_ENDPOINT_ID"];
   const runpodVideoEndpoint = k["RUNPOD_VIDEO_ENDPOINT_ID"] ?? process.env["RUNPOD_VIDEO_ENDPOINT_ID"];
   const xaiKey = k["XAI_API_KEY"] ?? process.env["XAI_API_KEY"];
+  const sharpiiKey = k["SHARPII_API_KEY"] ?? process.env["SHARPII_API_KEY"];
 
   let imageGen: ImageProvider;
   if (config.image === "fal") {
@@ -253,6 +266,8 @@ export function createProviders(config: ProviderConfig): Providers {
     imageGen = googleKey
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "grok", "gemini")
       : primary;
+  } else if (config.image === "sharpii") {
+    imageGen = new SharpiiImage(config.sharpiiImageModel ?? DEFAULT_SHARPII_IMAGE_MODEL, sharpiiKey);
   } else if (config.image === "alicloud") {
     const primary = new AliCloudImage(undefined, alicloudKey);
     // Fallback chain: alicloud → vivi → gemini
@@ -294,7 +309,7 @@ export function createProviders(config: ProviderConfig): Providers {
   const falKey = k["FAL_API_KEY"] ?? process.env["FAL_API_KEY"];
   const viviVideoKey = k["VIVI_VIDEO_API_KEY"] ?? process.env["VIVI_VIDEO_API_KEY"] ?? k["VIVI_LLM_API_KEY"] ?? process.env["VIVI_LLM_API_KEY"];
   const viduKey = k["VIDU_API_KEY"] ?? process.env["VIDU_API_KEY"];
-  const videoPrimary = config.video ?? (googleKey ? "gemini" : xaiKey ? "grok" : viduKey ? "vidu" : viviVideoKey ? "vivi" : falKey ? "fal" : alicloudKey ? "alicloud-wan-turbo" : undefined);
+  const videoPrimary = config.video ?? (googleKey ? "gemini" : xaiKey ? "grok" : viduKey ? "vidu" : viviVideoKey ? "vivi" : falKey ? "fal" : sharpiiKey ? "sharpii" : alicloudKey ? "alicloud-wan-turbo" : undefined);
 
   const ALICLOUD_VIDEO_MODELS: Record<string, string> = {
     "alicloud-wan-turbo": "wan2.1-i2v-turbo",
@@ -347,6 +362,8 @@ export function createProviders(config: ProviderConfig): Providers {
     else if (viduKey) videoProviders.push(new ViduVideo(undefined, viduKey));
     else if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
     else if (alicloudKey) videoProviders.push(new AliCloudVideo(undefined, alicloudKey));
+  } else if (videoPrimary === "sharpii") {
+    videoProviders.push(new SharpiiVideo(config.sharpiiVideoModel ?? DEFAULT_SHARPII_VIDEO_MODEL, sharpiiKey));
   } else if (videoPrimary === "runpod") {
     if (runpodKey) {
       videoProviders.push(

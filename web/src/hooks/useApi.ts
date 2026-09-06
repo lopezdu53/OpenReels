@@ -127,6 +127,15 @@ export interface ProviderOptions {
     resolutions: string[];
   }[];
   atelierStyles?: { id: string; label: string; artStyle: string }[];
+  sharpiiImageModels?: { id: string; label: string; credits: number; usd: number }[];
+  sharpiiVideoModels?: {
+    id: string;
+    label: string;
+    credits: number;
+    usd: number;
+    durations: number[];
+    perSecond?: boolean;
+  }[];
 }
 
 export interface StatsResponse {

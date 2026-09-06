@@ -27,6 +27,8 @@ export interface CLIOptions {
   runpodVideoModel?: string;
   runpodImageSteps?: number;
   runpodVideoResolution?: string;
+  sharpiiImageModel?: string;
+  sharpiiVideoModel?: string;
   llmModel?: string;
   llmBaseUrl?: string;
   searchProvider?: SearchProviderKey;
@@ -123,7 +125,7 @@ export function parseArgs(): CLIOptions {
     )
     .addOption(
       new Option("-i, --image-provider <provider>", "Image generation provider")
-        .choices(["gemini", "openai", "grok", "vivi", "alicloud", "runpod", "fal"])
+        .choices(["gemini", "openai", "grok", "vivi", "alicloud", "runpod", "fal", "sharpii"])
         .default("gemini"),
     )
     .addOption(
@@ -147,6 +149,8 @@ export function parseArgs(): CLIOptions {
     )
     .option("--runpod-image-steps <n>", "RunPod image inference steps", parseInt)
     .option("--runpod-video-resolution <res>", "RunPod video resolution (720p, 1080p, 480p)")
+    .option("--sharpii-image-model <model>", "Sharpii image model (default: nano-banana-2)")
+    .option("--sharpii-video-model <model>", "Sharpii I2V model (default: kling-v2.6-pro-i2v)")
     .option("-a, --archetype <archetype>", "Visual archetype override")
     .addOption(
       new Option("--pacing <tier>", "Pacing tier override (overrides archetype default)").choices(
@@ -184,6 +188,7 @@ export function parseArgs(): CLIOptions {
         "grok",
         "vivi",
         "runpod",
+        "sharpii",
         "vidu",
         "vidu-q3-pro",
         "vidu-q3-fast",
@@ -274,6 +279,8 @@ export function parseArgs(): CLIOptions {
     runpodVideoModel: opts["runpodVideoModel"] as string | undefined,
     runpodImageSteps: opts["runpodImageSteps"] as number | undefined,
     runpodVideoResolution: opts["runpodVideoResolution"] as string | undefined,
+    sharpiiImageModel: opts["sharpiiImageModel"] as string | undefined,
+    sharpiiVideoModel: opts["sharpiiVideoModel"] as string | undefined,
     llmModel: opts["llmModel"] as string | undefined,
     llmBaseUrl: opts["llmBaseUrl"] as string | undefined,
     searchProvider: opts["searchProvider"] as SearchProviderKey | undefined,

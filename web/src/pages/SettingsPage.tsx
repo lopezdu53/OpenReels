@@ -18,6 +18,7 @@ const API_KEY_FIELDS = [
   { key: "ALICLOUD_API_KEY", label: "Alibaba Cloud (LLM/Image/Video)" },
   { key: "VIDU_API_KEY", label: "VIDU (Video)" },
   { key: "FAL_API_KEY", label: "fal.ai (Image/Video)" },
+  { key: "SHARPII_API_KEY", label: "Sharpii (Image/Video)" },
   { key: "RUNPOD_API_KEY", label: "RunPod — endpoints públicos (solo esta clave; no hace falta GPU propia)" },
   { key: "XAI_API_KEY", label: "xAI Grok (LLM/TTS/Image/Video)" },
   { key: "TAVILY_API_KEY", label: "Tavily (búsqueda web)" },

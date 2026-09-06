@@ -117,6 +117,12 @@ export function validateEnv(opts: {
       required: opts.imageProvider === "fal" || opts.videoProvider === "fal",
     },
     {
+      key: "SHARPII_API_KEY",
+      provider: "Sharpii (Image/Video)",
+      signupUrl: "https://sharpii.ai/app/dashboard",
+      required: opts.imageProvider === "sharpii" || opts.videoProvider === "sharpii",
+    },
+    {
       key: "RUNPOD_API_KEY",
       provider: "RunPod (public image/video endpoints — API key only)",
       signupUrl: "https://www.runpod.io/",

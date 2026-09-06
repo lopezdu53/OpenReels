@@ -412,4 +412,19 @@ describe("validateEnv", () => {
     delete process.env["ANTHROPIC_API_KEY"];
     delete process.env["ELEVENLABS_API_KEY"];
   });
+
+  it("requires SHARPII_API_KEY when --image-provider sharpii", () => {
+    process.env["ANTHROPIC_API_KEY"] = "test";
+    process.env["ELEVENLABS_API_KEY"] = "test";
+    delete process.env["SHARPII_API_KEY"];
+
+    validateEnv({ provider: "anthropic", ttsProvider: "elevenlabs", imageProvider: "sharpii" });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = errorSpy.mock.calls.flat().join("");
+    expect(output).toContain("SHARPII_API_KEY");
+
+    delete process.env["ANTHROPIC_API_KEY"];
+    delete process.env["ELEVENLABS_API_KEY"];
+  });
 });

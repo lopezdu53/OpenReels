@@ -86,6 +86,8 @@ interface JobData {
     runpodVideoResolution?: string;
     runpodImageEndpointId?: string;
     runpodVideoEndpointId?: string;
+    sharpiiImageModel?: string;
+    sharpiiVideoModel?: string;
   };
   userId?: string;
   keys: Record<string, string>;
@@ -219,6 +221,8 @@ const worker = new Worker<JobData>(
       runpodImageSteps: providers.runpodImageSteps,
       runpodImageGuidance: providers.runpodImageGuidance,
       runpodVideoResolution: providers.runpodVideoResolution,
+      sharpiiImageModel: providers.sharpiiImageModel,
+      sharpiiVideoModel: providers.sharpiiVideoModel,
     });
 
     // Build callbacks that emit BullMQ progress events and update meta.json

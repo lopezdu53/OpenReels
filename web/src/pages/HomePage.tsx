@@ -125,6 +125,7 @@ const FALLBACK = {
     { key: "grok", label: "Grok Imagine" },
     { key: "vivi", label: "VIVI (Gemini Image)" },
     { key: "runpod", label: "RunPod (público)" },
+    { key: "sharpii", label: "Sharpii" },
   ],
   video: [
     { key: "gemini", label: "Veo (Gemini)" },
@@ -132,6 +133,7 @@ const FALLBACK = {
     { key: "grok", label: "Grok Imagine Video" },
     { key: "vivi", label: "VIVI (Grok Video)" },
     { key: "runpod", label: "RunPod (público)" },
+    { key: "sharpii", label: "Sharpii (Kling / Seedance)" },
   ],
   search: [
     { key: "tavily", label: "Tavily" },
@@ -314,6 +316,8 @@ export function HomePage() {
                   : {}),
               }
             : {}),
+          ...(imageProvider === "sharpii" ? { sharpiiImageModel: "nano-banana-2" } : {}),
+          ...(videoProvider === "sharpii" ? { sharpiiVideoModel: "kling-v2.6-pro-i2v" } : {}),
           ...(videoProvider === "runpod"
             ? {
                 runpodVideoModel,

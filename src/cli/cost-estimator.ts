@@ -7,6 +7,7 @@ import type {
   TTSProviderKey,
   VideoProviderKey,
 } from "../schema/providers.js";
+import { sharpiiImageUsd, sharpiiVideoPerSecondUsd } from "../providers/sharpii/catalog.js";
 
 export interface CostBreakdown {
   llmCost: number;
@@ -99,6 +100,7 @@ function perImageCost(imageProvider: ImageProviderKey): number {
   if (imageProvider === "openai") return PRICING.openaiPerImage;
   if (imageProvider === "grok") return PRICING.grokPerImage;
   if (imageProvider === "runpod") return 0.0025;
+  if (imageProvider === "sharpii") return sharpiiImageUsd();
   return PRICING.geminiPerImage;
 }
 
@@ -106,6 +108,7 @@ function videoPerSecondCost(videoProvider?: VideoProviderKey): number {
   if (videoProvider === "fal") return PRICING.falKlingPerSecond;
   if (videoProvider === "grok") return PRICING.grokImaginePerSecond;
   if (videoProvider === "runpod") return 0.02;
+  if (videoProvider === "sharpii") return sharpiiVideoPerSecondUsd();
   return PRICING.veoLitePerSecond;
 }
 

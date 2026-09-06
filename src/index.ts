@@ -101,6 +101,8 @@ async function main(): Promise<void> {
     runpodVideoModel: opts.runpodVideoModel,
     runpodImageSteps: opts.runpodImageSteps,
     runpodVideoResolution: opts.runpodVideoResolution,
+    sharpiiImageModel: opts.sharpiiImageModel,
+    sharpiiVideoModel: opts.sharpiiVideoModel,
   });
 
   // Create CLI callbacks for terminal progress display

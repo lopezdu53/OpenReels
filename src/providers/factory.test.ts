@@ -24,6 +24,8 @@ import { GrokLLM } from "./llm/grok.js";
 import { GrokImage } from "./image/grok.js";
 import { RunPodImage } from "./image/runpod.js";
 import { RunPodVideo } from "./video/runpod.js";
+import { SharpiiImage } from "./image/sharpii.js";
+import { SharpiiVideo } from "./video/sharpii.js";
 
 vi.mock("./llm/anthropic.js", () => ({
   AnthropicLLM: vi.fn().mockImplementation(() => ({ id: "anthropic", generate: vi.fn() })),
@@ -113,6 +115,12 @@ vi.mock("./image/runpod.js", () => ({
 }));
 vi.mock("./video/runpod.js", () => ({
   RunPodVideo: vi.fn().mockImplementation(() => ({ supportedDurations: [5, 8, 10], generate: vi.fn() })),
+}));
+vi.mock("./image/sharpii.js", () => ({
+  SharpiiImage: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
+}));
+vi.mock("./video/sharpii.js", () => ({
+  SharpiiVideo: vi.fn().mockImplementation(() => ({ supportedDurations: [5, 10], generate: vi.fn() })),
 }));
 
 describe("createProviders", () => {
@@ -600,5 +608,28 @@ describe("createProviders", () => {
       keys: { XAI_API_KEY: "test-xai-key" },
     });
     expect(GrokImage).toHaveBeenCalledWith(undefined, "test-xai-key");
+  });
+
+  it("creates SharpiiImage when image config is sharpii", () => {
+    createProviders({
+      llm: "anthropic",
+      tts: "elevenlabs",
+      image: "sharpii",
+      sharpiiImageModel: "nano-banana-pro",
+      keys: { SHARPII_API_KEY: "shp_test" },
+    });
+    expect(SharpiiImage).toHaveBeenCalledWith("nano-banana-pro", "shp_test");
+  });
+
+  it("creates SharpiiVideo when video config is sharpii", () => {
+    createProviders({
+      llm: "anthropic",
+      tts: "elevenlabs",
+      image: "gemini",
+      video: "sharpii",
+      sharpiiVideoModel: "seedance-2.0-fast-720p",
+      keys: { SHARPII_API_KEY: "shp_test" },
+    });
+    expect(SharpiiVideo).toHaveBeenCalledWith("seedance-2.0-fast-720p", "shp_test");
   });
 });

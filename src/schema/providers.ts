@@ -4,9 +4,9 @@ import type { MusicMood } from "./director-score.js";
 export type LLMProviderKey = "anthropic" | "openai" | "gemini" | "openrouter" | "openai-compatible" | "vivi" | "alicloud" | "grok";
 export type SearchProviderKey = "native" | "tavily" | "none";
 export type TTSProviderKey = "elevenlabs" | "inworld" | "kokoro" | "gemini-tts" | "openai-tts" | "grok-tts";
-export type ImageProviderKey = "gemini" | "openai" | "vivi" | "alicloud" | "runpod" | "fal" | "grok";
+export type ImageProviderKey = "gemini" | "openai" | "vivi" | "alicloud" | "runpod" | "fal" | "grok" | "sharpii";
 export type StockProviderKey = "pexels" | "pixabay";
-export type VideoProviderKey = "gemini" | "fal" | "vivi" | "grok" | "runpod" | "vidu" | "vidu-q3-pro" | "vidu-q3-fast" | "vidu-q3-turbo" | "vidu-q2-pro" | "vidu-q2-fast" | "vidu-q2-turbo" | "vidu-q1" | "vidu-q1-classic" | "vidu-2.0" | "alicloud-wan-turbo" | "alicloud-wan-plus";
+export type VideoProviderKey = "gemini" | "fal" | "vivi" | "grok" | "runpod" | "sharpii" | "vidu" | "vidu-q3-pro" | "vidu-q3-fast" | "vidu-q3-turbo" | "vidu-q2-pro" | "vidu-q2-fast" | "vidu-q2-turbo" | "vidu-q1" | "vidu-q1-classic" | "vidu-2.0" | "alicloud-wan-turbo" | "alicloud-wan-plus";
 export type MusicProviderKey = "bundled" | "lyria";
 
 export interface LLMUsage {

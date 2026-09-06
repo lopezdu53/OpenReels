@@ -43,6 +43,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     vivi:     { perImage: yuanToUsd(VIVI_IMAGE_CNY.perImage) },
     alicloud: { perImage: 0.05 },
     runpod:   { perImage: 0.003 },
+    sharpii:  { perImage: 0.036 },
   },
   video: {
     gemini: { perSecond: 0.05 },
@@ -50,6 +51,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     vivi:   { perSecond: yuanToUsd(VIVI_VIDEO_CNY.perClip) / VIVI_VIDEO_CLIP_SECONDS },
     fal:    { perSecond: 0.12 },
     runpod: { perSecond: 0.02 },
+    sharpii: { perSecond: 0.076 },
   },
 };
 
@@ -158,6 +160,7 @@ export function LabPage() {
   const [imgAspect, setImgAspect] = useState("9:16");
   const [imgModel, setImgModel] = useState("p-image-t2i");
   const [imgSteps, setImgSteps] = useState(4);
+  const [sharpiiImgModel, setSharpiiImgModel] = useState("nano-banana-2");
   const [imgResult, setImgResult] = useState<{ imageBase64: string; durationMs: number } | null>(null);
   const [imgLoading, setImgLoading] = useState(false);
   const [imgError, setImgError] = useState("");
@@ -170,6 +173,7 @@ export function LabPage() {
   const [vidAspect, setVidAspect] = useState("9:16");
   const [vidModel, setVidModel] = useState("p-video");
   const [vidResolution, setVidResolution] = useState("720p");
+  const [sharpiiVidModel, setSharpiiVidModel] = useState("kling-v2.6-pro-i2v");
   const [vidResult, setVidResult] = useState<{ videoBase64: string; durationMs: number; videoSeconds: number } | null>(null);
   const [vidLoading, setVidLoading] = useState(false);
   const [vidError, setVidError] = useState("");
@@ -221,6 +225,7 @@ export function LabPage() {
         prompt: imgPrompt,
         aspectRatio: imgAspect,
         ...(imgProvider === "runpod" ? { model: imgModel, steps: imgSteps } : {}),
+        ...(imgProvider === "sharpii" ? { model: sharpiiImgModel } : {}),
       });
       setImgResult(r);
     } catch (e) {
@@ -254,6 +259,7 @@ export function LabPage() {
         durationSeconds: vidDuration,
         aspectRatio: vidAspect,
         ...(vidProvider === "runpod" ? { model: vidModel, resolution: vidResolution } : {}),
+        ...(vidProvider === "sharpii" ? { model: sharpiiVidModel } : {}),
       });
       setVidResult(r);
     } catch (e) {
@@ -489,6 +495,26 @@ export function LabPage() {
               </Select>
             </div>
           </div>
+          {imgProvider === "sharpii" && (
+            <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <p className="text-[11px] text-muted-foreground">Opciones Sharpii — SHARPII_API_KEY</p>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo</label>
+                <Select value={sharpiiImgModel} onValueChange={(v) => v && setSharpiiImgModel(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.sharpiiImageModels ?? [
+                      { id: "nano-banana-2", label: "Nano Banana 2 (1K)", credits: 65, usd: 0.036 },
+                    ]).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label} · {m.credits} cr · ${m.usd.toFixed(3)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
           {imgProvider === "runpod" && (
             <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
               <p className="text-[11px] text-muted-foreground">Opciones RunPod — endpoints públicos (solo API key)</p>
@@ -587,7 +613,9 @@ export function LabPage() {
               <Select value={String(vidDuration)} onValueChange={v => setVidDuration(Number(v))}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {(vidProvider === "runpod"
+                  {(vidProvider === "sharpii"
+                    ? (providers?.sharpiiVideoModels?.find((m) => m.id === sharpiiVidModel)?.durations ?? [5, 10])
+                    : vidProvider === "runpod"
                     ? (providers?.runpodVideoModels?.find((m) => m.id === vidModel)?.durations ?? [5, 8, 10])
                     : [3, 5, 8]
                   ).map(s => <SelectItem key={s} value={String(s)}>{s}s</SelectItem>)}
@@ -595,6 +623,34 @@ export function LabPage() {
               </Select>
             </div>
           </div>
+          {vidProvider === "sharpii" && (
+            <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <p className="text-[11px] text-muted-foreground">Opciones Sharpii — SHARPII_API_KEY</p>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo I2V</label>
+                <Select
+                  value={sharpiiVidModel}
+                  onValueChange={(v) => {
+                    if (!v) return;
+                    setSharpiiVidModel(v);
+                    const spec = providers?.sharpiiVideoModels?.find((m) => m.id === v);
+                    if (spec?.durations[0]) setVidDuration(spec.durations[0]);
+                  }}
+                >
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.sharpiiVideoModels ?? [
+                      { id: "kling-v2.6-pro-i2v", label: "Kling 2.6 Pro I2V", credits: 684, usd: 0.377, durations: [5, 10] },
+                    ]).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label} · {m.credits} cr · ${m.usd.toFixed(2)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
           {vidProvider === "runpod" && (
             <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
               <p className="text-[11px] text-muted-foreground">Opciones RunPod — endpoints públicos (solo API key)</p>

@@ -21,6 +21,7 @@ import { GeminiImage } from "./providers/image/gemini.js";
 import { GrokImage } from "./providers/image/grok.js";
 import { OpenAIImage } from "./providers/image/openai.js";
 import { RunPodImage } from "./providers/image/runpod.js";
+import { SharpiiImage } from "./providers/image/sharpii.js";
 import { ViviImage } from "./providers/image/vivi.js";
 import { AliCloudLLM } from "./providers/llm/alicloud.js";
 import { AnthropicLLM } from "./providers/llm/anthropic.js";
@@ -30,6 +31,7 @@ import { OpenAILLM } from "./providers/llm/openai.js";
 import { OpenRouterLLM } from "./providers/llm/openrouter.js";
 import { ViviLLM } from "./providers/llm/vivi.js";
 import { RUNPOD_IMAGE_MODELS, RUNPOD_VIDEO_MODELS } from "./providers/runpod/catalog.js";
+import { SHARPII_IMAGE_MODELS, SHARPII_VIDEO_MODELS, creditsToUsd } from "./providers/sharpii/catalog.js";
 import { ElevenLabsTTS } from "./providers/tts/elevenlabs.js";
 import { GEMINI_TTS_VOICES, GeminiTTS } from "./providers/tts/gemini.js";
 import { GROK_TTS_MODELS, GROK_TTS_VOICES, GrokTTS } from "./providers/tts/grok.js";
@@ -41,6 +43,7 @@ import { FalVideo } from "./providers/video/fal.js";
 import { GeminiVideo } from "./providers/video/gemini.js";
 import { GrokVideo } from "./providers/video/grok.js";
 import { RunPodVideo } from "./providers/video/runpod.js";
+import { SharpiiVideo } from "./providers/video/sharpii.js";
 import { ViviVideo } from "./providers/video/vivi.js";
 import { registerSocial } from "./publish/plugin.js";
 import { publishCompletedJob } from "./publish/run.js";
@@ -130,6 +133,7 @@ app.get("/api/v1/health", async () => {
       XAI_API_KEY: !!process.env["XAI_API_KEY"],
       FAL_API_KEY: !!process.env["FAL_API_KEY"],
       RUNPOD_API_KEY: !!process.env["RUNPOD_API_KEY"],
+      SHARPII_API_KEY: !!process.env["SHARPII_API_KEY"],
       YOUTUBE_API_KEY: !!process.env["YOUTUBE_API_KEY"],
     },
   };
@@ -248,6 +252,20 @@ app.get("/api/v1/providers", async () => ({
   })),
   runpodImageModels: RUNPOD_IMAGE_MODELS,
   runpodVideoModels: RUNPOD_VIDEO_MODELS,
+  sharpiiImageModels: SHARPII_IMAGE_MODELS.map((m) => ({
+    id: m.id,
+    label: m.label,
+    credits: m.credits,
+    usd: creditsToUsd(m.credits),
+  })),
+  sharpiiVideoModels: SHARPII_VIDEO_MODELS.map((m) => ({
+    id: m.id,
+    label: m.label,
+    credits: m.credits,
+    usd: creditsToUsd(m.credits),
+    durations: m.durations,
+    perSecond: Boolean(m.perSecond),
+  })),
   atelierStyles: ATELIER_STYLES,
   image: [
     { key: "gemini", label: "Google Gemini" },
@@ -257,12 +275,14 @@ app.get("/api/v1/providers", async () => ({
     { key: "alicloud", label: "Alibaba Cloud" },
     { key: "runpod", label: "RunPod (FLUX / Wan públicos)" },
     { key: "fal", label: "fal.ai (FLUX)" },
+    { key: "sharpii", label: "Sharpii (Nano Banana / Flux / MJ)" },
   ],
   video: [
     { key: "gemini", label: "Google Veo" },
     { key: "grok", label: "Grok Imagine Video 1.5" },
     { key: "vivi", label: "VIVI (Grok Video 3)" },
     { key: "fal", label: "fal.ai (Kling 2.6 Pro)" },
+    { key: "sharpii", label: "Sharpii (Kling / Seedance / Sora)" },
     { key: "vidu-q2-fast", label: "VIDU Q2 Fast (~27cr/5s)" },
     { key: "vidu-q3-fast", label: "VIDU Q3 Fast" },
     { key: "runpod", label: "RunPod (Wan / Kling / Seedance)" },
@@ -397,6 +417,8 @@ app.post("/api/v1/test/image", async (request, reply) => {
           return new RunPodImage({ model, steps, guidance });
         case "fal":
           return new FalImage();
+        case "sharpii":
+          return new SharpiiImage(model);
         default:
           return new GeminiImage();
       }
@@ -441,6 +463,8 @@ app.post("/api/v1/test/video", async (request, reply) => {
           return new FalVideo();
         case "runpod":
           return new RunPodVideo({ model, resolution });
+        case "sharpii":
+          return new SharpiiVideo(model);
         default:
           return new GeminiVideo();
       }
@@ -514,6 +538,8 @@ interface CreateJobBody {
     runpodVideoResolution?: string;
     runpodImageEndpointId?: string;
     runpodVideoEndpointId?: string;
+    sharpiiImageModel?: string;
+    sharpiiVideoModel?: string;
   };
   keys?: Record<string, string>;
 }
@@ -719,6 +745,8 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       runpodVideoResolution: providers?.runpodVideoResolution,
       runpodImageEndpointId: providers?.runpodImageEndpointId,
       runpodVideoEndpointId: providers?.runpodVideoEndpointId,
+      sharpiiImageModel: providers?.sharpiiImageModel,
+      sharpiiVideoModel: providers?.sharpiiVideoModel,
     },
     keys: keys ?? {},
     jobsDir: JOBS_DIR,
