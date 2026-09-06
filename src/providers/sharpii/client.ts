@@ -32,7 +32,7 @@ export async function downloadUrl(url: string): Promise<Buffer> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Sharpii download failed: ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length < 80) throw new Error("Sharpii download was empty");
+  if (buf.length < 32) throw new Error("Sharpii download was empty");
   return buf;
 }
 
