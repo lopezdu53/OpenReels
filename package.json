@@ -5,6 +5,7 @@
   "bin": {
     "openreels": "./dist/index.js"
   },
+  "packageManager": "pnpm@10.33.3",
   "engines": {
     "node": ">=22.0.0"
   },
