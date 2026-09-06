@@ -485,6 +485,7 @@ interface CreateJobBody {
   atelierMode?: boolean;
   artStyleOverride?: string;
   characterLock?: string;
+  castMode?: string;
   locationLock?: string;
   objectLock?: string;
   locationReferenceImage?: string; // base64 location bible board
@@ -540,6 +541,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     atelierMode,
     artStyleOverride,
     characterLock,
+    castMode,
     locationLock,
     objectLock,
     locationReferenceImage,
@@ -617,6 +619,10 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     }
   }
 
+  if (castMode != null && castMode !== "scene" && castMode !== "hero") {
+    return reply.status(400).send({ error: "castMode must be scene or hero" });
+  }
+
   if (locationLock != null) {
     if (typeof locationLock !== "string") {
       return reply.status(400).send({ error: "locationLock must be a string" });
@@ -684,6 +690,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     atelierMode: atelierMode !== false,
     ...(artStyleOverride?.trim() ? { artStyleOverride: artStyleOverride.trim() } : {}),
     ...(characterLock?.trim() ? { characterLock: characterLock.trim() } : {}),
+    ...(castMode === "hero" ? { castMode: "hero" } : {}),
     ...(locationLock?.trim() ? { locationLock: locationLock.trim() } : {}),
     ...(objectLock?.trim() ? { objectLock: objectLock.trim() } : {}),
     ...(locationReferenceImage ? { locationReferenceImage } : {}),

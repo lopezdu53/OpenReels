@@ -40,6 +40,13 @@ export function formatCharacterLock(c: CharacterBible): string {
 
 export const MAX_FILM_CHARACTERS = 3;
 
+/** Scene: only who the VO names. Hero: first CAST member never leaves frame. */
+export type CastMode = "scene" | "hero";
+
+export function normalizeCastMode(raw?: string | null): CastMode {
+  return raw === "hero" ? "hero" : "scene";
+}
+
 export function countLockedCharacters(lock?: string): number {
   const text = lock?.trim() ?? "";
   if (!text) return 0;
@@ -60,9 +67,25 @@ export function characterDirectionBlock(c: CharacterBible): string {
   return characterDirectionBlockForCast([c]);
 }
 
-export function characterDirectionBlockForCast(cast: CharacterBible[]): string {
+export function characterDirectionBlockForCast(cast: CharacterBible[], mode: CastMode = "scene"): string {
   const members = cast.slice(0, MAX_FILM_CHARACTERS);
   if (members.length === 0) return "";
+  if (normalizeCastMode(mode) === "hero") {
+    const hero = members[0]!;
+    if (members.length === 1) {
+      return [
+        "## Personaje (modo héroe — siempre en cámara)",
+        formatCharacterLock(hero),
+        "Este individuo es el HÉROE: aparece en TODOS los planos. El mundo (lugar, objetos, metáforas) se pega a su cuerpo. Nunca un plano de solo locación o atmósfera. Cierra cada escena con una pose que la siguiente herede.",
+      ].join("\n");
+    }
+    return [
+      `## Personajes (modo héroe, ${members.length})`,
+      `HÉROE (siempre en cuadro): ${formatCharacterLock(hero)}`,
+      ...members.slice(1).map((c, i) => `Invitado [${i + 2}] ${formatCharacterLock(c)}`),
+      "El héroe NUNCA sale de cámara. Los demás solo cuando la locución los nombra. Locación y objetos se adjuntan al héroe, no lo sustituyen.",
+    ].join("\n");
+  }
   if (members.length === 1) {
     return [
       "## Personaje (identidad bloqueada)",
@@ -131,7 +154,24 @@ export function focusCastLock(
   fullLock: string,
   onScreen: CastMemberLock[],
   roster: CastMemberLock[] = parseCastMembers(fullLock),
+  mode: CastMode = "scene",
 ): string {
+  if (normalizeCastMode(mode) === "hero") {
+    const hero = roster[0];
+    if (!hero) return fullLock.trim();
+    const guests = onScreen.filter((m) => m.name.toLowerCase() !== hero.name.toLowerCase());
+    const off = roster
+      .filter((m) => m.name.toLowerCase() !== hero.name.toLowerCase())
+      .filter((m) => !guests.some((g) => g.name.toLowerCase() === m.name.toLowerCase()))
+      .map((m) => m.name);
+    const ban = off.length ? ` Do not depict ${off.join(" or ")} — not even in the background.` : "";
+    if (guests.length === 0) {
+      return `HERO ON CAMERA: always ${hero.name}. Never atmosphere-only; camera follows this person; location and props attach to their body.${ban} ${hero.lock}`;
+    }
+    const names = [hero.name, ...guests.map((g) => g.name)];
+    const locks = [hero, ...guests].map((m, i) => `[${i + 1}] ${m.lock}`).join(" | ");
+    return `HERO ON CAMERA: always ${hero.name}, plus ${guests.map((g) => g.name).join(" and ")} this shot.${ban} CAST of ${names.length}. ${locks}`;
+  }
   if (roster.length <= 1) return fullLock.trim();
   const others = roster.filter((m) => !onScreen.some((s) => s.name.toLowerCase() === m.name.toLowerCase()));
   const off = others.map((m) => m.name);
@@ -153,9 +193,20 @@ export function focusCastLock(
 export function planSceneCastFocus(
   scenes: Array<{ script_line: string }>,
   characterLock?: string,
+  mode: CastMode = "scene",
 ): SceneCastFocus[] {
   const full = characterLock?.trim() ?? "";
   const roster = parseCastMembers(full);
+  if (normalizeCastMode(mode) === "hero") {
+    const hero = roster[0];
+    if (!hero) return scenes.map(() => ({ lock: full, names: [] }));
+    return scenes.map((scene) => {
+      const mentioned = roster.filter((m) => mentionsCastMember(scene.script_line, m));
+      const guests = mentioned.filter((m) => m.name.toLowerCase() !== hero.name.toLowerCase());
+      const onScreen = [hero, ...guests];
+      return { lock: focusCastLock(full, onScreen, roster, "hero"), names: onScreen.map((m) => m.name) };
+    });
+  }
   if (roster.length <= 1) {
     return scenes.map(() => ({ lock: full, names: roster.map((m) => m.name) }));
   }
@@ -164,7 +215,7 @@ export function planSceneCastFocus(
     const mentioned = roster.filter((m) => mentionsCastMember(scene.script_line, m));
     const onScreen = mentioned.length ? mentioned : last;
     if (mentioned.length) last = mentioned;
-    return { lock: focusCastLock(full, onScreen, roster), names: onScreen.map((m) => m.name) };
+    return { lock: focusCastLock(full, onScreen, roster, "scene"), names: onScreen.map((m) => m.name) };
   });
 }
 
@@ -448,6 +499,9 @@ export function planSceneObjectFocus(
 }
 
 export function identityLockLead(lock?: string): string {
+  if (/HERO ON CAMERA:\s*always/i.test(lock ?? "")) {
+    return `IDENTITY LOCK — HERO stays in every frame; camera follows them; never atmosphere-only.`;
+  }
   if (/ON SCREEN:\s*none/i.test(lock ?? "")) {
     return `IDENTITY LOCK — no named CAST member in this frame.`;
   }
@@ -494,13 +548,15 @@ function prefixLocks(prompt: string, characterLock?: string, locationLock?: stri
   if (characterLock?.trim()) {
     const lock = characterLock.trim();
     const n = countLockedCharacters(lock);
-    const lead = /ON SCREEN:\s*none/i.test(lock)
-      ? "no named CAST on screen."
-      : /ON SCREEN:\s*only/i.test(lock)
-        ? "only the ON SCREEN person; other CAST members absent."
-        : n >= 2
-          ? `named CAST of ${n} ON SCREEN, do not merge or swap.`
-          : "same individual every shot.";
+    const lead = /HERO ON CAMERA:\s*always/i.test(lock)
+      ? "HERO stays in frame; camera follows them; never atmosphere-only."
+      : /ON SCREEN:\s*none/i.test(lock)
+        ? "no named CAST on screen."
+        : /ON SCREEN:\s*only/i.test(lock)
+          ? "only the ON SCREEN person; other CAST members absent."
+          : n >= 2
+            ? `named CAST of ${n} ON SCREEN, do not merge or swap.`
+            : "same individual every shot.";
     bits.push(`${IDENTITY_MARKER} ${lead} ${lock}.`);
   }
   if (locationLock?.trim()) {
@@ -523,11 +579,12 @@ export function applyVisualIdentity(
   characterLock?: string,
   locationLock?: string,
   objectLock?: string,
+  castMode: CastMode = "scene",
 ): DirectorScore {
   const lock = characterLock?.trim();
   const locFull = locationLock?.trim();
   const objFull = objectLock?.trim();
-  const focus = lock ? planSceneCastFocus(score.scenes, lock) : [];
+  const focus = lock ? planSceneCastFocus(score.scenes, lock, castMode) : [];
   const locFocus = locFull ? planSceneLocationFocus(score.scenes, locFull) : [];
   const objFocus = objFull ? planSceneObjectFocus(score.scenes, objFull) : [];
   const scenes = score.scenes.map((scene, i) => {

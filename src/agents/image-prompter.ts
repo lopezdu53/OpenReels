@@ -91,15 +91,18 @@ ${
   if (opts?.characterLock?.trim()) {
     const lock = opts.characterLock.trim();
     const named = lock.match(/\bName:\s*/gi)?.length ?? 0;
+    const hero = /HERO ON CAMERA:\s*always/i.test(lock);
     const solo = /ON SCREEN:\s*only/i.test(lock);
     const empty = /ON SCREEN:\s*none/i.test(lock);
-    const lockRule = empty
-      ? "No named CAST member appears in this frame. Location, object, or atmosphere only."
-      : solo
-        ? "ONLY the named ON SCREEN person. Other CAST members must be completely absent — not in the background, not as a reflection, not as a silhouette."
-        : named >= 2
-          ? `Named CAST of ${named} ON SCREEN together. Each named individual must keep their own species, race, age, face, markings, and body type. Do not merge, swap, or replace anyone.`
-          : "The SAME individual must appear in every shot. Never change species, race, age, face, markings, or body type to create variety.";
+    const lockRule = hero
+      ? "The HERO stays in this frame. Camera follows them. Never cut to an empty location. Location and props attach to the hero's body."
+      : empty
+        ? "No named CAST member appears in this frame. Location, object, or atmosphere only."
+        : solo
+          ? "ONLY the named ON SCREEN person. Other CAST members must be completely absent — not in the background, not as a reflection, not as a silhouette."
+          : named >= 2
+            ? `Named CAST of ${named} ON SCREEN together. Each named individual must keep their own species, race, age, face, markings, and body type. Do not merge, swap, or replace anyone.`
+            : "The SAME individual must appear in every shot. Never change species, race, age, face, markings, or body type to create variety.";
     systemPrompt += `
 
 ## CHARACTER IDENTITY LOCK (overrides visual contrast)

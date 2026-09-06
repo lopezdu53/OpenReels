@@ -8,7 +8,7 @@ import { z } from "zod";
 import { generateDirectorScore, reviseDirectorScore } from "../agents/creative-director.js";
 import { evaluate, type CriticEvalOptions } from "../agents/critic.js";
 import { summarizeVideoFallbacks } from "../agents/critic-audit.js";
-import { applyVisualIdentity, characterSheetFitsScene, identityLockLead, locationSheetFitsScene, parseCastMembers, parseLocationMembers, planSceneCastFocus, planSceneLocationFocus, planSceneObjectFocus } from "../library/identity.js";
+import { applyVisualIdentity, characterSheetFitsScene, identityLockLead, locationSheetFitsScene, normalizeCastMode, parseCastMembers, parseLocationMembers, planSceneCastFocus, planSceneLocationFocus, planSceneObjectFocus } from "../library/identity.js";
 import { optimizeImagePrompt } from "../agents/image-prompter.js";
 import { generateOrientedImage } from "../providers/image/dimensions.js";
 import { lookupRemoteUrl } from "../providers/runpod/client.js";
@@ -577,11 +577,12 @@ function buildPipelineWorkflow(
         objectLock: opts.objectLock,
         artStyleOverride: opts.artStyleOverride,
         videoSceneMode: opts.videoSceneMode,
+        castMode: opts.castMode,
       };
 
       // ── Replay mode: use provided score, skip generation + revision ──
       if (opts.replayScore) {
-        const score = applyVisualIdentity(opts.replayScore, opts.characterLock, opts.locationLock, opts.objectLock);
+        const score = applyVisualIdentity(opts.replayScore, opts.characterLock, opts.locationLock, opts.objectLock, normalizeCastMode(opts.castMode));
         directorResult.score = score;
         directorResult.config = getArchetype(score.archetype);
 
@@ -713,7 +714,7 @@ function buildPipelineWorkflow(
         scenes: applyVideoSceneMode(score.scenes, opts.videoSceneMode),
       };
 
-      score = applyVisualIdentity(score, opts.characterLock, opts.locationLock, opts.objectLock);
+      score = applyVisualIdentity(score, opts.characterLock, opts.locationLock, opts.objectLock, normalizeCastMode(opts.castMode));
 
       // ── Store final score on shared closure state ──
       directorResult.score = score;
@@ -822,7 +823,7 @@ function buildPipelineWorkflow(
 
       const aspectRatio = getPlatformAspectRatio(opts.platform);
 
-      const sceneCast = planSceneCastFocus(score.scenes, opts.characterLock);
+      const sceneCast = planSceneCastFocus(score.scenes, opts.characterLock, normalizeCastMode(opts.castMode));
       const roster = parseCastMembers(opts.characterLock);
       const sheetOwner = roster[0]?.name;
       const characterSheet =

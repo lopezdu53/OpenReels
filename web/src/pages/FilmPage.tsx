@@ -25,6 +25,7 @@ import { getSceneAssetUrl } from "@/lib/scene-assets";
 import { KokoroVoiceMixer } from "@/components/new-short/KokoroVoiceMixer";
 import { VisualTypeGrid } from "@/components/new-short/VisualTypeGrid";
 import { CostEstimatePanel } from "@/components/new-short/CostEstimatePanel";
+import { CastModePicker, type FilmCastMode } from "@/components/film/CastModePicker";
 import { CharacterStudio } from "@/components/film/CharacterStudio";
 import { LocationStudio } from "@/components/film/LocationStudio";
 import { ObjectStudio } from "@/components/film/ObjectStudio";
@@ -264,6 +265,7 @@ export function FilmPage() {
   const [stockAvailable, setStockAvailable] = useState(true);
   const [artStyleOverride, setArtStyleOverride] = useState("");
   const [styleId, setStyleId] = useState("");
+  const [castMode, setCastMode] = useState<FilmCastMode>("scene");
   const [characterIds, setCharacterIds] = useState<string[]>([]);
   const [locationIds, setLocationIds] = useState<string[]>([]);
   const [objectIds, setObjectIds] = useState<string[]>([]);
@@ -464,6 +466,7 @@ export function FilmPage() {
           .map((id) => objects.find((o) => o.id === id))
           .filter((o): o is LibraryObject => Boolean(o))
           .map((o) => ({ name: o.name, prompt: o.prompt })),
+        castMode,
         previousStory: sequelJob ? sequelBriefFromJob(sequelJob) : undefined,
       });
       setScripts((prev) => {
@@ -512,10 +515,16 @@ export function FilmPage() {
           "## Guion (locución — honrar estas líneas; no reescribir el texto hablado)",
           slot.body.trim(),
           characterLock
-            ? cast.length > 1
-              ? `\n## Personajes (identidad bloqueada, ${cast.length})\n${characterLock}\nSolo en cuadro quien nombra esa frase. Si la locución es de uno, los demás no aparecen ni de fondo. Juntos solo cuando la frase nombra a más de uno.`
-              : `\n## Personaje (identidad bloqueada)\n${characterLock}`
-            : "",
+            ? castMode === "hero"
+              ? cast.length > 1
+                ? `\n## Personajes (modo héroe, ${cast.length})\nHÉROE (siempre en cuadro): ${cast[0]!.name}\n${characterLock}\nEl héroe NUNCA sale de cámara. Los demás solo cuando la locución los nombra. Locación y objetos se pegan a su cuerpo.`
+                : `\n## Personaje (modo héroe — siempre en cámara)\n${characterLock}\nAparece en TODOS los planos. El mundo se pega a su cuerpo. Nunca un plano de solo locación.`
+              : cast.length > 1
+                ? `\n## Personajes (identidad bloqueada, ${cast.length})\n${characterLock}\nSolo en cuadro quien nombra esa frase. Si la locución es de uno, los demás no aparecen ni de fondo. Juntos solo cuando la frase nombra a más de uno.`
+                : `\n## Personaje (identidad bloqueada)\n${characterLock}`
+            : castMode === "hero"
+              ? "\n## Modo héroe\nUn protagonista permanece en cámara en todos los planos. Nunca atmósfera sola."
+              : "",
           locationLock
             ? places.length > 1
               ? `\n## Locaciones (una por plano, ${places.length})\n${locationLock}\nCada escena ocurre en UNA sola locación. Nunca combines dos lugares en el mismo plano.`
@@ -562,6 +571,7 @@ export function FilmPage() {
           atelierMode: true,
           ...(artStyleOverride ? { artStyleOverride } : {}),
           ...(characterLock ? { characterLock } : {}),
+          ...(castMode === "hero" ? { castMode: "hero" as const } : {}),
           ...(characterReferenceImage ? { characterReferenceImage } : {}),
           ...(locationLock ? { locationLock } : {}),
           ...(locationReferenceImage ? { locationReferenceImage } : {}),
@@ -788,6 +798,8 @@ export function FilmPage() {
           ) : null}
         </section>
 
+        <CastModePicker value={castMode} onChange={setCastMode} />
+
         <CharacterStudio
           characters={characters}
           selectedIds={characterIds}
@@ -821,7 +833,9 @@ export function FilmPage() {
           }}
         />
         <p className="text-xs text-muted-foreground">
-          Hasta 3 personajes. Cada plano muestra solo a quien nombra la locución; juntos solo si la frase nombra a más de uno. La ficha 16:9 ancla al primero con imagen cuando está en cuadro.
+          {castMode === "hero"
+            ? "Hasta 3 personajes. El primero es el héroe y no sale de cuadro; los invitados entran solo si la locución los nombra. La ficha 16:9 ancla al héroe."
+            : "Hasta 3 personajes. Cada plano muestra solo a quien nombra la locución; juntos solo si la frase nombra a más de uno. La ficha 16:9 ancla al primero con imagen cuando está en cuadro."}
         </p>
 
         <LocationStudio

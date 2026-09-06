@@ -41,6 +41,19 @@ describe("film script helpers", () => {
     expect(three).not.toContain("Extra");
   });
 
+  it("marks the first character as camera hero in hero mode", () => {
+    const brief = buildCastBrief(
+      [
+        { name: "Tania", kind: "human" },
+        { name: "Casimiro", kind: "human" },
+      ],
+      "hero",
+    );
+    expect(brief).toContain("Héroe de cámara: Tania");
+    expect(brief).toContain("TODOS los planos");
+    expect(brief).toContain("Casimiro");
+  });
+
   it("lists 1–3 locked locations for the script LLM", () => {
     expect(buildLocationBrief([])).toBe("");
     expect(buildLocationBrief([{ name: "Villa", place: "casa blanca" }])).toContain("1. Villa — casa blanca");

@@ -147,13 +147,20 @@ This is a LONG-FORM Reel Extend video, NOT a Short. Apply these rules instead of
 
 const ALL_VISUAL_TYPES = ["ai_image", "stock_image", "stock_video", "text_card", "ai_video"] as const;
 
-function characterSection(lock?: string): string {
+function characterSection(lock?: string, castMode?: string): string {
+  const hero = castMode === "hero";
   if (lock?.trim()) {
     const named = lock.match(/\bName:\s*/gi)?.length ?? 0;
+    if (hero) {
+      return `\n## CHARACTER IDENTITY LOCK — HERO MODE\n${lock.trim()}\nThe FIRST named CAST member is the HERO and appears in EVERY visual_prompt. Never write an atmosphere-only or location-only shot. Location and objects attach to the hero's body (they walk through the place, hold the prop). Other CAST members join ONLY when that script_line names them; they never replace the hero.\nEach scene: where the hero stands, what they do, how the world attaches to them. Close each visual_prompt with a pose the next shot inherits.\n`;
+    }
     if (named >= 2) {
       return `\n## CHARACTER IDENTITY LOCK\n${lock.trim()}\nNamed CAST of ${named}. Each named individual keeps their own species, race, markings, age, and face. Do not merge, swap, or replace anyone.\nON SCREEN RULE: a visual_prompt may show ONLY the character(s) named in THAT scene's script_line. If the line is about one person, the others must be absent — not even in the background. Show two or more together only when the line names them together. Do NOT paste the full CAST bible into every visual_prompt; copy only the on-screen person's appearance.\n`;
     }
     return `\n## CHARACTER IDENTITY LOCK\n${lock.trim()}\nThe SAME individual in every visual_prompt. Never change species, race, markings, age, or face. Do not swap an ocelot for a Bengal tiger, a coatí for a fox/raccoon, or a cub for an adult. Contrast via camera and emotion only.\n`;
+  }
+  if (hero) {
+    return `\n## HERO MODE\nA single protagonist stays ON CAMERA in every visual_prompt. Never atmosphere-only. The world (place, objects, metaphors) attaches to their body. Close each shot with a pose the next inherits.\n`;
   }
   return `\n## CHARACTER CONTINUITY\nIf the story has a recurring character (animal or person), lock species, race, age, markings, and face in EVERY visual_prompt. Repeat the exact description. Never morph to a similar species.\n`;
 }
@@ -189,7 +196,7 @@ export async function generateDirectorScore(
   llm: LLMProvider,
   topic: string,
   researchContext: ResearchResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; objectLock?: string; artStyleOverride?: string; videoSceneMode?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; objectLock?: string; artStyleOverride?: string; videoSceneMode?: string; castMode?: string },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes, options?.platform);
 
@@ -231,21 +238,25 @@ ${archetypeInstruction}
 
 ${pacingInstruction}
 Use ${visualTypes}.${videoGuidance}
-${directionSection}${characterSection(options?.characterLock)}${locationSection(options?.locationLock)}${objectSection(options?.objectLock)}${options?.artStyleOverride?.trim() ? `\n## ART STYLE LOCK\n${options.artStyleOverride.trim()}\nEvery visual_prompt stays in this look. Do not switch photoreal ↔ cartoon/watercolor.\n` : ""}CRITICAL RULE: Never use the same visual_type more than 2 times in a row. With more scenes, plan your visual_type sequence BEFORE writing scenes to ensure variety.
+${directionSection}${characterSection(options?.characterLock, options?.castMode)}${locationSection(options?.locationLock)}${objectSection(options?.objectLock)}${options?.artStyleOverride?.trim() ? `\n## ART STYLE LOCK\n${options.artStyleOverride.trim()}\nEvery visual_prompt stays in this look. Do not switch photoreal ↔ cartoon/watercolor.\n` : ""}CRITICAL RULE: Never use the same visual_type more than 2 times in a row. With more scenes, plan your visual_type sequence BEFORE writing scenes to ensure variety.
 Every scene MUST have a script_line (the voiceover text).
 The first scene should be a strong hook.
 ${isLongForm
   ? isTest
     ? `MANDATORY: This is a 30-second TEST film. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total ~${wordsTarget} words. NO text_card. If ai_video is allowed, every scene is ai_video. ${
-        castCount >= 2
-          ? "Keep each CAST member's species, markings and face. Do not merge or swap identities."
-          : "Same character (crest, patches, species) in every visual_prompt."
+        options?.castMode === "hero"
+          ? "HERO MODE: the first CAST member is in EVERY visual_prompt. Never atmosphere-only. Guests join only when named."
+          : castCount >= 2
+            ? "Keep each CAST member's species, markings and face. Do not merge or swap identities."
+            : "Same character (crest, patches, species) in every visual_prompt."
       }`
     : isFilmOneMinute(filmMinutes)
       ? `MANDATORY: This is a 1-minute film. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total ~${wordsTarget} words. NO text_card. Hook, advance the plot, cliffhanger CTA. ${
-          castCount >= 2
-            ? "Keep each CAST member's species, markings and face. Only the character named in that script_line is on screen."
-            : "Same character in every visual_prompt."
+          options?.castMode === "hero"
+            ? "HERO MODE: the first CAST member stays on camera in every shot. Location and props attach to their body."
+            : castCount >= 2
+              ? "Keep each CAST member's species, markings and face. Only the character named in that script_line is on screen."
+              : "Same character in every visual_prompt."
         }`
       : options?.platform === "youtube_horizontal"
         ? `MANDATORY: This is a ${filmMinutes}-minute YouTube horizontal film. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total word count MUST be ~${wordsTarget} words. NO text_card. No chapter title cards. Stop at exactly ${sceneTarget} scenes.`
@@ -455,7 +466,7 @@ export async function reviseDirectorScore(
   researchContext: ResearchResult,
   originalScore: DirectorScore,
   critique: CritiqueResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; objectLock?: string; artStyleOverride?: string; videoSceneMode?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; objectLock?: string; artStyleOverride?: string; videoSceneMode?: string; castMode?: string },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes, options?.platform);
 
@@ -484,7 +495,7 @@ Mood: ${researchContext.mood}
 
 ${pacingInstruction}
 Use ${visualTypes}.${videoGuidance}
-${directionSection}${characterSection(options?.characterLock)}${locationSection(options?.locationLock)}${objectSection(options?.objectLock)}
+${directionSection}${characterSection(options?.characterLock, options?.castMode)}${locationSection(options?.locationLock)}${objectSection(options?.objectLock)}
 ## Current Plan (score: ${critique.score}/10)
 
 ${JSON.stringify(originalScore, null, 2)}
@@ -502,7 +513,11 @@ ${revisionGuidance}
 Revise the DirectorScore to address the weaknesses while preserving the strengths.
 Keep the same archetype. Maintain the GOLDEN RULE: never use the same visual_type more than 2 times in a row.
 ${options?.direction?.trim() ? "LOCKED NARRATION: do not rewrite script_line. Only change visual_type, visual_prompt, motion, transition, shot_type, camera_move, and location." : ""}
-${options?.characterLock?.trim() ? `IDENTITY: keep each CAST member's appearance when they are ON SCREEN. Do not paste the full CAST into every visual_prompt. If script_line names one person, the others stay off camera.` : ""}
+${options?.characterLock?.trim()
+      ? options?.castMode === "hero"
+        ? `IDENTITY: HERO MODE — the first CAST member stays in every visual_prompt. Guests join only when the script_line names them. Never atmosphere-only.`
+        : `IDENTITY: keep each CAST member's appearance when they are ON SCREEN. Do not paste the full CAST into every visual_prompt. If script_line names one person, the others stay off camera.`
+      : ""}
 ${options?.locationLock?.trim() ? `LOCATION: each scene is ONE roster place only. Never combine two locations in one frame. scene.location must be that place's Name.` : ""}
 ${options?.artStyleOverride?.trim() ? `ART STYLE LOCK: ${options.artStyleOverride.trim()}. Do not switch photoreal ↔ cartoon.` : ""}
 ${options?.platform === "youtube_horizontal" ? "Every AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars. Fill shot_type, camera_move, and a reusable location. Neighboring AI shots must not share the same shot_type." : ""}`;

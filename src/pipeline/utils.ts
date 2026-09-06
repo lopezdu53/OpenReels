@@ -84,6 +84,8 @@ export interface PipelineOptions {
   artStyleOverride?: string;
   /** Locked character appearance injected into every AI visual prompt. */
   characterLock?: string;
+  /** scene = only who the VO names; hero = first CAST member never leaves frame. */
+  castMode?: string;
   /** Locked location roster; each scene uses exactly one named place. */
   locationLock?: string;
   /** Named props; may appear together when the scene needs them. */

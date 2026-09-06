@@ -8,7 +8,7 @@ import { OpenRouterLLM } from "../providers/llm/openrouter.js";
 import { ViviLLM } from "../providers/llm/vivi.js";
 import type { LLMProvider } from "../schema/providers.js";
 import { filmDurationLabel, filmWordsTarget, isFilmTestMinutes, normalizeFilmMinutes } from "../config/film-duration.js";
-import { MAX_FILM_CHARACTERS, MAX_FILM_LOCATIONS, MAX_FILM_OBJECTS } from "../library/identity.js";
+import { MAX_FILM_CHARACTERS, MAX_FILM_LOCATIONS, MAX_FILM_OBJECTS, normalizeCastMode, type CastMode } from "../library/identity.js";
 
 export const filmScriptSchema = z.object({
   title: z.string(),
@@ -65,6 +65,7 @@ export function buildFilmDirection(script: string, youtubeUrls: string[] = []): 
 
 export function buildCastBrief(
   cast: Array<{ name: string; species?: string; kind?: string }>,
+  mode: CastMode = "scene",
 ): string {
   const members = cast.filter((c) => c.name?.trim()).slice(0, MAX_FILM_CHARACTERS);
   if (!members.length) return "";
@@ -73,6 +74,10 @@ export function buildCastBrief(
     return `${i + 1}. ${bits}`;
   });
   const n = members.length;
+  if (normalizeCastMode(mode) === "hero") {
+    const hero = members[0]!.name.trim();
+    return `Héroe de cámara: ${hero} (aparece en TODOS los planos; nómbralo con naturalidad). ${n > 1 ? "Los demás solo cuando la locución los necesita. " : ""}Reparto (${n}):\n${lines.join("\n")}`;
+  }
   return `Reparto bloqueado (${n} personaje${n === 1 ? "" : "s"}; usa estos nombres en la locución, no inventes protagonistas extra):\n${lines.join("\n")}`;
 }
 
@@ -170,12 +175,13 @@ export async function generateFilmScript(opts: {
   characters?: Array<{ name: string; species?: string; kind?: string }>;
   locations?: Array<{ name: string; place?: string }>;
   objects?: Array<{ name: string; prompt?: string }>;
+  castMode?: string;
   previousStory?: string;
 }): Promise<FilmScript> {
   const minutes = normalizeFilmMinutes(opts.durationMinutes) ?? 8;
   const words = filmWordsTarget(minutes);
   const refs = (opts.youtubeUrls ?? []).slice(0, 10);
-  const cast = buildCastBrief(opts.characters ?? []);
+  const cast = buildCastBrief(opts.characters ?? [], normalizeCastMode(opts.castMode));
   const places = buildLocationBrief(opts.locations ?? []);
   const props = buildObjectBrief(opts.objects ?? []);
   const sequel = opts.previousStory?.trim() ?? "";

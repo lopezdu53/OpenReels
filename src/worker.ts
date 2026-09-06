@@ -57,6 +57,7 @@ interface JobData {
   atelierMode?: boolean;
   artStyleOverride?: string;
   characterLock?: string;
+  castMode?: string;
   locationLock?: string;
   objectLock?: string;
   locationReferenceImage?: string; // base64 location bible board
@@ -146,7 +147,7 @@ function writeMeta(jobDir: string, meta: JobMeta) {
 const worker = new Worker<JobData>(
   "openreels",
   async (job: Job<JobData>) => {
-    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, characterReferenceImage, locationReferenceImage, atelierMode, artStyleOverride, characterLock, locationLock, objectLock, providers, keys, userId } =
+    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, characterReferenceImage, locationReferenceImage, atelierMode, artStyleOverride, characterLock, castMode, locationLock, objectLock, providers, keys, userId } =
       job.data;
     const jobDir = path.join(JOBS_DIR, job.id!);
     fs.mkdirSync(jobDir, { recursive: true });
@@ -392,6 +393,7 @@ const worker = new Worker<JobData>(
         atelierMode: atelierMode !== false,
         artStyleOverride: artStyleOverride ?? undefined,
         characterLock: characterLock ?? undefined,
+        castMode: castMode ?? undefined,
         locationLock: locationLock ?? undefined,
         objectLock: objectLock ?? undefined,
       },

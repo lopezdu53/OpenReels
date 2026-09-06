@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyVisualIdentity, countLockedCharacters, countLockedLocations, focusCastLock, focusLocationLock, focusObjectLock, formatCastLock, formatCharacterLock, formatLocationLock, formatLocationRoster, formatObjectLock, formatObjectRoster, identityLockLead, parseCastMembers, parseLocationMembers, parseObjectMembers, planSceneCastFocus, planSceneLocationFocus, planSceneObjectFocus } from "./identity.js";
+import { applyVisualIdentity, characterDirectionBlockForCast, countLockedCharacters, countLockedLocations, focusCastLock, focusLocationLock, focusObjectLock, formatCastLock, formatCharacterLock, formatLocationLock, formatLocationRoster, formatObjectLock, formatObjectRoster, identityLockLead, normalizeCastMode, parseCastMembers, parseLocationMembers, parseObjectMembers, planSceneCastFocus, planSceneLocationFocus, planSceneObjectFocus } from "./identity.js";
 import type { DirectorScore } from "../schema/director-score.js";
 
 function score(over: Partial<DirectorScore> = {}): DirectorScore {
@@ -118,6 +118,47 @@ describe("visual identity lock", () => {
     expect(next.scenes[3]!.visual_prompt).toContain("Do not depict Tania");
     expect(next.scenes[4]!.visual_prompt).toContain("Tania and Casimiro together");
     expect(identityLockLead(focus[1]!.lock)).toMatch(/only the named ON SCREEN/i);
+  });
+
+  it("keeps the first CAST member on camera in hero mode", () => {
+    expect(normalizeCastMode("hero")).toBe("hero");
+    expect(normalizeCastMode("scene")).toBe("scene");
+    expect(normalizeCastMode(undefined)).toBe("scene");
+
+    const lock = formatCastLock([
+      { name: "Tania", kind: "human", species: "Rubia", appearance: "escote" },
+      { name: "Casimiro", kind: "human", species: "hombre", appearance: "gafas" },
+    ]);
+    const film = score({
+      scenes: [
+        { visual_type: "ai_image", visual_prompt: "beach", motion: "static", script_line: "En una isla paradisíaca.", transition: "none" },
+        { visual_type: "ai_image", visual_prompt: "walk", motion: "zoom_in", script_line: "Tania camina descalza por la arena.", transition: "none" },
+        { visual_type: "ai_image", visual_prompt: "office", motion: "zoom_in", script_line: "Casimiro apenas puede creer su suerte.", transition: "none" },
+        { visual_type: "ai_image", visual_prompt: "pool", motion: "zoom_in", script_line: "Tania nada hasta el borde donde está Casimiro.", transition: "none" },
+      ],
+    });
+    const focus = planSceneCastFocus(film.scenes, lock, "hero");
+    expect(focus[0]!.names).toEqual(["Tania"]);
+    expect(focus[0]!.lock).toContain("HERO ON CAMERA: always Tania");
+    expect(focus[0]!.lock).not.toMatch(/ON SCREEN:\s*none/i);
+    expect(focus[2]!.names).toEqual(["Tania", "Casimiro"]);
+    expect(focus[2]!.lock).toContain("plus Casimiro");
+    expect(focus[3]!.names).toEqual(["Tania", "Casimiro"]);
+
+    const next = applyVisualIdentity(film, lock, undefined, undefined, "hero");
+    expect(next.scenes[0]!.visual_prompt).toContain("HERO ON CAMERA");
+    expect(next.scenes[0]!.visual_prompt).toContain("always Tania");
+    expect(identityLockLead(focus[0]!.lock)).toMatch(/HERO stays in every frame/i);
+
+    const block = characterDirectionBlockForCast(
+      [
+        { name: "Tania", species: "humano", appearance: "escote" },
+        { name: "Casimiro", species: "humano", appearance: "gafas" },
+      ],
+      "hero",
+    );
+    expect(block).toContain("modo héroe");
+    expect(block).toContain("HÉROE (siempre en cuadro)");
   });
 
   it("never combines two roster locations in one scene", () => {

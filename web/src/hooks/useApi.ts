@@ -426,6 +426,7 @@ export interface CreateJobRequest {
   atelierMode?: boolean;
   artStyleOverride?: string;
   characterLock?: string;
+  castMode?: "scene" | "hero";
   locationLock?: string;
   objectLock?: string;
   locationReferenceImage?: string;
@@ -484,6 +485,7 @@ export const api = {
     characters?: Array<{ name: string; species?: string; kind?: string }>;
     locations?: Array<{ name: string; place?: string }>;
     objects?: Array<{ name: string; prompt?: string }>;
+    castMode?: "scene" | "hero";
     previousStory?: string;
   }) {
     return fetchJson<{ script: { title: string; hook: string; script: string }; youtubeUrls: string[] }>(
