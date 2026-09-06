@@ -294,13 +294,14 @@ ${isLongForm
 
       // Remap types the current run cannot produce (e.g. stock with no Pexels key),
       // then auto-repair golden rule violations before strict validation.
-      // When only one visual type is allowed, repair is skipped and the
-      // golden rule refinement is bypassed (it can't be satisfied).
+      // Hero follow-cam and single-type runs skip repair + the Zod refine
+      // (all clips are ai_video on purpose).
       const allowedTypes = options?.allowedVisualTypes ?? [];
       remapDisallowedVisualTypes(result.data.scenes, allowedTypes);
-      repairGoldenRule(result.data.scenes, allowedTypes, options?.castMode === "hero");
+      const skipGolden = shouldSkipGoldenRule(allowedTypes, options?.castMode);
+      repairGoldenRule(result.data.scenes, allowedTypes, skipGolden);
 
-      const validated = isSingleVisualTypeMode(allowedTypes)
+      const validated = skipGolden
         ? (DirectorScoreBase.parse(result.data) as DirectorScore)
         : DirectorScore.parse(result.data);
       return { data: validated, usage: totalUsage };
@@ -412,6 +413,11 @@ export { PACING_CONFIG };
 function isSingleVisualTypeMode(allowedTypes: string[]): boolean {
   const realTypes = allowedTypes.filter((t) => t !== "text_card");
   return realTypes.length === 1;
+}
+
+/** Hero follow-cam and single-type runs cannot satisfy the slideshow golden rule. */
+function shouldSkipGoldenRule(allowedTypes: string[], castMode?: string): boolean {
+  return castMode === "hero" || isSingleVisualTypeMode(allowedTypes);
 }
 
 /** Force scenes onto the allowed palette when the LLM ignores type constraints. */
@@ -549,9 +555,10 @@ ${options?.platform === "youtube_horizontal" ? "Every AI visual_prompt must star
 
       const allowedTypesRev = options?.allowedVisualTypes ?? [];
       remapDisallowedVisualTypes(result.data.scenes, allowedTypesRev);
-      repairGoldenRule(result.data.scenes, allowedTypesRev, options?.castMode === "hero");
+      const skipGoldenRev = shouldSkipGoldenRule(allowedTypesRev, options?.castMode);
+      repairGoldenRule(result.data.scenes, allowedTypesRev, skipGoldenRev);
 
-      const validated = isSingleVisualTypeMode(allowedTypesRev)
+      const validated = skipGoldenRev
         ? (DirectorScoreBase.parse(result.data) as DirectorScore)
         : DirectorScore.parse(result.data);
 

@@ -52,20 +52,22 @@ export const DirectorScore = z
     scenes: z.array(Scene).min(3).max(200),
   })
   .refine(
-    (score) => {
-      // Golden rule: no more than 2 consecutive scenes of the same visual_type
-      for (let i = 2; i < score.scenes.length; i++) {
-        const prev2 = score.scenes[i - 2]?.visual_type;
-        const prev1 = score.scenes[i - 1]?.visual_type;
-        const curr = score.scenes[i]?.visual_type;
-        if (prev2 === prev1 && prev1 === curr) {
-          return false;
-        }
-      }
-      return true;
-    },
+    (score) => satisfiesGoldenRule(score.scenes),
     { message: "Golden rule violation: no more than 2 consecutive scenes of the same visual_type" },
   );
+
+/** Slideshow guard. Consecutive `ai_video` is allowed (follow-cam / force_all). */
+export function satisfiesGoldenRule(scenes: Array<{ visual_type: string }>): boolean {
+  for (let i = 2; i < scenes.length; i++) {
+    const prev2 = scenes[i - 2]?.visual_type;
+    const prev1 = scenes[i - 1]?.visual_type;
+    const curr = scenes[i]?.visual_type;
+    if (prev2 === prev1 && prev1 === curr && curr !== "ai_video") {
+      return false;
+    }
+  }
+  return true;
+}
 export type DirectorScore = z.infer<typeof DirectorScore>;
 
 // Same as DirectorScore but without the golden rule refinement.
