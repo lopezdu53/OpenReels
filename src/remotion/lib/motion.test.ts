@@ -10,13 +10,13 @@ describe("kenBurnsTransform", () => {
 });
 
 describe("resolveVideoPlayback", () => {
-  it("loops a short AI clip so the last frame does not freeze", () => {
+  it("slows a short AI clip but never loops — last frame is the match-cut seed", () => {
     const play = resolveVideoPlayback({
       sourceDurationSeconds: 8,
       sceneDurationSeconds: 16,
       visualType: "ai_video",
     });
-    expect(play.loop).toBe(true);
+    expect(play.loop).toBe(false);
     expect(play.playbackRate).toBeLessThan(1);
     expect(play.playbackRate).toBeGreaterThanOrEqual(0.82);
   });

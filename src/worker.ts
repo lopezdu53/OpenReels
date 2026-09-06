@@ -119,6 +119,7 @@ interface JobMeta {
     locationReference?: boolean;
     atelierMode?: boolean;
     artStyleOverride?: string;
+    castMode?: string;
   };
   costEstimate?: unknown;
   actualCost?: unknown;
@@ -179,6 +180,7 @@ const worker = new Worker<JobData>(
         locationReference: locationReferenceImage ? true : undefined,
         atelierMode: atelierMode !== false,
         artStyleOverride: artStyleOverride ?? undefined,
+        castMode: castMode === "hero" ? "hero" : "scene",
       },
     };
 

@@ -34,7 +34,10 @@ export interface VideoPlayback {
   loop: boolean;
 }
 
-/** Fill the scene so I2V clips do not freeze on the last frame before the next still. */
+/**
+ * Fill the scene. I2V clips never loop — the last frame is the next clip's
+ * match-cut seed, so jumping back to t=0 breaks the join.
+ */
 export function resolveVideoPlayback({
   sourceDurationSeconds,
   sceneDurationSeconds,
@@ -46,8 +49,7 @@ export function resolveVideoPlayback({
   }
   if (visualType === "ai_video") {
     const playbackRate = Math.max(0.82, source / sceneDurationSeconds);
-    const stretched = source / playbackRate;
-    return { playbackRate, loop: stretched < sceneDurationSeconds - 0.12 };
+    return { playbackRate, loop: false };
   }
   return { playbackRate: 1, loop: true };
 }

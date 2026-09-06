@@ -29,8 +29,9 @@ describe("buildShotContext", () => {
       characterLock: "FOLLOW-CAM HERO ON CAMERA: always Tania. Name: Tania.",
       previousVisualPrompt: "Tania mid-stride holding a lantern, facing right",
     });
-    expect(text).toContain("inherit the last pose");
-    expect(text).toContain("camera tracks the body");
+    expect(text).toContain("MATCH-CUT");
+    expect(text).toContain("Hold the opening pixels");
+    expect(text).toContain("Camera tracks the body");
     expect(text).toContain("lantern");
     expect(text).not.toContain("do not carry off-screen CAST");
   });

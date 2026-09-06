@@ -35,7 +35,7 @@ export function buildShotContext(opts: {
     const last = opts.previousVisualPrompt.trim().slice(0, 400);
     lines.push(
       isHeroFollowCam(opts.characterLock)
-        ? `previous_shot: inherit the last pose, facing, stride, and object in hand. Continue as the next beat of ONE take — camera tracks the body; the world scrolls or transforms around them. Do not start a new portrait. Last frame: ${last}`
+        ? `previous_shot: MATCH-CUT from that last frame. Hold the opening pixels, then continue the same take — same lens height, same seat/stance. Camera tracks the body; the world scrolls or transforms around them. Do not start a new portrait or new master. Last frame: ${last}`
         : `previous_shot (keep the world; follow ON SCREEN for who appears and ON LOCATION for the place — do not carry off-screen CAST or a second roster location from the previous frame): ${last}`,
     );
   }

@@ -638,7 +638,11 @@ export function applyVisualIdentity(
     let transition = scene.transition;
     const last = i === score.scenes.length - 1;
     if (castMode === "hero" && !last) {
-      transition = "crossfade";
+      // Video→video is a match-cut: last frame of N is first frame of N+1.
+      // A crossfade dissolves that join (and looks worse if the outgoing clip loops).
+      const nextMotion = Boolean(next && MOTION.has(next.visual_type));
+      const curMotion = MOTION.has(scene.visual_type);
+      transition = curMotion && nextMotion ? "none" : "crossfade";
     } else if (!last && next) {
       const stillToMotion = STILL.has(scene.visual_type) && MOTION.has(next.visual_type);
       const motionToStill = MOTION.has(scene.visual_type) && STILL.has(next.visual_type);

@@ -153,6 +153,17 @@ describe("visual identity lock", () => {
     expect(next.scenes[1]!.motion).toBe("pan_right");
     expect(next.scenes[0]!.transition).toBe("crossfade");
     expect(next.scenes[0]!.visual_prompt).toMatch(/Exactly ONE Tania/i);
+
+    const followCam = score({
+      scenes: [
+        { visual_type: "ai_video", visual_prompt: "drive", motion: "static", script_line: "Arranca.", transition: "crossfade" },
+        { visual_type: "ai_video", visual_prompt: "wave", motion: "static", script_line: "Saluda.", transition: "crossfade" },
+        { visual_type: "ai_image", visual_prompt: "wreck", motion: "static", script_line: "Chatarra.", transition: "none" },
+      ],
+    });
+    const followNext = applyVisualIdentity(followCam, lock, undefined, undefined, "hero");
+    expect(followNext.scenes[0]!.transition).toBe("none");
+    expect(followNext.scenes[1]!.transition).toBe("crossfade");
     expect(next.scenes[0]!.shot_type).toBe("medium");
     expect(next.scenes[3]!.shot_type).toBe("wide");
     expect(["track", "pan", "push_in"]).toContain(next.scenes[1]!.camera_move);
