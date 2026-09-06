@@ -716,7 +716,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     atelierMode: atelierMode !== false,
     ...(artStyleOverride?.trim() ? { artStyleOverride: artStyleOverride.trim() } : {}),
     ...(characterLock?.trim() ? { characterLock: characterLock.trim() } : {}),
-    ...(castMode === "hero" ? { castMode: "hero" } : {}),
+    castMode: castMode === "hero" ? "hero" : "scene",
     ...(locationLock?.trim() ? { locationLock: locationLock.trim() } : {}),
     ...(objectLock?.trim() ? { objectLock: objectLock.trim() } : {}),
     ...(locationReferenceImage ? { locationReferenceImage } : {}),
@@ -785,7 +785,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       characterReference: characterReferenceImage ? true : undefined,
       atelierMode: atelierMode !== false,
       artStyleOverride: artStyleOverride?.trim() || undefined,
-      ...(castMode === "hero" ? { castMode: "hero" } : {}),
+      castMode: castMode === "hero" ? "hero" : "scene",
     },
   };
   fs.writeFileSync(path.join(jobDir, "meta.json"), JSON.stringify(placeholderMeta, null, 2));
