@@ -72,14 +72,19 @@ export async function generateOrientedImage(
   console.warn(
     `[image] got ${firstSize ? `${firstSize.width}x${firstSize.height}` : "unknown size"}, expected 16:9 landscape — retrying`,
   );
-  const second = await generate(
-    landscapeRetryPrompt(opts.prompt),
-    opts.style,
-    opts.referenceImage,
-    opts.aspectRatio,
-    opts.referenceImageUrl,
-  );
-  return isWideLandscape(readImageSize(second)) ? second : pickWider(first, second);
+  try {
+    const second = await generate(
+      landscapeRetryPrompt(opts.prompt),
+      opts.style,
+      opts.referenceImage,
+      opts.aspectRatio,
+      opts.referenceImageUrl,
+    );
+    return isWideLandscape(readImageSize(second)) ? second : pickWider(first, second);
+  } catch (err) {
+    console.warn(`[image] 16:9 retry failed, keeping first still: ${err}`);
+    return first;
+  }
 }
 
 function ratioOf(buffer: Buffer): number {

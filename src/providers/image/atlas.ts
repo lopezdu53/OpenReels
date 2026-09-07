@@ -1,6 +1,10 @@
 import type { ImageProvider } from "../../schema/providers.js";
+import { isTransientVisualError } from "../../pipeline/hold-frame.js";
 import { DEFAULT_ATLAS_IMAGE_MODEL, resolveAtlasImageModel } from "../atlas/catalog.js";
 import { downloadUrl, generateImage, requireAtlasApiKey, toDataUri } from "../atlas/client.js";
+
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 2000;
 
 export class AtlasImage implements ImageProvider {
   private apiKey: string;
@@ -34,9 +38,21 @@ export class AtlasImage implements ImageProvider {
       extra["images"] = [toDataUri(referenceImage!)];
     }
 
-    const url = await generateImage(this.apiKey, model, fullPrompt, extra);
-    const buf = await downloadUrl(url);
-    if (buf.length < 1000) throw new Error(`Atlas image too small (${buf.length} bytes)`);
-    return buf;
+    let lastError: unknown;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const url = await generateImage(this.apiKey, model, fullPrompt, extra);
+        const buf = await downloadUrl(url);
+        if (buf.length < 1000) throw new Error(`Atlas image too small (${buf.length} bytes)`);
+        return buf;
+      } catch (err) {
+        lastError = err;
+        if (!isTransientVisualError(err) || attempt === MAX_RETRIES - 1) break;
+        const delayMs = BASE_DELAY_MS * 2 ** attempt;
+        console.warn(`[image/atlas] Attempt ${attempt + 1} failed (${err}), retrying in ${delayMs / 1000}s...`);
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+    throw lastError;
   }
 }

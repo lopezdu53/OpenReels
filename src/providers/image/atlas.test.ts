@@ -43,6 +43,19 @@ describe("AtlasImage", () => {
     expect(downloadUrl).toHaveBeenCalled();
   });
 
+  it("retries a timed-out generate once", async () => {
+    vi.useFakeTimers();
+    vi.mocked(generateImage)
+      .mockRejectedValueOnce(new Error("Atlas abc timed out after 180s"))
+      .mockResolvedValueOnce("https://cdn.example/out.png");
+    const img = new AtlasImage();
+    const pending = img.generate("a red car");
+    await vi.advanceTimersByTimeAsync(2500);
+    await pending;
+    expect(generateImage).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
   it("switches to the edit model when a reference still is present", async () => {
     const img = new AtlasImage();
     await img.generate("same person", undefined, Buffer.alloc(200, 1), "9:16");

@@ -85,6 +85,13 @@ describe("generateOrientedImage", () => {
     expect(out).toBe(better);
   });
 
+  it("keeps the first still if the 16:9 retry throws", async () => {
+    const first = png(1024, 1024);
+    const generate = vi.fn().mockResolvedValueOnce(first).mockRejectedValueOnce(new Error("timed out"));
+    const out = await generateOrientedImage(generate, { prompt: "scene", aspectRatio: "16:9" });
+    expect(out).toBe(first);
+  });
+
   it("does not retry Shorts (9:16)", async () => {
     const portrait = png(768, 1344);
     const generate = vi.fn().mockResolvedValue(portrait);
