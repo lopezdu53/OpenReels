@@ -680,12 +680,13 @@ describe("createProviders", () => {
       atlasImageModel: "bytedance/seedream-v4.7/text-to-image",
       atlasVideoModel: "minimax/h3-developer/image-to-video",
       atlasTtsVoice: "ara",
+      atlasTtsModel: "google/gemini-2.5-flash-tts",
       atlasLipSyncModel: "veed/lipsync",
       keys: { ATLASCLOUD_API_KEY: "atlas-key" },
     });
 
     expect(AtlasLLM).toHaveBeenCalledWith("qwen/qwen3.5-flash", "atlas-key", expect.anything());
-    expect(AtlasTTS).toHaveBeenCalledWith("ara", "atlas-key");
+    expect(AtlasTTS).toHaveBeenCalledWith("ara", "atlas-key", undefined, "google/gemini-2.5-flash-tts");
     expect(AtlasImage).toHaveBeenCalledWith("bytedance/seedream-v4.7/text-to-image", "atlas-key");
     expect(AtlasVideo).toHaveBeenCalledWith(
       "minimax/h3-developer/image-to-video",

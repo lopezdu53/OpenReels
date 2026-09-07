@@ -93,6 +93,7 @@ interface JobData {
     atlasImageModel?: string;
     atlasVideoModel?: string;
     atlasTtsVoice?: string;
+    atlasTtsModel?: string;
     atlasLipSyncModel?: string | null;
   };
   userId?: string;
@@ -234,6 +235,7 @@ const worker = new Worker<JobData>(
       atlasImageModel: providers.atlasImageModel,
       atlasVideoModel: providers.atlasVideoModel,
       atlasTtsVoice: providers.atlasTtsVoice,
+      atlasTtsModel: providers.atlasTtsModel,
       atlasLipSyncModel: providers.atlasLipSyncModel,
     });
 

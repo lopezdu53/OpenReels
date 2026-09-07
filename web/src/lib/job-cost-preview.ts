@@ -1,5 +1,5 @@
 import type { ApiPrices } from "@/pages/LabPage";
-import { countVideoScenesForPreview } from "@/lib/video-scene-modes";
+import { countVideoScenesForPreview, estimateFilmSceneCount } from "@/lib/video-scene-modes";
 import { VIVI_IMAGE_CNY, VIVI_LLM_CNY, VIVI_VIDEO_CNY } from "@/lib/vivi-prices";
 
 export interface JobCostPreviewInput {
@@ -59,14 +59,7 @@ export function estimateJobCost(input: JobCostPreviewInput, prices: ApiPrices): 
   const minutes = input.targetDurationMinutes ?? 5;
   const pacing = PACING_SCENES[input.pacing || "moderate"] ?? PACING_SCENES.moderate!;
   const testFilm15 = longForm && minutes > 0 && minutes < 0.375;
-  const testFilm = longForm && minutes > 0 && minutes < 0.75;
-  const sceneCount = testFilm15
-    ? 3
-    : testFilm
-      ? 6
-      : longForm
-        ? Math.max(8, Math.round((minutes * 150) / 14))
-        : pacing.scenes;
+  const sceneCount = longForm ? estimateFilmSceneCount(minutes) : pacing.scenes;
   const words = testFilm15 ? 38 : longForm ? Math.round(minutes * 150) : pacing.words;
   const ttsCharacters = Math.round(words * 5.4);
 

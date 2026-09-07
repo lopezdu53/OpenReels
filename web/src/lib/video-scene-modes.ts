@@ -51,3 +51,30 @@ export function countVideoScenesForPreview(sceneCount: number, mode: string | un
       return Math.min(sceneCount, Math.max(2, Math.round(sceneCount / 4)));
   }
 }
+
+/** Same scene-count heuristic the cost preview uses for Film / horizontal YouTube. */
+export function estimateFilmSceneCount(minutes: number): number {
+  if (minutes > 0 && minutes < 0.375) return 3;
+  if (minutes > 0 && minutes < 0.75) return 6;
+  return Math.max(8, Math.round((minutes * 150) / 14));
+}
+
+export function previewAiSceneKinds(
+  sceneCount: number,
+  mode: string | undefined,
+  hasVideo: boolean,
+): Array<"video" | "image"> {
+  if (sceneCount <= 0) return [];
+  if (!hasVideo) return Array.from({ length: sceneCount }, () => "image");
+  return Array.from({ length: sceneCount }, (_, i) => {
+    if (mode === "force_all") return "video";
+    if (mode === "first" || mode === "force_first") return i === 0 ? "video" : "image";
+    if (mode === "first3" || mode === "force_first3") return i < 3 ? "video" : "image";
+    if (mode === "every2" || mode === "first_every2" || mode === "force_first_every2") {
+      return i % 2 === 0 ? "video" : "image";
+    }
+    if (mode === "every2_offset") return i % 2 === 1 ? "video" : "image";
+    const n = Math.min(sceneCount, Math.max(2, Math.round(sceneCount / 4)));
+    return i < n ? "video" : "image";
+  });
+}

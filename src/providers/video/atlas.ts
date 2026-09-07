@@ -46,6 +46,21 @@ export class AtlasVideo implements VideoProvider {
     const duration = pickDuration(spec.durations, opts.durationSeconds ?? spec.durations[0] ?? 5);
     const image = toDataUri(opts.sourceImage);
 
+    const lip = this.lipSyncModelId ? resolveAtlasLipSyncModel(this.lipSyncModelId) : null;
+    if (lip?.kind === "image_audio") {
+      if (!opts.audio || opts.audio.length < 32) {
+        throw new Error("Atlas image+audio lips needs scene audio (TTS runs before visuals)");
+      }
+      const audioUrl = await uploadBuffer(this.apiKey, opts.audio, "scene.wav");
+      const url = await generateVideo(this.apiKey, lip.id, {
+        prompt: opts.prompt,
+        image,
+        audio: audioUrl,
+        resolution: "720p",
+      });
+      return this.writeClip(url, duration);
+    }
+
     if (spec.talkingHead) {
       if (!opts.audio || opts.audio.length < 32) {
         throw new Error("Atlas InfiniteTalk needs scene audio (TTS runs before visuals)");
@@ -77,6 +92,12 @@ export class AtlasVideo implements VideoProvider {
       if (opts.negativePrompt) extra["negative_prompt"] = opts.negativePrompt;
     } else if (spec.id.includes("wan-3.0") || spec.id.includes("gemini-omni")) {
       extra["ratio"] = opts.aspectRatio === "16:9" ? "16:9" : "9:16";
+    } else if (spec.id.includes("kling-v3.0")) {
+      extra["cfg_scale"] = 0.5;
+      extra["sound"] = false;
+      if (opts.negativePrompt) extra["negative_prompt"] = opts.negativePrompt;
+    } else if (spec.id.includes("seedance-v1.5") || spec.id.includes("h3-max")) {
+      extra["resolution"] = spec.id.includes("h3-max") ? "768P" : "720p";
     }
 
     const url = await generateVideo(this.apiKey, spec.id, extra);

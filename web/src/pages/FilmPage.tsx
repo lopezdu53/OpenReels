@@ -25,13 +25,16 @@ import { getSceneAssetUrl } from "@/lib/scene-assets";
 import { KokoroVoiceMixer } from "@/components/new-short/KokoroVoiceMixer";
 import { VisualTypeGrid } from "@/components/new-short/VisualTypeGrid";
 import { CostEstimatePanel } from "@/components/new-short/CostEstimatePanel";
+import { PipelineOverview } from "@/components/new-short/PipelineOverview";
+import { PipelineStep } from "@/components/new-short/PipelineStep";
+import { SceneMixPreview } from "@/components/new-short/SceneMixPreview";
 import { CastModePicker, type FilmCastMode } from "@/components/film/CastModePicker";
 import { CharacterStudio } from "@/components/film/CharacterStudio";
 import { LocationStudio } from "@/components/film/LocationStudio";
 import { ObjectStudio } from "@/components/film/ObjectStudio";
 import { VisualStyleStudio } from "@/components/film/VisualStyleStudio";
 import { estimateJobCost } from "@/lib/job-cost-preview";
-import { VIDEO_SCENE_MODE_OPTIONS } from "@/lib/video-scene-modes";
+import { estimateFilmSceneCount, VIDEO_SCENE_MODE_OPTIONS } from "@/lib/video-scene-modes";
 import { fetchUsdToCopRate } from "@/lib/cop-rate";
 import { loadPrices } from "@/pages/LabPage";
 import { AtlasModelFields } from "@/components/AtlasModelFields";
@@ -43,10 +46,14 @@ import {
   ImageIcon,
   Link2,
   Loader2,
+  Mic2,
+  Music,
+  PenLine,
   Plus,
   Sparkles,
   Square,
   Trash2,
+  Users,
   X,
 } from "lucide-react";
 
@@ -394,6 +401,24 @@ export function FilmPage() {
   const readyScripts = scripts.filter((s) => s.body.trim().length >= 20);
   const activeCount = jobs.filter((j) => j.status === "queued" || j.status === "running").length;
   const doneCount = jobs.filter((j) => j.status === "completed").length;
+  const previewScenes = estimateFilmSceneCount(durationMinutes);
+  const atlasValues = {
+    llmModel,
+    ttsModel: atlasTtsModel,
+    ttsVoice: atlasTtsVoice,
+    imageModel: atlasImageModel,
+    videoModel: atlasVideoModel,
+    lipSyncModel: atlasLipSyncModel,
+  };
+
+  function patchAtlas(patch: Partial<typeof atlasValues>) {
+    if (patch.llmModel) setLlmModel(patch.llmModel);
+    if (patch.ttsModel) setAtlasTtsModel(patch.ttsModel);
+    if (patch.ttsVoice) setAtlasTtsVoice(patch.ttsVoice);
+    if (patch.imageModel) setAtlasImageModel(patch.imageModel);
+    if (patch.videoModel) setAtlasVideoModel(patch.videoModel);
+    if (patch.lipSyncModel) setAtlasLipSyncModel(patch.lipSyncModel);
+  }
 
   function addYoutubeLinks() {
     const found = parseYoutubeUrls(youtubeDraft);
@@ -437,7 +462,7 @@ export function FilmPage() {
         : {}),
       ...(imageProvider === "sharpii" ? { sharpiiImageModel } : {}),
       ...(videoProvider === "sharpii" ? { sharpiiVideoModel } : {}),
-      ...(ttsProvider === "atlas-tts" ? { atlasTtsVoice } : {}),
+      ...(ttsProvider === "atlas-tts" ? { atlasTtsVoice, atlasTtsModel } : {}),
       ...(imageProvider === "atlas" ? { atlasImageModel } : {}),
       ...(llmProvider === "atlas" ? { llmModel: llmModel || "deepseek-ai/deepseek-v4-flash" } : {}),
       ...(videoProvider === "atlas"
@@ -659,25 +684,38 @@ export function FilmPage() {
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-10 py-8">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <div>
+    <div className="px-4 sm:px-6 lg:px-10 py-8 lg:py-10">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-6 max-w-2xl">
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[2px] text-primary">YouTube 16:9</p>
-          <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
+          <h1 className="flex items-center gap-2 text-3xl sm:text-4xl font-semibold tracking-tight">
             <Film className="size-7 text-primary" />
             Nuevo Film
           </h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Videos horizontales para YouTube. Genera el guion desde una idea, pega varios guiones y
-            lanza el lote. Configura LLM, TTS, imagen y video igual que en Nuevo Short.
+          <p className="mt-3 text-sm text-muted-foreground">
+            Seis etapas, cada una con sus APIs — igual que Nuevo Short. El precio a la derecha
+            se actualiza con LLM, voz, stills, I2V y lips.
           </p>
         </div>
 
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5 space-y-3">
+        <PipelineOverview
+          steps={[
+            { id: "film-historia", n: 1, title: "Historia", hint: "Idea y duración", icon: Sparkles },
+            { id: "film-guion", n: 2, title: "Guion", hint: "LLM y scripts", icon: PenLine },
+            { id: "film-voz", n: 3, title: "Voz", hint: "TTS Atlas", icon: Mic2 },
+            { id: "film-elenco", n: 4, title: "Elenco", hint: "Refs y estilo", icon: Users },
+            { id: "film-visuales", n: 5, title: "Visuales", hint: "Imagen, I2V, lips", icon: ImageIcon },
+            { id: "film-musica", n: 6, title: "Música", hint: "Banda", icon: Music },
+          ]}
+        />
+
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-8 items-start">
+        <div>
+        <PipelineStep id="film-historia" step={1} icon={Sparkles} title="Historia" subtitle="Idea, duración y continuación">
           <label className="block text-xs font-medium text-muted-foreground" htmlFor="film-idea">
             Idea → guion
           </label>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
             <Input
               id="film-idea"
               value={idea}
@@ -690,7 +728,7 @@ export function FilmPage() {
               Generar guion
             </Button>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="mt-3 flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               Duración
               <select
@@ -726,7 +764,7 @@ export function FilmPage() {
             </label>
             <span className="text-[11px] text-muted-foreground">{durationHint(durationMinutes)}</span>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
             <label className="flex min-w-0 flex-1 items-center gap-2 text-xs text-muted-foreground">
               <History className="size-3.5 shrink-0" />
               Continuar historia
@@ -754,17 +792,18 @@ export function FilmPage() {
             ) : null}
           </div>
           {sequelJob ? (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="mt-2 text-[11px] text-muted-foreground">
               El guion y las escenas usarán el cierre de «{sequelJob.topic}» (job #{sequelJob.id}) para no reiniciar personajes ni hechos.
             </p>
           ) : (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="mt-2 text-[11px] text-muted-foreground">
               Elige un Film ya producido para el siguiente capítulo. Sin tarjetas de texto: la historia va en locución e imagen.
             </p>
           )}
-        </section>
+        </PipelineStep>
 
-        <section className="space-y-3">
+        <PipelineStep id="film-guion" step={2} icon={PenLine} title="Guion e investigación" subtitle="Scripts, YouTube, LLM y búsqueda">
+        <div className="space-y-3">
           {scripts.map((slot, i) => (
             <div key={slot.id} className="rounded-2xl border border-border bg-card p-4 space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -803,7 +842,6 @@ export function FilmPage() {
               Añadir otro guion
             </Button>
           </div>
-        </section>
 
         <section className="rounded-2xl border border-border bg-card p-4 space-y-3">
           <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground" htmlFor="film-yt">
@@ -849,6 +887,125 @@ export function FilmPage() {
           ) : null}
         </section>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label="LLM">
+            <Select value={llmProvider} onValueChange={(v) => v && setLlmProvider(v)}>
+              <SelectTrigger className={FIELD}><SelectValue>{labelOf(llmList, llmProvider)}</SelectValue></SelectTrigger>
+              <SelectContent>
+                {llmList.map((p) => (
+                  <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Búsqueda web">
+            <Select value={searchProvider} onValueChange={(v) => setSearchProvider(v ?? "")}>
+              <SelectTrigger className={FIELD}><SelectValue placeholder="Auto" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Auto</SelectItem>
+                {searchList.map((p) => (
+                  <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+        {(llmProvider === "openrouter" || llmProvider === "grok" || llmProvider === "openai-compatible") && (
+          <Field label="Model ID">
+            <Input className={FIELD} value={llmModel} onChange={(e) => setLlmModel(e.target.value)} placeholder={llmProvider === "grok" ? "grok-4" : "model-id"} />
+          </Field>
+        )}
+        {llmProvider === "openai-compatible" ? (
+          <Field label="Base URL">
+            <Input className={FIELD} value={llmBaseUrl} onChange={(e) => setLlmBaseUrl(e.target.value)} placeholder="http://localhost:11434/v1" />
+          </Field>
+        ) : null}
+        {llmProvider === "atlas" ? (
+          <AtlasModelFields
+            providers={providers}
+            fieldClass={FIELD}
+            showLlm
+            values={atlasValues}
+            onChange={patchAtlas}
+          />
+        ) : null}
+        </div>
+        </PipelineStep>
+
+        <PipelineStep id="film-voz" step={3} icon={Mic2} title="Voz" subtitle="TTS y voces Atlas por modelo">
+          <Field label="Proveedor TTS">
+            <Select value={ttsProvider} onValueChange={(v) => v && setTtsProvider(v)}>
+              <SelectTrigger className={FIELD}><SelectValue>{labelOf(ttsList, ttsProvider)}</SelectValue></SelectTrigger>
+              <SelectContent>
+                {ttsList.map((p) => (
+                  <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          {ttsProvider === "inworld" && providers?.inworldVoices ? (
+            <Field label="Voz Inworld">
+              <Select value={inworldVoice} onValueChange={(v) => v && setInworldVoice(v)}>
+                <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {providers.inworldVoices.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          ) : null}
+          {ttsProvider === "gemini-tts" && providers?.geminiTtsVoices ? (
+            <Field label="Voz Gemini">
+              <Select value={geminiTtsVoice} onValueChange={(v) => v && setGeminiTtsVoice(v)}>
+                <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {providers.geminiTtsVoices.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          ) : null}
+          {ttsProvider === "grok-tts" && providers?.grokTtsVoices ? (
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Field label="Voz Grok">
+                <Select value={grokTtsVoice} onValueChange={(v) => v && setGrokTtsVoice(v)}>
+                  <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {providers.grokTtsVoices.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label={`Velocidad ${grokTtsSpeed.toFixed(1)}x`}>
+                <input type="range" min="0.7" max="1.5" step="0.1" value={grokTtsSpeed}
+                  onChange={(e) => setGrokTtsSpeed(Number(e.target.value))} className="mt-2 w-full accent-primary" />
+              </Field>
+            </div>
+          ) : null}
+          {ttsProvider === "kokoro" ? (
+            <KokoroVoiceMixer
+              voices={kokoroVoices}
+              value={kokoroVoice}
+              onChange={setKokoroVoice}
+              speed={kokoroSpeed}
+              onSpeedChange={setKokoroSpeed}
+            />
+          ) : null}
+          {ttsProvider === "atlas-tts" ? (
+            <AtlasModelFields
+              providers={providers}
+              fieldClass={FIELD}
+              showTts
+              values={atlasValues}
+              onChange={patchAtlas}
+            />
+          ) : null}
+        </PipelineStep>
+
+        <PipelineStep id="film-elenco" step={4} icon={Users} title="Elenco y referencias" subtitle="Personajes, locaciones, objetos y estilo">
         <CastModePicker
           value={castMode}
           onChange={(mode) => {
@@ -997,42 +1154,11 @@ export function FilmPage() {
             }
           }}
         />
+        </PipelineStep>
 
-        <section className="grid gap-4 lg:grid-cols-[1fr_280px]">
-          <div className="space-y-4 rounded-2xl border border-border bg-card p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">Configuración</p>
+        <PipelineStep id="film-visuales" step={5} icon={ImageIcon} title="Visuales" subtitle="Stills, I2V, lips aparte y mezcla de escenas">
+          <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="LLM">
-                <Select value={llmProvider} onValueChange={(v) => v && setLlmProvider(v)}>
-                  <SelectTrigger className={FIELD}><SelectValue>{labelOf(llmList, llmProvider)}</SelectValue></SelectTrigger>
-                  <SelectContent>
-                    {llmList.map((p) => (
-                      <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Búsqueda web">
-                <Select value={searchProvider} onValueChange={(v) => setSearchProvider(v ?? "")}>
-                  <SelectTrigger className={FIELD}><SelectValue placeholder="Auto" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Auto</SelectItem>
-                    {searchList.map((p) => (
-                      <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="TTS">
-                <Select value={ttsProvider} onValueChange={(v) => v && setTtsProvider(v)}>
-                  <SelectTrigger className={FIELD}><SelectValue>{labelOf(ttsList, ttsProvider)}</SelectValue></SelectTrigger>
-                  <SelectContent>
-                    {ttsList.map((p) => (
-                      <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
               <Field label="Imagen">
                 <Select value={imageProvider} onValueChange={(v) => v && setImageProvider(v)}>
                   <SelectTrigger className={FIELD}><SelectValue>{labelOf(imageList, imageProvider)}</SelectValue></SelectTrigger>
@@ -1054,78 +1180,7 @@ export function FilmPage() {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Música">
-                <Select value={musicProvider} onValueChange={(v) => v && setMusicProvider(v)}>
-                  <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sin música</SelectItem>
-                    <SelectItem value="bundled">Bundled (gratis)</SelectItem>
-                    <SelectItem value="lyria">Lyria 3 Pro ($0.08)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
             </div>
-            {(llmProvider === "openrouter" || llmProvider === "grok" || llmProvider === "openai-compatible") && (
-              <Field label="Model ID">
-                <Input className={FIELD} value={llmModel} onChange={(e) => setLlmModel(e.target.value)} placeholder={llmProvider === "grok" ? "grok-4" : "model-id"} />
-              </Field>
-            )}
-            {llmProvider === "openai-compatible" ? (
-              <Field label="Base URL">
-                <Input className={FIELD} value={llmBaseUrl} onChange={(e) => setLlmBaseUrl(e.target.value)} placeholder="http://localhost:11434/v1" />
-              </Field>
-            ) : null}
-            {ttsProvider === "inworld" && providers?.inworldVoices ? (
-              <Field label="Voz Inworld">
-                <Select value={inworldVoice} onValueChange={(v) => v && setInworldVoice(v)}>
-                  <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {providers.inworldVoices.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            ) : null}
-            {ttsProvider === "gemini-tts" && providers?.geminiTtsVoices ? (
-              <Field label="Voz Gemini">
-                <Select value={geminiTtsVoice} onValueChange={(v) => v && setGeminiTtsVoice(v)}>
-                  <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {providers.geminiTtsVoices.map((v) => (
-                      <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            ) : null}
-            {ttsProvider === "grok-tts" && providers?.grokTtsVoices ? (
-              <div className="grid sm:grid-cols-2 gap-3">
-                <Field label="Voz Grok">
-                  <Select value={grokTtsVoice} onValueChange={(v) => v && setGrokTtsVoice(v)}>
-                    <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {providers.grokTtsVoices.map((v) => (
-                        <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field label={`Velocidad ${grokTtsSpeed.toFixed(1)}x`}>
-                  <input type="range" min="0.7" max="1.5" step="0.1" value={grokTtsSpeed}
-                    onChange={(e) => setGrokTtsSpeed(Number(e.target.value))} className="mt-2 w-full accent-primary" />
-                </Field>
-              </div>
-            ) : null}
-            {ttsProvider === "kokoro" ? (
-              <KokoroVoiceMixer
-                voices={kokoroVoices}
-                value={kokoroVoice}
-                onChange={setKokoroVoice}
-                speed={kokoroSpeed}
-                onSpeedChange={setKokoroSpeed}
-              />
-            ) : null}
             {allowedVisualTypes.includes("ai_video") ? (
               <Field label="Escenas en movimiento">
                 {castMode === "hero" ? (
@@ -1215,31 +1270,25 @@ export function FilmPage() {
                 ) : null}
               </div>
             ) : null}
-            {(llmProvider === "atlas" || ttsProvider === "atlas-tts" || imageProvider === "atlas" || videoProvider === "atlas") ? (
+            {(imageProvider === "atlas" || videoProvider === "atlas") ? (
               <AtlasModelFields
                 providers={providers}
                 fieldClass={FIELD}
-                showLlm={llmProvider === "atlas"}
-                showTts={ttsProvider === "atlas-tts"}
+                title="ATLAS · imagen e I2V"
                 showImage={imageProvider === "atlas"}
                 showVideo={videoProvider === "atlas"}
-                showLipSync={videoProvider === "atlas"}
-                values={{
-                  llmModel,
-                  ttsModel: atlasTtsModel,
-                  ttsVoice: atlasTtsVoice,
-                  imageModel: atlasImageModel,
-                  videoModel: atlasVideoModel,
-                  lipSyncModel: atlasLipSyncModel,
-                }}
-                onChange={(patch) => {
-                  if (patch.llmModel) setLlmModel(patch.llmModel);
-                  if (patch.ttsModel) setAtlasTtsModel(patch.ttsModel);
-                  if (patch.ttsVoice) setAtlasTtsVoice(patch.ttsVoice);
-                  if (patch.imageModel) setAtlasImageModel(patch.imageModel);
-                  if (patch.videoModel) setAtlasVideoModel(patch.videoModel);
-                  if (patch.lipSyncModel) setAtlasLipSyncModel(patch.lipSyncModel);
-                }}
+                values={atlasValues}
+                onChange={patchAtlas}
+              />
+            ) : null}
+            {videoProvider === "atlas" ? (
+              <AtlasModelFields
+                providers={providers}
+                fieldClass={FIELD}
+                title="ATLAS · lips (aparte)"
+                showLipSync
+                values={atlasValues}
+                onChange={patchAtlas}
               />
             ) : null}
             {(imageProvider === "sharpii" || videoProvider === "sharpii") ? (
@@ -1298,20 +1347,40 @@ export function FilmPage() {
                 hideAtelier
               />
             </div>
+            <SceneMixPreview
+              sceneCount={previewScenes}
+              mode={castMode === "hero" ? "force_all" : videoSceneMode}
+              hasVideo={Boolean(videoProvider) && allowedVisualTypes.includes("ai_video")}
+              hero={castMode === "hero"}
+            />
           </div>
+        </PipelineStep>
+
+        <PipelineStep id="film-musica" step={6} icon={Music} title="Música" subtitle="Banda del film" last>
+          <Field label="Música">
+            <Select value={musicProvider} onValueChange={(v) => v && setMusicProvider(v)}>
+              <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sin música</SelectItem>
+                <SelectItem value="bundled">Bundled (gratis)</SelectItem>
+                <SelectItem value="lyria">Lyria 3 Pro ($0.08)</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </PipelineStep>
+
+        {error ? (
+          <p className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+        ) : null}
+        </div>
+
+        <aside className="lg:sticky lg:top-8 space-y-4">
           <CostEstimatePanel
             preview={costPreview}
             usdToCop={usdToCop}
             rateNote="estimado / film"
             usesVivi={llmProvider === "vivi" || imageProvider === "vivi" || videoProvider === "vivi"}
           />
-        </section>
-
-        {error ? (
-          <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
-        ) : null}
-
-        <div className="space-y-2">
           <Button
             className="h-12 w-full text-base"
             onClick={() => void produce()}
@@ -1321,14 +1390,17 @@ export function FilmPage() {
             {producing ? "Produciendo…" : `Producir ${readyScripts.length || ""} film${readyScripts.length === 1 ? "" : "s"} 16:9`}
           </Button>
           <p className="text-center text-[11px] text-muted-foreground">
-            {activeCount === 0
-              ? "Capacidad completa: nadie más está produciendo ahora"
-              : `${activeCount} film(s) en producción ahora.`}
+            {readyScripts.length === 0
+              ? "Pega o genera un guion para producir"
+              : activeCount === 0
+                ? "Capacidad completa: nadie más está produciendo ahora"
+                : `${activeCount} film(s) en producción ahora.`}
           </p>
+        </aside>
         </div>
 
         {jobs.length > 0 ? (
-          <section className="space-y-3">
+          <section className="mt-10 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
                 {jobs.length} video(s) · {doneCount} listo(s)

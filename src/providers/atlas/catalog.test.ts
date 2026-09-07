@@ -12,7 +12,10 @@ import {
   resolveAtlasImageModel,
   resolveAtlasLlmModel,
   resolveAtlasLipSyncModel,
+  resolveAtlasTtsModel,
   resolveAtlasVideoModel,
+  ATLAS_TTS_MODELS,
+  ATLAS_VIDEO_MODELS,
   sortedAtlasImageModels,
   sortedAtlasLipSyncModels,
   sortedAtlasLlmModels,
@@ -67,5 +70,18 @@ describe("atlas catalog", () => {
     );
     expect(videos[0]!.usdPerSecond).toBeLessThanOrEqual(videos.at(-1)!.usdPerSecond);
     expect(lips[0]!.usdPerSecond).toBeLessThanOrEqual(lips.at(-1)!.usdPerSecond);
+  });
+
+  it("keeps GPT Image 2 identity edits and Seedance Mini as default I2V", () => {
+    expect(resolveAtlasImageModel("openai/gpt-image-2/text-to-image").refs).toBe(true);
+    expect(resolveAtlasImageModel("openai/gpt-image-2/text-to-image").editId).toContain("edit");
+    expect(ATLAS_VIDEO_MODELS.some((m) => m.id === "kwaivgi/kling-v3.0-std/image-to-video")).toBe(true);
+    expect(ATLAS_VIDEO_MODELS.some((m) => m.id === "bytedance/seedance-v1.5-pro/image-to-video")).toBe(true);
+  });
+
+  it("exposes several TTS models with per-model voices", () => {
+    expect(ATLAS_TTS_MODELS.length).toBeGreaterThanOrEqual(4);
+    expect(resolveAtlasTtsModel("google/gemini-2.5-flash-tts").voiceField).toBe("voice");
+    expect(resolveAtlasTtsModel("xai/tts-v1").voices.some((v) => v.id === "eve")).toBe(true);
   });
 });
