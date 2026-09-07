@@ -15,6 +15,7 @@ import { ATELIER_STYLES } from "./config/atelier-styles.js";
 import { PLATFORMS } from "./config/platforms.js";
 import { registerFilmRoutes } from "./film/routes.js";
 import { registerLibraryRoutes } from "./library/routes.js";
+import { registerVoxRoutes } from "./vox/routes.js";
 import { AliCloudImage } from "./providers/image/alicloud.js";
 import { FalImage } from "./providers/image/fal.js";
 import { GeminiImage } from "./providers/image/gemini.js";
@@ -147,6 +148,7 @@ app.get("/api/v1/health", async () => {
       SHARPII_API_KEY: !!process.env["SHARPII_API_KEY"],
       ATLASCLOUD_API_KEY: !!process.env["ATLASCLOUD_API_KEY"],
       YOUTUBE_API_KEY: !!process.env["YOUTUBE_API_KEY"],
+      ATLASCLOUD_API_KEY: !!process.env["ATLASCLOUD_API_KEY"],
     },
   };
 });
@@ -319,6 +321,7 @@ app.get("/api/v1/providers", async () => ({
 await registerAnalyticsRoutes(app);
 await registerFilmRoutes(app);
 await registerLibraryRoutes(app);
+await registerVoxRoutes(app, redis);
 
 // --- API Test endpoints ---
 

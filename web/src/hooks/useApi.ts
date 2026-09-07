@@ -850,12 +850,80 @@ export const api = {
     return fetchJson<{ platforms: SocialPublic[] }>(`/me/social/${platform}`, { method: "DELETE" });
   },
 
+  voxCatalog() {
+    return fetchJson<{
+      themes: { id: string; label: string; mood: string }[];
+      arcs: { id: string; label: string; when: string }[];
+      voices: { id: string; label: string; gender: string; lang: string; note: string }[];
+      aspects: string[];
+      durations: number[];
+      defaultThemes: string[];
+    }>("/vox/catalog");
+  },
+
+  listVoxJobs() {
+    return fetchJson<{ jobs: VoxJobMeta[] }>("/vox/jobs");
+  },
+
+  createVoxJob(data: Record<string, unknown>) {
+    return fetchJson<{ id: string; status: string }>("/vox/jobs", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  getVoxJob(id: string) {
+    return fetchJson<VoxJobDetail>(`/vox/jobs/${id}`);
+  },
+
+  saveVoxBeats(id: string, beats: unknown) {
+    return fetchJson<{ ok: boolean }>(`/vox/jobs/${id}/beats`, {
+      method: "PATCH",
+      body: JSON.stringify({ beats }),
+    });
+  },
+
+  approveVoxBeats(id: string) {
+    return fetchJson<{ ok: boolean; status: string }>(`/vox/jobs/${id}/approve-beats`, { method: "POST" });
+  },
+
+  pickVoxStyle(id: string, theme: string) {
+    return fetchJson<{ ok: boolean; status: string; theme: string }>(`/vox/jobs/${id}/pick-style`, {
+      method: "POST",
+      body: JSON.stringify({ theme }),
+    });
+  },
+
+  cancelVoxJob(id: string) {
+    return fetchJson<{ ok: boolean }>(`/vox/jobs/${id}/cancel`, { method: "POST" });
+  },
+
   publishJob(id: string, platforms?: SocialPlatformId[]) {
     return fetchJson<{
       results: { platform: SocialPlatformId; ok: boolean; url?: string; error?: string }[];
     }>(`/me/jobs/${id}/publish`, { method: "POST", body: JSON.stringify({ platforms }) });
   },
 };
+
+export interface VoxJobMeta {
+  id: string;
+  kind: "vox";
+  topic: string;
+  status: string;
+  stage: string;
+  detail: string;
+  error?: string;
+  createdAt: string;
+  selectedTheme?: string;
+  bakeoffThemes?: string[];
+  hasFinal?: boolean;
+}
+
+export interface VoxJobDetail extends VoxJobMeta {
+  beats?: unknown;
+  bakeoff?: string[];
+  config?: Record<string, unknown>;
+}
 
 export interface AuthUser {
   id: string;

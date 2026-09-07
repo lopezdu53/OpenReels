@@ -5,6 +5,9 @@ dist/
 staging_docs/
 output/
 data/
+vox-jobs/
+**/__pycache__/
+*.pyc
 .next/
 docs/out/
 docs/src/data/

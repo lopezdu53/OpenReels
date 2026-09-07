@@ -1,4 +1,4 @@
-import { BarChart3, BookOpen, Film, LayoutDashboard, LayoutGrid, PlusCircle } from "lucide-react";
+import { BarChart3, Film, LayoutDashboard, LayoutGrid, Newspaper, PlusCircle } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { StatsResponse } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
@@ -8,8 +8,8 @@ const NAV_ITEMS = [
   { path: "/analytic", label: "Analítica", icon: BarChart3 },
   { path: "/", label: "Short", icon: PlusCircle },
   { path: "/film", label: "Film", icon: Film },
+  { path: "/vox", label: "Vox", icon: Newspaper },
   { path: "/gallery", label: "Galería", icon: LayoutGrid },
-  { path: "/learning", label: "Aprender", icon: BookOpen },
 ];
 
 interface BottomNavProps {

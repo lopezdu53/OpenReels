@@ -24,6 +24,7 @@ const API_KEY_FIELDS = [
   { key: "ATLASCLOUD_API_KEY", label: "Atlas Cloud (LLM / TTS / imagen / I2V / lip-sync)" },
   { key: "TAVILY_API_KEY", label: "Tavily (búsqueda web)" },
   { key: "YOUTUBE_API_KEY", label: "YouTube Data API v3 (Analítica)" },
+  { key: "ATLASCLOUD_API_KEY", label: "Atlas Cloud (Nuevo Vox — collage)" },
 ];
 
 interface HealthData {

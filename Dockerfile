@@ -3,6 +3,8 @@ FROM node:22-bookworm-slim
 # Install system dependencies: ffmpeg (includes ffprobe) and Chrome Headless Shell shared libs
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    python3 \
+    python3-pil \
     espeak-ng \
     libnss3 \
     libdbus-1-3 \
@@ -43,9 +45,10 @@ COPY . .
 RUN cd web && npx vite build
 
 # Create directories
-RUN mkdir -p /output /app/jobs /app/data
+RUN mkdir -p /output /app/jobs /app/data /app/vox-jobs
 ENV DATA_DIR=/app/data
 ENV JOBS_DIR=/app/jobs
+ENV VOX_JOBS_DIR=/app/vox-jobs
 
 # Default: CLI mode (backwards compatible)
 ENTRYPOINT ["npx", "tsx", "src/index.ts", "--yes", "-o", "/output"]
