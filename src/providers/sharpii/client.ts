@@ -1,5 +1,15 @@
 export const SHARPII_BASE_URL = "https://api.sharpii.ai/v1";
 
+/** Kling/I2V and reference images reject the call until this acknowledgement is set. */
+export const SHARPII_LIKENESS_CONSENT = { consent: true } as const;
+
+const CONSENT_RETRIES: Array<Record<string, unknown>> = [
+  { has_consent: true },
+  { likeness_consent: true },
+  { confirmed_consent: true },
+  { consent: "true" },
+];
+
 export interface SharpiiOutput {
   type?: string;
   url?: string;
@@ -12,11 +22,19 @@ export function toDataUri(image: Buffer, mime = "image/png"): string {
   return `data:${mime};base64,${image.toString("base64")}`;
 }
 
+export function isLikenessConsentError(message: string): boolean {
+  return /consent of the person depicted|whose voice is used/i.test(message);
+}
+
 function errorMessage(status: number, json: unknown): string {
-  const row = json as { error?: { message?: string; code?: string }; message?: string };
+  const row = json as {
+    error?: { message?: string; code?: string; param?: string | null };
+    message?: string;
+  };
   const msg = row?.error?.message ?? row?.message ?? JSON.stringify(json).slice(0, 240);
   const code = row?.error?.code;
-  return `Sharpii ${status}${code ? ` ${code}` : ""}: ${msg}`;
+  const param = row?.error?.param;
+  return `Sharpii ${status}${code ? ` ${code}` : ""}${param ? ` (${param})` : ""}: ${msg}`;
 }
 
 async function parseJson(res: Response): Promise<unknown> {
@@ -68,7 +86,7 @@ export async function pollSharpiiTask(
   throw new Error(`Sharpii task ${taskId} timed out`);
 }
 
-export async function sharpiiGenerate(
+async function sharpiiGenerateOnce(
   apiKey: string,
   path: "/images/generate" | "/videos/generate",
   body: Record<string, unknown>,
@@ -96,4 +114,23 @@ export async function sharpiiGenerate(
   const outputs = json.data?.outputs ?? [];
   if (!outputs.length) throw new Error("Sharpii returned no outputs");
   return outputs;
+}
+
+export async function sharpiiGenerate(
+  apiKey: string,
+  path: "/images/generate" | "/videos/generate",
+  body: Record<string, unknown>,
+): Promise<SharpiiOutput[]> {
+  let lastError: Error | undefined;
+  const attempts: Array<Record<string, unknown>> = [{ ...body, ...SHARPII_LIKENESS_CONSENT }, ...CONSENT_RETRIES.map((extra) => ({ ...body, ...extra }))];
+
+  for (const attempt of attempts) {
+    try {
+      return await sharpiiGenerateOnce(apiKey, path, attempt);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (!isLikenessConsentError(lastError.message)) throw lastError;
+    }
+  }
+  throw lastError!;
 }

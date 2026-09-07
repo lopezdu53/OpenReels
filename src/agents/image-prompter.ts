@@ -10,17 +10,39 @@ const VIDEO_PROMPT_PATH = path.join(process.cwd(), "prompts", "video-prompter.md
 const ImagePromptResult = z
   .object({
     optimized_prompt: z.string().optional(),
+    optimizedPrompt: z.string().optional(),
     prompt: z.string().optional(),
     image_prompt: z.string().optional(),
+    imagePrompt: z.string().optional(),
+    motion_prompt: z.string().optional(),
+    motionPrompt: z.string().optional(),
+    video_prompt: z.string().optional(),
+    videoPrompt: z.string().optional(),
+    text: z.string().optional(),
   })
   .transform((data, ctx) => {
-    const text = [data.optimized_prompt, data.prompt, data.image_prompt].find((s) => s && s.trim().length > 0);
+    const text = [
+      data.optimized_prompt,
+      data.optimizedPrompt,
+      data.prompt,
+      data.image_prompt,
+      data.imagePrompt,
+      data.motion_prompt,
+      data.motionPrompt,
+      data.video_prompt,
+      data.videoPrompt,
+      data.text,
+    ].find((s) => typeof s === "string" && s.trim().length > 0);
     if (!text) {
       ctx.addIssue({ code: "custom", message: "optimized_prompt is required" });
       return z.NEVER;
     }
     return { optimized_prompt: text.trim() };
   });
+
+export function parseImagePromptResult(data: unknown): { optimized_prompt: string } {
+  return ImagePromptResult.parse(data);
+}
 
 export interface ImagePromptOutput {
   prompt: string;

@@ -31,6 +31,7 @@ describe("SharpiiImage", () => {
     const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body));
     expect(body.model).toBe("nano-banana-2");
     expect(body.aspect_ratio).toBe("16:9");
+    expect(body.consent).toBe(true);
     expect(body.reference_images).toBeUndefined();
   });
 
@@ -48,6 +49,7 @@ describe("SharpiiImage", () => {
     const img = new SharpiiImage("nano-banana-2", "shp_test");
     await img.generate("same person", undefined, Buffer.alloc(120, 7), "16:9");
     const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body));
+    expect(body.consent).toBe(true);
     expect(body.reference_images[0]).toMatch(/^data:image\/png;base64,/);
   });
 });
