@@ -141,36 +141,39 @@ export function LabPage() {
   const [prices, setPrices] = useState<ApiPrices>(DEFAULT_PRICES);
 
   // LLM
-  const [llmProvider, setLlmProvider] = useState("anthropic");
-  const [llmModel, setLlmModel] = useState("");
+  const [llmProvider, setLlmProvider] = useState("atlas");
+  const [llmModel, setLlmModel] = useState("deepseek-ai/deepseek-v4-flash");
   const [llmPrompt, setLlmPrompt] = useState("Explain quantum entanglement in one paragraph.");
   const [llmResult, setLlmResult] = useState<{ text: string; durationMs: number; tokens: { inputTokens: number; outputTokens: number } } | null>(null);
   const [llmLoading, setLlmLoading] = useState(false);
   const [llmError, setLlmError] = useState("");
 
   // TTS
-  const [ttsProvider, setTtsProvider] = useState("elevenlabs");
+  const [ttsProvider, setTtsProvider] = useState("atlas-tts");
   const [ttsText, setTtsText] = useState("Welcome to OpenReels, the open source AI video pipeline.");
   const [ttsResult, setTtsResult] = useState<{ audioBase64: string; durationMs: number; charCount: number } | null>(null);
   const [ttsLoading, setTtsLoading] = useState(false);
   const [ttsError, setTtsError] = useState("");
-  const [ttsVoice, setTtsVoice] = useState("");
+  const [ttsVoice, setTtsVoice] = useState("eve");
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Image
-  const [imgProvider, setImgProvider] = useState("gemini");
+  const [imgProvider, setImgProvider] = useState("atlas");
   const [imgPrompt, setImgPrompt] = useState("A futuristic city at sunset with flying cars and neon lights.");
   const [imgAspect, setImgAspect] = useState("9:16");
   const [imgModel, setImgModel] = useState("p-image-t2i");
   const [imgSteps, setImgSteps] = useState(4);
   const [sharpiiImgModel, setSharpiiImgModel] = useState("nano-banana-2");
+  const [atlasImgModel, setAtlasImgModel] = useState("google/nano-banana-2-lite/text-to-image");
+  const [atlasVidModel, setAtlasVidModel] = useState("bytedance/seedance-2.0-mini/image-to-video");
+  const [atlasLipModel, setAtlasLipModel] = useState("veed/lipsync");
   const [imgResult, setImgResult] = useState<{ imageBase64: string; durationMs: number } | null>(null);
   const [imgLoading, setImgLoading] = useState(false);
   const [imgError, setImgError] = useState("");
 
   // Video
-  const [vidProvider, setVidProvider] = useState("gemini");
+  const [vidProvider, setVidProvider] = useState("atlas");
   const [vidImage, setVidImage] = useState<string | null>(null);
   const [vidPrompt, setVidPrompt] = useState("Camera slowly zooms in with cinematic motion.");
   const [vidDuration, setVidDuration] = useState(5);
@@ -230,6 +233,7 @@ export function LabPage() {
         aspectRatio: imgAspect,
         ...(imgProvider === "runpod" ? { model: imgModel, steps: imgSteps } : {}),
         ...(imgProvider === "sharpii" ? { model: sharpiiImgModel } : {}),
+        ...(imgProvider === "atlas" ? { model: atlasImgModel } : {}),
       });
       setImgResult(r);
     } catch (e) {
@@ -264,6 +268,7 @@ export function LabPage() {
         aspectRatio: vidAspect,
         ...(vidProvider === "runpod" ? { model: vidModel, resolution: vidResolution } : {}),
         ...(vidProvider === "sharpii" ? { model: sharpiiVidModel } : {}),
+        ...(vidProvider === "atlas" ? { model: atlasVidModel, lipSyncModel: atlasLipModel === "none" ? null : atlasLipModel } : {}),
       });
       setVidResult(r);
     } catch (e) {
@@ -318,14 +323,29 @@ export function LabPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-40">
-              <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo (opcional)</label>
-              <Input
-                className="h-9 font-mono text-[12px]"
-                placeholder="claude-sonnet-4-6"
-                value={llmModel}
-                onChange={e => setLlmModel(e.target.value)}
-              />
+            <div className="flex-1">
+              <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo</label>
+              {llmProvider === "atlas" ? (
+                <Select value={llmModel} onValueChange={(v) => v && setLlmModel(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[...(providers?.atlasLlmModels ?? [])]
+                      .sort((a, b) => a.inputPer1M + a.outputPer1M - (b.inputPer1M + b.outputPer1M))
+                      .map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.label} · {m.priceLabel ?? `$${m.inputPer1M} / $${m.outputPer1M}`}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  className="h-9 font-mono text-[12px]"
+                  placeholder="claude-sonnet-4-6"
+                  value={llmModel}
+                  onChange={e => setLlmModel(e.target.value)}
+                />
+              )}
             </div>
           </div>
           <div>
@@ -435,6 +455,26 @@ export function LabPage() {
             </>
           )}
 
+          {ttsProvider === "atlas-tts" && (
+            <div>
+              <label className="mb-1.5 block text-[12px] text-muted-foreground">Voz ATLAS · $0.015 / 1K chars</label>
+              <Select value={ttsVoice || "eve"} onValueChange={(v) => v && setTtsVoice(v)}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(providers?.atlasTtsVoices ?? [
+                    { id: "eve", label: "Eve — Energetic (F)" },
+                    { id: "ara", label: "Ara — Warm (F)" },
+                    { id: "leo", label: "Leo — Authoritative (M)" },
+                    { id: "rex", label: "Rex — Confident (M)" },
+                    { id: "sal", label: "Sal — Smooth (M)" },
+                  ]).map((v) => (
+                    <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {ttsProvider === "kokoro" && providers?.kokoroVoices && (
             <KokoroVoiceMixer
               voices={providers.kokoroVoices}
@@ -499,6 +539,21 @@ export function LabPage() {
               </Select>
             </div>
           </div>
+          {imgProvider === "atlas" && (
+            <div>
+              <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo ATLAS</label>
+              <Select value={atlasImgModel} onValueChange={(v) => v && setAtlasImgModel(v)}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[...(providers?.atlasImageModels ?? [])].sort((a, b) => a.usd - b.usd).map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.label} · {m.priceLabel ?? `$${m.usd} / imagen`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {imgProvider === "sharpii" && (
             <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
               <p className="text-[11px] text-muted-foreground">Opciones Sharpii — SHARPII_API_KEY</p>
@@ -627,6 +682,37 @@ export function LabPage() {
               </Select>
             </div>
           </div>
+          {vidProvider === "atlas" && (
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">I2V ATLAS</label>
+                <Select value={atlasVidModel} onValueChange={(v) => v && setAtlasVidModel(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[...(providers?.atlasVideoModels ?? [])].sort((a, b) => a.usd - b.usd).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label} · {m.priceLabel ?? `$${m.usd} / s`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Lip-sync</label>
+                <Select value={atlasLipModel} onValueChange={(v) => v && setAtlasLipModel(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin lip-sync · $0</SelectItem>
+                    {[...(providers?.atlasLipSyncModels ?? [])].sort((a, b) => a.usd - b.usd).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label} · {m.priceLabel ?? `$${m.usd} / s`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
           {vidProvider === "sharpii" && (
             <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
               <p className="text-[11px] text-muted-foreground">Opciones Sharpii — SHARPII_API_KEY</p>

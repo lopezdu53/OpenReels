@@ -21,7 +21,7 @@ const API_KEY_FIELDS = [
   { key: "SHARPII_API_KEY", label: "Sharpii (Image/Video)" },
   { key: "RUNPOD_API_KEY", label: "RunPod — endpoints públicos (solo esta clave; no hace falta GPU propia)" },
   { key: "XAI_API_KEY", label: "xAI Grok (LLM/TTS/Image/Video)" },
-  { key: "ATLASCLOUD_API_KEY", label: "Atlas Cloud (Short/Film + Nuevo Vox)" },
+  { key: "ATLASCLOUD_API_KEY", label: "ATLAS (Short / Film / Vox)" },
   { key: "TAVILY_API_KEY", label: "Tavily (búsqueda web)" },
   { key: "YOUTUBE_API_KEY", label: "YouTube Data API v3 (Analítica)" },
 ];

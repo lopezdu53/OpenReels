@@ -128,10 +128,11 @@ export interface ProviderOptions {
   }[];
   atelierStyles?: { id: string; label: string; artStyle: string }[];
   atlasTtsVoices?: VoiceOption[];
-  atlasLlmModels?: { id: string; label: string; inputPer1M: number; outputPer1M: number }[];
-  atlasImageModels?: { id: string; label: string; usd: number }[];
-  atlasVideoModels?: { id: string; label: string; usd: number; durations: number[]; talkingHead?: boolean }[];
-  atlasLipSyncModels?: { id: string; label: string; usd: number }[];
+  atlasTtsModels?: { id: string; label: string; usdPer1kChars: number; priceLabel?: string }[];
+  atlasLlmModels?: { id: string; label: string; inputPer1M: number; outputPer1M: number; priceLabel?: string }[];
+  atlasImageModels?: { id: string; label: string; usd: number; priceLabel?: string }[];
+  atlasVideoModels?: { id: string; label: string; usd: number; durations: number[]; talkingHead?: boolean; priceLabel?: string }[];
+  atlasLipSyncModels?: { id: string; label: string; usd: number; priceLabel?: string }[];
   sharpiiImageModels?: { id: string; label: string; credits: number; usd: number }[];
   sharpiiVideoModels?: {
     id: string;
@@ -674,6 +675,7 @@ export const api = {
     aspectRatio?: string;
     model?: string;
     resolution?: string;
+    lipSyncModel?: string | null;
   }) {
     return fetchJson<{ videoBase64: string; durationMs: number; videoSeconds: number }>(
       "/test/video",

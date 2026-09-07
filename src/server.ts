@@ -27,11 +27,16 @@ import { RunPodImage } from "./providers/image/runpod.js";
 import { SharpiiImage } from "./providers/image/sharpii.js";
 import { ViviImage } from "./providers/image/vivi.js";
 import {
-  ATLAS_IMAGE_MODELS,
-  ATLAS_LLM_MODELS,
-  ATLAS_LIPSYNC_MODELS,
+  ATLAS_TTS_MODELS,
   ATLAS_TTS_VOICES,
-  ATLAS_VIDEO_MODELS,
+  atlasImagePriceLabel,
+  atlasLlmPriceLabel,
+  atlasPerSecondPriceLabel,
+  atlasTtsPriceLabel,
+  sortedAtlasImageModels,
+  sortedAtlasLipSyncModels,
+  sortedAtlasLlmModels,
+  sortedAtlasVideoModels,
 } from "./providers/atlas/catalog.js";
 import { AtlasImage } from "./providers/image/atlas.js";
 import { AtlasLLM } from "./providers/llm/atlas.js";
@@ -250,6 +255,7 @@ app.get("/api/v1/platforms", async () => {
 // --- Providers list ---
 app.get("/api/v1/providers", async () => ({
   llm: [
+    { key: "atlas", label: "ATLAS" },
     { key: "anthropic", label: "Anthropic (Claude)" },
     { key: "openai", label: "OpenAI (GPT)" },
     { key: "gemini", label: "Google Gemini" },
@@ -258,7 +264,6 @@ app.get("/api/v1/providers", async () => ({
     { key: "vivi", label: "VIVI (Claude)" },
     { key: "alicloud", label: "Alibaba Cloud" },
     { key: "grok", label: "Grok (xAI)" },
-    { key: "atlas", label: "Atlas Cloud (DeepSeek / Qwen)" },
   ],
   search: [
     { key: "native", label: "Native (provider built-in)" },
@@ -266,13 +271,13 @@ app.get("/api/v1/providers", async () => ({
     { key: "none", label: "None (parametric knowledge)" },
   ],
   tts: [
+    { key: "atlas-tts", label: "ATLAS" },
     { key: "elevenlabs", label: "ElevenLabs" },
     { key: "inworld", label: "Inworld" },
     { key: "kokoro", label: "Kokoro (Local)" },
     { key: "gemini-tts", label: "Gemini TTS" },
     { key: "openai-tts", label: "OpenAI TTS" },
     { key: "grok-tts", label: "Grok TTS" },
-    { key: "atlas-tts", label: "Atlas Cloud TTS (xAI)" },
   ],
   inworldVoices: INWORLD_VOICES.map((v) => ({ id: v.id, label: v.label, lang: v.lang })),
   geminiTtsVoices: GEMINI_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
@@ -301,18 +306,42 @@ app.get("/api/v1/providers", async () => ({
     perSecond: Boolean(m.perSecond),
   })),
   atlasTtsVoices: ATLAS_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
-  atlasLlmModels: ATLAS_LLM_MODELS.map((m) => ({ id: m.id, label: m.label, inputPer1M: m.inputPer1M, outputPer1M: m.outputPer1M })),
-  atlasImageModels: ATLAS_IMAGE_MODELS.map((m) => ({ id: m.id, label: m.label, usd: m.usd })),
-  atlasVideoModels: ATLAS_VIDEO_MODELS.map((m) => ({
+  atlasTtsModels: ATLAS_TTS_MODELS.map((m) => ({
+    id: m.id,
+    label: m.label,
+    usdPer1kChars: m.usdPer1kChars,
+    priceLabel: atlasTtsPriceLabel(m),
+  })),
+  atlasLlmModels: sortedAtlasLlmModels().map((m) => ({
+    id: m.id,
+    label: m.label,
+    inputPer1M: m.inputPer1M,
+    outputPer1M: m.outputPer1M,
+    priceLabel: atlasLlmPriceLabel(m),
+  })),
+  atlasImageModels: sortedAtlasImageModels().map((m) => ({
+    id: m.id,
+    label: m.label,
+    usd: m.usd,
+    priceLabel: atlasImagePriceLabel(m),
+  })),
+  atlasVideoModels: sortedAtlasVideoModels().map((m) => ({
     id: m.id,
     label: m.label,
     usd: m.usdPerSecond,
     durations: m.durations,
     talkingHead: Boolean(m.talkingHead),
+    priceLabel: atlasPerSecondPriceLabel(m.usdPerSecond),
   })),
-  atlasLipSyncModels: ATLAS_LIPSYNC_MODELS.map((m) => ({ id: m.id, label: m.label, usd: m.usdPerSecond })),
+  atlasLipSyncModels: sortedAtlasLipSyncModels().map((m) => ({
+    id: m.id,
+    label: m.label,
+    usd: m.usdPerSecond,
+    priceLabel: atlasPerSecondPriceLabel(m.usdPerSecond),
+  })),
   atelierStyles: ATELIER_STYLES,
   image: [
+    { key: "atlas", label: "ATLAS" },
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI (GPT Image)" },
     { key: "grok", label: "Grok Imagine Image" },
@@ -321,9 +350,9 @@ app.get("/api/v1/providers", async () => ({
     { key: "runpod", label: "RunPod (FLUX / Wan públicos)" },
     { key: "fal", label: "fal.ai (FLUX)" },
     { key: "sharpii", label: "Sharpii (Nano Banana / Flux / MJ)" },
-    { key: "atlas", label: "Atlas Cloud (Nano Banana / Seedream)" },
   ],
   video: [
+    { key: "atlas", label: "ATLAS" },
     { key: "gemini", label: "Google Veo" },
     { key: "grok", label: "Grok Imagine Video 1.5" },
     { key: "vivi", label: "VIVI (Grok Video 3)" },
@@ -332,7 +361,6 @@ app.get("/api/v1/providers", async () => ({
     { key: "vidu-q2-fast", label: "VIDU Q2 Fast (~27cr/5s)" },
     { key: "vidu-q3-fast", label: "VIDU Q3 Fast" },
     { key: "runpod", label: "RunPod (Wan / Kling / Seedance)" },
-    { key: "atlas", label: "Atlas Cloud I2V + lip-sync" },
   ],
 }));
 

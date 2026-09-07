@@ -13,6 +13,10 @@ import {
   resolveAtlasLlmModel,
   resolveAtlasLipSyncModel,
   resolveAtlasVideoModel,
+  sortedAtlasImageModels,
+  sortedAtlasLipSyncModels,
+  sortedAtlasLlmModels,
+  sortedAtlasVideoModels,
 } from "./catalog.js";
 
 describe("atlas catalog", () => {
@@ -50,5 +54,18 @@ describe("atlas catalog", () => {
     expect(resolveAtlasLlmModel("nope").id).toBe(DEFAULT_ATLAS_LLM_MODEL);
     expect(resolveAtlasImageModel("nope").id).toBe(DEFAULT_ATLAS_IMAGE_MODEL);
     expect(resolveAtlasVideoModel("nope").id).toBe(DEFAULT_ATLAS_VIDEO_MODEL);
+  });
+
+  it("lists models cheapest to most expensive", () => {
+    const images = sortedAtlasImageModels();
+    const llms = sortedAtlasLlmModels();
+    const videos = sortedAtlasVideoModels();
+    const lips = sortedAtlasLipSyncModels();
+    expect(images[0]!.usd).toBeLessThanOrEqual(images.at(-1)!.usd);
+    expect(llms[0]!.inputPer1M + llms[0]!.outputPer1M).toBeLessThanOrEqual(
+      llms.at(-1)!.inputPer1M + llms.at(-1)!.outputPer1M,
+    );
+    expect(videos[0]!.usdPerSecond).toBeLessThanOrEqual(videos.at(-1)!.usdPerSecond);
+    expect(lips[0]!.usdPerSecond).toBeLessThanOrEqual(lips.at(-1)!.usdPerSecond);
   });
 });

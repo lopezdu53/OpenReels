@@ -543,8 +543,8 @@ const PROVIDER_LABELS: Record<string, string> = {
   vivi: "VIVI",
   alicloud: "AliCloud",
   "openai-compatible": "Custom LLM",
-  atlas: "Atlas Cloud",
-  "atlas-tts": "Atlas TTS",
+  atlas: "ATLAS",
+  "atlas-tts": "ATLAS",
   // TTS
   elevenlabs: "ElevenLabs",
   inworld: "Inworld",

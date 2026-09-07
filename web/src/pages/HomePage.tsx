@@ -37,6 +37,7 @@ import { estimateJobCost } from "@/lib/job-cost-preview";
 import { VIDEO_SCENE_MODE_OPTIONS } from "@/lib/video-scene-modes";
 import { fetchUsdToCopRate } from "@/lib/cop-rate";
 import { loadPrices } from "@/pages/LabPage";
+import { AtlasModelFields } from "@/components/AtlasModelFields";
 
 const TOPIC_CATEGORIES: Record<string, string[]> = {
   Historia: [
@@ -80,8 +81,8 @@ const DISPLAY_NAMES: Record<string, string> = {
   "openai-compatible": "Custom (OpenAI-compatible)",
   alicloud: "Alibaba Cloud",
   grok: "Grok (xAI)",
-  atlas: "Atlas Cloud",
-  "atlas-tts": "Atlas TTS",
+  atlas: "ATLAS",
+  "atlas-tts": "ATLAS",
   vivi: "VIVI",
   elevenlabs: "ElevenLabs",
   inworld: "Inworld",
@@ -105,6 +106,7 @@ function providerLabel(list: { key: string; label: string }[] | undefined, key: 
 
 const FALLBACK = {
   llm: [
+    { key: "atlas", label: "ATLAS" },
     { key: "anthropic", label: "Anthropic (Claude)" },
     { key: "openai", label: "OpenAI (GPT)" },
     { key: "gemini", label: "Google Gemini" },
@@ -112,34 +114,33 @@ const FALLBACK = {
     { key: "grok", label: "Grok (xAI)" },
     { key: "vivi", label: "VIVI (Claude)" },
     { key: "alicloud", label: "Alibaba Cloud" },
-    { key: "atlas", label: "Atlas Cloud (DeepSeek / Qwen)" },
   ],
   tts: [
+    { key: "atlas-tts", label: "ATLAS" },
     { key: "elevenlabs", label: "ElevenLabs" },
     { key: "kokoro", label: "Kokoro (Local)" },
     { key: "gemini-tts", label: "Gemini TTS" },
     { key: "openai-tts", label: "OpenAI TTS" },
     { key: "grok-tts", label: "Grok TTS" },
     { key: "inworld", label: "Inworld" },
-    { key: "atlas-tts", label: "Atlas Cloud TTS (xAI)" },
   ],
   image: [
+    { key: "atlas", label: "ATLAS" },
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI" },
     { key: "grok", label: "Grok Imagine" },
     { key: "vivi", label: "VIVI (Gemini Image)" },
     { key: "runpod", label: "RunPod (público)" },
     { key: "sharpii", label: "Sharpii" },
-    { key: "atlas", label: "Atlas Cloud (Nano Banana / Seedream)" },
   ],
   video: [
+    { key: "atlas", label: "ATLAS" },
     { key: "gemini", label: "Veo (Gemini)" },
     { key: "fal", label: "fal.ai (Kling)" },
     { key: "grok", label: "Grok Imagine Video" },
     { key: "vivi", label: "VIVI (Grok Video)" },
     { key: "runpod", label: "RunPod (público)" },
     { key: "sharpii", label: "Sharpii (Kling / Seedance)" },
-    { key: "atlas", label: "Atlas Cloud I2V + lip-sync" },
   ],
   search: [
     { key: "tavily", label: "Tavily" },
@@ -169,11 +170,11 @@ export function HomePage() {
   const [artStyleOverride, setArtStyleOverride] = useState<string>("");
   const [atelierMode, setAtelierMode] = useState(true);
   const [platform, setPlatform] = useState("youtube");
-  const [llmProvider, setLlmProvider] = useState("anthropic");
-  const [llmModel, setLlmModel] = useState("");
+  const [llmProvider, setLlmProvider] = useState("atlas");
+  const [llmModel, setLlmModel] = useState("deepseek-ai/deepseek-v4-flash");
   const [llmBaseUrl, setLlmBaseUrl] = useState("");
   const [searchProvider, setSearchProvider] = useState("");
-  const [ttsProvider, setTtsProvider] = useState("elevenlabs");
+  const [ttsProvider, setTtsProvider] = useState("atlas-tts");
   const [inworldVoice, setInworldVoice] = useState("Pedro");
   const [geminiTtsVoice, setGeminiTtsVoice] = useState("Kore");
   const [grokTtsVoice, setGrokTtsVoice] = useState("eve");
@@ -181,9 +182,9 @@ export function HomePage() {
   const [grokTtsModel] = useState("");
   const [kokoroVoice, setKokoroVoice] = useState("ef_dora");
   const [kokoroSpeed, setKokoroSpeed] = useState(1.0);
-  const [imageProvider, setImageProvider] = useState("gemini");
+  const [imageProvider, setImageProvider] = useState("atlas");
   const [musicProvider, setMusicProvider] = useState("bundled");
-  const [videoProvider, setVideoProvider] = useState("");
+  const [videoProvider, setVideoProvider] = useState("atlas");
   const [runpodImageModel, setRunpodImageModel] = useState("p-image-t2i");
   const [runpodVideoModel, setRunpodVideoModel] = useState("p-video");
   const [runpodImageSteps, setRunpodImageSteps] = useState(4);
@@ -193,6 +194,7 @@ export function HomePage() {
   const [runpodVideoEndpointId, setRunpodVideoEndpointId] = useState("");
   const [sharpiiImageModel, setSharpiiImageModel] = useState("nano-banana-2");
   const [sharpiiVideoModel, setSharpiiVideoModel] = useState("kling-v2.6-pro-i2v");
+  const [atlasTtsModel, setAtlasTtsModel] = useState("xai/tts-v1");
   const [atlasTtsVoice, setAtlasTtsVoice] = useState("eve");
   const [atlasImageModel, setAtlasImageModel] = useState("google/nano-banana-2-lite/text-to-image");
   const [atlasVideoModel, setAtlasVideoModel] = useState("bytedance/seedance-2.0-mini/image-to-video");
@@ -247,7 +249,21 @@ export function HomePage() {
     setShuffledTopics(TOPIC_CATEGORIES[activeCategory] ?? []);
   }, [activeCategory]);
 
-  const prices = useMemo(() => loadPrices(), [ttsProvider, llmProvider, imageProvider, videoProvider, musicProvider]);
+  const prices = useMemo(() => {
+    const base = loadPrices();
+    const llm = providers?.atlasLlmModels?.find((m) => m.id === (llmModel || "deepseek-ai/deepseek-v4-flash"));
+    const img = providers?.atlasImageModels?.find((m) => m.id === atlasImageModel);
+    const vid = providers?.atlasVideoModels?.find((m) => m.id === atlasVideoModel);
+    const lip = atlasLipSyncModel === "none" ? undefined : providers?.atlasLipSyncModels?.find((m) => m.id === atlasLipSyncModel);
+    const tts = providers?.atlasTtsModels?.find((m) => m.id === atlasTtsModel);
+    return {
+      ...base,
+      llm: { ...base.llm, atlas: llm ? { inputPer1M: llm.inputPer1M, outputPer1M: llm.outputPer1M } : base.llm.atlas },
+      tts: { ...base.tts, "atlas-tts": tts ? { per1kChars: tts.usdPer1kChars } : base.tts["atlas-tts"] },
+      image: { ...base.image, atlas: img ? { perImage: img.usd } : base.image.atlas },
+      video: { ...base.video, atlas: { perSecond: (vid?.usd ?? 0.011) + (lip?.usd ?? 0) } },
+    };
+  }, [providers, llmModel, atlasImageModel, atlasVideoModel, atlasLipSyncModel, atlasTtsModel]);
   const costPreview = useMemo(
     () =>
       estimateJobCost(
@@ -476,29 +492,29 @@ export function HomePage() {
                       placeholder={llmProvider === "grok" ? "grok-4" : "model-id"} />
                   </Field>
                 )}
-                {llmProvider === "atlas" && (
-                  <Field label="Atlas LLM">
-                    <Select
-                      value={llmModel || "deepseek-ai/deepseek-v4-flash"}
-                      onValueChange={(v) => v && setLlmModel(v)}
-                    >
-                      <SelectTrigger className={field}><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {(providers?.atlasLlmModels ?? [
-                          { id: "deepseek-ai/deepseek-v4-flash", label: "DeepSeek V4 Flash ($0.14 / $0.28)" },
-                        ]).map((m) => (
-                          <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                )}
                 {llmProvider === "openai-compatible" && (
                   <Field label="Base URL">
                     <Input className={field} value={llmBaseUrl} onChange={(e) => setLlmBaseUrl(e.target.value)} placeholder="http://localhost:11434/v1" />
                   </Field>
                 )}
               </div>
+              {llmProvider === "atlas" && (
+                <AtlasModelFields
+                  providers={providers}
+                  fieldClass={field}
+                  showLlm
+                  values={{
+                    llmModel,
+                    ttsVoice: atlasTtsVoice,
+                    imageModel: atlasImageModel,
+                    videoModel: atlasVideoModel,
+                    lipSyncModel: atlasLipSyncModel,
+                  }}
+                  onChange={(patch) => {
+                    if (patch.llmModel) setLlmModel(patch.llmModel);
+                  }}
+                />
+              )}
               <div className="mt-4">
                 <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Dirección creativa</label>
                 <textarea
@@ -574,21 +590,26 @@ export function HomePage() {
                     </Field>
                   </>
                 )}
-                {ttsProvider === "atlas-tts" && (
-                  <Field label="Voz Atlas (xAI)">
-                    <Select value={atlasTtsVoice} onValueChange={(v) => v && setAtlasTtsVoice(v)}>
-                      <SelectTrigger className={field}><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {(providers?.atlasTtsVoices ?? [
-                          { id: "eve", label: "Eve — Energetic (F)" },
-                          { id: "ara", label: "Ara — Warm (F)" },
-                          { id: "leo", label: "Leo — Authoritative (M)" },
-                        ]).map((v) => <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                )}
               </div>
+              {ttsProvider === "atlas-tts" && (
+                <AtlasModelFields
+                  providers={providers}
+                  fieldClass={field}
+                  showTts
+                  values={{
+                    llmModel,
+                    ttsModel: atlasTtsModel,
+                    ttsVoice: atlasTtsVoice,
+                    imageModel: atlasImageModel,
+                    videoModel: atlasVideoModel,
+                    lipSyncModel: atlasLipSyncModel,
+                  }}
+                  onChange={(patch) => {
+                    if (patch.ttsModel) setAtlasTtsModel(patch.ttsModel);
+                    if (patch.ttsVoice) setAtlasTtsVoice(patch.ttsVoice);
+                  }}
+                />
+              )}
               {ttsProvider === "kokoro" && (
                 <div className="mt-4">
                   <KokoroVoiceMixer
@@ -616,17 +637,15 @@ export function HomePage() {
                     </SelectContent>
                   </Select>
                 </Field>
-                {allowedVisualTypes.includes("ai_video") && (
-                  <Field label="Video IA">
-                    <Select value={videoProvider} onValueChange={(v) => setVideoProvider(v ?? "")}>
-                      <SelectTrigger className={field}><SelectValue placeholder="Auto" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">Auto</SelectItem>
-                        {videoList.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                )}
+                <Field label="Video IA">
+                  <Select value={videoProvider} onValueChange={(v) => setVideoProvider(v ?? "")}>
+                    <SelectTrigger className={field}><SelectValue placeholder="Auto" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Auto</SelectItem>
+                      {videoList.map((p) => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
                 {allowedVisualTypes.includes("ai_video") && (
                   <Field label="Escenas en movimiento">
                     <Select value={videoSceneMode} onValueChange={(v) => setVideoSceneMode(v ?? "auto")}>
@@ -765,52 +784,25 @@ export function HomePage() {
               )}
 
               {(imageProvider === "atlas" || videoProvider === "atlas") && (
-                <div className="mt-4 rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
-                  <p className="text-xs font-semibold">Opciones Atlas Cloud</p>
-                  {imageProvider === "atlas" && (
-                    <Field label="Modelo de imagen">
-                      <Select value={atlasImageModel} onValueChange={(v) => v && setAtlasImageModel(v)}>
-                        <SelectTrigger className={field}><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {(providers?.atlasImageModels ?? [
-                            { id: "google/nano-banana-2-lite/text-to-image", label: "Nano Banana 2 Lite ($0.04)" },
-                          ]).map((m) => (
-                            <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                  )}
-                  {videoProvider === "atlas" && (
-                    <>
-                      <Field label="Modelo I2V">
-                        <Select value={atlasVideoModel} onValueChange={(v) => v && setAtlasVideoModel(v)}>
-                          <SelectTrigger className={field}><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {(providers?.atlasVideoModels ?? [
-                              { id: "bytedance/seedance-2.0-mini/image-to-video", label: "Seedance 2.0 Mini I2V ($0.011/s)" },
-                            ]).map((m) => (
-                              <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </Field>
-                      <Field label="Lip-sync (después del I2V)">
-                        <Select value={atlasLipSyncModel} onValueChange={(v) => v && setAtlasLipSyncModel(v)}>
-                          <SelectTrigger className={field}><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Sin lip-sync</SelectItem>
-                            {(providers?.atlasLipSyncModels ?? [
-                              { id: "veed/lipsync", label: "VEED Lipsync ($0.013/s)" },
-                            ]).map((m) => (
-                              <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </Field>
-                    </>
-                  )}
-                </div>
+                <AtlasModelFields
+                  providers={providers}
+                  fieldClass={field}
+                  showImage={imageProvider === "atlas"}
+                  showVideo={videoProvider === "atlas"}
+                  showLipSync={videoProvider === "atlas"}
+                  values={{
+                    llmModel,
+                    ttsVoice: atlasTtsVoice,
+                    imageModel: atlasImageModel,
+                    videoModel: atlasVideoModel,
+                    lipSyncModel: atlasLipSyncModel,
+                  }}
+                  onChange={(patch) => {
+                    if (patch.imageModel) setAtlasImageModel(patch.imageModel);
+                    if (patch.videoModel) setAtlasVideoModel(patch.videoModel);
+                    if (patch.lipSyncModel) setAtlasLipSyncModel(patch.lipSyncModel);
+                  }}
+                />
               )}
 
               <div className="mt-4">
@@ -825,7 +817,6 @@ export function HomePage() {
                       nextChecked ? [...prev, key] : prev.filter((t) => t !== key),
                     );
                     if (key === "ai_video" && !nextChecked) {
-                      setVideoProvider("");
                       setVideoSceneMode("auto");
                     }
                   }}

@@ -148,7 +148,7 @@ export function validateEnv(opts: {
     },
     {
       key: "ATLASCLOUD_API_KEY",
-      provider: "Atlas Cloud (LLM/TTS/Image/I2V/Lip)",
+      provider: "ATLAS (LLM/TTS/Image/I2V/Lip)",
       signupUrl: "https://www.atlascloud.ai/console/api-keys",
       required:
         opts.provider === "atlas" ||
