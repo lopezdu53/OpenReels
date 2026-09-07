@@ -17,6 +17,7 @@ import { imageProviderClonesLayout, planVisualReferences, sheetToSceneHint, type
 import { research } from "../agents/research.js";
 import { resolveStockAdaptive, type StockResolution } from "../providers/stock/adaptive-resolver.js";
 import { resolveAIVideo, type VideoResolution } from "../providers/video/video-resolver.js";
+import { sliceSceneAudio } from "./scene-audio.js";
 import type { CostBreakdown } from "../cli/cost-estimator.js";
 import {
   computeActualLLMCost,
@@ -328,6 +329,7 @@ async function resolveVisualAsset(
     objectLock?: string;
   },
   referenceImageUrl?: string,
+  sceneAudio?: Buffer,
 ): Promise<VisualAssetResult> {
   const shotBag = {
     shotType: scene.shot_type,
@@ -406,6 +408,7 @@ async function resolveVisualAsset(
         totalScenes,
         sceneDurationSeconds,
         aspectRatio,
+        sceneAudio,
         characterLock: shot?.sceneLock ?? opts.characterLock,
         locationLock: shot?.locationLock ?? opts.locationLock,
         objectLock: shot?.objectLock ?? opts.objectLock,
@@ -855,6 +858,10 @@ function buildPipelineWorkflow(
       });
 
       const aspectRatio = getPlatformAspectRatio(opts.platform);
+      const sceneAudioFor = (i: number) =>
+        ttsResult.voiceoverPath
+          ? sliceSceneAudio(ttsResult.voiceoverPath, ttsResult.sceneWords?.[i])
+          : undefined;
 
       const sceneCast = planSceneCastFocus(score.scenes, opts.characterLock, normalizeCastMode(opts.castMode));
       const roster = parseCastMembers(opts.characterLock);
@@ -946,7 +953,7 @@ function buildPipelineWorkflow(
             score.scenes.map(async (scene, i) => {
               try {
                 const sceneDuration = sceneDurations[i];
-                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, globalReference, aspectRatio, shotFor(i, false));
+                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, globalReference, aspectRatio, shotFor(i, false), undefined, sceneAudioFor(i));
               } catch (err) {
                 cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
                 return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
@@ -959,7 +966,7 @@ function buildPipelineWorkflow(
             const firstScene = score.scenes[0]!;
             let firstResult: VisualAssetResult;
             try {
-              firstResult = await resolveVisualAsset(firstScene, 0, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[0], undefined, aspectRatio, shotFor(0, false));
+              firstResult = await resolveVisualAsset(firstScene, 0, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[0], undefined, aspectRatio, shotFor(0, false), undefined, sceneAudioFor(0));
             } catch (err) {
               cb.onProgress?.("visuals", { type: "asset_failed", scene: 0, error: String(err) });
               firstResult = { path: null, usage: null, durationSeconds: null };
@@ -981,7 +988,7 @@ function buildPipelineWorkflow(
               score.scenes.slice(1).map(async (scene, idx) => {
                 const i = idx + 1;
                 try {
-                  return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[i], atelierRef, aspectRatio, shotFor(i, false), atelierUrl);
+                  return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[i], atelierRef, aspectRatio, shotFor(i, false), atelierUrl, sceneAudioFor(i));
                 } catch (err) {
                   cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
                   return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
@@ -1015,6 +1022,7 @@ function buildPipelineWorkflow(
                   aspectRatio,
                   shotFor(i, false),
                   previousImageUrl,
+                  sceneAudioFor(i),
                 );
                 results.push(result);
                 try {
@@ -1045,7 +1053,7 @@ function buildPipelineWorkflow(
               try {
                 const sceneDuration = sceneDurations[i];
                 const useSheet = Boolean(refForScene(i));
-                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, refForScene(i), aspectRatio, shotFor(i, useSheet));
+                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, refForScene(i), aspectRatio, shotFor(i, useSheet), undefined, sceneAudioFor(i));
               } catch (err) {
                 cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
                 return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;

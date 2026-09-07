@@ -146,6 +146,16 @@ export function validateEnv(opts: {
       signupUrl: "https://platform.vidu.com/",
       required: opts.videoProvider?.startsWith("vidu") ?? false,
     },
+    {
+      key: "ATLASCLOUD_API_KEY",
+      provider: "Atlas Cloud (LLM/TTS/Image/I2V/Lip)",
+      signupUrl: "https://www.atlascloud.ai/console/api-keys",
+      required:
+        opts.provider === "atlas" ||
+        opts.ttsProvider === "atlas-tts" ||
+        opts.imageProvider === "atlas" ||
+        opts.videoProvider === "atlas",
+    },
   ];
 
   const missing = requirements.filter((r) => r.required && !process.env[r.key]);
@@ -165,7 +175,8 @@ export function validateEnv(opts: {
   const needsSearchWarning =
     (opts.provider === "openrouter" ||
       opts.provider === "openai-compatible" ||
-      opts.provider === "grok") &&
+      opts.provider === "grok" ||
+      opts.provider === "atlas") &&
     !opts.searchProvider &&
     !process.env["TAVILY_API_KEY"];
   if (needsSearchWarning) {
