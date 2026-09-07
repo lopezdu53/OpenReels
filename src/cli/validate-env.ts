@@ -73,6 +73,16 @@ export function validateEnv(opts: {
       signupUrl: "https://tavily.com/",
       required: opts.searchProvider === "tavily",
     },
+    {
+      key: "ATLASCLOUD_API_KEY",
+      provider: "Atlas Cloud (LLM/TTS/Image/I2V/Lip)",
+      signupUrl: "https://www.atlascloud.ai/console/api-keys",
+      required:
+        opts.provider === "atlas" ||
+        opts.ttsProvider === "atlas-tts" ||
+        opts.imageProvider === "atlas" ||
+        opts.videoProvider === "atlas",
+    },
   ];
 
   const missing = requirements.filter((r) => r.required && !process.env[r.key]);
@@ -90,7 +100,9 @@ export function validateEnv(opts: {
 
   // Warn when openrouter/openai-compatible without explicit search provider and no Tavily key
   const needsSearchWarning =
-    (opts.provider === "openrouter" || opts.provider === "openai-compatible") &&
+    (opts.provider === "openrouter" ||
+      opts.provider === "openai-compatible" ||
+      opts.provider === "atlas") &&
     !opts.searchProvider &&
     !process.env["TAVILY_API_KEY"];
   if (needsSearchWarning) {

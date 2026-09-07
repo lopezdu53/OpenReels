@@ -22,6 +22,17 @@ import { OpenAILLM } from "./providers/llm/openai.js";
 import { OpenRouterLLM } from "./providers/llm/openrouter.js";
 import { ViviLLM } from "./providers/llm/vivi.js";
 import { AliCloudLLM } from "./providers/llm/alicloud.js";
+import { AtlasLLM } from "./providers/llm/atlas.js";
+import {
+  ATLAS_IMAGE_MODELS,
+  ATLAS_LLM_MODELS,
+  ATLAS_LIPSYNC_MODELS,
+  ATLAS_TTS_VOICES,
+  ATLAS_VIDEO_MODELS,
+} from "./providers/atlas/catalog.js";
+import { AtlasImage } from "./providers/image/atlas.js";
+import { AtlasTTS } from "./providers/tts/atlas.js";
+import { AtlasVideo } from "./providers/video/atlas.js";
 import { ElevenLabsTTS } from "./providers/tts/elevenlabs.js";
 import { GeminiTTS } from "./providers/tts/gemini.js";
 import { OpenAITTS } from "./providers/tts/openai.js";
@@ -97,6 +108,7 @@ app.get("/api/v1/health", async () => {
       ALICLOUD_API_KEY: !!process.env["ALICLOUD_API_KEY"],
       VIDU_API_KEY: !!process.env["VIDU_API_KEY"],
       XAI_API_KEY: !!process.env["XAI_API_KEY"],
+      ATLASCLOUD_API_KEY: !!process.env["ATLASCLOUD_API_KEY"],
     },
   };
 });
@@ -186,6 +198,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "openai-compatible", label: "Custom (OpenAI-compatible)" },
     { key: "vivi", label: "VIVI (Claude)" },
     { key: "alicloud", label: "Alibaba Cloud" },
+    { key: "atlas", label: "Atlas Cloud (DeepSeek / Qwen)" },
   ],
   search: [
     { key: "native", label: "Native (provider built-in)" },
@@ -199,11 +212,23 @@ app.get("/api/v1/providers", async () => ({
     { key: "gemini-tts", label: "Gemini TTS" },
     { key: "openai-tts", label: "OpenAI TTS" },
     { key: "grok-tts", label: "Grok TTS" },
+    { key: "atlas-tts", label: "Atlas Cloud TTS (xAI)" },
   ],
   inworldVoices: INWORLD_VOICES.map((v) => ({ id: v.id, label: v.label, lang: v.lang })),
   geminiTtsVoices: GEMINI_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
   grokTtsVoices: GROK_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
   grokTtsModels: GROK_TTS_MODELS.map((m) => ({ id: m.id, label: m.label })),
+  atlasTtsVoices: ATLAS_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
+  atlasLlmModels: ATLAS_LLM_MODELS.map((m) => ({ id: m.id, label: m.label, inputPer1M: m.inputPer1M, outputPer1M: m.outputPer1M })),
+  atlasImageModels: ATLAS_IMAGE_MODELS.map((m) => ({ id: m.id, label: m.label, usd: m.usd })),
+  atlasVideoModels: ATLAS_VIDEO_MODELS.map((m) => ({
+    id: m.id,
+    label: m.label,
+    usd: m.usdPerSecond,
+    durations: m.durations,
+    talkingHead: Boolean(m.talkingHead),
+  })),
+  atlasLipSyncModels: ATLAS_LIPSYNC_MODELS.map((m) => ({ id: m.id, label: m.label, usd: m.usdPerSecond })),
   atelierStyles: ATELIER_STYLES,
   image: [
     { key: "gemini", label: "Google Gemini" },
@@ -212,6 +237,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "alicloud", label: "Alibaba Cloud" },
     { key: "runpod", label: "RunPod Serverless" },
     { key: "fal", label: "fal.ai (FLUX)" },
+    { key: "atlas", label: "Atlas Cloud (Nano Banana / Seedream)" },
   ],
   video: [
     { key: "gemini", label: "Google Veo" },
@@ -221,6 +247,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "vidu-q2-fast", label: "VIDU Q2 Fast (~27cr/5s)" },
     { key: "vidu-q3-fast", label: "VIDU Q3 Fast" },
     { key: "runpod", label: "RunPod Serverless" },
+    { key: "atlas", label: "Atlas Cloud I2V + lip-sync" },
   ],
 }));
 
@@ -240,6 +267,7 @@ app.post("/api/v1/test/llm", async (request, reply) => {
         case "openrouter": return new OpenRouterLLM(model);
         case "vivi": return new ViviLLM(model);
         case "alicloud": return new AliCloudLLM(model);
+        case "atlas": return new AtlasLLM(model);
         default: return new AnthropicLLM(model);
       }
     })();
@@ -268,6 +296,7 @@ app.post("/api/v1/test/tts", async (request, reply) => {
         case "openai-tts": return new OpenAITTS();
         case "grok-tts": return new GrokTTS(model, voice, undefined, speed);
         case "kokoro": return new KokoroTTS();
+        case "atlas-tts": return new AtlasTTS(voice);
         default: return new ElevenLabsTTS();
       }
     })();
@@ -280,8 +309,8 @@ app.post("/api/v1/test/tts", async (request, reply) => {
 });
 
 app.post("/api/v1/test/image", async (request, reply) => {
-  const { provider = "gemini", prompt, style, aspectRatio = "9:16" } = request.body as {
-    provider?: string; prompt: string; style?: string; aspectRatio?: string;
+  const { provider = "gemini", prompt, style, aspectRatio = "9:16", model } = request.body as {
+    provider?: string; prompt: string; style?: string; aspectRatio?: string; model?: string;
   };
   if (!prompt?.trim()) return reply.status(400).send({ error: "prompt is required" });
   const start = Date.now();
@@ -293,6 +322,7 @@ app.post("/api/v1/test/image", async (request, reply) => {
         case "alicloud": return new AliCloudImage();
         case "runpod": return new RunPodImage();
         case "fal": return new FalImage();
+        case "atlas": return new AtlasImage(model);
         default: return new GeminiImage();
       }
     })();
@@ -305,8 +335,8 @@ app.post("/api/v1/test/image", async (request, reply) => {
 });
 
 app.post("/api/v1/test/video", async (request, reply) => {
-  const { provider = "gemini", imageBase64, prompt, durationSeconds = 5, aspectRatio = "9:16" } = request.body as {
-    provider?: string; imageBase64: string; prompt: string; durationSeconds?: number; aspectRatio?: string;
+  const { provider = "gemini", imageBase64, prompt, durationSeconds = 5, aspectRatio = "9:16", model, lipSyncModel } = request.body as {
+    provider?: string; imageBase64: string; prompt: string; durationSeconds?: number; aspectRatio?: string; model?: string; lipSyncModel?: string | null;
   };
   if (!imageBase64 || !prompt?.trim()) return reply.status(400).send({ error: "imageBase64 and prompt are required" });
   const start = Date.now();
@@ -317,6 +347,7 @@ app.post("/api/v1/test/video", async (request, reply) => {
         case "vivi": return new ViviVideo();
         case "fal": return new FalVideo();
         case "runpod": return new RunPodVideo();
+        case "atlas": return new AtlasVideo(model, undefined, lipSyncModel === "none" ? null : lipSyncModel);
         default: return new GeminiVideo();
       }
     })();
@@ -365,6 +396,10 @@ interface CreateJobBody {
     grokTtsVoice?: string;
     grokTtsSpeed?: number;
     grokTtsModel?: string;
+    atlasImageModel?: string;
+    atlasVideoModel?: string;
+    atlasTtsVoice?: string;
+    atlasLipSyncModel?: string | null;
   };
   keys?: Record<string, string>;
 }
@@ -476,6 +511,10 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       grokTtsVoice: providers?.grokTtsVoice,
       grokTtsSpeed: providers?.grokTtsSpeed,
       grokTtsModel: providers?.grokTtsModel,
+      atlasImageModel: providers?.atlasImageModel,
+      atlasVideoModel: providers?.atlasVideoModel,
+      atlasTtsVoice: providers?.atlasTtsVoice,
+      atlasLipSyncModel: providers?.atlasLipSyncModel,
     },
     keys: keys ?? {},
     jobsDir: JOBS_DIR,

@@ -53,6 +53,7 @@ export async function resolveAIVideo(
     sceneDurationSeconds?: number;
     totalScenes?: number;
     aspectRatio?: string;
+    sceneAudio?: Buffer;
   },
 ): Promise<{
   path: string;
@@ -106,6 +107,7 @@ export async function resolveAIVideo(
           durationSeconds: genDuration,
           aspectRatio: opts.aspectRatio ?? "9:16",
           negativePrompt,
+          audio: opts.sceneAudio,
         }),
       );
       const videoGenTimeMs = Date.now() - videoStart;

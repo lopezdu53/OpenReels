@@ -105,6 +105,11 @@ export interface ProviderOptions {
   geminiTtsVoices?: VoiceOption[];
   grokTtsVoices?: VoiceOption[];
   grokTtsModels?: { id: string; label: string }[];
+  atlasTtsVoices?: VoiceOption[];
+  atlasLlmModels?: { id: string; label: string; inputPer1M: number; outputPer1M: number }[];
+  atlasImageModels?: { id: string; label: string; usd: number }[];
+  atlasVideoModels?: { id: string; label: string; usd: number; durations: number[]; talkingHead?: boolean }[];
+  atlasLipSyncModels?: { id: string; label: string; usd: number }[];
   atelierStyles?: { id: string; label: string; artStyle: string }[];
 }
 
@@ -204,6 +209,10 @@ export interface CreateJobRequest {
     grokTtsVoice?: string;
     grokTtsSpeed?: number;
     grokTtsModel?: string;
+    atlasImageModel?: string;
+    atlasVideoModel?: string;
+    atlasTtsVoice?: string;
+    atlasLipSyncModel?: string | null;
   };
 }
 
@@ -269,13 +278,13 @@ export const api = {
     );
   },
 
-  testImage(data: { provider?: string; prompt: string; style?: string; aspectRatio?: string }) {
+  testImage(data: { provider?: string; prompt: string; style?: string; aspectRatio?: string; model?: string }) {
     return fetchJson<{ imageBase64: string; durationMs: number }>(
       "/test/image", { method: "POST", body: JSON.stringify(data) }
     );
   },
 
-  testVideo(data: { provider?: string; imageBase64: string; prompt: string; durationSeconds?: number; aspectRatio?: string }) {
+  testVideo(data: { provider?: string; imageBase64: string; prompt: string; durationSeconds?: number; aspectRatio?: string; model?: string; lipSyncModel?: string | null }) {
     return fetchJson<{ videoBase64: string; durationMs: number; videoSeconds: number }>(
       "/test/video", { method: "POST", body: JSON.stringify(data) }
     );
