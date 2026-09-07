@@ -16,6 +16,8 @@ export function runVoxScript(
         ...process.env,
         ATLASCLOUD_API_KEY: opts.apiKey,
         PYTHONUNBUFFERED: "1",
+        SSL_CERT_FILE: process.env["SSL_CERT_FILE"] || "/etc/ssl/certs/ca-certificates.crt",
+        REQUESTS_CA_BUNDLE: process.env["REQUESTS_CA_BUNDLE"] || "/etc/ssl/certs/ca-certificates.crt",
       },
     });
     let stderr = "";
