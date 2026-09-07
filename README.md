@@ -82,17 +82,19 @@ Mix and match providers or go all-in on one ecosystem:
 
 | Capability | Providers |
 |-----------|-----------|
-| **LLM** | Anthropic Claude, OpenAI GPT, Google Gemini, OpenRouter (300+ models), any OpenAI-compatible endpoint |
+| **LLM** | Anthropic Claude, OpenAI GPT, Google Gemini, OpenRouter (300+ models), Atlas Cloud (DeepSeek / Qwen), any OpenAI-compatible endpoint |
 | **Search** | Native (provider built-in), Tavily, or parametric knowledge |
-| **TTS** | ElevenLabs, Inworld, OpenAI TTS, Gemini TTS, Kokoro (free, local) |
-| **Images** | Gemini Imagen, OpenAI DALL-E |
-| **Video** | Google Veo 3.1, fal.ai Kling 2.6 Pro (with cross-provider fallback, negative prompts, structured cinematography prompts) |
+| **TTS** | ElevenLabs, Inworld, OpenAI TTS, Gemini TTS, Kokoro (free, local), Atlas Cloud (xAI TTS) |
+| **Images** | Gemini Imagen, OpenAI DALL-E, Atlas Cloud (Nano Banana / Seedream) |
+| **Video** | Google Veo 3.1, fal.ai Kling 2.6 Pro, Atlas Cloud I2V + optional lip-sync (with cross-provider fallback, negative prompts, structured cinematography prompts) |
 | **Music** | Google Lyria 3 Pro (AI-generated, $0.08/track), Bundled library (free) |
 | **Stock** | Pexels, Pixabay (both searched, vision-verified, with AI fallback) |
 
 **One key, everything Google:** `--provider google` sets LLM, images, TTS, video, and music to Google APIs with a single `GOOGLE_API_KEY`.
 
 **Zero-cost voiceover:** `--provider local` uses Kokoro for free local TTS. No API key needed.
+
+**One key, Atlas Cloud:** `--provider atlas --tts-provider atlas-tts --image-provider atlas --video-provider atlas` uses a single `ATLASCLOUD_API_KEY` for DeepSeek/Qwen, Grok TTS, Nano Banana/Seedream, Seedance I2V, and VEED lip-sync. Pay-as-you-go; see Settings for the live USD rates.
 
 ## Quickstart
 
@@ -157,8 +159,9 @@ pnpm start "your topic" --score output/2026-04-10-111939-.../score.json
 
 **Minimum to run** (pick one LLM + one TTS):
 - `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` or `GOOGLE_API_KEY` — [Anthropic](https://console.anthropic.com/) / [OpenAI](https://platform.openai.com/api-keys) / [Google AI Studio](https://aistudio.google.com/apikey)
-- `ELEVENLABS_API_KEY` or `INWORLD_TTS_API_KEY` — [ElevenLabs](https://elevenlabs.io/) / [Inworld](https://inworld.ai/). Or use `--tts-provider kokoro` (free, no key), `--tts-provider openai-tts`, or `--tts-provider gemini-tts`
+- `ELEVENLABS_API_KEY` or `INWORLD_TTS_API_KEY` — [ElevenLabs](https://elevenlabs.io/) / [Inworld](https://inworld.ai/). Or use `--tts-provider kokoro` (free, no key), `--tts-provider openai-tts`, `--tts-provider gemini-tts`, or `--tts-provider atlas-tts`
 - `GOOGLE_API_KEY` — also needed for Gemini image generation, AI video (Veo), AI music (Lyria), and Gemini TTS
+- `ATLASCLOUD_API_KEY` — [Atlas Cloud](https://www.atlascloud.ai/console/api-keys) for `--provider atlas` (LLM + TTS + image + I2V + lip-sync)
 
 **Optional:** `PEXELS_API_KEY` ([Pexels](https://www.pexels.com/api/)), `PIXABAY_API_KEY` ([Pixabay](https://pixabay.com/api/docs/)) for stock footage, `FAL_API_KEY` ([fal.ai](https://fal.ai/)) for Kling video generation
 
@@ -166,14 +169,18 @@ pnpm start "your topic" --score output/2026-04-10-111939-.../score.json
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--provider <name>` | LLM provider (`anthropic`, `openai`, `gemini`, `openrouter`, `openai-compatible`, `google`, `local`) | `anthropic` |
-| `--llm-model <model>` | Model ID override (e.g. `anthropic/claude-sonnet-4` for OpenRouter) | provider default |
+| `--provider <name>` | LLM provider (`anthropic`, `openai`, `gemini`, `openrouter`, `openai-compatible`, `google`, `local`, `atlas`) | `anthropic` |
+| `--llm-model <model>` | Model ID override (e.g. `anthropic/claude-sonnet-4` for OpenRouter, `deepseek-ai/deepseek-v4-flash` for Atlas) | provider default |
 | `--llm-base-url <url>` | Base URL for `openai-compatible` (e.g. `http://localhost:11434/v1`) | — |
 | `--search-provider <name>` | Search provider (`native`, `tavily`, `none`) | auto-detect |
-| `--image-provider <name>` | Image provider (`gemini`, `openai`) | `gemini` |
-| `--tts-provider <name>` | TTS provider (`elevenlabs`, `inworld`, `kokoro`, `gemini-tts`, `openai-tts`) | `elevenlabs` |
+| `--image-provider <name>` | Image provider (`gemini`, `openai`, `atlas`) | `gemini` |
+| `--tts-provider <name>` | TTS provider (`elevenlabs`, `inworld`, `kokoro`, `gemini-tts`, `openai-tts`, `atlas-tts`) | `elevenlabs` |
+| `--atlas-tts-voice <voice>` | Atlas TTS voice (`eve`, `ara`, `leo`, `rex`, `sal`) | `eve` |
+| `--atlas-image-model <model>` | Atlas image model | `google/nano-banana-2-lite/text-to-image` |
+| `--atlas-video-model <model>` | Atlas I2V model | `bytedance/seedance-2.0-mini/image-to-video` |
+| `--atlas-lipsync-model <model>` | Atlas lip-sync after I2V (`veed/lipsync`, `sync/lipsync-v3`, `none`) | `veed/lipsync` |
 | `--music-provider <name>` | Music provider (`bundled`, `lyria`) | `bundled` |
-| `--video-provider <name>` | Video provider (`gemini`, `fal`) | auto-detect |
+| `--video-provider <name>` | Video provider (`gemini`, `fal`, `atlas`) | auto-detect |
 | `--archetype <name>` | Override visual archetype | LLM chooses |
 | `--platform <name>` | Target platform (`youtube`, `tiktok`, `instagram`) | `youtube` |
 | `--dry-run` | Output DirectorScore JSON without generating assets | off |

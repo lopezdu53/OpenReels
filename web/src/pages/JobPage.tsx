@@ -541,6 +541,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   openrouter: "OpenRouter",
   vivi: "VIVI",
   alicloud: "AliCloud",
+  atlas: "Atlas Cloud",
   "openai-compatible": "Custom LLM",
   // TTS
   elevenlabs: "ElevenLabs",
@@ -549,6 +550,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   "gemini-tts": "Gemini TTS",
   "openai-tts": "OpenAI TTS",
   "grok-tts": "Grok TTS",
+  "atlas-tts": "Atlas TTS",
   // Image
   runpod: "RunPod",
   fal: "fal.ai FLUX",

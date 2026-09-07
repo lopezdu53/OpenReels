@@ -19,6 +19,10 @@ import { GeminiTTS } from "./tts/gemini.js";
 import { InworldTTS } from "./tts/inworld.js";
 import { KokoroTTS } from "./tts/kokoro.js";
 import { OpenAITTS } from "./tts/openai.js";
+import { AtlasLLM } from "./llm/atlas.js";
+import { AtlasTTS } from "./tts/atlas.js";
+import { AtlasImage } from "./image/atlas.js";
+import { AtlasVideo } from "./video/atlas.js";
 
 vi.mock("./llm/anthropic.js", () => ({
   AnthropicLLM: vi.fn().mockImplementation(() => ({ id: "anthropic", generate: vi.fn() })),
@@ -43,6 +47,18 @@ vi.mock("./tts/gemini.js", () => ({
 }));
 vi.mock("./tts/openai.js", () => ({
   OpenAITTS: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
+}));
+vi.mock("./llm/atlas.js", () => ({
+  AtlasLLM: vi.fn().mockImplementation(() => ({ id: "atlas", generate: vi.fn() })),
+}));
+vi.mock("./tts/atlas.js", () => ({
+  AtlasTTS: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
+}));
+vi.mock("./image/atlas.js", () => ({
+  AtlasImage: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
+}));
+vi.mock("./video/atlas.js", () => ({
+  AtlasVideo: vi.fn().mockImplementation(() => ({ supportedDurations: [4, 5, 6, 8, 10], generate: vi.fn() })),
 }));
 vi.mock("./tts/aligned-tts-provider.js", () => ({
   AlignedTTSProvider: vi.fn().mockImplementation((inner) => ({ generate: vi.fn(), _inner: inner })),
@@ -470,5 +486,30 @@ describe("createProviders", () => {
     process.env["FAL_API_KEY"] = origFal ?? "";
     if (!origGoogle) delete process.env["GOOGLE_API_KEY"];
     if (!origFal) delete process.env["FAL_API_KEY"];
+  });
+
+  it("creates Atlas LLM/TTS/image/video from one ATLASCLOUD_API_KEY", () => {
+    createProviders({
+      llm: "atlas",
+      tts: "atlas-tts",
+      image: "atlas",
+      video: "atlas",
+      llmModel: "qwen/qwen3.5-flash",
+      atlasImageModel: "bytedance/seedream-v4.7/text-to-image",
+      atlasVideoModel: "minimax/h3-developer/image-to-video",
+      atlasTtsVoice: "ara",
+      atlasLipSyncModel: "veed/lipsync",
+      keys: { ATLASCLOUD_API_KEY: "atlas-key" },
+    });
+
+    expect(AtlasLLM).toHaveBeenCalledWith("qwen/qwen3.5-flash", "atlas-key", expect.anything());
+    expect(AtlasTTS).toHaveBeenCalledWith("ara", "atlas-key");
+    expect(AtlasImage).toHaveBeenCalledWith("bytedance/seedream-v4.7/text-to-image", "atlas-key");
+    expect(AtlasVideo).toHaveBeenCalledWith(
+      "minimax/h3-developer/image-to-video",
+      "atlas-key",
+      "veed/lipsync",
+    );
+    expect(AlignedTTSProvider).toHaveBeenCalled();
   });
 });

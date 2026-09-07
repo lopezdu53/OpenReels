@@ -71,6 +71,10 @@ interface JobData {
     grokTtsVoice?: string;
     grokTtsSpeed?: number;
     grokTtsModel?: string;
+    atlasImageModel?: string;
+    atlasVideoModel?: string;
+    atlasTtsVoice?: string;
+    atlasLipSyncModel?: string | null;
   };
   keys: Record<string, string>;
   jobsDir: string;
@@ -182,6 +186,10 @@ const worker = new Worker<JobData>(
       grokTtsVoice: providers.grokTtsVoice,
       grokTtsSpeed: providers.grokTtsSpeed,
       grokTtsModel: providers.grokTtsModel,
+      atlasImageModel: providers.atlasImageModel,
+      atlasVideoModel: providers.atlasVideoModel,
+      atlasTtsVoice: providers.atlasTtsVoice,
+      atlasLipSyncModel: providers.atlasLipSyncModel,
     });
 
     // Build callbacks that emit BullMQ progress events and update meta.json

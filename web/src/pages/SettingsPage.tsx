@@ -14,6 +14,7 @@ const API_KEY_FIELDS = [
   { key: "PIXABAY_API_KEY", label: "Pixabay (Stock)" },
   { key: "VIVI_LLM_API_KEY", label: "VIVI AI (LLM)" },
   { key: "VIVI_IMAGE_API_KEY", label: "VIVI AI (Image)" },
+  { key: "ATLASCLOUD_API_KEY", label: "Atlas Cloud (LLM / TTS / imagen / I2V / lip-sync)" },
 ];
 
 interface HealthData {
@@ -162,6 +163,8 @@ export function SettingsPage() {
           </h2>
           <p className="mb-4 text-[13px] text-muted-foreground">
             Configura el costo por unidad de cada proveedor. Se usa en el Laboratorio de API y en las estimaciones de costo.
+            Atlas Cloud es pay-as-you-go con una sola clave: DeepSeek V4 Flash $0.14/$0.28 por 1M, Grok TTS $0.015/1k,
+            Nano Banana 2 Lite $0.04, Seedance Mini I2V $0.011/s + VEED lip-sync $0.013/s (el video Atlas en Lab suma ambos).
           </p>
 
           {/* LLM */}

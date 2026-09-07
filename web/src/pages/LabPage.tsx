@@ -24,6 +24,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     openrouter: { inputPer1M: 2.0,  outputPer1M: 6.0  },
     vivi:       { inputPer1M: 3.0,  outputPer1M: 15.0 },
     alicloud:   { inputPer1M: 0.5,  outputPer1M: 2.0  },
+    atlas:      { inputPer1M: 0.14, outputPer1M: 0.28 },
   },
   tts: {
     elevenlabs:  { per1kChars: 0.33  },
@@ -32,6 +33,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     "grok-tts":  { per1kChars: 0.05  },
     kokoro:      { per1kChars: 0.0   },
     inworld:     { per1kChars: 0.05  },
+    "atlas-tts": { per1kChars: 0.015 },
   },
   image: {
     gemini:   { perImage: 0.04 },
@@ -39,6 +41,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     vivi:     { perImage: 0.04 },
     alicloud: { perImage: 0.05 },
     runpod:   { perImage: 0.02 },
+    atlas:    { perImage: 0.04 },
   },
   video: {
     gemini: { perSecond: 0.05 },
@@ -46,6 +49,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     vivi:   { perSecond: 0.08 },
     fal:    { perSecond: 0.12 },
     runpod: { perSecond: 0.03 },
+    atlas:  { perSecond: 0.024 },
   },
 };
 
@@ -133,6 +137,9 @@ export function LabPage() {
   // LLM
   const [llmProvider, setLlmProvider] = useState("anthropic");
   const [llmModel, setLlmModel] = useState("");
+  const [atlasImageModel, setAtlasImageModel] = useState("google/nano-banana-2-lite/text-to-image");
+  const [atlasVideoModel, setAtlasVideoModel] = useState("bytedance/seedance-2.0-mini/image-to-video");
+  const [atlasLipSyncModel, setAtlasLipSyncModel] = useState("none");
   const [llmPrompt, setLlmPrompt] = useState("Explain quantum entanglement in one paragraph.");
   const [llmResult, setLlmResult] = useState<{ text: string; durationMs: number; tokens: { inputTokens: number; outputTokens: number } } | null>(null);
   const [llmLoading, setLlmLoading] = useState(false);
@@ -176,7 +183,13 @@ export function LabPage() {
   const runLLM = async () => {
     setLlmLoading(true); setLlmError(""); setLlmResult(null);
     try {
-      const r = await api.testLLM({ provider: llmProvider, model: llmModel || undefined, prompt: llmPrompt });
+      const r = await api.testLLM({
+        provider: llmProvider,
+        model: llmProvider === "atlas"
+          ? (llmModel || "deepseek-ai/deepseek-v4-flash")
+          : (llmModel || undefined),
+        prompt: llmPrompt,
+      });
       setLlmResult(r);
     } catch (e) {
       setLlmError(String(e));
@@ -208,7 +221,12 @@ export function LabPage() {
   const runImage = async () => {
     setImgLoading(true); setImgError(""); setImgResult(null);
     try {
-      const r = await api.testImage({ provider: imgProvider, prompt: imgPrompt, aspectRatio: imgAspect });
+      const r = await api.testImage({
+        provider: imgProvider,
+        prompt: imgPrompt,
+        aspectRatio: imgAspect,
+        ...(imgProvider === "atlas" ? { model: atlasImageModel } : {}),
+      });
       setImgResult(r);
     } catch (e) {
       setImgError(String(e));
@@ -240,6 +258,9 @@ export function LabPage() {
         prompt: vidPrompt,
         durationSeconds: vidDuration,
         aspectRatio: vidAspect,
+        ...(vidProvider === "atlas"
+          ? { model: atlasVideoModel, lipSyncModel: atlasLipSyncModel === "none" ? null : atlasLipSyncModel }
+          : {}),
       });
       setVidResult(r);
     } catch (e) {
@@ -294,14 +315,30 @@ export function LabPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-40">
-              <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo (opcional)</label>
-              <Input
-                className="h-9 font-mono text-[12px]"
-                placeholder="claude-sonnet-4-6"
-                value={llmModel}
-                onChange={e => setLlmModel(e.target.value)}
-              />
+            <div className="w-56">
+              <label className="mb-1.5 block text-[12px] text-muted-foreground">
+                {llmProvider === "atlas" ? "Modelo Atlas" : "Modelo (opcional)"}
+              </label>
+              {llmProvider === "atlas" ? (
+                <Select
+                  value={llmModel || "deepseek-ai/deepseek-v4-flash"}
+                  onValueChange={(v) => v && setLlmModel(v)}
+                >
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.atlasLlmModels ?? [
+                      { id: "deepseek-ai/deepseek-v4-flash", label: "DeepSeek V4 Flash ($0.14 / $0.28)" },
+                    ]).map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  className="h-9 font-mono text-[12px]"
+                  placeholder="claude-sonnet-4-6"
+                  value={llmModel}
+                  onChange={e => setLlmModel(e.target.value)}
+                />
+              )}
             </div>
           </div>
           <div>
@@ -371,6 +408,36 @@ export function LabPage() {
             </div>
           )}
 
+          {ttsProvider === "atlas-tts" && (
+            <div>
+              <label className="mb-1.5 block text-[12px] text-muted-foreground">Voz Atlas (xAI)</label>
+              <Select value={ttsVoice || "eve"} onValueChange={setTtsVoice}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Femeninas</SelectLabel>
+                    {(providers?.atlasTtsVoices ?? [
+                      { id: "eve", label: "Eve — Energetic (F)", gender: "female" },
+                      { id: "ara", label: "Ara — Warm (F)", gender: "female" },
+                    ]).filter(v => v.gender === "female").map(v => (
+                      <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                  <SelectGroup>
+                    <SelectLabel>Masculinas</SelectLabel>
+                    {(providers?.atlasTtsVoices ?? [
+                      { id: "leo", label: "Leo — Authoritative (M)", gender: "male" },
+                      { id: "rex", label: "Rex — Confident (M)", gender: "male" },
+                      { id: "sal", label: "Sal — Smooth (M)", gender: "male" },
+                    ]).filter(v => v.gender === "male").map(v => (
+                      <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Grok TTS voice + speed */}
           {ttsProvider === "grok-tts" && providers?.grokTtsVoices && (
             <>
@@ -430,7 +497,7 @@ export function LabPage() {
                 ref={audioRef}
                 controls
                 className="w-full"
-                src={`data:audio/mpeg;base64,${ttsResult.audioBase64}`}
+                src={`data:${ttsProvider === "atlas-tts" || ttsProvider === "grok-tts" ? "audio/wav" : "audio/mpeg"};base64,${ttsResult.audioBase64}`}
               />
               <div className="border-t border-border pt-2 space-y-1">
                 <Stat label="Tiempo" value={ms(ttsResult.durationMs)} />
@@ -465,6 +532,19 @@ export function LabPage() {
               </Select>
             </div>
           </div>
+          {imgProvider === "atlas" && (
+            <div>
+              <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo Atlas</label>
+              <Select value={atlasImageModel} onValueChange={(v) => v && setAtlasImageModel(v)}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(providers?.atlasImageModels ?? [
+                    { id: "google/nano-banana-2-lite/text-to-image", label: "Nano Banana 2 Lite ($0.04)" },
+                  ]).map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div>
             <label className="mb-1.5 block text-[12px] text-muted-foreground">Prompt</label>
             <textarea
@@ -528,6 +608,35 @@ export function LabPage() {
               </Select>
             </div>
           </div>
+          {vidProvider === "atlas" && (
+            <>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo Atlas I2V</label>
+                <Select value={atlasVideoModel} onValueChange={(v) => v && setAtlasVideoModel(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.atlasVideoModels ?? [
+                      { id: "bytedance/seedance-2.0-mini/image-to-video", label: "Seedance 2.0 Mini I2V ($0.011/s)" },
+                    ]).map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">
+                  Lip-sync (Lab I2V no envía audio; el pipeline sí)
+                </label>
+                <Select value={atlasLipSyncModel} onValueChange={(v) => v && setAtlasLipSyncModel(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin lip-sync</SelectItem>
+                    {(providers?.atlasLipSyncModels ?? [
+                      { id: "veed/lipsync", label: "VEED Lipsync ($0.013/s)" },
+                    ]).map(m => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
 
           <div>
             <label className="mb-1.5 block text-[12px] text-muted-foreground">Imagen fuente</label>

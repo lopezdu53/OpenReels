@@ -22,6 +22,10 @@ export interface CLIOptions {
   videoModel?: string;
   musicProvider: MusicProviderKey;
   kokoroVoice?: string;
+  atlasImageModel?: string;
+  atlasVideoModel?: string;
+  atlasTtsVoice?: string;
+  atlasLipSyncModel?: string | null;
   llmModel?: string;
   llmBaseUrl?: string;
   searchProvider?: SearchProviderKey;
@@ -96,6 +100,7 @@ export function parseArgs(): CLIOptions {
           "openai-compatible",
           "google",
           "local",
+          "atlas",
         ])
         .default("anthropic"),
     )
@@ -115,12 +120,12 @@ export function parseArgs(): CLIOptions {
     )
     .addOption(
       new Option("-i, --image-provider <provider>", "Image generation provider")
-        .choices(["gemini", "openai"])
+        .choices(["gemini", "openai", "atlas"])
         .default("gemini"),
     )
     .addOption(
       new Option("--tts-provider <provider>", "TTS provider")
-        .choices(["elevenlabs", "inworld", "kokoro", "gemini-tts", "openai-tts"])
+        .choices(["elevenlabs", "inworld", "kokoro", "gemini-tts", "openai-tts", "atlas-tts"])
         .default("elevenlabs"),
     )
     .option(
@@ -128,6 +133,10 @@ export function parseArgs(): CLIOptions {
       "Kokoro voice preset (e.g. af_heart, bf_emma, am_fenrir)",
       "af_heart",
     )
+    .option("--atlas-image-model <model>", "Atlas image model (default: nano-banana-2-lite)")
+    .option("--atlas-video-model <model>", "Atlas I2V model (default: seedance-2.0-mini)")
+    .option("--atlas-tts-voice <voice>", "Atlas TTS voice (eve/ara/leo/rex/sal)", "eve")
+    .option("--atlas-lipsync-model <model>", "Atlas lip-sync model (default: veed/lipsync; 'none' disables)")
     .option("-a, --archetype <archetype>", "Visual archetype override")
     .addOption(
       new Option("--pacing <tier>", "Pacing tier override (overrides archetype default)").choices(
@@ -162,6 +171,7 @@ export function parseArgs(): CLIOptions {
       new Option("--video-provider <provider>", "Video generation provider").choices([
         "gemini",
         "fal",
+        "atlas",
       ]),
     )
     .option(
@@ -235,6 +245,11 @@ export function parseArgs(): CLIOptions {
     videoModel: opts["videoModel"] as string | undefined,
     musicProvider: opts["musicProvider"] as MusicProviderKey,
     kokoroVoice: opts["kokoroVoice"] as string | undefined,
+    atlasImageModel: opts["atlasImageModel"] as string | undefined,
+    atlasVideoModel: opts["atlasVideoModel"] as string | undefined,
+    atlasTtsVoice: opts["atlasTtsVoice"] as string | undefined,
+    atlasLipSyncModel:
+      opts["atlasLipsyncModel"] === "none" ? null : (opts["atlasLipsyncModel"] as string | undefined),
     llmModel: opts["llmModel"] as string | undefined,
     llmBaseUrl: opts["llmBaseUrl"] as string | undefined,
     searchProvider: opts["searchProvider"] as SearchProviderKey | undefined,

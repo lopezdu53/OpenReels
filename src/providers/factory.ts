@@ -26,8 +26,19 @@ import { GeminiImage } from "./image/gemini.js";
 import { OpenAIImage } from "./image/openai.js";
 import { RunPodImage } from "./image/runpod.js";
 import { ViviImage } from "./image/vivi.js";
+import {
+  ATLAS_IMAGE_MODELS,
+  ATLAS_LLM_MODELS,
+  ATLAS_LIPSYNC_MODELS,
+  ATLAS_TTS_VOICES,
+  ATLAS_USER_AGENT,
+  ATLAS_VIDEO_MODELS,
+} from "./atlas/catalog.js";
+export { ATLAS_IMAGE_MODELS, ATLAS_LLM_MODELS, ATLAS_LIPSYNC_MODELS, ATLAS_TTS_VOICES, ATLAS_VIDEO_MODELS };
+import { AtlasImage } from "./image/atlas.js";
 import { AliCloudLLM } from "./llm/alicloud.js";
 import { AnthropicLLM } from "./llm/anthropic.js";
+import { AtlasLLM } from "./llm/atlas.js";
 import { GeminiLLM } from "./llm/gemini.js";
 import { OpenAILLM } from "./llm/openai.js";
 import { OpenAICompatibleLLM } from "./llm/openai-compatible.js";
@@ -47,7 +58,9 @@ import { InworldTTS } from "./tts/inworld.js";
 import { KokoroTTS } from "./tts/kokoro.js";
 import { OpenAITTS } from "./tts/openai.js";
 import { WhisperAligner } from "./tts/whisper-aligner.js";
+import { AtlasTTS } from "./tts/atlas.js";
 import { AliCloudVideo } from "./video/alicloud.js";
+import { AtlasVideo } from "./video/atlas.js";
 import { FalVideo } from "./video/fal.js";
 import { GeminiVideo } from "./video/gemini.js";
 import { GrokVideo } from "./video/grok.js";
@@ -69,6 +82,10 @@ export interface ProviderConfig {
   grokTtsVoice?: string;
   grokTtsSpeed?: number;
   grokTtsModel?: string;
+  atlasImageModel?: string;
+  atlasVideoModel?: string;
+  atlasTtsVoice?: string;
+  atlasLipSyncModel?: string | null;
   keys?: Record<string, string>;
   llmModel?: string;
   llmBaseUrl?: string;
@@ -158,6 +175,9 @@ export function createProviders(config: ProviderConfig): Providers {
     case "alicloud":
       llm = new AliCloudLLM(config.llmModel, k["ALICLOUD_API_KEY"], searchTools);
       break;
+    case "atlas":
+      llm = new AtlasLLM(config.llmModel, k["ATLASCLOUD_API_KEY"], searchTools);
+      break;
     default:
       llm = new AnthropicLLM(config.llmModel, k["ANTHROPIC_API_KEY"], searchTools);
       break;
@@ -192,6 +212,12 @@ export function createProviders(config: ProviderConfig): Providers {
     case "inworld":
       tts = new InworldTTS(config.inworldVoice ?? "Dennis", undefined, k["INWORLD_TTS_API_KEY"]);
       break;
+    case "atlas-tts":
+      tts = new AlignedTTSProvider(
+        new AtlasTTS(config.atlasTtsVoice, k["ATLASCLOUD_API_KEY"] ?? process.env["ATLASCLOUD_API_KEY"]),
+        aligner,
+      );
+      break;
     default:
       tts = new ElevenLabsTTS(undefined, k["ELEVENLABS_API_KEY"]);
       break;
@@ -206,6 +232,7 @@ export function createProviders(config: ProviderConfig): Providers {
   const runpodKey = k["RUNPOD_API_KEY"] ?? process.env["RUNPOD_API_KEY"];
   const runpodImageEndpoint = k["RUNPOD_IMAGE_ENDPOINT_ID"] ?? process.env["RUNPOD_IMAGE_ENDPOINT_ID"];
   const runpodVideoEndpoint = k["RUNPOD_VIDEO_ENDPOINT_ID"] ?? process.env["RUNPOD_VIDEO_ENDPOINT_ID"];
+  const atlasKey = k["ATLASCLOUD_API_KEY"] ?? process.env["ATLASCLOUD_API_KEY"];
 
   let imageGen: ImageProvider;
   if (config.image === "fal") {
@@ -227,6 +254,11 @@ export function createProviders(config: ProviderConfig): Providers {
     const primary = new ViviImage(undefined, viviKey);
     imageGen = googleKey
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "vivi", "gemini")
+      : primary;
+  } else if (config.image === "atlas") {
+    const primary = new AtlasImage(config.atlasImageModel, atlasKey);
+    imageGen = googleKey
+      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "atlas", "gemini")
       : primary;
   } else if (config.image === "alicloud") {
     const primary = new AliCloudImage(undefined, alicloudKey);
@@ -270,7 +302,7 @@ export function createProviders(config: ProviderConfig): Providers {
   const viviVideoKey = k["VIVI_VIDEO_API_KEY"] ?? process.env["VIVI_VIDEO_API_KEY"] ?? k["VIVI_LLM_API_KEY"] ?? process.env["VIVI_LLM_API_KEY"];
   const viduKey = k["VIDU_API_KEY"] ?? process.env["VIDU_API_KEY"];
   const xaiKey = k["XAI_API_KEY"] ?? process.env["XAI_API_KEY"];
-  const videoPrimary = config.video ?? (googleKey ? "gemini" : xaiKey ? "grok" : viduKey ? "vidu" : viviVideoKey ? "vivi" : falKey ? "fal" : alicloudKey ? "alicloud-wan-turbo" : undefined);
+  const videoPrimary = config.video ?? (googleKey ? "gemini" : xaiKey ? "grok" : viduKey ? "vidu" : viviVideoKey ? "vivi" : falKey ? "fal" : alicloudKey ? "alicloud-wan-turbo" : atlasKey ? "atlas" : undefined);
 
   const ALICLOUD_VIDEO_MODELS: Record<string, string> = {
     "alicloud-wan-turbo": "wan2.1-i2v-turbo",
@@ -323,6 +355,13 @@ export function createProviders(config: ProviderConfig): Providers {
     else if (viduKey) videoProviders.push(new ViduVideo(undefined, viduKey));
     else if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
     else if (alicloudKey) videoProviders.push(new AliCloudVideo(undefined, alicloudKey));
+  } else if (videoPrimary === "atlas") {
+    if (atlasKey) {
+      videoProviders.push(new AtlasVideo(config.atlasVideoModel, atlasKey, config.atlasLipSyncModel));
+    }
+    if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
+    else if (xaiKey) videoProviders.push(new GrokVideo(xaiKey));
+    else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
   } else if (videoPrimary === "runpod") {
     if (runpodKey && runpodVideoEndpoint) videoProviders.push(new RunPodVideo(runpodVideoEndpoint, runpodKey));
     if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
@@ -373,6 +412,17 @@ export function createVerificationModel(
       if (!key) throw new Error("VIVI_LLM_API_KEY is required for VIVI provider");
       const vivi = createOpenAICompatible({ name: "vivi", baseURL: "https://api.viviai.cc/v1", apiKey: key });
       return vivi(model ?? "claude-sonnet-4-6");
+    }
+    case "atlas": {
+      const key = apiKey ?? process.env["ATLASCLOUD_API_KEY"];
+      if (!key) throw new Error("ATLASCLOUD_API_KEY is required for Atlas provider");
+      const atlas = createOpenAICompatible({
+        name: "atlascloud",
+        baseURL: "https://api.atlascloud.ai/v1",
+        apiKey: key,
+        headers: { "User-Agent": ATLAS_USER_AGENT },
+      });
+      return atlas(model ?? "deepseek-ai/deepseek-v4-flash");
     }
     case "openai-compatible": {
       const baseUrl = process.env["OPENREELS_LLM_BASE_URL"];
