@@ -67,6 +67,20 @@ export function VoxJobPage() {
     }
   }
 
+  async function retryBakeoff() {
+    if (!id) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api.retryVoxBakeoff(id);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function pick(theme: string) {
     if (!id) return;
     setBusy(true);
@@ -90,6 +104,8 @@ export function VoxJobPage() {
   }
 
   const bakeoff = job.bakeoff ?? [];
+  const queuedBakeoff = job.status === "baking" && /en cola/i.test(job.detail);
+  const workerDown = job.queue ? !job.queue.workerLive : false;
 
   return (
     <div className="px-4 sm:px-6 lg:px-10 py-8">
@@ -153,17 +169,39 @@ export function VoxJobPage() {
         )}
 
         {["producing", "baking", "drafting"].includes(job.status) && (
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            {job.stage}: {job.detail}
-          </p>
+          <div className="space-y-3">
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              {job.stage}: {job.detail}
+            </p>
+            {queuedBakeoff && (
+              <div className="space-y-2 rounded-2xl border border-border bg-card p-4 text-sm">
+                <p>
+                  {workerDown
+                    ? "El worker de Vox no está conectado. Reimplementa el servicio video-worker en EasyPanel (misma rama y mismas variables que video)."
+                    : "El bake-off está en Redis. Si no avanza en un minuto, el API y el worker no están viendo el mismo disco de jobs."}
+                </p>
+                <Button variant="outline" onClick={() => void retryBakeoff()} disabled={busy}>
+                  {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+                  Reintentar bake-off
+                </Button>
+              </div>
+            )}
+          </div>
         )}
 
         {job.status === "completed" && (
           <video className="w-full rounded-2xl border border-border bg-black" controls src={`/api/v1/vox/jobs/${job.id}/artifacts/final.mp4`} />
         )}
 
-        {job.status === "failed" && <p className="text-sm text-destructive">{job.error || job.detail}</p>}
+        {job.status === "failed" && (
+          <div className="space-y-2">
+            <p className="text-sm text-destructive">{job.error || job.detail}</p>
+            <Button variant="outline" onClick={() => void retryBakeoff()} disabled={busy}>
+              Reintentar bake-off
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

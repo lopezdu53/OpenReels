@@ -1,7 +1,7 @@
 import type { Job } from "bullmq";
 import { Queue, Worker } from "bullmq";
 import type IORedis from "ioredis";
-import { readBeats, readMeta, setStatus, writeBeats } from "./store.js";
+import { migrateLegacyVoxJobs, readBeats, readMeta, setStatus, voxJobsDir, writeBeats } from "./store.js";
 import {
   runArollAssemble,
   runArollClips,
@@ -15,8 +15,32 @@ import {
 } from "./runner.js";
 
 export const VOX_QUEUE_NAME = "vox-director";
+export const VOX_WORKER_HEARTBEAT_KEY = "vox:worker:heartbeat";
 
 export type VoxWork = { id: string; action: "bakeoff" | "produce" | "asr"; source?: string };
+
+export async function getVoxQueueStats(connection: IORedis): Promise<{
+  waiting: number;
+  active: number;
+  failed: number;
+  delayed: number;
+  workerLive: boolean;
+}> {
+  const q = new Queue(VOX_QUEUE_NAME, { connection });
+  try {
+    const counts = await q.getJobCounts("wait", "active", "failed", "delayed");
+    const beat = await connection.get(VOX_WORKER_HEARTBEAT_KEY);
+    return {
+      waiting: counts.wait ?? 0,
+      active: counts.active ?? 0,
+      failed: counts.failed ?? 0,
+      delayed: counts.delayed ?? 0,
+      workerLive: Boolean(beat),
+    };
+  } finally {
+    await q.close();
+  }
+}
 
 function logTo(id: string) {
   return (line: string) => {
@@ -35,8 +59,13 @@ function apiKeyOf(id: string): string {
 }
 
 async function handleBakeoff(id: string): Promise<void> {
+  migrateLegacyVoxJobs();
   const meta = readMeta(id);
-  if (!meta) throw new Error("missing job");
+  if (!meta) {
+    throw new Error(
+      `Vox job ${id} no está en el disco compartido (${voxJobsDir()}). Reimplementa API y worker, o crea el Vox de nuevo.`,
+    );
+  }
   setStatus(id, "baking", "style", "Bake-off de estilos");
   const themes = meta.config.themes?.length ? meta.config.themes : ["american-retro", "swiss-modern", "punk-zine", "newsprint-editorial"];
   await runBakeoff(id, themes, apiKeyOf(id), logTo(id));
@@ -44,6 +73,7 @@ async function handleBakeoff(id: string): Promise<void> {
 }
 
 async function handleProduce(id: string): Promise<void> {
+  migrateLegacyVoxJobs();
   const meta = readMeta(id);
   const beats = readBeats(id);
   if (!meta || !beats) throw new Error("missing job/beats");
@@ -87,22 +117,38 @@ async function handleAsr(id: string, source: string): Promise<void> {
 }
 
 export function startVoxWorker(connection: IORedis): Worker {
-  return new Worker(
+  migrateLegacyVoxJobs();
+  const beat = () => {
+    void connection.set(VOX_WORKER_HEARTBEAT_KEY, new Date().toISOString(), "EX", 90).catch((err) => {
+      console.warn("[vox] heartbeat failed", err);
+    });
+  };
+  beat();
+  const timer = setInterval(beat, 20_000);
+  const worker = new Worker(
     VOX_QUEUE_NAME,
     async (job: Job<VoxWork>) => {
       const { id, action, source } = job.data;
+      console.log(`[vox] ${action} ${id} dir=${voxJobsDir()}`);
       try {
         if (action === "bakeoff") await handleBakeoff(id);
         else if (action === "asr") await handleAsr(id, source ?? "");
         else await handleProduce(id);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        setStatus(id, "failed", "error", msg, { error: msg });
+        console.error(`[vox] ${action} ${id} failed: ${msg}`);
+        try {
+          setStatus(id, "failed", "error", msg, { error: msg });
+        } catch (statusErr) {
+          console.error(`[vox] could not write failure for ${id}`, statusErr);
+        }
         throw err;
       }
     },
     { connection, concurrency: 1 },
   );
+  worker.on("closed", () => clearInterval(timer));
+  return worker;
 }
 
 export function createVoxQueue(connection: IORedis): Queue<VoxWork> {

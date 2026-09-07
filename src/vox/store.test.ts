@@ -3,7 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { draftBeatsTemplate } from "./draft.js";
-import { createJob, listJobs, readBeats, writeBeats } from "./store.js";
+import { createJob, isVoxSharedVolumeEntry, listJobs, migrateLegacyVoxJobs, readBeats, voxJobsDir, writeBeats } from "./store.js";
 import type { VoxJobConfig } from "./types.js";
 
 const config: VoxJobConfig = {
@@ -28,7 +28,8 @@ const config: VoxJobConfig = {
 };
 
 describe("vox store", () => {
-  const prev = process.env["VOX_JOBS_DIR"];
+  const prevVox = process.env["VOX_JOBS_DIR"];
+  const prevJobs = process.env["JOBS_DIR"];
   let dir: string;
 
   beforeEach(() => {
@@ -38,11 +39,13 @@ describe("vox store", () => {
 
   afterEach(() => {
     fs.rmSync(dir, { recursive: true, force: true });
-    if (prev) process.env["VOX_JOBS_DIR"] = prev;
+    if (prevVox) process.env["VOX_JOBS_DIR"] = prevVox;
     else delete process.env["VOX_JOBS_DIR"];
+    if (prevJobs) process.env["JOBS_DIR"] = prevJobs;
+    else delete process.env["JOBS_DIR"];
   });
 
-  it("keeps vox jobs out of the OpenReels jobs directory", () => {
+  it("keeps vox jobs isolated from Short/Film job folders", () => {
     const meta = createJob("user-1", config);
     expect(meta.id.startsWith("vox-")).toBe(true);
     expect(meta.kind).toBe("vox");
@@ -51,6 +54,32 @@ describe("vox store", () => {
     expect(listJobs("user-1")).toHaveLength(1);
     expect(listJobs("other")).toHaveLength(0);
     expect(meta.createdAt).toBeTruthy();
-    expect(dir).not.toContain(`${path.sep}jobs${path.sep}`);
+  });
+
+  it("defaults to JOBS_DIR/vox so API and worker share the EasyPanel volume", () => {
+    delete process.env["VOX_JOBS_DIR"];
+    process.env["JOBS_DIR"] = path.join(os.tmpdir(), "openreels-jobs");
+    expect(voxJobsDir()).toBe(path.join(process.env["JOBS_DIR"], "vox"));
+    expect(isVoxSharedVolumeEntry("vox")).toBe(true);
+    expect(isVoxSharedVolumeEntry("vox-8d6aff31")).toBe(true);
+    expect(isVoxSharedVolumeEntry("abc123")).toBe(false);
+  });
+
+  it("migrates leftover jobs from the old isolated folder", () => {
+    const dest = fs.mkdtempSync(path.join(os.tmpdir(), "vox-shared-"));
+    const legacyRoot = path.join(process.cwd(), "vox-jobs");
+    const id = "vox-migtest01";
+    const legacyJob = path.join(legacyRoot, id);
+    fs.mkdirSync(legacyJob, { recursive: true });
+    fs.writeFileSync(path.join(legacyJob, "meta.json"), JSON.stringify({ id, kind: "vox" }));
+    process.env["VOX_JOBS_DIR"] = dest;
+    try {
+      expect(migrateLegacyVoxJobs()).toBe(1);
+      expect(fs.existsSync(path.join(dest, id, "meta.json"))).toBe(true);
+      expect(migrateLegacyVoxJobs()).toBe(0);
+    } finally {
+      fs.rmSync(legacyJob, { recursive: true, force: true });
+      fs.rmSync(dest, { recursive: true, force: true });
+    }
   });
 });

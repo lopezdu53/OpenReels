@@ -3,8 +3,44 @@ import * as path from "node:path";
 import { randomBytes } from "node:crypto";
 import type { VoxBeatsDoc, VoxJobConfig, VoxJobMeta, VoxStatus } from "./types.js";
 
+function openReelsJobsDir(): string {
+  return process.env["JOBS_DIR"] ?? path.join(process.cwd(), "jobs");
+}
+
+/** EasyPanel already shares JOBS_DIR between API and worker. Keep Vox on that volume. */
 export function voxJobsDir(): string {
-  return process.env["VOX_JOBS_DIR"] ?? path.join(process.cwd(), "vox-jobs");
+  if (process.env["VOX_JOBS_DIR"]) return process.env["VOX_JOBS_DIR"];
+  return path.join(openReelsJobsDir(), "vox");
+}
+
+/** `jobs/vox` (and stray `jobs/vox-*`) must never be listed or pruned as Short/Film jobs. */
+export function isVoxSharedVolumeEntry(name: string): boolean {
+  return name === "vox" || isVoxJobId(name);
+}
+
+function legacyVoxDirs(): string[] {
+  const configured = voxJobsDir();
+  const candidates = [path.join(process.cwd(), "vox-jobs"), "/app/vox-jobs"];
+  return [...new Set(candidates.filter((dir) => dir !== configured && fs.existsSync(dir)))];
+}
+
+/** Copy leftover jobs from the old isolated /app/vox-jobs disk onto the shared volume. */
+export function migrateLegacyVoxJobs(): number {
+  const dest = voxJobsDir();
+  fs.mkdirSync(dest, { recursive: true });
+  let copied = 0;
+  for (const src of legacyVoxDirs()) {
+    for (const name of fs.readdirSync(src)) {
+      if (!isVoxJobId(name)) continue;
+      const from = path.join(src, name);
+      const to = path.join(dest, name);
+      if (!fs.statSync(from).isDirectory() || fs.existsSync(to)) continue;
+      fs.cpSync(from, to, { recursive: true });
+      copied += 1;
+      console.log(`[vox] migrated ${name} from ${src} → ${dest}`);
+    }
+  }
+  return copied;
 }
 
 export function voxRoot(): string {
@@ -32,6 +68,7 @@ function beatsPath(id: string): string {
 }
 
 export function ensureVoxJobsDir(): void {
+  migrateLegacyVoxJobs();
   fs.mkdirSync(voxJobsDir(), { recursive: true });
 }
 

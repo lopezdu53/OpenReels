@@ -887,6 +887,10 @@ export const api = {
     return fetchJson<{ ok: boolean; status: string }>(`/vox/jobs/${id}/approve-beats`, { method: "POST" });
   },
 
+  retryVoxBakeoff(id: string) {
+    return fetchJson<{ ok: boolean; status: string }>(`/vox/jobs/${id}/retry-bakeoff`, { method: "POST" });
+  },
+
   pickVoxStyle(id: string, theme: string) {
     return fetchJson<{ ok: boolean; status: string; theme: string }>(`/vox/jobs/${id}/pick-style`, {
       method: "POST",
@@ -923,6 +927,13 @@ export interface VoxJobDetail extends VoxJobMeta {
   beats?: unknown;
   bakeoff?: string[];
   config?: Record<string, unknown>;
+  queue?: {
+    waiting: number;
+    active: number;
+    failed: number;
+    delayed: number;
+    workerLive: boolean;
+  };
 }
 
 export interface AuthUser {

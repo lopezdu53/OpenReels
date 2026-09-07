@@ -8,6 +8,7 @@ import { runPipeline } from "./pipeline/orchestrator.js";
 import { createProviders, createVerificationModel } from "./providers/factory.js";
 import { validateManifest } from "./providers/music/bundled.js";
 import { DirectorScore } from "./schema/director-score.js";
+import { isVoxSharedVolumeEntry } from "./vox/store.js";
 import { startVoxWorker } from "./vox/worker.js";
 import type {
   ImageProviderKey,
@@ -463,7 +464,7 @@ const worker = new Worker<JobData>(
 function pruneOldJobs(jobsDir: string, maxJobs: number) {
   const dirs = fs
     .readdirSync(jobsDir, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
+    .filter((d) => d.isDirectory() && !isVoxSharedVolumeEntry(d.name))
     .map((d) => {
       const metaPath = path.join(jobsDir, d.name, "meta.json");
       try {

@@ -17,10 +17,11 @@ import {
   recommendArc,
 } from "./catalog.js";
 import { draftBeats } from "./draft.js";
-import { createVoxQueue } from "./worker.js";
+import { createVoxQueue, getVoxQueueStats } from "./worker.js";
 import {
   bakeoffFiles,
   createJob,
+  ensureVoxJobsDir,
   finalPath,
   isVoxJobId,
   jobDir,
@@ -39,6 +40,7 @@ function ownerOk(meta: { userId: string }, userId: string): boolean {
 }
 
 export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): Promise<void> {
+  ensureVoxJobsDir();
   const queue = createVoxQueue(redis);
 
   app.get("/api/v1/vox/catalog", async () => ({
@@ -147,11 +149,13 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
     const meta = readMeta(request.params.id);
     if (!meta || !ownerOk(meta, user.id)) return reply.status(404).send({ error: "No encontrado" });
     const beats = readBeats(meta.id);
+    const queueStats = await getVoxQueueStats(redis);
     return {
       ...meta,
       beats,
       bakeoff: bakeoffFiles(meta.id),
       hasFinal: Boolean(finalPath(meta.id)),
+      queue: queueStats,
     };
   });
 
@@ -175,6 +179,23 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
     const meta = readMeta(request.params.id);
     if (!meta || !ownerOk(meta, user.id)) return reply.status(404).send({ error: "No encontrado" });
     if (meta.status !== "awaiting_beats") return reply.status(400).send({ error: "Nada que aprobar" });
+    if (!readBeats(meta.id)) return reply.status(400).send({ error: "Falta beats.json" });
+    if (!meta.config.atlasKey && !process.env["ATLASCLOUD_API_KEY"]) {
+      return reply.status(400).send({ error: "Configura ATLASCLOUD_API_KEY en Ajustes" });
+    }
+    setStatus(meta.id, "baking", "style", "En cola: bake-off");
+    await queue.add("bakeoff", { id: meta.id, action: "bakeoff" }, { removeOnComplete: 50, removeOnFail: 50 });
+    return { ok: true, status: "baking" };
+  });
+
+  app.post<{ Params: { id: string } }>("/api/v1/vox/jobs/:id/retry-bakeoff", async (request: AuthedRequest, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    const meta = readMeta(request.params.id);
+    if (!meta || !ownerOk(meta, user.id)) return reply.status(404).send({ error: "No encontrado" });
+    if (meta.status !== "baking" && meta.status !== "failed") {
+      return reply.status(400).send({ error: "Este Vox no está en bake-off" });
+    }
     if (!readBeats(meta.id)) return reply.status(400).send({ error: "Falta beats.json" });
     if (!meta.config.atlasKey && !process.env["ATLASCLOUD_API_KEY"]) {
       return reply.status(400).send({ error: "Configura ATLASCLOUD_API_KEY en Ajustes" });
