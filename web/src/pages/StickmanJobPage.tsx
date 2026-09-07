@@ -65,7 +65,7 @@ export function StickmanJobPage() {
     setBusy(true);
     setError("");
     try {
-      if (job.status === "awaiting_script" && scriptText) {
+      if (job?.status === "awaiting_script" && scriptText) {
         await api.saveStickmanScript(id, JSON.parse(scriptText));
       }
       await api.produceStickmanJob(id);

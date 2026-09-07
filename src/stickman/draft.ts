@@ -41,7 +41,7 @@ function defaultCast(mode: StickmanJobConfig["castMode"]): StickmanCastMember[] 
   ];
 }
 
-function beatTitle(i: number, n: number, topic: string, arc: string): string {
+function beatTitle(i: number, n: number, arc: string): string {
   if (i === 0) return "HOOK";
   if (i === n - 1) return "PAYOFF";
   if (arc === "listicle") return `PUNTO ${i}`;
@@ -80,7 +80,7 @@ export function draftScriptTemplate(config: StickmanJobConfig, project: string):
   for (let i = 0; i < n; i++) {
     beats.push({
       id: i + 1,
-      title: beatTitle(i, n, config.topic, arc),
+      title: beatTitle(i, n, arc),
       pose: beatPose(i, n, config.castMode),
       scene: `empty ${look} ground line, one simple geometric prop about ${config.topic}`,
       narration: beatNarration(i, n, config.topic, config.language),
