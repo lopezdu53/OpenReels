@@ -1,9 +1,16 @@
 export const SHARPII_BASE_URL = "https://api.sharpii.ai/v1";
 
-/** Kling/I2V and reference images reject the call until this acknowledgement is set. */
-export const SHARPII_LIKENESS_CONSENT = { consent: true } as const;
+/**
+ * Sharpii's image-edit UI posts `consentConfirmed`; the public API snake_cases
+ * the same flag. Kling I2V 400s with invalid_field_type until this is true.
+ */
+export const SHARPII_LIKENESS_CONSENT = {
+  consent_confirmed: true,
+  consentConfirmed: true,
+} as const;
 
 const CONSENT_RETRIES: Array<Record<string, unknown>> = [
+  { consent: true },
   { has_consent: true },
   { likeness_consent: true },
   { confirmed_consent: true },

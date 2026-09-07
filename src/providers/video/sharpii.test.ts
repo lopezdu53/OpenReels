@@ -50,7 +50,8 @@ describe("SharpiiVideo", () => {
     expect(body.model).toBe("kling-v2.6-pro-i2v");
     expect(body.first_frame_url).toMatch(/^data:image\/png;base64,/);
     expect(body.audio_sync).toBe(false);
-    expect(body.consent).toBe(true);
+    expect(body.consent_confirmed).toBe(true);
+    expect(body.consentConfirmed).toBe(true);
     expect(body.aspect_ratio).toBeUndefined();
   });
 });

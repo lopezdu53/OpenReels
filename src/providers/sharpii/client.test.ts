@@ -30,16 +30,17 @@ describe("sharpiiGenerate likeness consent", () => {
     );
 
     const first = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body));
-    expect(first.consent).toBe(true);
+    expect(first.consent_confirmed).toBe(true);
+    expect(first.consentConfirmed).toBe(true);
     const second = JSON.parse(String(fetchMock.mock.calls[1]![1]?.body));
-    expect(second.has_consent).toBe(true);
+    expect(second.consent).toBe(true);
     expect(fetchMock.mock.calls.length).toBeGreaterThan(2);
   });
 
   it("retries an alternate consent field after the first 400", async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body));
-      if (body.has_consent === true) {
+      if (body.consent === true) {
         return new Response(JSON.stringify({ data: { outputs: [{ url: "https://cdn.example/out.mp4" }] } }), {
           status: 200,
         });
