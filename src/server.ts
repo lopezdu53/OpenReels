@@ -15,8 +15,12 @@ import { ATELIER_STYLES } from "./config/atelier-styles.js";
 import { PLATFORMS } from "./config/platforms.js";
 import { registerFilmRoutes } from "./film/routes.js";
 import { registerLibraryRoutes } from "./library/routes.js";
+import { isIsolatedJobDir } from "./jobs/isolated.js";
+import { registerStickmanRoutes } from "./stickman/routes.js";
+import { ensureStickmanJobsDir, stickmanJobsDir } from "./stickman/store.js";
+import { getStickmanQueueStats } from "./stickman/worker.js";
 import { registerVoxRoutes } from "./vox/routes.js";
-import { ensureVoxJobsDir, isVoxSharedVolumeEntry, voxJobsDir } from "./vox/store.js";
+import { ensureVoxJobsDir, voxJobsDir } from "./vox/store.js";
 import { getVoxQueueStats } from "./vox/worker.js";
 import { AliCloudImage } from "./providers/image/alicloud.js";
 import { FalImage } from "./providers/image/fal.js";
@@ -79,6 +83,7 @@ const WEB_DIST = path.join(process.cwd(), "web", "dist");
 // Ensure jobs directory exists
 fs.mkdirSync(JOBS_DIR, { recursive: true });
 ensureVoxJobsDir();
+ensureStickmanJobsDir();
 
 /** Validate job ID to prevent path traversal — must be alphanumeric/hyphen/underscore only */
 function isValidJobId(id: string): boolean {
@@ -133,7 +138,16 @@ app.get("/api/v1/health", async () => {
   const jobsDirStats = fs.statSync(JOBS_DIR, { throwIfNoEntry: false });
   const voxDir = voxJobsDir();
   const voxDirStats = fs.statSync(voxDir, { throwIfNoEntry: false });
+  const stickDir = stickmanJobsDir();
+  const stickDirStats = fs.statSync(stickDir, { throwIfNoEntry: false });
   const vox = await getVoxQueueStats(redis).catch(() => ({
+    waiting: 0,
+    active: 0,
+    failed: 0,
+    delayed: 0,
+    workerLive: false,
+  }));
+  const stickman = await getStickmanQueueStats(redis).catch(() => ({
     waiting: 0,
     active: 0,
     failed: 0,
@@ -146,9 +160,14 @@ app.get("/api/v1/health", async () => {
     redis: redisOk ? "connected" : "disconnected",
     jobsDir: jobsDirStats ? "exists" : "missing",
     voxJobsDir: voxDirStats ? "exists" : "missing",
+    stickmanJobsDir: stickDirStats ? "exists" : "missing",
     vox: {
       dir: voxDir,
       ...vox,
+    },
+    stickman: {
+      dir: stickDir,
+      ...stickman,
     },
     keys: {
       ANTHROPIC_API_KEY: !!process.env["ANTHROPIC_API_KEY"],
@@ -188,7 +207,7 @@ app.get("/api/v1/stats", async (request: AuthedRequest) => {
 
   const dirs = fs
     .readdirSync(JOBS_DIR, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && !isVoxSharedVolumeEntry(d.name));
+    .filter((d) => d.isDirectory() && !isIsolatedJobDir(d.name));
   await Promise.all(
     dirs.map(async (d) => {
       const metaPath = path.join(JOBS_DIR, d.name, "meta.json");
@@ -372,6 +391,7 @@ await registerAnalyticsRoutes(app);
 await registerFilmRoutes(app);
 await registerLibraryRoutes(app);
 await registerVoxRoutes(app, redis);
+await registerStickmanRoutes(app, redis);
 
 // --- API Test endpoints ---
 
@@ -908,7 +928,7 @@ app.get("/api/v1/jobs", async (request: AuthedRequest) => {
 
   const dirents = fs
     .readdirSync(JOBS_DIR, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && !isVoxSharedVolumeEntry(d.name));
+    .filter((d) => d.isDirectory() && !isIsolatedJobDir(d.name));
   const entries = await Promise.all(
     dirents.map(async (d) => {
       const metaPath = path.join(JOBS_DIR, d.name, "meta.json");
@@ -1185,7 +1205,7 @@ async function pruneOldJobs() {
 
   const dirs = fs
     .readdirSync(JOBS_DIR, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && !isVoxSharedVolumeEntry(d.name))
+    .filter((d) => d.isDirectory() && !isIsolatedJobDir(d.name))
     .map((d) => {
       const metaPath = path.join(JOBS_DIR, d.name, "meta.json");
       try {

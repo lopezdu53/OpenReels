@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import pLimit from "p-limit";
 import { todayKey } from "./store.js";
-import { isVoxSharedVolumeEntry } from "../vox/store.js";
+import { isIsolatedJobDir } from "../jobs/isolated.js";
 
 const JOBS_DIR = process.env["JOBS_DIR"] ?? path.join(process.cwd(), "jobs");
 
@@ -35,7 +35,7 @@ export async function listUserJobs(userId: string): Promise<JobMetaLite[]> {
     if (!stat.isDirectory()) return [];
     const dirs = fs
       .readdirSync(JOBS_DIR, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && !isVoxSharedVolumeEntry(d.name));
+      .filter((d) => d.isDirectory() && !isIsolatedJobDir(d.name));
     const limit = pLimit(16);
     const entries = await Promise.all(
       dirs.map((d) =>

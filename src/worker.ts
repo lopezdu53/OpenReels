@@ -8,7 +8,8 @@ import { runPipeline } from "./pipeline/orchestrator.js";
 import { createProviders, createVerificationModel } from "./providers/factory.js";
 import { validateManifest } from "./providers/music/bundled.js";
 import { DirectorScore } from "./schema/director-score.js";
-import { isVoxSharedVolumeEntry } from "./vox/store.js";
+import { isIsolatedJobDir } from "./jobs/isolated.js";
+import { startStickmanWorker } from "./stickman/worker.js";
 import { startVoxWorker } from "./vox/worker.js";
 import type {
   ImageProviderKey,
@@ -466,7 +467,7 @@ const worker = new Worker<JobData>(
 function pruneOldJobs(jobsDir: string, maxJobs: number) {
   const dirs = fs
     .readdirSync(jobsDir, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && !isVoxSharedVolumeEntry(d.name))
+    .filter((d) => d.isDirectory() && !isIsolatedJobDir(d.name))
     .map((d) => {
       const metaPath = path.join(jobsDir, d.name, "meta.json");
       try {
@@ -523,5 +524,7 @@ worker.on("failed", (job, err) => {
 });
 
 startVoxWorker(redis);
+startStickmanWorker(redis);
 console.log("OpenReels worker started, waiting for jobs...");
 console.log("Vox Director worker started (isolated queue vox-director)");
+console.log("Stickman Studio worker started (isolated queue stickman-studio)");

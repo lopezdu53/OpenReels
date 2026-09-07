@@ -926,6 +926,47 @@ export const api = {
     return fetchJson<{ ok: boolean }>(`/vox/jobs/${id}/cancel`, { method: "POST" });
   },
 
+  stickmanCatalog() {
+    return fetchJson<{
+      looks: { id: string; label: string; mood: string }[];
+      arcs: { id: string; label: string; when: string }[];
+      casts: { id: string; label: string }[];
+      voices: { id: string; label: string; gender: string; note: string }[];
+      aspects: string[];
+      durations: number[];
+    }>("/stickman/catalog");
+  },
+
+  listStickmanJobs() {
+    return fetchJson<{ jobs: StickmanJobMeta[] }>("/stickman/jobs");
+  },
+
+  createStickmanJob(data: Record<string, unknown>) {
+    return fetchJson<{ id: string; status: string }>("/stickman/jobs", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  getStickmanJob(id: string) {
+    return fetchJson<StickmanJobDetail>(`/stickman/jobs/${id}`);
+  },
+
+  saveStickmanScript(id: string, script: unknown) {
+    return fetchJson<{ ok: boolean }>(`/stickman/jobs/${id}/script`, {
+      method: "PATCH",
+      body: JSON.stringify({ script }),
+    });
+  },
+
+  produceStickmanJob(id: string) {
+    return fetchJson<{ ok: boolean; status: string }>(`/stickman/jobs/${id}/produce`, { method: "POST" });
+  },
+
+  cancelStickmanJob(id: string) {
+    return fetchJson<{ ok: boolean }>(`/stickman/jobs/${id}/cancel`, { method: "POST" });
+  },
+
   publishJob(id: string, platforms?: SocialPlatformId[]) {
     return fetchJson<{
       results: { platform: SocialPlatformId; ok: boolean; url?: string; error?: string }[];
@@ -950,6 +991,31 @@ export interface VoxJobMeta {
 export interface VoxJobDetail extends VoxJobMeta {
   beats?: unknown;
   bakeoff?: string[];
+  config?: Record<string, unknown>;
+  queue?: {
+    waiting: number;
+    active: number;
+    failed: number;
+    delayed: number;
+    workerLive: boolean;
+  };
+}
+
+export interface StickmanJobMeta {
+  id: string;
+  kind: "stickman";
+  topic: string;
+  status: string;
+  stage: string;
+  detail: string;
+  error?: string;
+  createdAt: string;
+  hasFinal?: boolean;
+}
+
+export interface StickmanJobDetail extends StickmanJobMeta {
+  script?: unknown;
+  stills?: string[];
   config?: Record<string, unknown>;
   queue?: {
     waiting: number;
