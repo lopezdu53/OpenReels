@@ -16,7 +16,7 @@ export function extractLastFrame(videoPath: string, destPath: string): boolean {
         "error",
         "-y",
         "-sseof",
-        "-0.12",
+        "-0.04",
         "-i",
         videoPath,
         "-frames:v",

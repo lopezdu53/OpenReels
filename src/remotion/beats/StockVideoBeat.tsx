@@ -8,6 +8,8 @@ export const StockVideoBeat: React.FC<SceneProps> = ({
   sourceDurationInSeconds,
   visualType,
   durationInFrames: sceneFrames,
+  startFrom = 0,
+  fillScene = false,
 }) => {
   const { fps } = useVideoConfig();
   const sceneDurationSeconds = Math.max(1, sceneFrames || 1) / fps;
@@ -15,6 +17,9 @@ export const StockVideoBeat: React.FC<SceneProps> = ({
     sourceDurationSeconds: sourceDurationInSeconds,
     sceneDurationSeconds,
     visualType,
+    startFromFrames: startFrom,
+    fps,
+    fillScene,
   });
 
   const loopDurationInFrames =
@@ -26,6 +31,7 @@ export const StockVideoBeat: React.FC<SceneProps> = ({
     <OffthreadVideo
       src={assetSrc}
       playbackRate={playbackRate}
+      startFrom={startFrom || undefined}
       style={{
         width: "100%",
         height: "100%",

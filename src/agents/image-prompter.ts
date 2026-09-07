@@ -189,7 +189,7 @@ Narration: ${scriptLine}`;
   userMessage +=
     mode === "video"
       ? heroFollow
-        ? `\n\nThe source image IS the last frame of the previous clip — a match-cut, not a new setup. Beat 1 (first ~0.4s): HOLD those pixels (same face, seat, hands, lens height). Then travel: camera tracks the body; the world scrolls or morphs around them. Do not cut to a new master, do not eject the hero from a vehicle, do not re-portrait. Beat 3: settle on a STABLE pose (hands, facing, stride) the next clip inherits. Extras must not be a second copy of the hero. Put the full text in optimized_prompt.`
+        ? `\n\nThe source image IS the last frame of the previous clip — a match-cut, not a new setup. Continue the motion immediately (same face, seat, hands, lens height) — do not freeze or hold the first frames. Camera tracks the body; the world scrolls or morphs around them. Do not cut to a new master, do not eject the hero from a vehicle, do not re-portrait. Close on a STABLE pose (hands, facing, stride) the next clip inherits. Extras must not be a second copy of the hero. Put the full text in optimized_prompt.`
         : `\n\nGenerate an optimized video generation prompt for this scene. Focus on motion and camera movement. Put the full text in optimized_prompt.`
       : `\n\nGenerate an optimized image generation prompt for this scene. Put the full text in the optimized_prompt field. ${landscape ? "The image MUST be 16:9 landscape, full-bleed, no letterbox bars." : "The image MUST be 9:16 portrait."}`;
 

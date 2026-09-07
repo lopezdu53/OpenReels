@@ -40,7 +40,7 @@ export function buildHeroMotionPrompt(opts: {
   continuation: boolean;
 }): string {
   const hold = opts.continuation
-    ? "SOURCE IMAGE LOCK: this still IS the last frame of the previous clip. Keep the same face, glasses, hair, body, clothes, jewelry, and room. Do not redesign anything. First 0.4s: hold those pixels, then continue."
+    ? "SOURCE IMAGE LOCK: this still IS the last frame of the previous clip. Keep the same face, glasses, hair, body, clothes, jewelry, and room. Do not redesign anything. Continue the motion immediately — do not freeze or hold the first frames."
     : "SOURCE IMAGE LOCK: animate this exact still. Keep the same face, glasses, hair, body, clothes, jewelry, and room. Do not invent a new wardrobe or location.";
   const cam =
     opts.cameraMove && opts.cameraMove !== "static"

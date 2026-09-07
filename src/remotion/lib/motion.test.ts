@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { kenBurnsTransform, resolveVideoPlayback } from "./motion.js";
+import {
+  kenBurnsTransform,
+  MATCH_CUT_BLEND_FRAMES,
+  MATCH_CUT_SKIP_FRAMES,
+  resolveVideoPlayback,
+} from "./motion.js";
 
 describe("kenBurnsTransform", () => {
   it("keeps zooming instead of sitting static at the end", () => {
@@ -29,5 +34,20 @@ describe("resolveVideoPlayback", () => {
     });
     expect(play.loop).toBe(false);
     expect(play.playbackRate).toBe(1);
+  });
+
+  it("stretches a match-cut clip after skipping the incoming still-echo", () => {
+    const play = resolveVideoPlayback({
+      sourceDurationSeconds: 5,
+      sceneDurationSeconds: 5.5,
+      visualType: "ai_video",
+      startFromFrames: MATCH_CUT_SKIP_FRAMES,
+      fps: 30,
+      fillScene: true,
+    });
+    expect(play.loop).toBe(false);
+    expect(play.playbackRate).toBeCloseTo((5 - MATCH_CUT_SKIP_FRAMES / 30) / 5.5, 3);
+    expect(play.playbackRate).toBeGreaterThanOrEqual(0.7);
+    expect(MATCH_CUT_BLEND_FRAMES).toBe(3);
   });
 });

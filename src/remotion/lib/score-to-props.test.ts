@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ArchetypeConfig } from "../../schema/archetype.js";
 import type { DirectorScore } from "../../schema/director-score.js";
 import type { ResolvedAssets } from "./score-to-props.js";
+import { MATCH_CUT_BLEND_FRAMES, MATCH_CUT_SKIP_FRAMES } from "./motion.js";
 import { getTotalDurationInFrames, mapScoreToProps } from "./score-to-props.js";
 
 const makeWords = (start: number, end: number) => [
@@ -94,6 +95,31 @@ describe("mapScoreToProps", () => {
     expect(props.scenes[0]!.textCardFont).toBeTruthy();
     expect(typeof props.scenes[0]!.motionIntensity).toBe("number");
     expect(props.captionStyle).toBe("bold_outline");
+  });
+
+  it("stitches hero video match-cuts with a short blend and incoming skip", () => {
+    const score: DirectorScore = {
+      ...baseScore,
+      scenes: [
+        { visual_type: "ai_video", visual_prompt: "drive", motion: "static", script_line: "Arranca el Mercedes.", transition: "none" },
+        { visual_type: "ai_video", visual_prompt: "wave", motion: "static", script_line: "Acelera en el semáforo.", transition: "none" },
+        { visual_type: "ai_video", visual_prompt: "crash", motion: "static", script_line: "Choca y se queda sin auto.", transition: null },
+      ],
+    };
+    const props = mapScoreToProps(score, {
+      ...baseAssets,
+      sceneAssets: ["/v0.mp4", "/v1.mp4", "/v2.mp4"],
+      sceneSourceDurations: [5, 5, 5],
+    });
+    expect(props.scenes[0]!.transition).toBe("crossfade");
+    expect(props.scenes[0]!.transitionDurationFrames).toBe(MATCH_CUT_BLEND_FRAMES);
+    expect(props.scenes[0]!.fillScene).toBe(true);
+    expect(props.scenes[1]!.startFrom).toBe(MATCH_CUT_SKIP_FRAMES);
+    expect(props.scenes[1]!.fillScene).toBe(true);
+    expect(props.scenes[1]!.transition).toBe("crossfade");
+    expect(props.scenes[1]!.transitionDurationFrames).toBe(MATCH_CUT_BLEND_FRAMES);
+    expect(props.scenes[2]!.startFrom).toBe(MATCH_CUT_SKIP_FRAMES);
+    expect(props.scenes[2]!.fillScene).toBe(true);
   });
 
   it("uses scene transition when explicitly set", () => {

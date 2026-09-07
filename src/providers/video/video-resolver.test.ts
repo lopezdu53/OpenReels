@@ -332,13 +332,16 @@ describe("buildHeroMotionPrompt", () => {
     expect(prompt).not.toContain("tweed");
   });
 
-  it("holds previous-clip pixels on continuation", () => {
+  it("continues previous-clip pixels without a hold", () => {
     const prompt = buildHeroMotionPrompt({
       scriptLine: "Sale del apartamento.",
       continuation: true,
     });
     expect(prompt).toContain("last frame of the previous clip");
     expect(prompt).toContain("Do not redesign anything");
+    expect(prompt).toContain("immediately");
+    expect(prompt).not.toContain("0.4s");
+    expect(prompt).not.toMatch(/hold those pixels/i);
   });
 });
 

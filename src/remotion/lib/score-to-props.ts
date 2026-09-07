@@ -2,6 +2,7 @@ import { getArchetype } from "../../config/archetype-registry.js";
 import type { ArchetypeConfig } from "../../schema/archetype";
 import type { DirectorScore, TransitionType } from "../../schema/director-score";
 import type { WordTimestamp } from "../../schema/providers";
+import { MATCH_CUT_BLEND_FRAMES, MATCH_CUT_SKIP_FRAMES } from "./motion.js";
 
 export interface SceneProps {
   visualType: string;
@@ -18,6 +19,8 @@ export interface SceneProps {
   sourceDurationInSeconds?: number;
   transition: TransitionType;
   transitionDurationFrames: number;
+  /** Stretch an AI clip to the scene so the last frame does not freeze at a match-cut. */
+  fillScene?: boolean;
 }
 
 export interface CompositionProps {
@@ -135,6 +138,16 @@ export function mapScoreToProps(
     if (stillToMotion || motionToStill) {
       cur.transition = "crossfade";
       cur.transitionDurationFrames = Math.max(cur.transitionDurationFrames, 18);
+      continue;
+    }
+    // Hero video→video is a hard cut on the same last/first frame. A 100ms
+    // dissolve + skipping the incoming still-echo hides the pause without a fade.
+    if (MOTION.has(cur.visualType) && MOTION.has(nxt.visualType) && cur.transition === "none") {
+      cur.transition = "crossfade";
+      cur.transitionDurationFrames = MATCH_CUT_BLEND_FRAMES;
+      cur.fillScene = true;
+      nxt.startFrom = MATCH_CUT_SKIP_FRAMES;
+      nxt.fillScene = true;
     }
   }
 
