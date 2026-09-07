@@ -8,6 +8,8 @@ import { AdminPage } from "@/pages/AdminPage";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { FilmPage } from "@/pages/FilmPage";
+import { VoxJobPage } from "@/pages/VoxJobPage";
+import { VoxPage } from "@/pages/VoxPage";
 import { GalleryPage } from "@/pages/GalleryPage";
 import { HomePage } from "@/pages/HomePage";
 import { JobPage } from "@/pages/JobPage";
@@ -23,6 +25,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route element={<Layout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/film" element={<FilmPage />} />
+            <Route path="/vox" element={<VoxPage />} />
+            <Route path="/vox/:id" element={<VoxJobPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/analytic" element={<AnalyticsPage />} />
             <Route path="/learning" element={<LearningPage />} />

@@ -8,6 +8,7 @@ import { runPipeline } from "./pipeline/orchestrator.js";
 import { createProviders, createVerificationModel } from "./providers/factory.js";
 import { validateManifest } from "./providers/music/bundled.js";
 import { DirectorScore } from "./schema/director-score.js";
+import { startVoxWorker } from "./vox/worker.js";
 import type {
   ImageProviderKey,
   LLMProviderKey,
@@ -510,4 +511,6 @@ worker.on("failed", (job, err) => {
   }
 });
 
+startVoxWorker(redis);
 console.log("OpenReels worker started, waiting for jobs...");
+console.log("Vox Director worker started (isolated queue vox-director)");
