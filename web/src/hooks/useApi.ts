@@ -127,6 +127,11 @@ export interface ProviderOptions {
     resolutions: string[];
   }[];
   atelierStyles?: { id: string; label: string; artStyle: string }[];
+  atlasTtsVoices?: VoiceOption[];
+  atlasLlmModels?: { id: string; label: string; inputPer1M: number; outputPer1M: number }[];
+  atlasImageModels?: { id: string; label: string; usd: number }[];
+  atlasVideoModels?: { id: string; label: string; usd: number; durations: number[]; talkingHead?: boolean }[];
+  atlasLipSyncModels?: { id: string; label: string; usd: number }[];
   sharpiiImageModels?: { id: string; label: string; credits: number; usd: number }[];
   sharpiiVideoModels?: {
     id: string;
@@ -463,6 +468,10 @@ export interface CreateJobRequest {
     runpodVideoResolution?: string;
     runpodImageEndpointId?: string;
     runpodVideoEndpointId?: string;
+    atlasImageModel?: string;
+    atlasVideoModel?: string;
+    atlasTtsVoice?: string;
+    atlasLipSyncModel?: string | null;
   };
 }
 

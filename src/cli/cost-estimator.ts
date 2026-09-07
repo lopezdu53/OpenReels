@@ -8,6 +8,13 @@ import type {
   VideoProviderKey,
 } from "../schema/providers.js";
 import { sharpiiImageUsd, sharpiiVideoPerSecondUsd } from "../providers/sharpii/catalog.js";
+import {
+  ATLAS_TTS_PER_1K_CHARS,
+  atlasImageUsd,
+  atlasLlmPricing,
+  atlasLipSyncPerSecondUsd,
+  atlasVideoPerSecondUsd,
+} from "../providers/atlas/catalog.js";
 
 export interface CostBreakdown {
   llmCost: number;
@@ -69,6 +76,7 @@ const LLM_PRICING = {
     perInputToken: 3 / 1_000_000, // $3 per 1M input tokens (Grok 4)
     perOutputToken: 15 / 1_000_000, // $15 per 1M output tokens
   },
+  atlas: atlasLlmPricing(),
 };
 
 const PRICING = {
@@ -79,6 +87,7 @@ const PRICING = {
     "gemini-tts": 0.00002, // ~$0.02/1K chars (Gemini 2.5 Flash TTS: $0.50/1M text in + $10/1M audio out, ~2 audio tokens per char)
     "openai-tts": 0.00005, // ~$0.05 per 1K chars (gpt-4o-mini-tts: $0.60/1M text tokens in + $12/1M audio tokens out)
     "grok-tts": 0.000015, // $15 per 1M chars (x.ai/voice/text-to-speech)
+    "atlas-tts": ATLAS_TTS_PER_1K_CHARS / 1000, // $0.015 per 1K chars (xai/tts-v1)
   } satisfies Record<TTSProviderKey, number>,
   // Gemini 3.1 Flash Image Preview: $60/M output tokens
   // 1080x1920 (>1024px, <=2048px) = 1680 tokens = $0.101/image
@@ -101,6 +110,7 @@ function perImageCost(imageProvider: ImageProviderKey): number {
   if (imageProvider === "grok") return PRICING.grokPerImage;
   if (imageProvider === "runpod") return 0.0025;
   if (imageProvider === "sharpii") return sharpiiImageUsd();
+  if (imageProvider === "atlas") return atlasImageUsd();
   return PRICING.geminiPerImage;
 }
 
@@ -109,6 +119,7 @@ function videoPerSecondCost(videoProvider?: VideoProviderKey): number {
   if (videoProvider === "grok") return PRICING.grokImaginePerSecond;
   if (videoProvider === "runpod") return 0.02;
   if (videoProvider === "sharpii") return sharpiiVideoPerSecondUsd();
+  if (videoProvider === "atlas") return atlasVideoPerSecondUsd() + atlasLipSyncPerSecondUsd();
   return PRICING.veoLitePerSecond;
 }
 

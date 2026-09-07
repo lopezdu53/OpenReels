@@ -88,6 +88,7 @@ export async function resolveAIVideo(
     shotContext?: string;
     heroFollowCam?: boolean;
     continuation?: boolean;
+    sceneAudio?: Buffer;
   },
 ): Promise<{
   path: string;
@@ -161,6 +162,7 @@ export async function resolveAIVideo(
           aspectRatio: opts.aspectRatio ?? "9:16",
           negativePrompt,
           imageUrl: imageResult.remoteUrl,
+          audio: opts.sceneAudio,
         }),
       );
       const videoGenTimeMs = Date.now() - videoStart;

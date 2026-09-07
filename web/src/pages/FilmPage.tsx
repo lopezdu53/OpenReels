@@ -142,6 +142,7 @@ const FALLBACK = {
     { key: "grok", label: "Grok (xAI)" },
     { key: "vivi", label: "VIVI (Claude)" },
     { key: "alicloud", label: "Alibaba Cloud" },
+    { key: "atlas", label: "Atlas Cloud (DeepSeek / Qwen)" },
   ],
   tts: [
     { key: "elevenlabs", label: "ElevenLabs" },
@@ -150,6 +151,7 @@ const FALLBACK = {
     { key: "openai-tts", label: "OpenAI TTS" },
     { key: "grok-tts", label: "Grok TTS" },
     { key: "inworld", label: "Inworld" },
+    { key: "atlas-tts", label: "Atlas Cloud TTS (xAI)" },
   ],
   image: [
     { key: "vivi", label: "VIVI" },
@@ -160,6 +162,7 @@ const FALLBACK = {
     { key: "fal", label: "fal.ai" },
     { key: "sharpii", label: "Sharpii" },
     { key: "alicloud", label: "Alibaba Cloud" },
+    { key: "atlas", label: "Atlas Cloud (Nano Banana / Seedream)" },
   ],
   video: [
     { key: "gemini", label: "Veo (Gemini)" },
@@ -168,6 +171,7 @@ const FALLBACK = {
     { key: "vivi", label: "VIVI (Grok Video)" },
     { key: "runpod", label: "RunPod (público)" },
     { key: "sharpii", label: "Sharpii (Kling / Seedance)" },
+    { key: "atlas", label: "Atlas Cloud I2V + lip-sync" },
   ],
   search: [{ key: "tavily", label: "Tavily" }],
 };

@@ -117,6 +117,16 @@ describe("estimateCost", () => {
     expect(result.perScene![2]!.cost).toBe(0);
   });
 
+  it("uses Atlas pay-as-you-go rates for LLM, TTS, image, I2V and lip-sync", () => {
+    const score = makeScore([{ visual_type: "ai_video", script_line: "Hello world" }]);
+    const atlas = estimateCost(score, "atlas", "atlas-tts", "atlas", "atlas");
+    const gemini = estimateCost(score, "gemini", "elevenlabs", undefined, "anthropic");
+    expect(atlas.llmCost).toBeGreaterThan(0);
+    expect(atlas.llmCost).toBeLessThan(gemini.llmCost);
+    expect(atlas.imageCost).toBeCloseTo(0.04);
+    expect(atlas.videoCost).toBeCloseTo(6 * 0.024);
+  });
+
   it("uses fal pricing when fal video provider specified", () => {
     const score = makeScore([{ visual_type: "ai_video", script_line: "Video" }]);
     const gemini = estimateCost(score, "gemini", "elevenlabs", undefined);

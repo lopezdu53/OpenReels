@@ -28,6 +28,16 @@ import { OpenAIImage } from "./image/openai.js";
 import { RunPodImage } from "./image/runpod.js";
 import { ViviImage } from "./image/vivi.js";
 import { SharpiiImage } from "./image/sharpii.js";
+import { AtlasImage } from "./image/atlas.js";
+import {
+  ATLAS_IMAGE_MODELS,
+  ATLAS_LLM_MODELS,
+  ATLAS_LIPSYNC_MODELS,
+  ATLAS_TTS_VOICES,
+  ATLAS_USER_AGENT,
+  ATLAS_VIDEO_MODELS,
+} from "./atlas/catalog.js";
+export { ATLAS_IMAGE_MODELS, ATLAS_LLM_MODELS, ATLAS_LIPSYNC_MODELS, ATLAS_TTS_VOICES, ATLAS_VIDEO_MODELS };
 import {
   DEFAULT_SHARPII_IMAGE_MODEL,
   DEFAULT_SHARPII_VIDEO_MODEL,
@@ -44,6 +54,7 @@ import { OpenAILLM } from "./llm/openai.js";
 import { OpenAICompatibleLLM } from "./llm/openai-compatible.js";
 import { OpenRouterLLM } from "./llm/openrouter.js";
 import { ViviLLM } from "./llm/vivi.js";
+import { AtlasLLM } from "./llm/atlas.js";
 import { BundledMusic } from "./music/bundled-adapter.js";
 import { LyriaMusic } from "./music/lyria.js";
 import { createTavilySearchTools } from "./search/tavily.js";
@@ -62,6 +73,7 @@ import { InworldTTS } from "./tts/inworld.js";
 import { KokoroTTS } from "./tts/kokoro.js";
 import { OpenAITTS } from "./tts/openai.js";
 import { WhisperAligner } from "./tts/whisper-aligner.js";
+import { AtlasTTS } from "./tts/atlas.js";
 import { AliCloudVideo } from "./video/alicloud.js";
 import { FalVideo } from "./video/fal.js";
 import { GeminiVideo } from "./video/gemini.js";
@@ -70,6 +82,7 @@ import { RunPodVideo } from "./video/runpod.js";
 import { ViduVideo } from "./video/vidu.js";
 import { ViviVideo } from "./video/vivi.js";
 import { SharpiiVideo } from "./video/sharpii.js";
+import { AtlasVideo } from "./video/atlas.js";
 
 export interface ProviderConfig {
   llm: LLMProviderKey;
@@ -97,6 +110,10 @@ export interface ProviderConfig {
   runpodVideoResolution?: string;
   sharpiiImageModel?: string;
   sharpiiVideoModel?: string;
+  atlasImageModel?: string;
+  atlasVideoModel?: string;
+  atlasTtsVoice?: string;
+  atlasLipSyncModel?: string | null;
 }
 
 export interface Providers {
@@ -185,6 +202,9 @@ export function createProviders(config: ProviderConfig): Providers {
     case "grok":
       llm = new GrokLLM(config.llmModel, k["XAI_API_KEY"], searchTools);
       break;
+    case "atlas":
+      llm = new AtlasLLM(config.llmModel, k["ATLASCLOUD_API_KEY"], searchTools);
+      break;
     default:
       llm = new AnthropicLLM(config.llmModel, k["ANTHROPIC_API_KEY"], searchTools);
       break;
@@ -219,6 +239,12 @@ export function createProviders(config: ProviderConfig): Providers {
     case "inworld":
       tts = new InworldTTS(config.inworldVoice ?? "Dennis", undefined, k["INWORLD_TTS_API_KEY"]);
       break;
+    case "atlas-tts":
+      tts = new AlignedTTSProvider(
+        new AtlasTTS(config.atlasTtsVoice, k["ATLASCLOUD_API_KEY"] ?? process.env["ATLASCLOUD_API_KEY"]),
+        aligner,
+      );
+      break;
     default:
       tts = new ElevenLabsTTS(undefined, k["ELEVENLABS_API_KEY"]);
       break;
@@ -235,6 +261,7 @@ export function createProviders(config: ProviderConfig): Providers {
   const runpodVideoEndpoint = k["RUNPOD_VIDEO_ENDPOINT_ID"] ?? process.env["RUNPOD_VIDEO_ENDPOINT_ID"];
   const xaiKey = k["XAI_API_KEY"] ?? process.env["XAI_API_KEY"];
   const sharpiiKey = k["SHARPII_API_KEY"] ?? process.env["SHARPII_API_KEY"];
+  const atlasKey = k["ATLASCLOUD_API_KEY"] ?? process.env["ATLASCLOUD_API_KEY"];
 
   let imageGen: ImageProvider;
   if (config.image === "fal") {
@@ -268,6 +295,11 @@ export function createProviders(config: ProviderConfig): Providers {
       : primary;
   } else if (config.image === "sharpii") {
     imageGen = new SharpiiImage(config.sharpiiImageModel ?? DEFAULT_SHARPII_IMAGE_MODEL, sharpiiKey);
+  } else if (config.image === "atlas") {
+    const primary = new AtlasImage(config.atlasImageModel, atlasKey);
+    imageGen = googleKey
+      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "atlas", "gemini")
+      : primary;
   } else if (config.image === "alicloud") {
     const primary = new AliCloudImage(undefined, alicloudKey);
     // Fallback chain: alicloud → vivi → gemini
@@ -309,7 +341,7 @@ export function createProviders(config: ProviderConfig): Providers {
   const falKey = k["FAL_API_KEY"] ?? process.env["FAL_API_KEY"];
   const viviVideoKey = k["VIVI_VIDEO_API_KEY"] ?? process.env["VIVI_VIDEO_API_KEY"] ?? k["VIVI_LLM_API_KEY"] ?? process.env["VIVI_LLM_API_KEY"];
   const viduKey = k["VIDU_API_KEY"] ?? process.env["VIDU_API_KEY"];
-  const videoPrimary = config.video ?? (googleKey ? "gemini" : xaiKey ? "grok" : viduKey ? "vidu" : viviVideoKey ? "vivi" : falKey ? "fal" : sharpiiKey ? "sharpii" : alicloudKey ? "alicloud-wan-turbo" : undefined);
+  const videoPrimary = config.video ?? (googleKey ? "gemini" : xaiKey ? "grok" : viduKey ? "vidu" : viviVideoKey ? "vivi" : falKey ? "fal" : sharpiiKey ? "sharpii" : atlasKey ? "atlas" : alicloudKey ? "alicloud-wan-turbo" : undefined);
 
   const ALICLOUD_VIDEO_MODELS: Record<string, string> = {
     "alicloud-wan-turbo": "wan2.1-i2v-turbo",
@@ -364,6 +396,13 @@ export function createProviders(config: ProviderConfig): Providers {
     else if (alicloudKey) videoProviders.push(new AliCloudVideo(undefined, alicloudKey));
   } else if (videoPrimary === "sharpii") {
     videoProviders.push(new SharpiiVideo(config.sharpiiVideoModel ?? DEFAULT_SHARPII_VIDEO_MODEL, sharpiiKey));
+  } else if (videoPrimary === "atlas") {
+    if (atlasKey) {
+      videoProviders.push(new AtlasVideo(config.atlasVideoModel, atlasKey, config.atlasLipSyncModel));
+    }
+    if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
+    else if (xaiKey) videoProviders.push(new GrokVideo(xaiKey));
+    else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
   } else if (videoPrimary === "runpod") {
     if (runpodKey) {
       videoProviders.push(
@@ -426,6 +465,17 @@ export function createVerificationModel(
       if (!key) throw new Error("XAI_API_KEY is required for Grok provider");
       const grok = createOpenAICompatible({ name: "grok", baseURL: "https://api.x.ai/v1", apiKey: key });
       return grok(model ?? "grok-4");
+    }
+    case "atlas": {
+      const key = apiKey ?? process.env["ATLASCLOUD_API_KEY"];
+      if (!key) throw new Error("ATLASCLOUD_API_KEY is required for Atlas provider");
+      const atlas = createOpenAICompatible({
+        name: "atlascloud",
+        baseURL: "https://api.atlascloud.ai/v1",
+        apiKey: key,
+        headers: { "User-Agent": ATLAS_USER_AGENT },
+      });
+      return atlas(model ?? "deepseek-ai/deepseek-v4-flash");
     }
     case "alicloud": {
       const key = apiKey ?? process.env["ALICLOUD_API_KEY"];

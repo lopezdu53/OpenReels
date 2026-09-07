@@ -26,6 +26,10 @@ import { RunPodImage } from "./image/runpod.js";
 import { RunPodVideo } from "./video/runpod.js";
 import { SharpiiImage } from "./image/sharpii.js";
 import { SharpiiVideo } from "./video/sharpii.js";
+import { AtlasLLM } from "./llm/atlas.js";
+import { AtlasTTS } from "./tts/atlas.js";
+import { AtlasImage } from "./image/atlas.js";
+import { AtlasVideo } from "./video/atlas.js";
 
 vi.mock("./llm/anthropic.js", () => ({
   AnthropicLLM: vi.fn().mockImplementation(() => ({ id: "anthropic", generate: vi.fn() })),
@@ -121,6 +125,18 @@ vi.mock("./image/sharpii.js", () => ({
 }));
 vi.mock("./video/sharpii.js", () => ({
   SharpiiVideo: vi.fn().mockImplementation(() => ({ supportedDurations: [5, 10], generate: vi.fn() })),
+}));
+vi.mock("./llm/atlas.js", () => ({
+  AtlasLLM: vi.fn().mockImplementation(() => ({ id: "atlas", generate: vi.fn() })),
+}));
+vi.mock("./tts/atlas.js", () => ({
+  AtlasTTS: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
+}));
+vi.mock("./image/atlas.js", () => ({
+  AtlasImage: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
+}));
+vi.mock("./video/atlas.js", () => ({
+  AtlasVideo: vi.fn().mockImplementation(() => ({ supportedDurations: [4, 5, 6, 8, 10], generate: vi.fn() })),
 }));
 
 describe("createProviders", () => {
@@ -631,5 +647,30 @@ describe("createProviders", () => {
       keys: { SHARPII_API_KEY: "shp_test" },
     });
     expect(SharpiiVideo).toHaveBeenCalledWith("seedance-2.0-fast-720p", "shp_test");
+  });
+
+  it("creates Atlas LLM/TTS/image/video from one ATLASCLOUD_API_KEY", () => {
+    createProviders({
+      llm: "atlas",
+      tts: "atlas-tts",
+      image: "atlas",
+      video: "atlas",
+      llmModel: "qwen/qwen3.5-flash",
+      atlasImageModel: "bytedance/seedream-v4.7/text-to-image",
+      atlasVideoModel: "minimax/h3-developer/image-to-video",
+      atlasTtsVoice: "ara",
+      atlasLipSyncModel: "veed/lipsync",
+      keys: { ATLASCLOUD_API_KEY: "atlas-key" },
+    });
+
+    expect(AtlasLLM).toHaveBeenCalledWith("qwen/qwen3.5-flash", "atlas-key", expect.anything());
+    expect(AtlasTTS).toHaveBeenCalledWith("ara", "atlas-key");
+    expect(AtlasImage).toHaveBeenCalledWith("bytedance/seedream-v4.7/text-to-image", "atlas-key");
+    expect(AtlasVideo).toHaveBeenCalledWith(
+      "minimax/h3-developer/image-to-video",
+      "atlas-key",
+      "veed/lipsync",
+    );
+    expect(AlignedTTSProvider).toHaveBeenCalled();
   });
 });

@@ -427,4 +427,24 @@ describe("validateEnv", () => {
     delete process.env["ANTHROPIC_API_KEY"];
     delete process.env["ELEVENLABS_API_KEY"];
   });
+
+  it("requires ATLASCLOUD_API_KEY when Atlas is selected", () => {
+    process.env["ANTHROPIC_API_KEY"] = "test";
+    process.env["ELEVENLABS_API_KEY"] = "test";
+    delete process.env["ATLASCLOUD_API_KEY"];
+
+    validateEnv({
+      provider: "atlas",
+      ttsProvider: "atlas-tts",
+      imageProvider: "atlas",
+      videoProvider: "atlas",
+    });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = errorSpy.mock.calls.flat().join("");
+    expect(output).toContain("ATLASCLOUD_API_KEY");
+
+    delete process.env["ANTHROPIC_API_KEY"];
+    delete process.env["ELEVENLABS_API_KEY"];
+  });
 });

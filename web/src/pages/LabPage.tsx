@@ -27,6 +27,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     vivi:       { inputPer1M: yuanToUsd(VIVI_LLM_CNY.inputPer1M), outputPer1M: yuanToUsd(VIVI_LLM_CNY.outputPer1M) },
     alicloud:   { inputPer1M: 0.5,  outputPer1M: 2.0  },
     grok:       { inputPer1M: 3.0,  outputPer1M: 15.0 },
+    atlas:      { inputPer1M: 0.14, outputPer1M: 0.28 },
   },
   tts: {
     elevenlabs:  { per1kChars: 0.33  },
@@ -35,6 +36,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     "grok-tts":  { per1kChars: 0.015 },
     kokoro:      { per1kChars: 0.0   },
     inworld:     { per1kChars: 0.05  },
+    "atlas-tts": { per1kChars: 0.015 },
   },
   image: {
     gemini:   { perImage: 0.04 },
@@ -44,6 +46,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     alicloud: { perImage: 0.05 },
     runpod:   { perImage: 0.003 },
     sharpii:  { perImage: 0.036 },
+    atlas:    { perImage: 0.04 },
   },
   video: {
     gemini: { perSecond: 0.05 },
@@ -52,6 +55,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     fal:    { perSecond: 0.12 },
     runpod: { perSecond: 0.02 },
     sharpii: { perSecond: 0.076 },
+    atlas:   { perSecond: 0.024 },
   },
 };
 
