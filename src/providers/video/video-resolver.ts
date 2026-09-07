@@ -42,7 +42,7 @@ function pickDuration(supportedDurations: number[], targetSeconds: number): numb
 
 export async function resolveAIVideo(
   scene: DirectorScore["scenes"][number],
-  imageResult: { path: string; buffer: Buffer; usage: LLMUsage | null },
+  imageResult: { path: string; buffer: Buffer; usage: LLMUsage | null; remoteUrl?: string },
   sceneIndex: number,
   assetsDir: string,
   opts: {
@@ -53,6 +53,10 @@ export async function resolveAIVideo(
     sceneDurationSeconds?: number;
     totalScenes?: number;
     aspectRatio?: string;
+    characterLock?: string;
+    locationLock?: string;
+    objectLock?: string;
+    shotContext?: string;
   },
 ): Promise<{
   path: string;
@@ -74,7 +78,14 @@ export async function resolveAIVideo(
       sceneIndex,
       opts.totalScenes ?? 1,
       opts.archetype,
-      { mode: "video" },
+      {
+        mode: "video",
+        characterLock: opts.characterLock,
+        locationLock: opts.locationLock,
+        objectLock: opts.objectLock,
+        aspectRatio: opts.aspectRatio,
+        ...(opts.shotContext ? { shotContext: opts.shotContext } : {}),
+      },
     );
     motionPrompt = optimized.prompt;
     prompterUsage = optimized.usage;
@@ -106,6 +117,7 @@ export async function resolveAIVideo(
           durationSeconds: genDuration,
           aspectRatio: opts.aspectRatio ?? "9:16",
           negativePrompt,
+          imageUrl: imageResult.remoteUrl,
         }),
       );
       const videoGenTimeMs = Date.now() - videoStart;

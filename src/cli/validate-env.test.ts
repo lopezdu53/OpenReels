@@ -292,4 +292,139 @@ describe("validateEnv", () => {
     delete process.env["ELEVENLABS_API_KEY"];
     delete process.env["GOOGLE_API_KEY"];
   });
+
+  it("requires XAI_API_KEY when --provider grok", () => {
+    delete process.env["XAI_API_KEY"];
+    process.env["ELEVENLABS_API_KEY"] = "test";
+    process.env["GOOGLE_API_KEY"] = "test";
+
+    validateEnv({ provider: "grok", ttsProvider: "elevenlabs", imageProvider: "gemini" });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = errorSpy.mock.calls.flat().join("");
+    expect(output).toContain("XAI_API_KEY");
+
+    delete process.env["ELEVENLABS_API_KEY"];
+    delete process.env["GOOGLE_API_KEY"];
+  });
+
+  it("requires XAI_API_KEY when --tts-provider grok-tts", () => {
+    process.env["ANTHROPIC_API_KEY"] = "test";
+    process.env["GOOGLE_API_KEY"] = "test";
+    delete process.env["XAI_API_KEY"];
+
+    validateEnv({ provider: "anthropic", ttsProvider: "grok-tts", imageProvider: "gemini" });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = errorSpy.mock.calls.flat().join("");
+    expect(output).toContain("XAI_API_KEY");
+
+    delete process.env["ANTHROPIC_API_KEY"];
+    delete process.env["GOOGLE_API_KEY"];
+  });
+
+  it("requires VIVI_LLM_API_KEY when --provider vivi", () => {
+    delete process.env["VIVI_LLM_API_KEY"];
+    process.env["ELEVENLABS_API_KEY"] = "test";
+    process.env["GOOGLE_API_KEY"] = "test";
+
+    validateEnv({ provider: "vivi", ttsProvider: "elevenlabs", imageProvider: "gemini" });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = errorSpy.mock.calls.flat().join("");
+    expect(output).toContain("VIVI_LLM_API_KEY");
+
+    delete process.env["ELEVENLABS_API_KEY"];
+    delete process.env["GOOGLE_API_KEY"];
+  });
+
+  it("requires ALICLOUD_API_KEY when --provider alicloud", () => {
+    delete process.env["ALICLOUD_API_KEY"];
+    process.env["ELEVENLABS_API_KEY"] = "test";
+    process.env["GOOGLE_API_KEY"] = "test";
+
+    validateEnv({ provider: "alicloud", ttsProvider: "elevenlabs", imageProvider: "gemini" });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = errorSpy.mock.calls.flat().join("");
+    expect(output).toContain("ALICLOUD_API_KEY");
+
+    delete process.env["ELEVENLABS_API_KEY"];
+    delete process.env["GOOGLE_API_KEY"];
+  });
+
+  it("requires FAL_API_KEY when --video-provider fal", () => {
+    process.env["ANTHROPIC_API_KEY"] = "test";
+    process.env["ELEVENLABS_API_KEY"] = "test";
+    process.env["GOOGLE_API_KEY"] = "test";
+    delete process.env["FAL_API_KEY"];
+
+    validateEnv({
+      provider: "anthropic",
+      ttsProvider: "elevenlabs",
+      imageProvider: "gemini",
+      videoProvider: "fal",
+    });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = errorSpy.mock.calls.flat().join("");
+    expect(output).toContain("FAL_API_KEY");
+
+    delete process.env["ANTHROPIC_API_KEY"];
+    delete process.env["ELEVENLABS_API_KEY"];
+    delete process.env["GOOGLE_API_KEY"];
+  });
+
+  it("requires VIDU_API_KEY when --video-provider vidu", () => {
+    process.env["ANTHROPIC_API_KEY"] = "test";
+    process.env["ELEVENLABS_API_KEY"] = "test";
+    process.env["GOOGLE_API_KEY"] = "test";
+    delete process.env["VIDU_API_KEY"];
+
+    validateEnv({
+      provider: "anthropic",
+      ttsProvider: "elevenlabs",
+      imageProvider: "gemini",
+      videoProvider: "vidu",
+    });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = errorSpy.mock.calls.flat().join("");
+    expect(output).toContain("VIDU_API_KEY");
+
+    delete process.env["ANTHROPIC_API_KEY"];
+    delete process.env["ELEVENLABS_API_KEY"];
+    delete process.env["GOOGLE_API_KEY"];
+  });
+
+  it("requires RUNPOD_API_KEY when --image-provider runpod", () => {
+    process.env["ANTHROPIC_API_KEY"] = "test";
+    process.env["ELEVENLABS_API_KEY"] = "test";
+    delete process.env["RUNPOD_API_KEY"];
+    delete process.env["RUNPOD_IMAGE_ENDPOINT_ID"];
+
+    validateEnv({ provider: "anthropic", ttsProvider: "elevenlabs", imageProvider: "runpod" });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = errorSpy.mock.calls.flat().join("");
+    expect(output).toContain("RUNPOD_API_KEY");
+
+    delete process.env["ANTHROPIC_API_KEY"];
+    delete process.env["ELEVENLABS_API_KEY"];
+  });
+
+  it("requires SHARPII_API_KEY when --image-provider sharpii", () => {
+    process.env["ANTHROPIC_API_KEY"] = "test";
+    process.env["ELEVENLABS_API_KEY"] = "test";
+    delete process.env["SHARPII_API_KEY"];
+
+    validateEnv({ provider: "anthropic", ttsProvider: "elevenlabs", imageProvider: "sharpii" });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = errorSpy.mock.calls.flat().join("");
+    expect(output).toContain("SHARPII_API_KEY");
+
+    delete process.env["ANTHROPIC_API_KEY"];
+    delete process.env["ELEVENLABS_API_KEY"];
+  });
 });

@@ -1,0 +1,60 @@
+import type { CharacterKind } from "./sheets.js";
+
+export type { CharacterKind };
+
+export interface StoredCharacter {
+  id: string;
+  name: string;
+  kind: CharacterKind;
+  species: string;
+  age: string;
+  sex: string;
+  appearance: string;
+  personality: string;
+  wardrobe: string;
+  mustKeep: string;
+  mustAvoid: string;
+  notes: string;
+  aliases?: string;
+  referenceImage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StoredVisualStyle {
+  id: string;
+  name: string;
+  artStyle: string;
+  lighting: string;
+  palette: string;
+  notes: string;
+  referenceImage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StoredLocation {
+  id: string;
+  name: string;
+  place: string;
+  timeOfDay: string;
+  weather: string;
+  mustKeep: string;
+  mustAvoid: string;
+  notes: string;
+  aliases?: string;
+  referenceImage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StoredObject {
+  id: string;
+  name: string;
+  prompt: string;
+  notes: string;
+  aliases?: string;
+  referenceImage?: string;
+  createdAt: string;
+  updatedAt: string;
+}

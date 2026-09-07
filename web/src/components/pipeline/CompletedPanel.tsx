@@ -1,14 +1,11 @@
+import { Loader2, Play, Share2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Play } from "lucide-react";
-import type {
-  CostBreakdown,
-  CriticReview,
-  DirectorScore,
-  JobSummary,
-} from "@/hooks/useApi";
+import { Button } from "@/components/ui/button";
+import type { CostBreakdown, CriticReview, DirectorScore, JobSummary } from "@/hooks/useApi";
+import { api } from "@/hooks/useApi";
+import { formatArchetypeName } from "@/lib/utils";
 import { CostBreakdownCard } from "./CostBreakdownCard";
 import { CriticScoreCard } from "./CriticScoreCard";
-import { formatArchetypeName } from "@/lib/utils";
 
 interface CompletedPanelProps {
   job: JobSummary;
@@ -35,13 +32,13 @@ export function CompletedPanel({
   costEstimate,
   totalDuration,
 }: CompletedPanelProps) {
-  const videoUrl = job.videoPath
-    ? `/api/v1/jobs/${job.id}/artifacts/${job.videoPath}`
-    : null;
+  const videoUrl = job.videoPath ? `/api/v1/jobs/${job.id}/artifacts/${job.videoPath}` : null;
   const totalCost = job.actualCost?.totalCost ?? job.costEstimate?.totalCost;
 
   // Fetch score.json for completed jobs if not already available from SSE
   const [fetchedScore, setFetchedScore] = useState<DirectorScore | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [publishMsg, setPublishMsg] = useState("");
   useEffect(() => {
     if (score || !job.runDir) return;
     fetch(`/api/v1/jobs/${job.id}/artifacts/${job.runDir}/score.json`)
@@ -63,20 +60,13 @@ export function CompletedPanel({
         {/* Video Player */}
         <div className="shrink-0 flex w-full sm:w-[220px] md:w-[260px] max-w-[260px] mx-auto sm:mx-0 flex-col items-center justify-center aspect-[9/16] rounded-xl overflow-hidden border border-border bg-surface-sunken">
           {videoUrl ? (
-            <video
-              src={videoUrl}
-              controls
-              playsInline
-              className="h-full w-full object-contain"
-            >
+            <video src={videoUrl} controls playsInline className="h-full w-full object-contain">
               <track kind="captions" />
             </video>
           ) : (
             <>
               <Play className="size-10 text-primary" />
-              <span className="mt-2.5 text-xs text-text-subtle">
-                Video not available
-              </span>
+              <span className="mt-2.5 text-xs text-text-subtle">Video no disponible</span>
             </>
           )}
         </div>
@@ -85,13 +75,13 @@ export function CompletedPanel({
         <div className="min-w-0 flex flex-1 flex-col gap-3">
           {/* Stats row */}
           <div className="grid grid-cols-3 gap-2.5">
-            <StatCard label="Total Time" value={`${totalDuration.toFixed(1)}s`} />
+            <StatCard label="Tiempo total" value={`${totalDuration.toFixed(1)}s`} />
             <StatCard
-              label="Total Cost"
+              label="Costo total"
               value={totalCost != null ? `$${totalCost.toFixed(2)}` : "—"}
               highlight
             />
-            <StatCard label="Scenes" value={String(sceneCount ?? "—")} />
+            <StatCard label="Escenas" value={String(sceneCount ?? "—")} />
           </div>
 
           {/* Emotional arc + archetype badges */}
@@ -112,9 +102,7 @@ export function CompletedPanel({
           )}
 
           {/* Music Preview */}
-          {job.runDir && (
-            <MusicPreview jobId={job.id} runDir={job.runDir} />
-          )}
+          {job.runDir && <MusicPreview jobId={job.id} runDir={job.runDir} />}
 
           {/* Stage duration breakdown */}
           {totalDuration > 0 && (
@@ -123,15 +111,51 @@ export function CompletedPanel({
 
           {/* Cost comparison: estimated vs actual */}
           {costEstimate && job.actualCost && (
-            <CostComparisonRow estimated={costEstimate.totalCost} actual={job.actualCost.totalCost} />
+            <CostComparisonRow
+              estimated={costEstimate.totalCost}
+              actual={job.actualCost.totalCost}
+            />
           )}
         </div>
       </div>
 
+      {videoUrl ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2">
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              setPublishing(true);
+              setPublishMsg("");
+              void api
+                .publishJob(job.id)
+                .then((res) => {
+                  const ok = res.results.filter((r) => r.ok).length;
+                  const fail = res.results.filter((r) => !r.ok);
+                  setPublishMsg(
+                    fail.length
+                      ? `${ok} ok · ${fail.map((f) => `${f.platform}: ${f.error}`).join(" · ")}`
+                      : `Publicado en ${ok} red${ok === 1 ? "" : "es"}. La racha subió sola.`,
+                  );
+                })
+                .catch((err) => setPublishMsg(err instanceof Error ? err.message : String(err)))
+                .finally(() => setPublishing(false));
+            }}
+            disabled={publishing}
+          >
+            {publishing ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Share2 className="size-4" />
+            )}
+            Publicar en redes
+          </Button>
+          {publishMsg ? <p className="text-[12px] text-muted-foreground">{publishMsg}</p> : null}
+        </div>
+      ) : null}
+
       {/* Quality Review */}
-      {displayCritic && (
-        <CriticScoreCard review={displayCritic} />
-      )}
+      {displayCritic && <CriticScoreCard review={displayCritic} />}
 
       {/* Cost Breakdown */}
       <CostBreakdownCard
@@ -158,14 +182,9 @@ function MusicPreview({ jobId, runDir }: { jobId: string; runDir: string }) {
   return (
     <div>
       <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
-        Background Music
+        Música de fondo
       </span>
-      <audio
-        src={musicUrl}
-        controls
-        className="w-full h-8 rounded-lg"
-        preload="metadata"
-      >
+      <audio src={musicUrl} controls className="w-full h-8 rounded-lg" preload="metadata">
         <track kind="captions" />
       </audio>
     </div>
@@ -183,9 +202,7 @@ function StatCard({
 }) {
   return (
     <div className="flex flex-col items-center rounded-[10px] border border-border bg-card px-3 py-3 sm:px-4 sm:py-3.5 gap-1">
-      <span
-        className={`text-lg font-bold ${highlight ? "text-status-info" : "text-foreground"}`}
-      >
+      <span className={`text-lg font-bold ${highlight ? "text-status-info" : "text-foreground"}`}>
         {value}
       </span>
       <span className="text-[11px] text-text-subtle">{label}</span>
@@ -205,7 +222,7 @@ function StageDurationBar({
   return (
     <div>
       <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
-        STAGE TIMING
+        TIEMPOS POR ETAPA
       </span>
       <div className="flex h-3 w-full overflow-hidden rounded-full bg-surface-inset">
         {STAGE_ORDER.map((s) => {
@@ -247,24 +264,18 @@ function StageDurationBar({
   );
 }
 
-function CostComparisonRow({
-  estimated,
-  actual,
-}: {
-  estimated: number;
-  actual: number;
-}) {
+function CostComparisonRow({ estimated, actual }: { estimated: number; actual: number }) {
   const maxCost = Math.max(estimated, actual, 0.01);
   const savedPct = estimated > 0 ? ((estimated - actual) / estimated) * 100 : 0;
 
   return (
     <div className="rounded-[10px] border border-border bg-card p-3">
       <span className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
-        COST: ESTIMATED vs ACTUAL
+        COSTO: ESTIMADO vs REAL
       </span>
       <div className="mt-2 flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
-          <span className="w-16 text-[10px] text-muted-foreground">Estimated</span>
+          <span className="w-16 text-[10px] text-muted-foreground">Estimado</span>
           <div className="flex-1 h-2 rounded-full bg-surface-inset overflow-hidden">
             <div
               className="h-full rounded-full bg-muted-foreground"
@@ -276,7 +287,7 @@ function CostComparisonRow({
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="w-16 text-[10px] text-muted-foreground">Actual</span>
+          <span className="w-16 text-[10px] text-muted-foreground">Real</span>
           <div className="flex-1 h-2 rounded-full bg-surface-inset overflow-hidden">
             <div
               className="h-full rounded-full bg-status-info"
@@ -288,8 +299,12 @@ function CostComparisonRow({
           </span>
         </div>
         {Math.abs(savedPct) >= 1 && (
-          <span className={`text-[10px] text-right ${savedPct > 0 ? "text-status-success" : "text-status-warning"}`}>
-            {savedPct > 0 ? `${savedPct.toFixed(0)}% under estimate` : `${Math.abs(savedPct).toFixed(0)}% over estimate`}
+          <span
+            className={`text-[10px] text-right ${savedPct > 0 ? "text-status-success" : "text-status-warning"}`}
+          >
+            {savedPct > 0
+              ? `${savedPct.toFixed(0)}% bajo la estimación`
+              : `${Math.abs(savedPct).toFixed(0)}% sobre la estimación`}
           </span>
         )}
       </div>

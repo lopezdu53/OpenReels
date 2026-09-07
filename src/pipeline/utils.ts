@@ -76,10 +76,22 @@ export interface PipelineOptions {
   videoSceneMode?: string;
   /** Image used as a global style reference — every scene's AI image generation is conditioned on it. */
   styleReferenceImage?: Buffer;
-  /** Atelier chain-of-reference mode: scene 1's generated image becomes the reference for all subsequent scenes. */
+  /** Approved character model sheet — preferred identity anchor for every still. */
+  characterReferenceImage?: Buffer;
+  /** Atelier chain-of-reference. Default ON unless explicitly false. */
   atelierMode?: boolean;
   /** Overrides archetype.artStyle in the image-prompter style bible. */
   artStyleOverride?: string;
+  /** Locked character appearance injected into every AI visual prompt. */
+  characterLock?: string;
+  /** scene = only who the VO names; hero = follow-cam: first CAST member is the optical axis of one continuous take. */
+  castMode?: string;
+  /** Locked location roster; each scene uses exactly one named place. */
+  locationLock?: string;
+  /** Named props; may appear together when the scene needs them. */
+  objectLock?: string;
+  /** Approved location bible board — per-scene when the roster has 2–3 places. */
+  locationReferenceImage?: Buffer;
 }
 
 export interface PipelineResult {

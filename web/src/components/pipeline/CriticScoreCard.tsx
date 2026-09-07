@@ -19,7 +19,7 @@ export function CriticScoreCard({ review }: CriticScoreCardProps) {
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm animate-in fade-in duration-500">
       <span className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
-        QUALITY REVIEW
+        REVISIÓN DE CALIDAD
       </span>
 
       <div className="mt-3 flex gap-4">
@@ -71,6 +71,18 @@ export function CriticScoreCard({ review }: CriticScoreCardProps) {
           ))}
         </div>
       </div>
+      {review.findings?.length ? (
+        <div className="mt-3 space-y-1 border-t border-border pt-3">
+          <span className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
+            Alertas de producción
+          </span>
+          {review.findings.map((f, i) => (
+            <p key={`f-${i}`} className="text-[11px] leading-snug text-text-subtle">
+              · {f}
+            </p>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

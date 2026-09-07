@@ -14,8 +14,10 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - JOBS_DIR=/app/jobs
+      - DATA_DIR=/app/data
     volumes:
       - jobs-data:/app/jobs
+      - users-data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/health"]
@@ -41,4 +43,5 @@ services:
 
 volumes:
   jobs-data:
+  users-data:
   openreels-cache:

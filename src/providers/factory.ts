@@ -23,12 +23,23 @@ import { AliCloudImage } from "./image/alicloud.js";
 import { FalImage } from "./image/fal.js";
 import { FallbackImageProvider } from "./image/fallback.js";
 import { GeminiImage } from "./image/gemini.js";
+import { GrokImage } from "./image/grok.js";
 import { OpenAIImage } from "./image/openai.js";
 import { RunPodImage } from "./image/runpod.js";
 import { ViviImage } from "./image/vivi.js";
+import { SharpiiImage } from "./image/sharpii.js";
+import {
+  DEFAULT_SHARPII_IMAGE_MODEL,
+  DEFAULT_SHARPII_VIDEO_MODEL,
+  SHARPII_IMAGE_MODELS,
+  SHARPII_VIDEO_MODELS,
+  creditsToUsd,
+} from "./sharpii/catalog.js";
+export { SHARPII_IMAGE_MODELS, SHARPII_VIDEO_MODELS, creditsToUsd };
 import { AliCloudLLM } from "./llm/alicloud.js";
 import { AnthropicLLM } from "./llm/anthropic.js";
 import { GeminiLLM } from "./llm/gemini.js";
+import { GrokLLM } from "./llm/grok.js";
 import { OpenAILLM } from "./llm/openai.js";
 import { OpenAICompatibleLLM } from "./llm/openai-compatible.js";
 import { OpenRouterLLM } from "./llm/openrouter.js";
@@ -43,6 +54,10 @@ import { ElevenLabsTTS } from "./tts/elevenlabs.js";
 import { GeminiTTS } from "./tts/gemini.js";
 import { GrokTTS, GROK_TTS_MODELS, GROK_TTS_VOICES } from "./tts/grok.js";
 export { GROK_TTS_MODELS, GROK_TTS_VOICES };
+import { KOKORO_VOICES } from "./tts/kokoro-voices.js";
+export { KOKORO_VOICES };
+import { RUNPOD_IMAGE_MODELS, RUNPOD_VIDEO_MODELS } from "./runpod/catalog.js";
+export { RUNPOD_IMAGE_MODELS, RUNPOD_VIDEO_MODELS };
 import { InworldTTS } from "./tts/inworld.js";
 import { KokoroTTS } from "./tts/kokoro.js";
 import { OpenAITTS } from "./tts/openai.js";
@@ -54,6 +69,7 @@ import { GrokVideo } from "./video/grok.js";
 import { RunPodVideo } from "./video/runpod.js";
 import { ViduVideo } from "./video/vidu.js";
 import { ViviVideo } from "./video/vivi.js";
+import { SharpiiVideo } from "./video/sharpii.js";
 
 export interface ProviderConfig {
   llm: LLMProviderKey;
@@ -64,6 +80,7 @@ export interface ProviderConfig {
   music?: MusicProviderKey;
   videoModel?: string;
   kokoroVoice?: string;
+  kokoroSpeed?: number;
   inworldVoice?: string;
   geminiTtsVoice?: string;
   grokTtsVoice?: string;
@@ -73,6 +90,13 @@ export interface ProviderConfig {
   llmModel?: string;
   llmBaseUrl?: string;
   searchProvider?: SearchProviderKey;
+  runpodImageModel?: string;
+  runpodVideoModel?: string;
+  runpodImageSteps?: number;
+  runpodImageGuidance?: number;
+  runpodVideoResolution?: string;
+  sharpiiImageModel?: string;
+  sharpiiVideoModel?: string;
 }
 
 export interface Providers {
@@ -158,6 +182,9 @@ export function createProviders(config: ProviderConfig): Providers {
     case "alicloud":
       llm = new AliCloudLLM(config.llmModel, k["ALICLOUD_API_KEY"], searchTools);
       break;
+    case "grok":
+      llm = new GrokLLM(config.llmModel, k["XAI_API_KEY"], searchTools);
+      break;
     default:
       llm = new AnthropicLLM(config.llmModel, k["ANTHROPIC_API_KEY"], searchTools);
       break;
@@ -170,7 +197,7 @@ export function createProviders(config: ProviderConfig): Providers {
   let tts: TTSProvider;
   switch (config.tts) {
     case "kokoro":
-      tts = new AlignedTTSProvider(new KokoroTTS(config.kokoroVoice), aligner);
+      tts = new AlignedTTSProvider(new KokoroTTS(config.kokoroVoice, config.kokoroSpeed), aligner);
       break;
     case "gemini-tts":
       tts = new AlignedTTSProvider(new GeminiTTS(undefined, k["GOOGLE_API_KEY"], config.geminiTtsVoice), aligner);
@@ -206,6 +233,8 @@ export function createProviders(config: ProviderConfig): Providers {
   const runpodKey = k["RUNPOD_API_KEY"] ?? process.env["RUNPOD_API_KEY"];
   const runpodImageEndpoint = k["RUNPOD_IMAGE_ENDPOINT_ID"] ?? process.env["RUNPOD_IMAGE_ENDPOINT_ID"];
   const runpodVideoEndpoint = k["RUNPOD_VIDEO_ENDPOINT_ID"] ?? process.env["RUNPOD_VIDEO_ENDPOINT_ID"];
+  const xaiKey = k["XAI_API_KEY"] ?? process.env["XAI_API_KEY"];
+  const sharpiiKey = k["SHARPII_API_KEY"] ?? process.env["SHARPII_API_KEY"];
 
   let imageGen: ImageProvider;
   if (config.image === "fal") {
@@ -214,10 +243,14 @@ export function createProviders(config: ProviderConfig): Providers {
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "fal", "gemini")
       : primary;
   } else if (config.image === "runpod") {
-    const primary = new RunPodImage(runpodImageEndpoint, runpodKey);
-    imageGen = googleKey
-      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "runpod", "gemini")
-      : primary;
+    // Stay on RunPod only — Gemini image fallback burns prepaid AI Studio credits.
+    imageGen = new RunPodImage({
+      model: config.runpodImageModel,
+      endpointId: runpodImageEndpoint,
+      apiKey: runpodKey,
+      steps: config.runpodImageSteps,
+      guidance: config.runpodImageGuidance,
+    });
   } else if (config.image === "openai") {
     const primary = new OpenAIImage(undefined, openaiKey);
     imageGen = googleKey
@@ -228,6 +261,13 @@ export function createProviders(config: ProviderConfig): Providers {
     imageGen = googleKey
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "vivi", "gemini")
       : primary;
+  } else if (config.image === "grok") {
+    const primary = new GrokImage(undefined, xaiKey);
+    imageGen = googleKey
+      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "grok", "gemini")
+      : primary;
+  } else if (config.image === "sharpii") {
+    imageGen = new SharpiiImage(config.sharpiiImageModel ?? DEFAULT_SHARPII_IMAGE_MODEL, sharpiiKey);
   } else if (config.image === "alicloud") {
     const primary = new AliCloudImage(undefined, alicloudKey);
     // Fallback chain: alicloud → vivi → gemini
@@ -269,8 +309,7 @@ export function createProviders(config: ProviderConfig): Providers {
   const falKey = k["FAL_API_KEY"] ?? process.env["FAL_API_KEY"];
   const viviVideoKey = k["VIVI_VIDEO_API_KEY"] ?? process.env["VIVI_VIDEO_API_KEY"] ?? k["VIVI_LLM_API_KEY"] ?? process.env["VIVI_LLM_API_KEY"];
   const viduKey = k["VIDU_API_KEY"] ?? process.env["VIDU_API_KEY"];
-  const xaiKey = k["XAI_API_KEY"] ?? process.env["XAI_API_KEY"];
-  const videoPrimary = config.video ?? (googleKey ? "gemini" : xaiKey ? "grok" : viduKey ? "vidu" : viviVideoKey ? "vivi" : falKey ? "fal" : alicloudKey ? "alicloud-wan-turbo" : undefined);
+  const videoPrimary = config.video ?? (googleKey ? "gemini" : xaiKey ? "grok" : viduKey ? "vidu" : viviVideoKey ? "vivi" : falKey ? "fal" : sharpiiKey ? "sharpii" : alicloudKey ? "alicloud-wan-turbo" : undefined);
 
   const ALICLOUD_VIDEO_MODELS: Record<string, string> = {
     "alicloud-wan-turbo": "wan2.1-i2v-turbo",
@@ -323,13 +362,21 @@ export function createProviders(config: ProviderConfig): Providers {
     else if (viduKey) videoProviders.push(new ViduVideo(undefined, viduKey));
     else if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
     else if (alicloudKey) videoProviders.push(new AliCloudVideo(undefined, alicloudKey));
+  } else if (videoPrimary === "sharpii") {
+    videoProviders.push(new SharpiiVideo(config.sharpiiVideoModel ?? DEFAULT_SHARPII_VIDEO_MODEL, sharpiiKey));
   } else if (videoPrimary === "runpod") {
-    if (runpodKey && runpodVideoEndpoint) videoProviders.push(new RunPodVideo(runpodVideoEndpoint, runpodKey));
-    if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
-    else if (xaiKey) videoProviders.push(new GrokVideo(xaiKey));
-    else if (viduKey) videoProviders.push(new ViduVideo(undefined, viduKey));
-    else if (viviVideoKey) videoProviders.push(new ViviVideo(undefined, viviVideoKey));
-    else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
+    if (runpodKey) {
+      videoProviders.push(
+        new RunPodVideo({
+          model: config.runpodVideoModel,
+          endpointId: runpodVideoEndpoint,
+          apiKey: runpodKey,
+          resolution: config.runpodVideoResolution,
+        }),
+      );
+    }
+    // No Gemini/Grok/fal fallback: those are billed separately and
+    // Google prepaid 429s were burning the job after p-video failed.
   } else if (videoPrimary === "gemini" || videoPrimary === undefined) {
     if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
     if (xaiKey) videoProviders.push(new GrokVideo(xaiKey));
@@ -373,6 +420,21 @@ export function createVerificationModel(
       if (!key) throw new Error("VIVI_LLM_API_KEY is required for VIVI provider");
       const vivi = createOpenAICompatible({ name: "vivi", baseURL: "https://api.viviai.cc/v1", apiKey: key });
       return vivi(model ?? "claude-sonnet-4-6");
+    }
+    case "grok": {
+      const key = apiKey ?? process.env["XAI_API_KEY"];
+      if (!key) throw new Error("XAI_API_KEY is required for Grok provider");
+      const grok = createOpenAICompatible({ name: "grok", baseURL: "https://api.x.ai/v1", apiKey: key });
+      return grok(model ?? "grok-4");
+    }
+    case "alicloud": {
+      const key = apiKey ?? process.env["ALICLOUD_API_KEY"];
+      const baseUrl =
+        process.env["ALICLOUD_BASE_URL"] ??
+        "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1";
+      if (!key) throw new Error("ALICLOUD_API_KEY is required for AliCloud provider");
+      const alicloud = createOpenAICompatible({ name: "alicloud", baseURL: baseUrl, apiKey: key });
+      return alicloud(model ?? "qwen3.6-flash");
     }
     case "openai-compatible": {
       const baseUrl = process.env["OPENREELS_LLM_BASE_URL"];

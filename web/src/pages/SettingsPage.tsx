@@ -14,6 +14,15 @@ const API_KEY_FIELDS = [
   { key: "PIXABAY_API_KEY", label: "Pixabay (Stock)" },
   { key: "VIVI_LLM_API_KEY", label: "VIVI AI (LLM)" },
   { key: "VIVI_IMAGE_API_KEY", label: "VIVI AI (Image)" },
+  { key: "VIVI_VIDEO_API_KEY", label: "VIVI AI (Video)" },
+  { key: "ALICLOUD_API_KEY", label: "Alibaba Cloud (LLM/Image/Video)" },
+  { key: "VIDU_API_KEY", label: "VIDU (Video)" },
+  { key: "FAL_API_KEY", label: "fal.ai (Image/Video)" },
+  { key: "SHARPII_API_KEY", label: "Sharpii (Image/Video)" },
+  { key: "RUNPOD_API_KEY", label: "RunPod — endpoints públicos (solo esta clave; no hace falta GPU propia)" },
+  { key: "XAI_API_KEY", label: "xAI Grok (LLM/TTS/Image/Video)" },
+  { key: "TAVILY_API_KEY", label: "Tavily (búsqueda web)" },
+  { key: "YOUTUBE_API_KEY", label: "YouTube Data API v3 (Analítica)" },
 ];
 
 interface HealthData {
@@ -75,7 +84,7 @@ export function SettingsPage() {
 
   return (
     <div className="py-8 px-4 sm:px-10">
-      <h1 className="mb-8 text-2xl font-semibold tracking-tight">Settings</h1>
+      <h1 className="mb-8 text-2xl font-semibold tracking-tight">Ajustes</h1>
 
       <div className="max-w-[560px] flex flex-col gap-8">
         {/* Usage Statistics */}
@@ -83,36 +92,36 @@ export function SettingsPage() {
           <section>
             <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-foreground">
               <BarChart3 className="size-4 text-muted-foreground" />
-              Usage Statistics
+              Uso
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <StatBox
                 icon={<Film className="size-4" />}
-                label="Total Videos"
+                label="Videos totales"
                 value={String(stats.totalJobs)}
               />
               <StatBox
                 icon={<CheckCircle className="size-4 text-status-success" />}
-                label="Completed"
+                label="Completados"
                 value={String(stats.completedJobs)}
                 color="text-status-success"
               />
               <StatBox
                 icon={<XCircle className="size-4 text-destructive" />}
-                label="Failed"
+                label="Fallidos"
                 value={String(stats.failedJobs)}
                 color="text-destructive"
               />
               <StatBox
                 icon={<DollarSign className="size-4 text-status-info" />}
-                label="Total Spend"
+                label="Gasto total"
                 value={`$${stats.totalCost.toFixed(2)}`}
                 color="text-status-info"
               />
             </div>
             {avgCost != null && (
               <p className="mt-2 text-[11px] text-muted-foreground">
-                Average cost per video: ${avgCost.toFixed(2)}
+                Costo promedio por video: ${avgCost.toFixed(2)}
               </p>
             )}
           </section>
@@ -121,33 +130,33 @@ export function SettingsPage() {
         {/* System Status */}
         <section>
           <h2 className="mb-4 text-sm font-semibold text-foreground">
-            System Status
+            Estado del sistema
           </h2>
           <div className="overflow-hidden rounded-[12px] border border-border bg-card">
             <div className="flex items-center justify-between px-5 py-3.5">
-              <span className="text-[13px] text-text-subtle">API Server</span>
+              <span className="text-[13px] text-text-subtle">Servidor API</span>
               <StatusDot
                 ok={health?.status === "healthy"}
                 label={
                   health
                     ? health.status === "healthy"
-                      ? "Connected"
+                      ? "Conectado"
                       : health.status
-                    : "Checking..."
+                    : "Comprobando…"
                 }
               />
             </div>
             <div className="border-t border-border" />
             <div className="flex items-center justify-between px-5 py-3.5">
-              <span className="text-[13px] text-text-subtle">Redis Queue</span>
+              <span className="text-[13px] text-text-subtle">Cola Redis</span>
               <StatusDot
                 ok={health?.redis === "connected"}
                 label={
                   health
                     ? health.redis === "connected"
-                      ? "Connected"
+                      ? "Conectado"
                       : health.redis
-                    : "Checking..."
+                    : "Comprobando…"
                 }
               />
             </div>
@@ -161,7 +170,7 @@ export function SettingsPage() {
             Precios de API
           </h2>
           <p className="mb-4 text-[13px] text-muted-foreground">
-            Configura el costo por unidad de cada proveedor. Se usa en el Laboratorio de API y en las estimaciones de costo.
+            Configura el costo por unidad de cada proveedor (USD). Vivi se cobra en yuanes según https://api.viviai.cc/pricing: 20 ¥ = $2.98 USD. Claude Sonnet 4.6 ¥3/¥15 por 1M; imagen Nano Banana ¥0.135/call; Grok Video ¥0.30/clip.
           </p>
 
           {/* LLM */}
@@ -273,7 +282,7 @@ export function SettingsPage() {
             API Keys
           </h2>
           <p className="mb-4 text-[13px] text-muted-foreground">
-            API keys are configured server-side via environment variables.
+            Las API keys se configuran en el servidor con variables de entorno. Los endpoints públicos de RunPod solo necesitan RUNPOD_API_KEY.
           </p>
           <div className="overflow-hidden rounded-[12px] border border-border bg-card">
             {API_KEY_FIELDS.map((field, i) => {
@@ -291,7 +300,7 @@ export function SettingsPage() {
                     {isSet !== null ? (
                       <StatusDot
                         ok={isSet}
-                        label={isSet ? "Set" : "Not set"}
+                        label={isSet ? "Configurada" : "Sin configurar"}
                         colorOk="text-emerald-400"
                         colorBad="text-amber-400"
                       />

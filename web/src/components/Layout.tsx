@@ -1,9 +1,12 @@
+import { Loader2, LogOut, Settings, Shield } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Outlet } from "react-router-dom";
-import { cn } from "@/lib/utils";
+import { Link, Outlet } from "react-router-dom";
 import { api, type StatsResponse } from "@/hooks/useApi";
-import { Sidebar } from "./Sidebar";
+import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
+import { AuthPage } from "@/pages/AuthPage";
 import { BottomNav } from "./BottomNav";
+import { Sidebar } from "./Sidebar";
 
 const COLLAPSED_KEY = "openreels_sidebar_collapsed";
 
@@ -23,6 +26,7 @@ function useMediaQuery(query: string): boolean {
 }
 
 export function Layout() {
+  const { user, ready, logout } = useAuth();
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -38,13 +42,18 @@ export function Layout() {
     });
   }, []);
 
-  // Fetch stats on mount and poll every 30s
   useEffect(() => {
+    if (!user) {
+      setStats(null);
+      return;
+    }
     let active = true;
     const load = () => {
       api
         .getStats()
-        .then((s) => { if (active) setStats(s); })
+        .then((s) => {
+          if (active) setStats(s);
+        })
         .catch(() => {});
     };
     load();
@@ -53,11 +62,51 @@ export function Layout() {
       active = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [user]);
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+        <Loader2 className="mr-2 size-4 animate-spin text-primary" />
+        Cargando…
+      </div>
+    );
+  }
+
+  if (!user) return <AuthPage />;
 
   if (!isDesktop) {
     return (
       <div className="flex min-h-screen flex-col pb-14">
+        <header className="flex items-center justify-between border-b border-border px-4 py-2.5">
+          <p className="truncate text-sm font-medium">{user.name}</p>
+          <div className="flex items-center gap-1">
+            {user.role === "admin" ? (
+              <Link
+                to="/admin"
+                className="rounded-lg p-2 text-muted-foreground hover:text-foreground"
+                aria-label="Admin"
+              >
+                <Shield className="size-4" />
+              </Link>
+            ) : null}
+            <Link
+              to="/settings"
+              className="rounded-lg p-2 text-muted-foreground hover:text-foreground"
+              aria-label="Ajustes"
+            >
+              <Settings className="size-4" />
+            </Link>
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="rounded-lg p-2 text-muted-foreground hover:text-foreground"
+              aria-label="Salir"
+            >
+              <LogOut className="size-4" />
+            </button>
+          </div>
+        </header>
         <main className="flex-1">
           <Outlet />
         </main>
@@ -68,13 +117,8 @@ export function Layout() {
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar
-        collapsed={collapsed}
-        onToggle={toggleCollapsed}
-        stats={stats}
-      />
+      <Sidebar collapsed={collapsed} onToggle={toggleCollapsed} stats={stats} />
 
-      {/* Main content */}
       <main
         className={cn(
           "flex-1 transition-[margin-left] duration-200",

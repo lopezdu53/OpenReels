@@ -53,8 +53,14 @@ interface JobData {
   score?: Record<string, unknown>;
   videoSceneMode?: string;
   styleReferenceImage?: string; // base64
+  characterReferenceImage?: string; // base64 character model sheet
   atelierMode?: boolean;
   artStyleOverride?: string;
+  characterLock?: string;
+  castMode?: string;
+  locationLock?: string;
+  objectLock?: string;
+  locationReferenceImage?: string; // base64 location bible board
   providers: {
     llm: string;
     tts: string;
@@ -71,7 +77,19 @@ interface JobData {
     grokTtsVoice?: string;
     grokTtsSpeed?: number;
     grokTtsModel?: string;
+    kokoroVoice?: string;
+    kokoroSpeed?: number;
+    runpodImageModel?: string;
+    runpodVideoModel?: string;
+    runpodImageSteps?: number;
+    runpodImageGuidance?: number;
+    runpodVideoResolution?: string;
+    runpodImageEndpointId?: string;
+    runpodVideoEndpointId?: string;
+    sharpiiImageModel?: string;
+    sharpiiVideoModel?: string;
   };
+  userId?: string;
   keys: Record<string, string>;
   jobsDir: string;
 }
@@ -97,16 +115,20 @@ interface JobMeta {
     noVideo?: boolean;
     noSubtitles?: boolean;
     styleReference?: boolean;
+    characterReference?: boolean;
+    locationReference?: boolean;
     atelierMode?: boolean;
     artStyleOverride?: string;
+    castMode?: string;
   };
   costEstimate?: unknown;
   actualCost?: unknown;
   videoPath?: string;
+  userId?: string;
   runDir?: string;
   researchData?: { summary: string; key_facts: string[]; mood: string };
   score?: unknown; // DirectorScore
-  criticReview?: { score: number; strengths: string[]; weaknesses: string[] };
+  criticReview?: { score: number; strengths: string[]; weaknesses: string[]; findings?: string[] };
   musicTrack?: { trackId: string; mood: string; requestedMood: string; fallback: boolean };
   musicGeneration?: {
     provider: string;
@@ -128,7 +150,7 @@ function writeMeta(jobDir: string, meta: JobMeta) {
 const worker = new Worker<JobData>(
   "openreels",
   async (job: Job<JobData>) => {
-    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, atelierMode, artStyleOverride, providers, keys } =
+    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, characterReferenceImage, locationReferenceImage, atelierMode, artStyleOverride, characterLock, castMode, locationLock, objectLock, providers, keys, userId } =
       job.data;
     const jobDir = path.join(JOBS_DIR, job.id!);
     fs.mkdirSync(jobDir, { recursive: true });
@@ -137,6 +159,7 @@ const worker = new Worker<JobData>(
     const meta: JobMeta = {
       id: job.id!,
       topic,
+      userId,
       archetype,
       status: "running",
       createdAt: new Date().toISOString(),
@@ -146,15 +169,18 @@ const worker = new Worker<JobData>(
         tts: providers.tts,
         image: providers.image,
         video: providers.video ?? undefined,
-        music: providers.music ?? "bundled",
+        music: providers.music === "none" ? "bundled" : (providers.music ?? "bundled"),
         platform,
         pacing: pacing ?? undefined,
         videoSceneMode: videoSceneMode ?? undefined,
         noVideo: noVideo === true || undefined,
         noSubtitles: noSubtitles === true || undefined,
         styleReference: styleReferenceImage ? true : undefined,
-        atelierMode: atelierMode === true || undefined,
+        characterReference: characterReferenceImage ? true : undefined,
+        locationReference: locationReferenceImage ? true : undefined,
+        atelierMode: atelierMode !== false,
         artStyleOverride: artStyleOverride ?? undefined,
+        castMode: castMode === "hero" ? "hero" : "scene",
       },
     };
 
@@ -172,8 +198,16 @@ const worker = new Worker<JobData>(
       stock: providers.stock as StockProviderKey,
       video: providers.video as VideoProviderKey | undefined,
       videoModel: providers.videoModel,
-      music: (providers.music as MusicProviderKey) ?? "bundled",
-      keys,
+      music: providers.music === "none" ? "bundled" : ((providers.music as MusicProviderKey) ?? "bundled"),
+      keys: {
+        ...keys,
+        ...(providers.runpodImageEndpointId
+          ? { RUNPOD_IMAGE_ENDPOINT_ID: providers.runpodImageEndpointId }
+          : {}),
+        ...(providers.runpodVideoEndpointId
+          ? { RUNPOD_VIDEO_ENDPOINT_ID: providers.runpodVideoEndpointId }
+          : {}),
+      },
       llmModel: providers.llmModel,
       llmBaseUrl: providers.llmBaseUrl,
       searchProvider: providers.searchProvider,
@@ -182,6 +216,15 @@ const worker = new Worker<JobData>(
       grokTtsVoice: providers.grokTtsVoice,
       grokTtsSpeed: providers.grokTtsSpeed,
       grokTtsModel: providers.grokTtsModel,
+      kokoroVoice: providers.kokoroVoice,
+      kokoroSpeed: providers.kokoroSpeed,
+      runpodImageModel: providers.runpodImageModel,
+      runpodVideoModel: providers.runpodVideoModel,
+      runpodImageSteps: providers.runpodImageSteps,
+      runpodImageGuidance: providers.runpodImageGuidance,
+      runpodVideoResolution: providers.runpodVideoResolution,
+      sharpiiImageModel: providers.sharpiiImageModel,
+      sharpiiVideoModel: providers.sharpiiVideoModel,
     });
 
     // Build callbacks that emit BullMQ progress events and update meta.json
@@ -255,6 +298,7 @@ const worker = new Worker<JobData>(
             score: data.score as number,
             strengths: data.strengths as string[],
             weaknesses: data.weaknesses as string[],
+            ...(Array.isArray(data.findings) ? { findings: data.findings as string[] } : {}),
           };
           writeMeta(jobDir, meta);
         }
@@ -301,6 +345,9 @@ const worker = new Worker<JobData>(
       gemini: "GOOGLE_API_KEY",
       openrouter: "OPENROUTER_API_KEY",
       "openai-compatible": "OPENREELS_LLM_API_KEY",
+      vivi: "VIVI_LLM_API_KEY",
+      alicloud: "ALICLOUD_API_KEY",
+      grok: "XAI_API_KEY",
     };
     const llmKeyName = LLM_KEY_MAP[providers.llm] ?? "ANTHROPIC_API_KEY";
     const llmKey = keys[llmKeyName];
@@ -335,9 +382,9 @@ const worker = new Worker<JobData>(
         pacing,
         platform,
         dryRun,
-        noMusic,
+        noMusic: noMusic === true || providers.music === "none",
         musicProvider: providerInstances.music,
-        musicProviderKey: (providers.music as MusicProviderKey) ?? "bundled",
+        musicProviderKey: (providers.music === "none" ? "bundled" : providers.music) as MusicProviderKey ?? "bundled",
         preview: false,
         outputDir: jobDir,
         yes: true,
@@ -347,8 +394,14 @@ const worker = new Worker<JobData>(
         targetDurationMinutes,
         videoSceneMode,
         styleReferenceImage: styleReferenceImage ? Buffer.from(styleReferenceImage, "base64") : undefined,
-        atelierMode: atelierMode === true,
+        characterReferenceImage: characterReferenceImage ? Buffer.from(characterReferenceImage, "base64") : undefined,
+        locationReferenceImage: locationReferenceImage ? Buffer.from(locationReferenceImage, "base64") : undefined,
+        atelierMode: atelierMode !== false,
         artStyleOverride: artStyleOverride ?? undefined,
+        characterLock: characterLock ?? undefined,
+        castMode: castMode ?? undefined,
+        locationLock: locationLock ?? undefined,
+        objectLock: objectLock ?? undefined,
       },
       callbacks,
     );

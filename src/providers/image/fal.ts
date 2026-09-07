@@ -25,7 +25,7 @@ export class FalImage implements ImageProvider {
       : { width: 832, height: 1216 };
 
     const orientationHint = isLandscape
-      ? "WIDE HORIZONTAL LANDSCAPE image ONLY. 16:9 widescreen aspect ratio. CRITICAL: Do NOT generate portrait or vertical orientation."
+      ? "WIDE HORIZONTAL LANDSCAPE image ONLY. 16:9 widescreen aspect ratio. Fill the frame edge to edge. CRITICAL: Do NOT generate portrait, vertical orientation, or letterbox bars."
       : "Vertical 9:16 portrait image.";
 
     const fullPrompt = isLandscape

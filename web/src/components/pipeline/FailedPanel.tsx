@@ -20,18 +20,18 @@ export function FailedPanel({ failedStageName, failedDetail }: FailedPanelProps)
 
         {/* Title */}
         <h2 className="text-lg font-semibold text-foreground">
-          Pipeline Failed at {failedStageName}
+          El pipeline falló en {failedStageName}
         </h2>
 
         {/* Description */}
         <p className="mt-2 max-w-[380px] text-sm leading-relaxed text-text-subtle">
-          The pipeline encountered an error during the {failedStageName} stage. See error details below.
+          Hubo un error durante la etapa {failedStageName}. Detalle abajo.
         </p>
 
         {/* Error details */}
         {failedDetail && (
           <div className="mt-4 w-full">
-            <p className="mb-1.5 text-left text-[11px] font-medium text-muted-foreground">Error Details</p>
+            <p className="mb-1.5 text-left text-[11px] font-medium text-muted-foreground">Detalle del error</p>
             <div className="rounded-lg border border-card bg-surface-inset p-3 text-left">
               <code className="text-[11px] leading-relaxed text-destructive font-mono whitespace-pre-wrap break-words">
                 {failedDetail}
@@ -48,7 +48,7 @@ export function FailedPanel({ failedStageName, failedDetail }: FailedPanelProps)
             className="rounded-lg border-border px-4 py-2 text-[13px] font-medium text-secondary-foreground"
             onClick={() => navigate("/")}
           >
-            Start over
+            Empezar de nuevo
           </Button>
         </div>
       </div>

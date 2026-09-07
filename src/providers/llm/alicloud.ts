@@ -15,7 +15,20 @@ const ALICLOUD_BASE_URL =
 //   Zhipu:     glm-5 | glm-5.1
 //   MiniMax:   MiniMax-M2.5
 //   Moonshot:  kimi-k2.6 | kimi-k2.5
-const DEFAULT_MODEL = "qwen3.7-max";
+// qwen3.7-max is frequently "Access to model denied" on the token plan — default to flash.
+export const DEFAULT_MODEL = "qwen3.6-flash";
+export const FALLBACK_MODELS = ["qwen3.6-plus", "deepseek-v3.2"] as const;
+
+export function isAliCloudAccessDenied(err: unknown): boolean {
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    msg.includes("access to model denied") ||
+    msg.includes("access denied") ||
+    msg.includes("model_not_found") ||
+    msg.includes("does not exist") ||
+    msg.includes("invalid model")
+  );
+}
 
 export class AliCloudLLM extends BaseLLM {
   readonly id = "alicloud" as const;
@@ -34,6 +47,10 @@ export class AliCloudLLM extends BaseLLM {
     });
   }
 
+  get modelId(): string {
+    return this.model;
+  }
+
   protected createLanguageModel(): LanguageModel {
     return this.provider(this.model);
   }
@@ -46,8 +63,32 @@ export class AliCloudLLM extends BaseLLM {
    * Qwen models don't support responseFormat / structuredOutputs.
    * Use prompt-based JSON extraction: instruct model to respond with raw JSON,
    * then parse and validate with the Zod schema.
+   *
+   * On "Access to model denied", retry with FALLBACK_MODELS.
    */
   protected async generateStructured<T extends z.ZodType>(opts: {
+    systemPrompt: string;
+    userMessage: string;
+    schema: T;
+  }): Promise<LLMResult<z.infer<T>>> {
+    const candidates = [this.model, ...FALLBACK_MODELS.filter((m) => m !== this.model)];
+    let lastError: Error | null = null;
+
+    for (const model of candidates) {
+      this.model = model;
+      try {
+        return await this.generateStructuredOnce(opts);
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        if (!isAliCloudAccessDenied(err)) throw lastError;
+        console.warn(`[alicloud] Access denied for model "${model}", trying next fallback`);
+      }
+    }
+
+    throw lastError ?? new Error("AliCloud generateStructured failed");
+  }
+
+  private async generateStructuredOnce<T extends z.ZodType>(opts: {
     systemPrompt: string;
     userMessage: string;
     schema: T;
@@ -62,7 +103,7 @@ export class AliCloudLLM extends BaseLLM {
       model: languageModel,
       system: systemWithJson,
       prompt: opts.userMessage,
-      maxTokens: 32000,
+      maxOutputTokens: 32000,
     });
 
     const text = result.text.trim();
