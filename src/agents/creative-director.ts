@@ -9,7 +9,9 @@ import {
   filmWordsTarget,
   isFilmJob,
   isFilmOneMinute,
-  isFilmTestMinutes,
+  filmDurationLabel,
+  isFilmQuickTest,
+  isFilmTest15Minutes,
   normalizeFilmMinutes,
 } from "../config/film-duration.js";
 import { countLockedCharacters, countLockedLocations } from "../library/identity.js";
@@ -61,10 +63,11 @@ function loadDirectorSystemPrompt(targetDurationMinutes?: number, platform?: str
   const minutes = normalizeFilmMinutes(targetDurationMinutes);
   if (minutes && isFilmJob(minutes, platform)) {
     const isLandscape = platform === "youtube_horizontal";
-    const isTest = isFilmTestMinutes(minutes);
+    const isTest = isFilmQuickTest(minutes);
+    const testLabel = filmDurationLabel(minutes);
     const formatDesc = isLandscape
       ? isTest
-        ? `30-second horizontal test film (1920x1080 landscape 16:9)`
+        ? `${testLabel} horizontal test film (1920x1080 landscape 16:9)`
         : `long-form horizontal video content (${minutes}-minute videos, 1920x1080 landscape 16:9)`
       : `long-form vertical video content (${minutes}-minute videos, 1080x1920 portrait)`;
     const wordsTarget = filmWordsTarget(minutes);
@@ -75,7 +78,7 @@ function loadDirectorSystemPrompt(targetDurationMinutes?: number, platform?: str
       )
       .replace(
         /Keep total script under \d+ words[^.]*\./g,
-        `Total script target: approximately ${wordsTarget} words (${isTest ? "30 seconds" : `${minutes} minutes`} at ~150 words/minute).`,
+        `Total script target: approximately ${wordsTarget} words (${isTest ? testLabel : `${minutes} minutes`} at ~150 words/minute).`,
       )
       // Remove the short-form CTA enforcement — long-form ends with a proper conclusion + CTA
       .replace(
@@ -93,7 +96,7 @@ function loadDirectorSystemPrompt(targetDurationMinutes?: number, platform?: str
     systemPrompt += isTest
       ? `
 
-## 30-SECOND TEST FILM OVERRIDE
+## ${isFilmTest15Minutes(minutes) ? "15" : "30"}-SECOND TEST FILM OVERRIDE
 
 This is a FAST TEST, not a Short and not an 8-minute Film.
 
@@ -217,7 +220,7 @@ export async function generateDirectorScore(
 
   const filmMinutes = normalizeFilmMinutes(options?.targetDurationMinutes);
   const isLongForm = isFilmJob(filmMinutes, options?.platform);
-  const isTest = isFilmTestMinutes(filmMinutes);
+  const isTest = isFilmQuickTest(filmMinutes);
   const wordsTarget = isLongForm && filmMinutes ? filmWordsTarget(filmMinutes) : null;
   const sceneTarget = isLongForm && filmMinutes ? filmSceneTarget(filmMinutes) : null;
   const wordsPerSceneTarget = isLongForm && wordsTarget && sceneTarget ? Math.round(wordsTarget / sceneTarget) : null;
@@ -245,7 +248,7 @@ Every scene MUST have a script_line (the voiceover text).
 The first scene should be a strong hook.
 ${isLongForm
   ? isTest
-    ? `MANDATORY: This is a 30-second TEST film. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total ~${wordsTarget} words. NO text_card. If ai_video is allowed, every scene is ai_video. ${
+    ? `MANDATORY: This is a ${isFilmTest15Minutes(filmMinutes) ? "15-second" : "30-second"} TEST film. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total ~${wordsTarget} words. NO text_card. If ai_video is allowed, every scene is ai_video. ${
         options?.castMode === "hero"
           ? "FOLLOW-CAM HERO: one continuous take. The first CAST member is the optical axis of every clip. Camera tracks the body. Three beats + match-cut pose. Prefer ai_video. Never atmosphere-only."
           : castCount >= 2
@@ -353,14 +356,15 @@ export function buildPacingInstruction(archetype?: string, pacingOverride?: stri
   const minutes = normalizeFilmMinutes(targetDurationMinutes);
   if (minutes && isFilmJob(minutes, platform)) {
     const isLandscape = platform === "youtube_horizontal";
-    const isTest = isFilmTestMinutes(minutes);
+    const isTest = isFilmQuickTest(minutes);
     const formatLabel = isLandscape ? "YouTube Horizontal (landscape 16:9)" : "Reel Extend vertical";
     const wordsTarget = filmWordsTarget(minutes);
     const sceneCount = filmSceneTarget(minutes);
     const wordsPerScene = Math.round(wordsTarget / sceneCount);
     if (isTest) {
-      console.log(`[creative-director] 30s test pacing (${formatLabel}): ${sceneCount} scenes (~${wordsTarget} words)`);
-      return `This is a ${formatLabel} 30-SECOND TEST.
+      const seconds = isFilmTest15Minutes(minutes) ? 15 : 30;
+      console.log(`[creative-director] ${seconds}s test pacing (${formatLabel}): ${sceneCount} scenes (~${wordsTarget} words)`);
+      return `This is a ${formatLabel} ${seconds}-SECOND TEST.
 Create a DirectorScore with exactly ${sceneCount} scenes.
 Per-scene word budget: ${Math.max(8, wordsPerScene - 2)}-${wordsPerScene + 2} words (~5 seconds per scene).
 Total word budget: approximately ${wordsTarget} words.

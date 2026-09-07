@@ -30,7 +30,7 @@ import { getPlatformAspectRatio, getPlatformConfig } from "../config/platforms.j
 import { resolveMusic, type MusicResolution } from "./music-resolver.js";
 import { applyVideoSceneMode, resolveVideoSceneMode } from "./video-scene-mode.js";
 import { extractLastFrame } from "./last-frame.js";
-import { isFilmOneMinute, isFilmTestMinutes, normalizeFilmMinutes } from "../config/film-duration.js";
+import { isFilmOneMinute, isFilmQuickTest, normalizeFilmMinutes } from "../config/film-duration.js";
 import { resolveAllowedVisualTypes } from "./visual-types.js";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
@@ -1200,7 +1200,7 @@ function buildPipelineWorkflow(
       const padToRequestedCut =
         opts.platform === "youtube_horizontal" &&
         filmMinutes != null &&
-        (isFilmOneMinute(filmMinutes) || isFilmTestMinutes(filmMinutes))
+        (isFilmOneMinute(filmMinutes) || isFilmQuickTest(filmMinutes))
           ? filmMinutes * 60
           : undefined;
       const totalFrames = getTotalDurationInFrames(compositionProps, platformConfig.fps, {

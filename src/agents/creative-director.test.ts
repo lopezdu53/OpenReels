@@ -79,6 +79,14 @@ describe("buildPacingInstruction", () => {
     expect(result).toContain("12-16");
   });
 
+  it("uses a 15-second test plan for Film", () => {
+    const result = buildPacingInstruction("cinematic_documentary", undefined, 0.25, "youtube_horizontal");
+    expect(result).toContain("15-SECOND TEST");
+    expect(result).toContain("exactly 3 scenes");
+    expect(result).toContain("NO text_card");
+    expect(result).not.toContain("chapter");
+  });
+
   it("uses a 30-second test plan for Film", () => {
     const result = buildPacingInstruction("cinematic_documentary", undefined, 0.5, "youtube_horizontal");
     expect(result).toContain("30-SECOND TEST");

@@ -185,6 +185,8 @@ export function HomePage() {
   const [runpodVideoResolution, setRunpodVideoResolution] = useState("720p");
   const [runpodImageEndpointId, setRunpodImageEndpointId] = useState("");
   const [runpodVideoEndpointId, setRunpodVideoEndpointId] = useState("");
+  const [sharpiiImageModel, setSharpiiImageModel] = useState("nano-banana-2");
+  const [sharpiiVideoModel, setSharpiiVideoModel] = useState("kling-v2.6-pro-i2v");
   const [videoSceneMode, setVideoSceneMode] = useState("auto");
   const [pacing, setPacing] = useState("");
   const [targetDurationMinutes, setTargetDurationMinutes] = useState(5);
@@ -316,8 +318,8 @@ export function HomePage() {
                   : {}),
               }
             : {}),
-          ...(imageProvider === "sharpii" ? { sharpiiImageModel: "nano-banana-2" } : {}),
-          ...(videoProvider === "sharpii" ? { sharpiiVideoModel: "kling-v2.6-pro-i2v" } : {}),
+          ...(imageProvider === "sharpii" ? { sharpiiImageModel } : {}),
+          ...(videoProvider === "sharpii" ? { sharpiiVideoModel } : {}),
           ...(videoProvider === "runpod"
             ? {
                 runpodVideoModel,
@@ -671,6 +673,44 @@ export function HomePage() {
                         </Field>
                       )}
                     </div>
+                  )}
+                </div>
+              )}
+
+              {(imageProvider === "sharpii" || videoProvider === "sharpii") && (
+                <div className="mt-4 rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
+                  <p className="text-xs font-semibold">Opciones Sharpii</p>
+                  {imageProvider === "sharpii" && (
+                    <Field label="Modelo de imagen">
+                      <Select value={sharpiiImageModel} onValueChange={(v) => v && setSharpiiImageModel(v)}>
+                        <SelectTrigger className={field}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {(providers?.sharpiiImageModels ?? [
+                            { id: "nano-banana-2", label: "Nano Banana 2 (1K)", credits: 65, usd: 0.036 },
+                          ]).map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              {m.label}{` · $${m.usd.toFixed(3)}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  )}
+                  {videoProvider === "sharpii" && (
+                    <Field label="Modelo I2V">
+                      <Select value={sharpiiVideoModel} onValueChange={(v) => v && setSharpiiVideoModel(v)}>
+                        <SelectTrigger className={field}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {(providers?.sharpiiVideoModels ?? [
+                            { id: "kling-v2.6-pro-i2v", label: "Kling 2.6 Pro I2V", credits: 684, usd: 0.377, durations: [5, 10] },
+                          ]).map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              {m.label}{` · $${m.usd.toFixed(2)}${m.perSecond ? " /5s" : ""}`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
                   )}
                 </div>
               )}

@@ -229,9 +229,14 @@ function sequelBriefFromJob(job: JobSummary): string {
 }
 
 function durationHint(minutes: number): string {
-  if (minutes > 0 && minutes < 0.75) return "~75 palabras · 6 escenas · video en todas · sin tarjetas";
+  if (minutes > 0 && minutes < 0.375) return "~38 palabras · 3 escenas · video en todas · sin tarjetas";
+  if (minutes >= 0.375 && minutes < 0.75) return "~75 palabras · 6 escenas · video en todas · sin tarjetas";
   if (minutes >= 0.75 && minutes < 1.5) return "~180 palabras · 15 escenas · 1920×1080 · sin tarjetas";
   return `~${minutes * 150} palabras · 1920×1080 · sin tarjetas`;
+}
+
+function testCutLabel(minutes: number): string {
+  return minutes > 0 && minutes < 0.375 ? "15s" : "30s";
 }
 
 export function FilmPage() {
@@ -552,8 +557,8 @@ export function FilmPage() {
           sequelJob ? `\n## Continuación\n${sequelBriefFromJob(sequelJob)}` : "",
           durationMinutes > 0 && durationMinutes < 0.75
             ? cast.length > 1
-              ? `\n## Prueba 30s\nElenco bloqueado (${cast.map((c) => c.name).join(", ")}): cada uno conserva especie, marcas y cara. En cada plano solo quien nombra la locución. Cero text_card. Todas las escenas ai_video.`
-              : "\n## Prueba 30s\nMismo individuo en TODOS los planos: misma cresta, mismas manchas negras, mismos ojos, misma especie. Cero text_card. Todas las escenas ai_video."
+              ? `\n## Prueba ${testCutLabel(durationMinutes)}\nElenco bloqueado (${cast.map((c) => c.name).join(", ")}): cada uno conserva especie, marcas y cara. En cada plano solo quien nombra la locución. Cero text_card. Todas las escenas ai_video.`
+              : `\n## Prueba ${testCutLabel(durationMinutes)}\nMismo individuo en TODOS los planos: misma cresta, mismas manchas negras, mismos ojos, misma especie. Cero text_card. Todas las escenas ai_video.`
             : durationMinutes >= 0.75 && durationMinutes < 1.5
               ? "\n## Corte 1 min\nUn episodio corto. Cero text_card. Gancho, avance, cliffhanger."
               : "",
@@ -678,6 +683,7 @@ export function FilmPage() {
                   }
                 }}
               >
+                <option value={0.25}>15 s (prueba)</option>
                 <option value={0.5}>30 s (prueba)</option>
                 <option value={1}>1 min</option>
                 {[2, 3, 5, 8, 10, 12, 15, 20].map((n) => (
@@ -1190,7 +1196,7 @@ export function FilmPage() {
                           { id: "nano-banana-2", label: "Nano Banana 2 (1K)", credits: 65, usd: 0.036 },
                         ]).map((m) => (
                           <SelectItem key={m.id} value={m.id}>
-                            {m.label} · {m.credits} cr · ${m.usd.toFixed(3)}
+                            {m.label} · ${m.usd.toFixed(3)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -1206,7 +1212,7 @@ export function FilmPage() {
                           { id: "kling-v2.6-pro-i2v", label: "Kling 2.6 Pro I2V", credits: 684, usd: 0.377, durations: [5, 10] },
                         ]).map((m) => (
                           <SelectItem key={m.id} value={m.id}>
-                            {m.label} · {m.credits} cr · ${m.usd.toFixed(2)}
+                            {m.label} · ${m.usd.toFixed(2)}{m.perSecond ? " /5s" : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>

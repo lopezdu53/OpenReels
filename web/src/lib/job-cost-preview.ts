@@ -58,13 +58,16 @@ export function estimateJobCost(input: JobCostPreviewInput, prices: ApiPrices): 
   const longForm = input.platform === "reel_extend" || input.platform === "youtube_horizontal";
   const minutes = input.targetDurationMinutes ?? 5;
   const pacing = PACING_SCENES[input.pacing || "moderate"] ?? PACING_SCENES.moderate!;
+  const testFilm15 = longForm && minutes > 0 && minutes < 0.375;
   const testFilm = longForm && minutes > 0 && minutes < 0.75;
-  const sceneCount = testFilm
-    ? Math.max(4, Math.round((minutes * 150) / 12))
-    : longForm
-      ? Math.max(8, Math.round((minutes * 150) / 14))
-      : pacing.scenes;
-  const words = longForm ? Math.round(minutes * 150) : pacing.words;
+  const sceneCount = testFilm15
+    ? 3
+    : testFilm
+      ? 6
+      : longForm
+        ? Math.max(8, Math.round((minutes * 150) / 14))
+        : pacing.scenes;
+  const words = testFilm15 ? 38 : longForm ? Math.round(minutes * 150) : pacing.words;
   const ttsCharacters = Math.round(words * 5.4);
 
   const types = new Set(input.allowedVisualTypes);

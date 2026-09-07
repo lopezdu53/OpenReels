@@ -7,7 +7,7 @@ import { OpenAILLM } from "../providers/llm/openai.js";
 import { OpenRouterLLM } from "../providers/llm/openrouter.js";
 import { ViviLLM } from "../providers/llm/vivi.js";
 import type { LLMProvider } from "../schema/providers.js";
-import { filmDurationLabel, filmWordsTarget, isFilmTestMinutes, normalizeFilmMinutes } from "../config/film-duration.js";
+import { filmDurationLabel, filmWordsTarget, isFilmQuickTest, normalizeFilmMinutes } from "../config/film-duration.js";
 import { MAX_FILM_CHARACTERS, MAX_FILM_LOCATIONS, MAX_FILM_OBJECTS, normalizeCastMode, type CastMode } from "../library/identity.js";
 
 export const filmScriptSchema = z.object({
@@ -191,8 +191,8 @@ export async function generateFilmScript(opts: {
       "Eres un guionista de YouTube en español LATAM para videos HORIZONTALES 16:9 (no Shorts). Escribes locución hablable en voz alta, un dato por frase, gancho en 8s. JSON único con title, hook, script. Si hay un episodio anterior, continúas esa historia: no la reinicias.",
     userMessage: [
       `Idea: ${opts.idea.trim()}`,
-      isFilmTestMinutes(minutes)
-        ? `Duración objetivo: 30 segundos (~${words} palabras de locución). Prueba rápida, ${
+      isFilmQuickTest(minutes)
+        ? `Duración objetivo: ${filmDurationLabel(minutes)} (~${words} palabras de locución). Prueba rápida, ${
             (opts.characters?.length ?? 0) > 1 ? "solo el elenco bloqueado" : "un solo personaje"
           }, sin letreros.`
         : `Duración objetivo: ${filmDurationLabel(minutes)} (~${words} palabras de locución). Sin tarjetas de texto en pantalla.`,

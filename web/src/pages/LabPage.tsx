@@ -507,7 +507,7 @@ export function LabPage() {
                       { id: "nano-banana-2", label: "Nano Banana 2 (1K)", credits: 65, usd: 0.036 },
                     ]).map((m) => (
                       <SelectItem key={m.id} value={m.id}>
-                        {m.label} · {m.credits} cr · ${m.usd.toFixed(3)}
+                        {m.label} · ${m.usd.toFixed(3)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -643,7 +643,7 @@ export function LabPage() {
                       { id: "kling-v2.6-pro-i2v", label: "Kling 2.6 Pro I2V", credits: 684, usd: 0.377, durations: [5, 10] },
                     ]).map((m) => (
                       <SelectItem key={m.id} value={m.id}>
-                        {m.label} · {m.credits} cr · ${m.usd.toFixed(2)}
+                        {m.label} · ${m.usd.toFixed(2)}{m.perSecond ? " /5s" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
