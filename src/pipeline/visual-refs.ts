@@ -19,8 +19,15 @@ export interface VisualRefPlan {
 /** FLUX / img2img clones the reference composition. A 4-panel sheet becomes 25 sheets. */
 const LAYOUT_CLONE_PROVIDERS = new Set(["runpod", "fal", "openai"]);
 
+/** Atlas edit models drift if every scene independently img2img's the same sheet. */
+const SEQUENTIAL_IDENTITY_PROVIDERS = new Set(["atlas"]);
+
 export function imageProviderClonesLayout(provider?: string): boolean {
   return LAYOUT_CLONE_PROVIDERS.has(provider ?? "");
+}
+
+export function imageProviderChainsIdentity(provider?: string): boolean {
+  return SEQUENTIAL_IDENTITY_PROVIDERS.has(provider ?? "");
 }
 
 export function planVisualReferences(opts: {
@@ -37,6 +44,14 @@ export function planVisualReferences(opts: {
   const heroFollowCam = normalizeCastMode(opts.castMode) === "hero";
   const multiCast = countLockedCharacters(opts.characterLock) >= 2;
   const multiLocation = countLockedLocations(opts.locationLock) >= 2;
+  if (imageProviderChainsIdentity(opts.imageProvider) && !heroFollowCam && !multiCast && !multiLocation) {
+    // Scene 0 may seed from the sheet; later scenes chain the previous still.
+    return {
+      globalReference: undefined,
+      useAtelier: false,
+      sheetReference: opts.characterReferenceImage && opts.characterReferenceImage.length > 100 ? "character" : null,
+    };
+  }
   if (heroFollowCam) {
     // Sequential previous-frame (orchestrator continuity), not a glued sheet or scene-0 collage.
     return {

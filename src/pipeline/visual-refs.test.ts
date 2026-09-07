@@ -44,6 +44,18 @@ describe("planVisualReferences", () => {
     expect(plan.sheetReference).toBeNull();
   });
 
+  it("chains Atlas identity instead of gluing the sheet onto every scene", () => {
+    const plan = planVisualReferences({
+      characterReferenceImage: sheet,
+      atelierMode: true,
+      imageProvider: "atlas",
+      characterLock: "Name: Nyx. Kind: fictional. Species/race (LOCKED): stickman. Appearance: glasses",
+    });
+    expect(plan.globalReference).toBeUndefined();
+    expect(plan.useAtelier).toBe(false);
+    expect(plan.sheetReference).toBe("character");
+  });
+
   it("does not img2img a model sheet on RunPod (FLUX copies the collage)", () => {
     const plan = planVisualReferences({
       characterReferenceImage: sheet,

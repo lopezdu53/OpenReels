@@ -612,6 +612,7 @@ export function FilmPage() {
           direction,
           noSubtitles: true,
           noMusic: musicProvider === "none",
+          noVideo: !videoProvider,
           allowedVisualTypes: visualTypes,
           atelierMode: true,
           ...(artStyleOverride ? { artStyleOverride } : {}),

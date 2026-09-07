@@ -431,6 +431,7 @@ export interface CreateJobRequest {
   dryRun?: boolean;
   noSubtitles?: boolean;
   noMusic?: boolean;
+  noVideo?: boolean;
   direction?: string;
   targetDurationMinutes?: number;
   score?: Record<string, unknown>;

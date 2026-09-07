@@ -139,6 +139,10 @@ function resolveSearchTools(
   keys: Record<string, string>,
 ): Record<string, unknown> | undefined {
   // Explicit search provider override
+  // Atlas OpenAI-compat models (DeepSeek/Qwen) reject tool calling with HTTP 400.
+  if (llmProvider === "atlas") {
+    return {};
+  }
   if (searchProvider === "tavily") {
     return createTavilySearchTools(keys["TAVILY_API_KEY"]);
   }
@@ -342,7 +346,9 @@ export function createProviders(config: ProviderConfig): Providers {
   const falKey = k["FAL_API_KEY"] ?? process.env["FAL_API_KEY"];
   const viviVideoKey = k["VIVI_VIDEO_API_KEY"] ?? process.env["VIVI_VIDEO_API_KEY"] ?? k["VIVI_LLM_API_KEY"] ?? process.env["VIVI_LLM_API_KEY"];
   const viduKey = k["VIDU_API_KEY"] ?? process.env["VIDU_API_KEY"];
-  const videoPrimary = config.video ?? (googleKey ? "gemini" : xaiKey ? "grok" : viduKey ? "vidu" : viviVideoKey ? "vivi" : falKey ? "fal" : sharpiiKey ? "sharpii" : atlasKey ? "atlas" : alicloudKey ? "alicloud-wan-turbo" : undefined);
+  // Atlas video is opt-in only. Auto-picking it whenever ATLASCLOUD_API_KEY
+  // exists turned "Sin video IA" Film jobs into Atlas I2V.
+  const videoPrimary = config.video ?? (googleKey ? "gemini" : xaiKey ? "grok" : viduKey ? "vidu" : viviVideoKey ? "vivi" : falKey ? "fal" : sharpiiKey ? "sharpii" : alicloudKey ? "alicloud-wan-turbo" : undefined);
 
   const ALICLOUD_VIDEO_MODELS: Record<string, string> = {
     "alicloud-wan-turbo": "wan2.1-i2v-turbo",

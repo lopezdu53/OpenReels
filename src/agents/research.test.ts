@@ -23,6 +23,18 @@ describe("research", () => {
     expect(generate.mock.calls[0]![0].enableWebSearch).toBe(true);
   });
 
+  it("skips tool calling for Atlas and uses parametric or Tavily notes", async () => {
+    const generate = vi.fn().mockResolvedValue({
+      data: FACTS,
+      usage: { inputTokens: 4, outputTokens: 6 },
+    });
+    const llm = { id: "atlas" as const, generate };
+    const out = await research(llm, "neobancos en América");
+    expect(out.data.summary).toBe(FACTS.summary);
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(generate.mock.calls[0]![0].enableWebSearch).toBe(false);
+  });
+
   it("retries without web search when search fails instead of returning empty facts", async () => {
     const generate = vi
       .fn()

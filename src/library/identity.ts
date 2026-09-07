@@ -520,7 +520,7 @@ export function planSceneObjectFocus(
 
 export function identityLockLead(lock?: string): string {
   if (isHeroFollowCam(lock)) {
-    return `IDENTITY LOCK — FOLLOW-CAM: HERO stays in every frame; inherit last pose; camera tracks the body; never a new portrait or atmosphere-only.`;
+    return `IDENTITY LOCK — FOLLOW-CAM: HERO stays in every frame; same face, body style and wardrobe; camera tracks the body; add a NEW named prop/logo/place this beat; never a new portrait or atmosphere-only.`;
   }
   if (/ON SCREEN:\s*none/i.test(lock ?? "")) {
     return `IDENTITY LOCK — no named CAST member in this frame.`;
@@ -532,7 +532,7 @@ export function identityLockLead(lock?: string): string {
   if (n >= 2) {
     return `IDENTITY LOCK — named CAST of ${n} ON SCREEN: each keeps their own species, markings, age and face. Do not merge, swap, or replace anyone.`;
   }
-  return `IDENTITY LOCK — same individual every shot, never change species, markings, age or face.`;
+  return `IDENTITY LOCK — same individual every shot, never change species, markings, age, face, wardrobe or body style (2D stick vs 3D).`;
 }
 
 function stripLockPrefixes(prompt: string): string {
@@ -569,7 +569,7 @@ function prefixLocks(prompt: string, characterLock?: string, locationLock?: stri
     const lock = characterLock.trim();
     const n = countLockedCharacters(lock);
     const lead = isHeroFollowCam(lock)
-      ? "FOLLOW-CAM: HERO stays in frame; inherit last pose; camera tracks the body; never a new portrait."
+      ? "FOLLOW-CAM: HERO stays in frame; same face and wardrobe; add a NEW named prop this beat; camera tracks the body; never a new portrait."
       : /ON SCREEN:\s*none/i.test(lock)
         ? "no named CAST on screen."
         : /ON SCREEN:\s*only/i.test(lock)

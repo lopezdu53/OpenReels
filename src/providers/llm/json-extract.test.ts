@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { clonedChannelSchema } from "../../analytics/schemas.js";
-import { parseLlmJson, prepareLlmJson } from "./json-extract.js";
+import { parseJsonObjectFromText, parseLlmJson, prepareLlmJson } from "./json-extract.js";
 
 describe("LLM JSON unwrap + aliases", () => {
   it("unwraps a nested canal object with Spanish keys", () => {
@@ -65,5 +65,11 @@ describe("LLM JSON unwrap + aliases", () => {
     expect(cloned.channelName).toBe("X");
     expect(cloned.targetAudience).toBe("A");
     expect(cloned.firstVideos[2]?.format).toBe("long");
+  });
+});
+
+describe("parseJsonObjectFromText", () => {
+  it("strips fences and returns the object", () => {
+    expect(parseJsonObjectFromText("```json\n{\"summary\":\"ok\"}\n```")).toEqual({ summary: "ok" });
   });
 });

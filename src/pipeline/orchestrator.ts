@@ -13,7 +13,7 @@ import { optimizeImagePrompt } from "../agents/image-prompter.js";
 import { generateOrientedImage } from "../providers/image/dimensions.js";
 import { lookupRemoteUrl } from "../providers/runpod/client.js";
 import { buildShotContext } from "../library/prompt-context.js";
-import { imageProviderClonesLayout, planVisualReferences, sheetToSceneHint, type SheetReference } from "./visual-refs.js";
+import { imageProviderChainsIdentity, imageProviderClonesLayout, planVisualReferences, sheetToSceneHint, type SheetReference } from "./visual-refs.js";
 import { research } from "../agents/research.js";
 import { resolveStockAdaptive, type StockResolution } from "../providers/stock/adaptive-resolver.js";
 import { resolveAIVideo, type VideoResolution } from "../providers/video/video-resolver.js";
@@ -380,17 +380,23 @@ async function resolveVisualAsset(
         return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio, shotBag, referenceImageUrl);
       }
       const heroFollowCam = normalizeCastMode(opts.castMode) === "hero";
-      // Phase 1: first clip paints a still. Later hero clips start from the
-      // previous video's last frame so I2V continues the same take.
+      // Phase 1: paint a still. Later clips edit the previous frame so identity
+      // holds AND the beat (logo, country, prop) actually changes. Copying the
+      // same still into every I2V start froze hero jobs on pose 0.
       const imageStart = Date.now();
-      const reuseLastFrame = heroFollowCam && index > 0 && Boolean(referenceImage && referenceImage.length > 80);
-      const imgResult = reuseLastFrame
-        ? (() => {
-            const filePath = path.join(assetsDir, `scene-${index}-ai.png`);
-            fs.writeFileSync(filePath, referenceImage!);
-            return { path: filePath, usage: null, durationSeconds: null, remoteUrl: referenceImageUrl } as VisualAssetResult;
-          })()
-        : await generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir, referenceImage, aspectRatio, shotBag, referenceImageUrl);
+      const imgResult = await generateAIImage(
+        opts,
+        scene.visual_prompt,
+        scene.script_line,
+        index,
+        totalScenes,
+        archetype,
+        assetsDir,
+        referenceImage,
+        aspectRatio,
+        shotBag,
+        referenceImageUrl,
+      );
       const imageGenTimeMs = Date.now() - imageStart;
       const imageBuffer = fs.readFileSync(imgResult.path!);
 
@@ -423,7 +429,7 @@ async function resolveVisualAsset(
           previousVisualPrompt: shot?.previousVisualPrompt,
         }),
         heroFollowCam,
-        continuation: reuseLastFrame,
+        continuation: heroFollowCam && index > 0 && Boolean(referenceImage && referenceImage.length > 80),
       });
 
       // Adjust imageGenTimeMs in the resolution metadata
@@ -431,7 +437,7 @@ async function resolveVisualAsset(
         videoResult.videoResolution.imageGenTimeMs = imageGenTimeMs;
       }
 
-      if (heroFollowCam && videoResult.path && videoResult.path.endsWith(".mp4")) {
+      if (videoResult.path && videoResult.path.endsWith(".mp4")) {
         extractLastFrame(videoResult.path, path.join(assetsDir, `scene-${index}-last.png`));
       }
 
@@ -901,8 +907,10 @@ function buildPipelineWorkflow(
       // Hero follow-cam always chains the previous frame (pose → pose), even with
       // guests or a location change — that is the match-cut seed.
       const runpodIdentityLock = opts.imageProvider === "runpod" && atelierMode;
+      const atlasIdentityLock = imageProviderChainsIdentity(opts.imageProvider) && Boolean(opts.characterLock?.trim());
       const continuityEnabled =
         heroFollowCam ||
+        atlasIdentityLock ||
         (!multiCast &&
           !multiLocation &&
           (runpodIdentityLock ||
@@ -1001,7 +1009,9 @@ function buildPipelineWorkflow(
         ? (async () => {
             const results: VisualAssetResult[] = [];
             let previousImage: Buffer | undefined =
-              heroFollowCam && characterSheet && !imageProviderClonesLayout(opts.imageProvider)
+              (heroFollowCam || atlasIdentityLock) &&
+              characterSheet &&
+              !imageProviderClonesLayout(opts.imageProvider)
                 ? characterSheet
                 : undefined;
             let previousImageUrl: string | undefined;
@@ -1028,7 +1038,7 @@ function buildPipelineWorkflow(
                 try {
                   const lastFrame = path.join(assetsDir, `scene-${i}-last.png`);
                   const still = path.join(assetsDir, `scene-${i}-ai.png`);
-                  if (heroFollowCam && fs.existsSync(lastFrame)) {
+                  if (fs.existsSync(lastFrame)) {
                     previousImage = fs.readFileSync(lastFrame);
                     previousImageUrl = undefined;
                   } else {
@@ -1302,7 +1312,10 @@ function buildPipelineWorkflow(
         log.stages.push({ name: "critic", duration: dur, status: "done" });
       } catch (err) {
         const dur = (Date.now() - start) / 1000;
-        cb.onStageSkip?.("critic", "evaluation failed");
+        cb.onStageSkip?.(
+          "critic",
+          `evaluation failed: ${err instanceof Error ? err.message : String(err)}`.slice(0, 180),
+        );
         log.stages.push({ name: "critic", duration: dur, status: "skipped", error: String(err) });
       }
 

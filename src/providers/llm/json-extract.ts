@@ -171,6 +171,16 @@ export function parseLlmJson<T extends z.ZodType>(schema: T, parsed: unknown): z
   throw first.error;
 }
 
+export function parseJsonObjectFromText(text: string, label = "LLM"): unknown {
+  const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  const start = stripped.indexOf("{");
+  const end = stripped.lastIndexOf("}");
+  if (start === -1 || end === -1) {
+    throw new Error(`${label} did not return a JSON object. Response: ${stripped.slice(0, 200)}`);
+  }
+  return JSON.parse(stripped.slice(start, end + 1));
+}
+
 export function schemaHint(schema: z.ZodType): string {
   try {
     const json = z.toJSONSchema(schema);

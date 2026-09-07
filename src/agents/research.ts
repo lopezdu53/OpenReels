@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { z } from "zod";
+import { fetchTavilyNotes } from "../providers/search/tavily.js";
 import type { LLMProvider, LLMUsage } from "../schema/providers.js";
 
 const SYSTEM_PROMPT_PATH = path.join(process.cwd(), "prompts", "researcher.md");
@@ -31,7 +32,21 @@ function loadSystemPrompt(): string {
 
 export async function research(llm: LLMProvider, topic: string): Promise<ResearchOutput> {
   const systemPrompt = loadSystemPrompt();
-  const userMessage = `Research this topic for a short-form video script: ${topic}`;
+  const notes = llm.id === "atlas" ? await fetchTavilyNotes(topic) : "";
+  const userMessage = notes
+    ? `Research this topic for a short-form video script: ${topic}\n\nWeb findings (use these facts and cite URLs in sources):\n${notes}`
+    : `Research this topic for a short-form video script: ${topic}`;
+
+  // Atlas OpenAI-compat models reject tool calling with HTTP 400.
+  if (llm.id === "atlas") {
+    const result = await llm.generate({
+      systemPrompt: notes ? systemPrompt : systemPrompt + PARAMETRIC_SUFFIX,
+      userMessage,
+      schema: ResearchResult,
+      enableWebSearch: false,
+    });
+    return { data: result.data, usage: result.usage };
+  }
 
   try {
     const result = await llm.generate({

@@ -649,6 +649,27 @@ describe("createProviders", () => {
     expect(SharpiiVideo).toHaveBeenCalledWith("seedance-2.0-fast-720p", "shp_test");
   });
 
+  it("does not inject Tavily tools into Atlas (models 400 on tool calling)", () => {
+    createProviders({
+      llm: "atlas",
+      tts: "elevenlabs",
+      image: "atlas",
+      searchProvider: "tavily",
+      keys: { ATLASCLOUD_API_KEY: "atlas-key", TAVILY_API_KEY: "tv-key" },
+    });
+    expect(AtlasLLM).toHaveBeenCalledWith(undefined, "atlas-key", {});
+  });
+
+  it("does not auto-enable Atlas video when video is omitted", () => {
+    createProviders({
+      llm: "atlas",
+      tts: "atlas-tts",
+      image: "atlas",
+      keys: { ATLASCLOUD_API_KEY: "atlas-key" },
+    });
+    expect(AtlasVideo).not.toHaveBeenCalled();
+  });
+
   it("creates Atlas LLM/TTS/image/video from one ATLASCLOUD_API_KEY", () => {
     createProviders({
       llm: "atlas",

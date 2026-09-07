@@ -311,6 +311,7 @@ export function HomePage() {
         platform,
         dryRun,
         ...(noSubtitles ? { noSubtitles: true } : {}),
+        ...(videoProvider ? {} : { noVideo: true }),
         ...(LONG_FORM_PLATFORMS.has(platform) ? { targetDurationMinutes } : {}),
         ...(directionText.trim() ? { direction: directionText.trim() } : {}),
         ...(scoreJson ? { score: scoreJson } : {}),
