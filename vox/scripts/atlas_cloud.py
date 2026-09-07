@@ -17,6 +17,7 @@ Env: ATLASCLOUD_API_KEY must be set.
 """
 import json
 import os
+import ssl
 import subprocess
 import time
 import urllib.request
@@ -46,14 +47,34 @@ def _headers(json_body: bool = True) -> dict:
     return h
 
 
+def ssl_context() -> ssl.SSLContext:
+    """Use the Debian CA bundle. Slim images skip ca-certificates unless we install it."""
+    ctx = ssl.create_default_context()
+    bundle = (
+        os.environ.get("SSL_CERT_FILE")
+        or os.environ.get("REQUESTS_CA_BUNDLE")
+        or "/etc/ssl/certs/ca-certificates.crt"
+    )
+    if os.path.isfile(bundle):
+        ctx.load_verify_locations(cafile=bundle)
+    return ctx
+
+
 def _post(path: str, payload: dict, base: str = MEDIA_BASE, timeout: int = 60) -> dict:
     req = urllib.request.Request(base + path, data=json.dumps(payload).encode(),
                                  headers=_headers(), method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with urllib.request.urlopen(req, timeout=timeout, context=ssl_context()) as r:
             return json.load(r)
     except urllib.error.HTTPError as e:
         raise AtlasCloudError(f"POST {path} -> {e.code}: {e.read().decode()[:400]}") from e
+    except urllib.error.URLError as e:
+        if "CERTIFICATE_VERIFY_FAILED" in str(e):
+            raise AtlasCloudError(
+                "Python no pudo verificar HTTPS hacia Atlas (CA bundle ausente). "
+                "Reconstruye la imagen con ca-certificates e Implementa video-worker."
+            ) from e
+        raise AtlasCloudError(f"POST {path} failed: {e}") from e
 
 
 def _get(path: str, base: str = MEDIA_BASE, timeout: int = 60, retries: int = 3) -> dict:
@@ -61,7 +82,7 @@ def _get(path: str, base: str = MEDIA_BASE, timeout: int = 60, retries: int = 3)
     for i in range(retries):
         try:
             req = urllib.request.Request(base + path, headers=_headers(json_body=False))
-            with urllib.request.urlopen(req, timeout=timeout) as r:
+            with urllib.request.urlopen(req, timeout=timeout, context=ssl_context()) as r:
                 return json.load(r)
         except urllib.error.HTTPError as e:
             # A prediction that failed upstream (e.g. a content-policy rejection) can

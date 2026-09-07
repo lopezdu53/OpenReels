@@ -2,6 +2,8 @@ FROM node:22-bookworm-slim
 
 # Install system dependencies: ffmpeg (includes ffprobe) and Chrome Headless Shell shared libs
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
     ffmpeg \
     python3 \
     python3-pil \
@@ -48,6 +50,8 @@ RUN cd web && npx vite build
 RUN mkdir -p /output /app/jobs /app/data
 ENV DATA_DIR=/app/data
 ENV JOBS_DIR=/app/jobs
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
 # Default: CLI mode (backwards compatible)
 ENTRYPOINT ["npx", "tsx", "src/index.ts", "--yes", "-o", "/output"]
