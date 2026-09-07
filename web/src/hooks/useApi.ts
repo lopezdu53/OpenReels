@@ -128,11 +128,31 @@ export interface ProviderOptions {
   }[];
   atelierStyles?: { id: string; label: string; artStyle: string }[];
   atlasTtsVoices?: VoiceOption[];
-  atlasTtsModels?: { id: string; label: string; usdPer1kChars: number; priceLabel?: string }[];
+  atlasTtsModels?: {
+    id: string;
+    label: string;
+    usdPer1kChars: number;
+    priceLabel?: string;
+    voices?: VoiceOption[];
+  }[];
   atlasLlmModels?: { id: string; label: string; inputPer1M: number; outputPer1M: number; priceLabel?: string }[];
-  atlasImageModels?: { id: string; label: string; usd: number; priceLabel?: string }[];
-  atlasVideoModels?: { id: string; label: string; usd: number; durations: number[]; talkingHead?: boolean; priceLabel?: string }[];
-  atlasLipSyncModels?: { id: string; label: string; usd: number; priceLabel?: string }[];
+  atlasImageModels?: { id: string; label: string; usd: number; refs?: boolean; priceLabel?: string }[];
+  atlasVideoModels?: {
+    id: string;
+    label: string;
+    usd: number;
+    durations: number[];
+    talkingHead?: boolean;
+    lastFrame?: boolean;
+    priceLabel?: string;
+  }[];
+  atlasLipSyncModels?: {
+    id: string;
+    label: string;
+    usd: number;
+    kind?: "video_audio" | "image_audio";
+    priceLabel?: string;
+  }[];
   sharpiiImageModels?: { id: string; label: string; credits: number; usd: number }[];
   sharpiiVideoModels?: {
     id: string;
@@ -472,6 +492,7 @@ export interface CreateJobRequest {
     runpodVideoEndpointId?: string;
     atlasImageModel?: string;
     atlasVideoModel?: string;
+    atlasTtsModel?: string;
     atlasTtsVoice?: string;
     atlasLipSyncModel?: string | null;
   };

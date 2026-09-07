@@ -20,10 +20,13 @@ function Field({ label, children, className }: FieldProps & { className?: string
   );
 }
 
-function PriceRow({ name, price }: { name: string; price: string }) {
+function PriceRow({ name, price, hint }: { name: string; price: string; hint?: string }) {
   return (
     <span className="flex w-full min-w-[18rem] items-center justify-between gap-4">
-      <span className="truncate">{name}</span>
+      <span className="min-w-0">
+        <span className="block truncate">{name}</span>
+        {hint ? <span className="block truncate text-[10px] text-muted-foreground">{hint}</span> : null}
+      </span>
       <span className="shrink-0 tabular-nums text-[11px] text-muted-foreground">{price}</span>
     </span>
   );
@@ -46,6 +49,7 @@ interface AtlasModelFieldsProps {
   showImage?: boolean;
   showVideo?: boolean;
   showLipSync?: boolean;
+  title?: string;
   values: AtlasModelValues;
   onChange: (patch: Partial<AtlasModelValues>) => void;
 }
@@ -58,6 +62,7 @@ export function AtlasModelFields({
   showImage,
   showVideo,
   showLipSync,
+  title,
   values,
   onChange,
 }: AtlasModelFieldsProps) {
@@ -67,20 +72,39 @@ export function AtlasModelFields({
   const images = [...(providers?.atlasImageModels ?? [])].sort((a, b) => a.usd - b.usd);
   const videos = [...(providers?.atlasVideoModels ?? [])].sort((a, b) => a.usd - b.usd);
   const lips = [...(providers?.atlasLipSyncModels ?? [])].sort((a, b) => a.usd - b.usd);
-  const ttsModels = [...(providers?.atlasTtsModels ?? [{ id: DEFAULT_TTS_MODEL, label: "xAI TTS v1", usdPer1kChars: 0.015, priceLabel: "$0.015 / 1K chars" }])];
-  const voices = providers?.atlasTtsVoices ?? [
-    { id: "eve", label: "Eve — Energetic (F)" },
-    { id: "ara", label: "Ara — Warm (F)" },
-    { id: "leo", label: "Leo — Authoritative (M)" },
-    { id: "rex", label: "Rex — Confident (M)" },
-    { id: "sal", label: "Sal — Smooth (M)" },
-  ];
+  const ttsModels = [...(providers?.atlasTtsModels ?? [{
+    id: DEFAULT_TTS_MODEL,
+    label: "xAI TTS v1",
+    usdPer1kChars: 0.015,
+    priceLabel: "$0.015 / 1K chars",
+  }])];
+  const selectedTts = ttsModels.find((m) => m.id === (values.ttsModel || DEFAULT_TTS_MODEL));
+  const voices = selectedTts?.voices?.length
+    ? selectedTts.voices
+    : providers?.atlasTtsVoices ?? [
+      { id: "eve", label: "Eve — Energetic (F)" },
+      { id: "ara", label: "Ara — Warm (F)" },
+      { id: "leo", label: "Leo — Authoritative (M)" },
+      { id: "rex", label: "Rex — Confident (M)" },
+      { id: "sal", label: "Sal — Smooth (M)" },
+    ];
+  const selectedVideo = videos.find((m) => m.id === (values.videoModel || DEFAULT_VIDEO));
+  const selectedLip = lips.find((m) => m.id === values.lipSyncModel);
+  const talkingHeadI2v = Boolean(selectedVideo?.talkingHead);
+  const imageAudioLip = selectedLip?.kind === "image_audio";
 
   if (!showLlm && !showTts && !showImage && !showVideo && !showLipSync) return null;
 
+  const heading = title
+    ?? (showLipSync && !showLlm && !showTts && !showImage && !showVideo
+      ? "ATLAS · lips"
+      : showTts && !showLlm && !showImage && !showVideo && !showLipSync
+        ? "ATLAS · voz"
+        : "ATLAS · modelos");
+
   return (
     <div className="mt-4 space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
-      <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-primary">ATLAS · modelos</p>
+      <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-primary">{heading}</p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {showLlm && (
           <Field label="LLM">
@@ -99,7 +123,19 @@ export function AtlasModelFields({
         {showTts && (
           <>
             <Field label="TTS">
-              <Select value={values.ttsModel || DEFAULT_TTS_MODEL} onValueChange={(v) => v && onChange({ ttsModel: v })}>
+              <Select
+                value={values.ttsModel || DEFAULT_TTS_MODEL}
+                onValueChange={(v) => {
+                  if (!v) return;
+                  const next = ttsModels.find((m) => m.id === v);
+                  const nextVoices = next?.voices ?? [];
+                  const keep = nextVoices.some((voice) => voice.id === values.ttsVoice);
+                  onChange({
+                    ttsModel: v,
+                    ...(!keep && nextVoices[0] ? { ttsVoice: nextVoices[0].id } : {}),
+                  });
+                }}
+              >
                 <SelectTrigger className={fieldClass}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {ttsModels.map((m) => (
@@ -129,7 +165,11 @@ export function AtlasModelFields({
               <SelectContent>
                 {images.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
-                    <PriceRow name={m.label} price={m.priceLabel ?? `$${m.usd} / imagen`} />
+                    <PriceRow
+                      name={m.label}
+                      price={m.priceLabel ?? `$${m.usd} / imagen`}
+                      hint={m.refs === false ? "sin refs de identidad" : "acepta ficha / refs"}
+                    />
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -137,13 +177,17 @@ export function AtlasModelFields({
           </Field>
         )}
         {showVideo && (
-          <Field label="I2V">
+          <Field label="I2V (movimiento)">
             <Select value={values.videoModel || DEFAULT_VIDEO} onValueChange={(v) => v && onChange({ videoModel: v })}>
               <SelectTrigger className={fieldClass}><SelectValue /></SelectTrigger>
               <SelectContent>
                 {videos.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
-                    <PriceRow name={m.label} price={m.priceLabel ?? `$${m.usd} / s`} />
+                    <PriceRow
+                      name={m.label}
+                      price={m.priceLabel ?? `$${m.usd} / s`}
+                      hint={m.talkingHead ? "talking-head: foto + audio" : m.lastFrame ? "acepta último frame" : "still → clip"}
+                    />
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -151,16 +195,20 @@ export function AtlasModelFields({
           </Field>
         )}
         {showLipSync && (
-          <Field label="Lip-sync">
+          <Field label="Lip-sync (aparte del I2V)">
             <Select value={values.lipSyncModel || DEFAULT_LIP} onValueChange={(v) => v && onChange({ lipSyncModel: v })}>
               <SelectTrigger className={fieldClass}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">
-                  <PriceRow name="Sin lip-sync" price="$0" />
+                  <PriceRow name="Sin lip-sync" price="$0" hint="solo el clip I2V" />
                 </SelectItem>
                 {lips.map((m) => (
                   <SelectItem key={m.id} value={m.id}>
-                    <PriceRow name={m.label} price={m.priceLabel ?? `$${m.usd} / s`} />
+                    <PriceRow
+                      name={m.label}
+                      price={m.priceLabel ?? `$${m.usd} / s`}
+                      hint={m.kind === "image_audio" ? "foto + audio (reemplaza I2V)" : "video + audio (después del I2V)"}
+                    />
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -168,6 +216,21 @@ export function AtlasModelFields({
           </Field>
         )}
       </div>
+      {showVideo && talkingHeadI2v ? (
+        <p className="text-[11px] text-muted-foreground">
+          Este I2V es talking-head: anima la foto con el audio TTS. El lip-sync aparte no se aplica.
+        </p>
+      ) : null}
+      {showLipSync && imageAudioLip && !talkingHeadI2v ? (
+        <p className="text-[11px] text-muted-foreground">
+          Este lips usa foto + audio. No anima el clip I2V: genera la boca desde el still y la locución.
+        </p>
+      ) : null}
+      {showLipSync && selectedLip?.kind === "video_audio" ? (
+        <p className="text-[11px] text-muted-foreground">
+          Lips aparte: primero I2V (movimiento), después se re-drive la boca con el audio TTS.
+        </p>
+      ) : null}
     </div>
   );
 }

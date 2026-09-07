@@ -33,6 +33,7 @@ import { PipelineOverview } from "@/components/new-short/PipelineOverview";
 import { CostEstimatePanel } from "@/components/new-short/CostEstimatePanel";
 import { KokoroVoiceMixer } from "@/components/new-short/KokoroVoiceMixer";
 import { VisualTypeGrid } from "@/components/new-short/VisualTypeGrid";
+import { SceneMixPreview } from "@/components/new-short/SceneMixPreview";
 import { estimateJobCost } from "@/lib/job-cost-preview";
 import { VIDEO_SCENE_MODE_OPTIONS } from "@/lib/video-scene-modes";
 import { fetchUsdToCopRate } from "@/lib/cop-rate";
@@ -347,7 +348,7 @@ export function HomePage() {
             : {}),
           ...(imageProvider === "sharpii" ? { sharpiiImageModel } : {}),
           ...(videoProvider === "sharpii" ? { sharpiiVideoModel } : {}),
-          ...(ttsProvider === "atlas-tts" ? { atlasTtsVoice } : {}),
+          ...(ttsProvider === "atlas-tts" ? { atlasTtsVoice, atlasTtsModel } : {}),
           ...(imageProvider === "atlas" ? { atlasImageModel } : {}),
           ...(llmProvider === "atlas"
             ? { llmModel: llmModel || "deepseek-ai/deepseek-v4-flash" }
@@ -664,6 +665,15 @@ export function HomePage() {
                   </Field>
                 )}
               </div>
+              {allowedVisualTypes.includes("ai_video") && (
+                <div className="mt-4">
+                  <SceneMixPreview
+                    sceneCount={costPreview.sceneCount}
+                    mode={videoSceneMode}
+                    hasVideo
+                  />
+                </div>
+              )}
 
               {(imageProvider === "runpod" || videoProvider === "runpod") && (
                 <div className="mt-4 rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3">
@@ -788,11 +798,12 @@ export function HomePage() {
                 <AtlasModelFields
                   providers={providers}
                   fieldClass={field}
+                  title="ATLAS · imagen e I2V"
                   showImage={imageProvider === "atlas"}
                   showVideo={videoProvider === "atlas"}
-                  showLipSync={videoProvider === "atlas"}
                   values={{
                     llmModel,
+                    ttsModel: atlasTtsModel,
                     ttsVoice: atlasTtsVoice,
                     imageModel: atlasImageModel,
                     videoModel: atlasVideoModel,
@@ -801,6 +812,24 @@ export function HomePage() {
                   onChange={(patch) => {
                     if (patch.imageModel) setAtlasImageModel(patch.imageModel);
                     if (patch.videoModel) setAtlasVideoModel(patch.videoModel);
+                  }}
+                />
+              )}
+              {videoProvider === "atlas" && (
+                <AtlasModelFields
+                  providers={providers}
+                  fieldClass={field}
+                  title="ATLAS · lips (aparte)"
+                  showLipSync
+                  values={{
+                    llmModel,
+                    ttsModel: atlasTtsModel,
+                    ttsVoice: atlasTtsVoice,
+                    imageModel: atlasImageModel,
+                    videoModel: atlasVideoModel,
+                    lipSyncModel: atlasLipSyncModel,
+                  }}
+                  onChange={(patch) => {
                     if (patch.lipSyncModel) setAtlasLipSyncModel(patch.lipSyncModel);
                   }}
                 />

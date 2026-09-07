@@ -311,6 +311,7 @@ app.get("/api/v1/providers", async () => ({
     label: m.label,
     usdPer1kChars: m.usdPer1kChars,
     priceLabel: atlasTtsPriceLabel(m),
+    voices: m.voices,
   })),
   atlasLlmModels: sortedAtlasLlmModels().map((m) => ({
     id: m.id,
@@ -323,6 +324,7 @@ app.get("/api/v1/providers", async () => ({
     id: m.id,
     label: m.label,
     usd: m.usd,
+    refs: Boolean(m.refs),
     priceLabel: atlasImagePriceLabel(m),
   })),
   atlasVideoModels: sortedAtlasVideoModels().map((m) => ({
@@ -331,12 +333,14 @@ app.get("/api/v1/providers", async () => ({
     usd: m.usdPerSecond,
     durations: m.durations,
     talkingHead: Boolean(m.talkingHead),
+    lastFrame: Boolean(m.lastFrame),
     priceLabel: atlasPerSecondPriceLabel(m.usdPerSecond),
   })),
   atlasLipSyncModels: sortedAtlasLipSyncModels().map((m) => ({
     id: m.id,
     label: m.label,
     usd: m.usdPerSecond,
+    kind: m.kind,
     priceLabel: atlasPerSecondPriceLabel(m.usdPerSecond),
   })),
   atelierStyles: ATELIER_STYLES,
@@ -629,6 +633,7 @@ interface CreateJobBody {
     atlasImageModel?: string;
     atlasVideoModel?: string;
     atlasTtsVoice?: string;
+    atlasTtsModel?: string;
     atlasLipSyncModel?: string | null;
   };
   keys?: Record<string, string>;
@@ -840,6 +845,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       atlasImageModel: providers?.atlasImageModel,
       atlasVideoModel: providers?.atlasVideoModel,
       atlasTtsVoice: providers?.atlasTtsVoice,
+      atlasTtsModel: providers?.atlasTtsModel,
       atlasLipSyncModel: providers?.atlasLipSyncModel,
     },
     keys: keys ?? {},

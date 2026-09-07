@@ -61,6 +61,23 @@ describe("AtlasVideo", () => {
     await fsp.unlink(result.filePath).catch(() => {});
   });
 
+  it("uses image+audio lips instead of I2V when InfiniteTalk is the lip model", async () => {
+    const video = new AtlasVideo(undefined, undefined, "atlascloud/infinitetalk");
+    const result = await video.generate({
+      sourceImage: Buffer.alloc(100, 2),
+      prompt: "talks to camera",
+      durationSeconds: 5,
+      audio: Buffer.alloc(200, 3),
+    });
+    expect(generateVideo).toHaveBeenCalledTimes(1);
+    expect(generateVideo).toHaveBeenCalledWith(
+      "test-atlas-key",
+      "atlascloud/infinitetalk",
+      expect.objectContaining({ audio: expect.any(String), image: expect.any(String) }),
+    );
+    await fsp.unlink(result.filePath).catch(() => {});
+  });
+
   it("skips lipsync when disabled", async () => {
     const video = new AtlasVideo(undefined, undefined, null);
     const result = await video.generate({

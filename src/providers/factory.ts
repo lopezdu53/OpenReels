@@ -114,6 +114,7 @@ export interface ProviderConfig {
   atlasImageModel?: string;
   atlasVideoModel?: string;
   atlasTtsVoice?: string;
+  atlasTtsModel?: string;
   atlasLipSyncModel?: string | null;
 }
 
@@ -246,7 +247,7 @@ export function createProviders(config: ProviderConfig): Providers {
       break;
     case "atlas-tts":
       tts = new AlignedTTSProvider(
-        new AtlasTTS(config.atlasTtsVoice, k["ATLASCLOUD_API_KEY"]),
+        new AtlasTTS(config.atlasTtsVoice, k["ATLASCLOUD_API_KEY"], undefined, config.atlasTtsModel),
         aligner,
       );
       break;
