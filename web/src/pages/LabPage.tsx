@@ -411,7 +411,7 @@ export function LabPage() {
           {ttsProvider === "atlas-tts" && (
             <div>
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Voz Atlas (xAI)</label>
-              <Select value={ttsVoice || "eve"} onValueChange={setTtsVoice}>
+              <Select value={ttsVoice || "eve"} onValueChange={(v) => v && setTtsVoice(v)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
