@@ -11,6 +11,7 @@ import { summarizeVideoFallbacks } from "../agents/critic-audit.js";
 import { applyVisualIdentity, characterSheetFitsScene, identityLockLead, locationSheetFitsScene, normalizeCastMode, parseCastMembers, parseLocationMembers, planSceneCastFocus, planSceneLocationFocus, planSceneObjectFocus } from "../library/identity.js";
 import { optimizeImagePrompt } from "../agents/image-prompter.js";
 import { generateOrientedImage } from "../providers/image/dimensions.js";
+import { writeHeldStill } from "./hold-frame.js";
 import { lookupRemoteUrl } from "../providers/runpod/client.js";
 import { buildShotContext } from "../library/prompt-context.js";
 import { imageProviderChainsIdentity, imageProviderClonesLayout, planVisualReferences, sheetToSceneHint, type SheetReference } from "./visual-refs.js";
@@ -221,6 +222,13 @@ async function generateAIImage(
     }
   }
 
+  if (referenceImage && referenceImage.length > 80) {
+    prompt =
+      "CONTINUITY LOCK: same person, same wardrobe, SAME ROOM as the reference still " +
+      "(walls, furniture, window, lighting). Change only pose, hands, or the named prop for this beat. " +
+      "Do not teleport, do not redesign the set. " +
+      prompt;
+  }
   if (sceneLock?.trim()) {
     prompt = `${identityLockLead(sceneLock)} Not a fox, raccoon, cat, or tiger unless the lock says so. ${sceneLock.trim()} Scene: ${prompt}`;
   }
@@ -384,19 +392,30 @@ async function resolveVisualAsset(
       // holds AND the beat (logo, country, prop) actually changes. Copying the
       // same still into every I2V start froze hero jobs on pose 0.
       const imageStart = Date.now();
-      const imgResult = await generateAIImage(
-        opts,
-        scene.visual_prompt,
-        scene.script_line,
-        index,
-        totalScenes,
-        archetype,
-        assetsDir,
-        referenceImage,
-        aspectRatio,
-        shotBag,
-        referenceImageUrl,
-      );
+      let imgResult: VisualAssetResult;
+      try {
+        imgResult = await generateAIImage(
+          opts,
+          scene.visual_prompt,
+          scene.script_line,
+          index,
+          totalScenes,
+          archetype,
+          assetsDir,
+          referenceImage,
+          aspectRatio,
+          shotBag,
+          referenceImageUrl,
+        );
+      } catch (err) {
+        if (!(referenceImage && referenceImage.length > 80)) throw err;
+        console.warn(`[visuals] Scene ${index} still failed, holding previous frame: ${err}`);
+        imgResult = {
+          path: writeHeldStill(assetsDir, index, referenceImage),
+          usage: null,
+          durationSeconds: null,
+        };
+      }
       const imageGenTimeMs = Date.now() - imageStart;
       const imageBuffer = fs.readFileSync(imgResult.path!);
 
@@ -1053,7 +1072,13 @@ function buildPipelineWorkflow(
                 }
               } catch (err) {
                 cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
-                results.push({ path: null, usage: null, durationSeconds: null });
+                if (previousImage && previousImage.length > 80) {
+                  const held = writeHeldStill(assetsDir, i, previousImage);
+                  console.warn(`[visuals] Scene ${i} failed, holding previous still so the thread continues: ${err}`);
+                  results.push({ path: held, usage: null, durationSeconds: null });
+                } else {
+                  results.push({ path: null, usage: null, durationSeconds: null });
+                }
               }
             }
             return results;
