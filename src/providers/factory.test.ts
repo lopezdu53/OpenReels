@@ -19,6 +19,13 @@ import { GeminiTTS } from "./tts/gemini.js";
 import { InworldTTS } from "./tts/inworld.js";
 import { KokoroTTS } from "./tts/kokoro.js";
 import { OpenAITTS } from "./tts/openai.js";
+import { GrokTTS } from "./tts/grok.js";
+import { GrokLLM } from "./llm/grok.js";
+import { GrokImage } from "./image/grok.js";
+import { RunPodImage } from "./image/runpod.js";
+import { RunPodVideo } from "./video/runpod.js";
+import { SharpiiImage } from "./image/sharpii.js";
+import { SharpiiVideo } from "./video/sharpii.js";
 
 vi.mock("./llm/anthropic.js", () => ({
   AnthropicLLM: vi.fn().mockImplementation(() => ({ id: "anthropic", generate: vi.fn() })),
@@ -43,6 +50,17 @@ vi.mock("./tts/gemini.js", () => ({
 }));
 vi.mock("./tts/openai.js", () => ({
   OpenAITTS: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
+}));
+vi.mock("./tts/grok.js", () => ({
+  GrokTTS: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
+  GROK_TTS_VOICES: [],
+  GROK_TTS_MODELS: [],
+}));
+vi.mock("./llm/grok.js", () => ({
+  GrokLLM: vi.fn().mockImplementation(() => ({ id: "grok", generate: vi.fn() })),
+}));
+vi.mock("./image/grok.js", () => ({
+  GrokImage: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
 }));
 vi.mock("./tts/aligned-tts-provider.js", () => ({
   AlignedTTSProvider: vi.fn().mockImplementation((inner) => ({ generate: vi.fn(), _inner: inner })),
@@ -88,6 +106,21 @@ vi.mock("./video/gemini.js", () => ({
 }));
 vi.mock("./video/fal.js", () => ({
   FalVideo: vi.fn().mockImplementation(() => ({ supportedDurations: [5, 10], generate: vi.fn() })),
+}));
+vi.mock("./video/grok.js", () => ({
+  GrokVideo: vi.fn().mockImplementation(() => ({ supportedDurations: [5, 6, 8, 10], generate: vi.fn() })),
+}));
+vi.mock("./image/runpod.js", () => ({
+  RunPodImage: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
+}));
+vi.mock("./video/runpod.js", () => ({
+  RunPodVideo: vi.fn().mockImplementation(() => ({ supportedDurations: [5, 8, 10], generate: vi.fn() })),
+}));
+vi.mock("./image/sharpii.js", () => ({
+  SharpiiImage: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
+}));
+vi.mock("./video/sharpii.js", () => ({
+  SharpiiVideo: vi.fn().mockImplementation(() => ({ supportedDurations: [5, 10], generate: vi.fn() })),
 }));
 
 describe("createProviders", () => {
@@ -226,7 +259,79 @@ describe("createProviders", () => {
       kokoroVoice: "bf_emma",
     });
 
-    expect(KokoroTTS).toHaveBeenCalledWith("bf_emma");
+    expect(KokoroTTS).toHaveBeenCalledWith("bf_emma", undefined);
+  });
+
+  it("passes kokoroSpeed to KokoroTTS constructor", () => {
+    createProviders({
+      llm: "anthropic",
+      tts: "kokoro",
+      image: "gemini",
+      kokoroVoice: "ef_dora",
+      kokoroSpeed: 1.2,
+    });
+
+    expect(KokoroTTS).toHaveBeenCalledWith("ef_dora", 1.2);
+  });
+
+  it("constructs RunPod image from API key without a custom endpoint", () => {
+    createProviders({
+      llm: "anthropic",
+      tts: "elevenlabs",
+      image: "runpod",
+      runpodImageModel: "black-forest-labs-flux-1-schnell",
+      runpodImageSteps: 4,
+      keys: { RUNPOD_API_KEY: "rp-key" },
+    });
+
+    expect(RunPodImage).toHaveBeenCalledWith({
+      model: "black-forest-labs-flux-1-schnell",
+      endpointId: undefined,
+      apiKey: "rp-key",
+      steps: 4,
+      guidance: undefined,
+    });
+  });
+
+  it("constructs RunPod video from API key without a custom endpoint", () => {
+    createProviders({
+      llm: "anthropic",
+      tts: "elevenlabs",
+      image: "gemini",
+      video: "runpod",
+      runpodVideoModel: "p-video",
+      runpodVideoResolution: "720p",
+      keys: { RUNPOD_API_KEY: "rp-key" },
+    });
+
+    expect(RunPodVideo).toHaveBeenCalledWith({
+      model: "p-video",
+      endpointId: undefined,
+      apiKey: "rp-key",
+      resolution: "720p",
+    });
+  });
+
+  it("does not fall back to Gemini video when RunPod is primary", () => {
+    const origGoogle = process.env["GOOGLE_API_KEY"];
+    process.env["GOOGLE_API_KEY"] = "test-goog";
+
+    const providers = createProviders({
+      llm: "anthropic",
+      tts: "elevenlabs",
+      image: "runpod",
+      video: "runpod",
+      runpodImageModel: "p-image-t2i",
+      runpodVideoModel: "p-video",
+      keys: { RUNPOD_API_KEY: "rp-key", GOOGLE_API_KEY: "test-goog" },
+    });
+
+    expect(RunPodVideo).toHaveBeenCalledOnce();
+    expect(GeminiVideo).not.toHaveBeenCalled();
+    expect(providers.videoProviders).toHaveLength(1);
+
+    process.env["GOOGLE_API_KEY"] = origGoogle ?? "";
+    if (!origGoogle) delete process.env["GOOGLE_API_KEY"];
   });
 
   it("wraps GeminiTTS in AlignedTTSProvider", () => {
@@ -470,5 +575,61 @@ describe("createProviders", () => {
     process.env["FAL_API_KEY"] = origFal ?? "";
     if (!origGoogle) delete process.env["GOOGLE_API_KEY"];
     if (!origFal) delete process.env["FAL_API_KEY"];
+  });
+
+  it("creates GrokLLM when llm config is grok", () => {
+    createProviders({
+      llm: "grok",
+      tts: "elevenlabs",
+      image: "gemini",
+      keys: { XAI_API_KEY: "test-xai-key" },
+    });
+    expect(GrokLLM).toHaveBeenCalledWith(undefined, "test-xai-key", {});
+  });
+
+  it("wraps GrokTTS in AlignedTTSProvider", () => {
+    createProviders({
+      llm: "anthropic",
+      tts: "grok-tts",
+      image: "gemini",
+      grokTtsVoice: "ara",
+      grokTtsSpeed: 1.2,
+      keys: { XAI_API_KEY: "test-xai-key" },
+    });
+    expect(GrokTTS).toHaveBeenCalledWith(undefined, "ara", "test-xai-key", 1.2);
+    expect(AlignedTTSProvider).toHaveBeenCalled();
+  });
+
+  it("creates GrokImage when image config is grok", () => {
+    createProviders({
+      llm: "anthropic",
+      tts: "elevenlabs",
+      image: "grok",
+      keys: { XAI_API_KEY: "test-xai-key" },
+    });
+    expect(GrokImage).toHaveBeenCalledWith(undefined, "test-xai-key");
+  });
+
+  it("creates SharpiiImage when image config is sharpii", () => {
+    createProviders({
+      llm: "anthropic",
+      tts: "elevenlabs",
+      image: "sharpii",
+      sharpiiImageModel: "nano-banana-pro",
+      keys: { SHARPII_API_KEY: "shp_test" },
+    });
+    expect(SharpiiImage).toHaveBeenCalledWith("nano-banana-pro", "shp_test");
+  });
+
+  it("creates SharpiiVideo when video config is sharpii", () => {
+    createProviders({
+      llm: "anthropic",
+      tts: "elevenlabs",
+      image: "gemini",
+      video: "sharpii",
+      sharpiiVideoModel: "seedance-2.0-fast-720p",
+      keys: { SHARPII_API_KEY: "shp_test" },
+    });
+    expect(SharpiiVideo).toHaveBeenCalledWith("seedance-2.0-fast-720p", "shp_test");
   });
 });

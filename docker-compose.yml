@@ -14,8 +14,12 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - JOBS_DIR=/app/jobs
+      - DATA_DIR=/app/data
+      - VOX_JOBS_DIR=/app/vox-jobs
     volumes:
       - jobs-data:/app/jobs
+      - users-data:/app/data
+      - vox-jobs-data:/app/vox-jobs
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/health"]
@@ -32,13 +36,17 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379
       - JOBS_DIR=/app/jobs
+      - VOX_JOBS_DIR=/app/vox-jobs
     shm_size: "2gb"
     volumes:
       - jobs-data:/app/jobs
+      - vox-jobs-data:/app/vox-jobs
       - ./output:/output
       - openreels-cache:/root/.openreels/cache
     restart: unless-stopped
 
 volumes:
   jobs-data:
+  users-data:
   openreels-cache:
+  vox-jobs-data:

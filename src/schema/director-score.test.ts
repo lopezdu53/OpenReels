@@ -37,12 +37,20 @@ describe("DirectorScore schema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects more than 16 scenes", () => {
-    const scenes = Array.from({ length: 17 }, (_, i) =>
+  it("rejects more than 200 scenes", () => {
+    const scenes = Array.from({ length: 201 }, (_, i) =>
       validScene(i % 2 === 0 ? "ai_image" : "stock_video"),
     );
     const result = DirectorScore.safeParse({ ...baseScore, scenes });
     expect(result.success).toBe(false);
+  });
+
+  it("accepts more than 16 scenes (Film long-form)", () => {
+    const scenes = Array.from({ length: 17 }, (_, i) =>
+      validScene(i % 2 === 0 ? "ai_image" : "stock_video"),
+    );
+    const result = DirectorScore.safeParse({ ...baseScore, scenes });
+    expect(result.success).toBe(true);
   });
 
   it("accepts 12 scenes (fast pacing tier)", () => {
@@ -56,6 +64,19 @@ describe("DirectorScore schema", () => {
     const types = ["ai_image", "stock_video", "text_card", "stock_image"];
     const scenes = Array.from({ length: 16 }, (_, i) => validScene(types[i % types.length]!));
     const result = DirectorScore.safeParse({ ...baseScore, scenes });
+    expect(result.success).toBe(true);
+  });
+
+  it("allows 3+ consecutive ai_video scenes (follow-cam / force_all)", () => {
+    const result = DirectorScore.safeParse({
+      ...baseScore,
+      scenes: [
+        validScene("ai_video"),
+        validScene("ai_video"),
+        validScene("ai_video"),
+        validScene("ai_video"),
+      ],
+    });
     expect(result.success).toBe(true);
   });
 

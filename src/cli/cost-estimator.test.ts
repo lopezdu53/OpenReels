@@ -124,6 +124,17 @@ describe("estimateCost", () => {
     expect(fal.videoCost).toBeGreaterThan(gemini.videoCost);
   });
 
+  it("uses Sharpii catalog pricing for image and video", () => {
+    const score = makeScore([
+      { visual_type: "ai_image", script_line: "Still" },
+      { visual_type: "ai_video", script_line: "Clip" },
+    ]);
+    const sharpii = estimateCost(score, "sharpii", "elevenlabs", "sharpii");
+    const gemini = estimateCost(score, "gemini", "elevenlabs", undefined);
+    expect(sharpii.imageCost).toBeLessThan(gemini.imageCost);
+    expect(sharpii.videoCost).toBeGreaterThan(0);
+  });
+
   it("includes revision cost with separate evaluation and revision counts", () => {
     const score = makeScore([{ visual_type: "ai_image", script_line: "Test" }]);
     // No gate activity
