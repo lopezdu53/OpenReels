@@ -419,6 +419,8 @@ async function resolveVisualAsset(
           location: scene.location,
           previousVisualPrompt: shot?.previousVisualPrompt,
         }),
+        heroFollowCam,
+        continuation: reuseLastFrame,
       });
 
       // Adjust imageGenTimeMs in the resolution metadata

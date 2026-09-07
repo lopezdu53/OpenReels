@@ -28,6 +28,27 @@ const videoGenLimit = pLimit(3);
 const DEFAULT_VIDEO_NEGATIVES =
   "blur, low resolution, flickering, compression artifacts, frame drops, jitter, stutter, warping, morphing, unnatural physics, deformed hands, extra fingers, morphing faces, sliding motion";
 
+const HERO_IDENTITY_NEGATIVES =
+  "different person, new face, face swap, wardrobe change, new clothes, new glasses, new hairstyle, new room, new location, identity morph, clothing morph";
+
+/** Hero I2V drifts hard after ~5s; hold the last frame in assembly instead of a longer morph. */
+export const HERO_I2V_MAX_SECONDS = 5;
+
+export function buildHeroMotionPrompt(opts: {
+  scriptLine: string;
+  cameraMove?: string;
+  continuation: boolean;
+}): string {
+  const hold = opts.continuation
+    ? "SOURCE IMAGE LOCK: this still IS the last frame of the previous clip. Keep the same face, glasses, hair, body, clothes, jewelry, and room. Do not redesign anything. First 0.4s: hold those pixels, then continue."
+    : "SOURCE IMAGE LOCK: animate this exact still. Keep the same face, glasses, hair, body, clothes, jewelry, and room. Do not invent a new wardrobe or location.";
+  const cam =
+    opts.cameraMove && opts.cameraMove !== "static"
+      ? ` Camera: ${opts.cameraMove} following the body.`
+      : "";
+  return `${hold} Only the action changes: ${opts.scriptLine.trim()}.${cam} One take. End on a stable pose the next clip can inherit.`;
+}
+
 /**
  * Pick the smallest supported duration that is >= the target.
  * If target exceeds all supported durations, pick the max (trim, never loop).
@@ -38,6 +59,14 @@ function pickDuration(supportedDurations: number[], targetSeconds: number): numb
     if (d >= targetSeconds) return d;
   }
   return sorted[sorted.length - 1] ?? 5;
+}
+
+/** Largest supported clip that still fits the identity cap. Prefer short over morph. */
+export function pickHeroDuration(supportedDurations: number[], maxSeconds: number): number {
+  const atOrBelow = supportedDurations.filter((d) => d <= maxSeconds).sort((a, b) => b - a);
+  if (atOrBelow[0] != null) return atOrBelow[0];
+  const sorted = [...supportedDurations].sort((a, b) => a - b);
+  return sorted[0] ?? maxSeconds;
 }
 
 export async function resolveAIVideo(
@@ -57,6 +86,8 @@ export async function resolveAIVideo(
     locationLock?: string;
     objectLock?: string;
     shotContext?: string;
+    heroFollowCam?: boolean;
+    continuation?: boolean;
   },
 ): Promise<{
   path: string;
@@ -67,46 +98,58 @@ export async function resolveAIVideo(
 }> {
   const imageGenTimeMs = 0; // Already tracked by caller
 
-  // Generate motion-aware prompt via LLM
+  // Hero follow-cam: do not let the LLM rewrite a new wardrobe/face. Job 18
+  // chained last frames correctly, then I2V invented a different man each clip.
   let motionPrompt = scene.visual_prompt;
   let prompterUsage: LLMUsage | null = null;
-  try {
-    const optimized = await optimizeImagePrompt(
-      opts.llm,
-      scene.visual_prompt,
-      scene.script_line,
-      sceneIndex,
-      opts.totalScenes ?? 1,
-      opts.archetype,
-      {
-        mode: "video",
-        characterLock: opts.characterLock,
-        locationLock: opts.locationLock,
-        objectLock: opts.objectLock,
-        aspectRatio: opts.aspectRatio,
-        ...(opts.shotContext ? { shotContext: opts.shotContext } : {}),
-      },
-    );
-    motionPrompt = optimized.prompt;
-    prompterUsage = optimized.usage;
-  } catch (err) {
-    console.warn(`[video] Scene ${sceneIndex} motion prompt gen failed, using visual_prompt: ${err}`);
+  if (opts.heroFollowCam) {
+    motionPrompt = buildHeroMotionPrompt({
+      scriptLine: scene.script_line,
+      cameraMove: scene.camera_move,
+      continuation: Boolean(opts.continuation),
+    });
+  } else {
+    try {
+      const optimized = await optimizeImagePrompt(
+        opts.llm,
+        scene.visual_prompt,
+        scene.script_line,
+        sceneIndex,
+        opts.totalScenes ?? 1,
+        opts.archetype,
+        {
+          mode: "video",
+          characterLock: opts.characterLock,
+          locationLock: opts.locationLock,
+          objectLock: opts.objectLock,
+          aspectRatio: opts.aspectRatio,
+          ...(opts.shotContext ? { shotContext: opts.shotContext } : {}),
+        },
+      );
+      motionPrompt = optimized.prompt;
+      prompterUsage = optimized.usage;
+    } catch (err) {
+      console.warn(`[video] Scene ${sceneIndex} motion prompt gen failed, using visual_prompt: ${err}`);
+    }
   }
 
   opts.callbacks.onProgress?.("visuals", { type: "video_image_ready", scene: sceneIndex });
 
   // Construct negative prompt: defaults + archetype anti-artifact guidance
   const archetypeGuidance = opts.archetype.antiArtifactGuidance?.trim();
+  const identityNegatives = opts.heroFollowCam ? `, ${HERO_IDENTITY_NEGATIVES}` : "";
   const negativePrompt = archetypeGuidance
-    ? `${DEFAULT_VIDEO_NEGATIVES}, ${archetypeGuidance}`
-    : DEFAULT_VIDEO_NEGATIVES;
+    ? `${DEFAULT_VIDEO_NEGATIVES}, ${archetypeGuidance}${identityNegatives}`
+    : `${DEFAULT_VIDEO_NEGATIVES}${identityNegatives}`;
 
   // Try each video provider in order
   for (let i = 0; i < opts.videoProviders.length; i++) {
     const provider = opts.videoProviders[i]!;
     const providerName = i === 0 ? "primary" : "secondary";
-    const targetDuration = opts.sceneDurationSeconds ?? 5;
-    const genDuration = pickDuration(provider.supportedDurations, targetDuration);
+    const rawTarget = opts.sceneDurationSeconds ?? 5;
+    const genDuration = opts.heroFollowCam
+      ? pickHeroDuration(provider.supportedDurations, HERO_I2V_MAX_SECONDS)
+      : pickDuration(provider.supportedDurations, rawTarget);
 
     try {
       const videoStart = Date.now();

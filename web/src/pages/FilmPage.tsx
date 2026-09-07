@@ -533,7 +533,7 @@ export function FilmPage() {
             ? castMode === "hero"
               ? cast.length > 1
                 ? `\n## Personajes (FOLLOW-CAM héroe, ${cast.length})\nHÉROE (eje óptico, siempre en cuadro): ${cast[0]!.name}\n${characterLock}\nUn plano continuo: la cámara sigue al héroe; el mundo se pega o se desplaza a su cuerpo. Hereda pose y viaje de cámara. Los demás solo cuando la locución los nombra.`
-                : `\n## Personaje (FOLLOW-CAM héroe — plano continuo)\n${characterLock}\nLa cámara lo sigue en TODOS los planos. El mundo se pega a su cuerpo. Tres beats por clip; cierra con una pose que el siguiente herede. Nunca un retrato nuevo ni un plano de solo locación.`
+                : `\n## Personaje (FOLLOW-CAM héroe — plano continuo)\n${characterLock}\nLa cámara lo sigue en TODOS los planos. El mundo se pega a su cuerpo. Tres beats por clip; cierra con una pose que el siguiente herede. Misma cara, misma ropa, mismos lentes, misma habitación. Nunca un retrato nuevo ni un plano de solo locación.`
               : cast.length > 1
                 ? `\n## Personajes (identidad bloqueada, ${cast.length})\n${characterLock}\nSolo en cuadro quien nombra esa frase. Si la locución es de uno, los demás no aparecen ni de fondo. Juntos solo cuando la frase nombra a más de uno.`
                 : `\n## Personaje (identidad bloqueada)\n${characterLock}`
@@ -558,7 +558,7 @@ export function FilmPage() {
           durationMinutes > 0 && durationMinutes < 0.75
             ? cast.length > 1
               ? `\n## Prueba ${testCutLabel(durationMinutes)}\nElenco bloqueado (${cast.map((c) => c.name).join(", ")}): cada uno conserva especie, marcas y cara. En cada plano solo quien nombra la locución. Cero text_card. Todas las escenas ai_video.`
-              : `\n## Prueba ${testCutLabel(durationMinutes)}\nMismo individuo en TODOS los planos: misma cresta, mismas manchas negras, mismos ojos, misma especie. Cero text_card. Todas las escenas ai_video.`
+              : `\n## Prueba ${testCutLabel(durationMinutes)}\nMismo individuo en TODOS los planos: mismo rostro, misma ropa, mismos lentes, misma habitación. Cero text_card. Todas las escenas ai_video.`
             : durationMinutes >= 0.75 && durationMinutes < 1.5
               ? "\n## Corte 1 min\nUn episodio corto. Cero text_card. Gancho, avance, cliffhanger."
               : "",

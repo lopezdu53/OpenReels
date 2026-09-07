@@ -15,7 +15,13 @@ vi.mock("../../agents/image-prompter.js", () => ({
   }),
 }));
 
-import { resolveAIVideo } from "./video-resolver.js";
+import { optimizeImagePrompt } from "../../agents/image-prompter.js";
+import {
+  buildHeroMotionPrompt,
+  HERO_I2V_MAX_SECONDS,
+  pickHeroDuration,
+  resolveAIVideo,
+} from "./video-resolver.js";
 
 let tmpDir: string;
 
@@ -266,5 +272,81 @@ describe("resolveAIVideo", () => {
     const generateCall = (primary.generate as ReturnType<typeof vi.fn>).mock.calls[0]![0];
     expect(generateCall.prompt).toBe("A rocket launching");
     expect(result.videoResolution.motionPrompt).toBe("A rocket launching");
+  });
+
+  it("locks hero I2V to the source still and script line without calling the LLM", async () => {
+    vi.mocked(optimizeImagePrompt).mockClear();
+    const primary = makeProvider({ durations: [5, 8, 10] });
+    const scene = { ...mockScene, camera_move: "dolly_in" };
+    const result = await resolveAIVideo(scene, mockImageResult, 1, path.join(tmpDir, "assets"), {
+      videoProviders: [primary],
+      llm: mockLlm,
+      archetype: mockArchetype,
+      callbacks: mockCallbacks,
+      heroFollowCam: true,
+      continuation: true,
+      sceneDurationSeconds: 8,
+    });
+
+    expect(optimizeImagePrompt).not.toHaveBeenCalled();
+    expect(result.prompterUsage).toBeNull();
+    const generateCall = (primary.generate as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+    expect(generateCall.prompt).toContain("SOURCE IMAGE LOCK");
+    expect(generateCall.prompt).toContain("last frame");
+    expect(generateCall.prompt).toContain("Watch as the rocket lifts off.");
+    expect(generateCall.prompt).not.toContain("A rocket launching");
+    expect(generateCall.durationSeconds).toBe(5);
+    expect(generateCall.negativePrompt).toContain("different person");
+    expect(generateCall.negativePrompt).toContain("wardrobe change");
+    expect(generateCall.negativePrompt).toContain("new room");
+    expect(result.videoResolution.motionPrompt).toBe(generateCall.prompt);
+  });
+
+  it("caps first hero clip without treating it as a continuation", async () => {
+    const primary = makeProvider({ durations: [4, 6, 8] });
+    await resolveAIVideo(mockScene, mockImageResult, 0, path.join(tmpDir, "assets"), {
+      videoProviders: [primary],
+      llm: mockLlm,
+      archetype: mockArchetype,
+      callbacks: mockCallbacks,
+      heroFollowCam: true,
+      sceneDurationSeconds: 8,
+    });
+
+    const generateCall = (primary.generate as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+    expect(generateCall.durationSeconds).toBe(4);
+    expect(generateCall.prompt).toContain("SOURCE IMAGE LOCK");
+    expect(generateCall.prompt).not.toContain("last frame");
+  });
+});
+
+describe("buildHeroMotionPrompt", () => {
+  it("uses only the spoken line as the action", () => {
+    const prompt = buildHeroMotionPrompt({
+      scriptLine: "Casimiro se pone el Rolex.",
+      cameraMove: "pan_right",
+      continuation: false,
+    });
+    expect(prompt).toContain("Casimiro se pone el Rolex.");
+    expect(prompt).toContain("pan_right");
+    expect(prompt).not.toContain("tweed");
+  });
+
+  it("holds previous-clip pixels on continuation", () => {
+    const prompt = buildHeroMotionPrompt({
+      scriptLine: "Sale del apartamento.",
+      continuation: true,
+    });
+    expect(prompt).toContain("last frame of the previous clip");
+    expect(prompt).toContain("Do not redesign anything");
+  });
+});
+
+describe("pickHeroDuration", () => {
+  it("picks the longest clip that still fits the identity cap", () => {
+    expect(HERO_I2V_MAX_SECONDS).toBe(5);
+    expect(pickHeroDuration([5, 8, 10], HERO_I2V_MAX_SECONDS)).toBe(5);
+    expect(pickHeroDuration([4, 6, 8], HERO_I2V_MAX_SECONDS)).toBe(4);
+    expect(pickHeroDuration([6, 8], HERO_I2V_MAX_SECONDS)).toBe(6);
   });
 });
