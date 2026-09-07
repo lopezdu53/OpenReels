@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { buildCastBrief, buildFilmDirection, buildLocationBrief, buildObjectBrief, buildSequelBrief, extractScoreCastNames, parseYoutubeUrls, titleFromScript } from "./script.js";
+import { afterEach, describe, expect, it } from "vitest";
+import { buildCastBrief, buildFilmDirection, buildLocationBrief, buildObjectBrief, buildSequelBrief, extractScoreCastNames, parseYoutubeUrls, pickFilmLlm, titleFromScript } from "./script.js";
 
 describe("film script helpers", () => {
   it("parses unique YouTube urls", () => {
@@ -104,5 +104,19 @@ describe("film script helpers", () => {
         scenes: [{ visual_prompt: "ON SCREEN: only Tania. Name: Tania. | leftover" }],
       }),
     ).toEqual(["Tania"]);
+  });
+});
+
+describe("pickFilmLlm", () => {
+  const orig = process.env["ATLASCLOUD_API_KEY"];
+
+  afterEach(() => {
+    if (orig !== undefined) process.env["ATLASCLOUD_API_KEY"] = orig;
+    else delete process.env["ATLASCLOUD_API_KEY"];
+  });
+
+  it("uses AtlasLLM when Film selects ATLAS (not Anthropic)", () => {
+    process.env["ATLASCLOUD_API_KEY"] = "test-atlas-key";
+    expect(pickFilmLlm("atlas", "deepseek-ai/deepseek-v4-flash").id).toBe("atlas");
   });
 });

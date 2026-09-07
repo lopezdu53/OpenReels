@@ -3,12 +3,16 @@ import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 
-vi.mock("../atlas/client.js", () => ({
-  generateVideo: vi.fn().mockResolvedValue("https://cdn.example/out.mp4"),
-  downloadUrl: vi.fn().mockResolvedValue(Buffer.alloc(60_000, 1)),
-  toDataUri: (buf: Buffer) => `data:image/png;base64,${buf.toString("base64")}`,
-  uploadBuffer: vi.fn().mockResolvedValue("https://cdn.example/uploaded"),
-}));
+vi.mock("../atlas/client.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../atlas/client.js")>();
+  return {
+    ...actual,
+    generateVideo: vi.fn().mockResolvedValue("https://cdn.example/out.mp4"),
+    downloadUrl: vi.fn().mockResolvedValue(Buffer.alloc(60_000, 1)),
+    toDataUri: (buf: Buffer) => `data:image/png;base64,${buf.toString("base64")}`,
+    uploadBuffer: vi.fn().mockResolvedValue("https://cdn.example/uploaded"),
+  };
+});
 
 import { generateVideo, uploadBuffer } from "../atlas/client.js";
 import { AtlasVideo } from "./atlas.js";

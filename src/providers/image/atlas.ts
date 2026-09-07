@@ -1,15 +1,13 @@
 import type { ImageProvider } from "../../schema/providers.js";
 import { DEFAULT_ATLAS_IMAGE_MODEL, resolveAtlasImageModel } from "../atlas/catalog.js";
-import { downloadUrl, generateImage, toDataUri } from "../atlas/client.js";
+import { downloadUrl, generateImage, requireAtlasApiKey, toDataUri } from "../atlas/client.js";
 
 export class AtlasImage implements ImageProvider {
   private apiKey: string;
   private modelId: string;
 
   constructor(modelId: string = DEFAULT_ATLAS_IMAGE_MODEL, apiKey?: string) {
-    const key = apiKey ?? process.env["ATLASCLOUD_API_KEY"];
-    if (!key) throw new Error("ATLASCLOUD_API_KEY environment variable is required for Atlas image");
-    this.apiKey = key;
+    this.apiKey = requireAtlasApiKey("image", apiKey);
     this.modelId = resolveAtlasImageModel(modelId).id;
   }
 

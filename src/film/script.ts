@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AliCloudLLM } from "../providers/llm/alicloud.js";
 import { AnthropicLLM } from "../providers/llm/anthropic.js";
+import { AtlasLLM } from "../providers/llm/atlas.js";
 import { GeminiLLM } from "../providers/llm/gemini.js";
 import { GrokLLM } from "../providers/llm/grok.js";
 import { OpenAILLM } from "../providers/llm/openai.js";
@@ -161,6 +162,8 @@ export function pickFilmLlm(provider?: string, model?: string): LLMProvider {
       return new AliCloudLLM(model);
     case "grok":
       return new GrokLLM(model);
+    case "atlas":
+      return new AtlasLLM(model);
     default:
       return new AnthropicLLM(model);
   }

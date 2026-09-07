@@ -4,6 +4,7 @@ import type { FastifyInstance } from "fastify";
 import type IORedis from "ioredis";
 import type { AuthedRequest } from "../auth/plugin.js";
 import { requireUser } from "../auth/plugin.js";
+import { resolveAtlasApiKey } from "../providers/atlas/client.js";
 import {
   DEFAULT_BAKEOFF,
   DEFAULT_IMAGE_MODEL,
@@ -79,7 +80,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
     if (!VOX_ASPECTS.includes(aspect as (typeof VOX_ASPECTS)[number])) {
       return reply.status(400).send({ error: "Aspecto inválido" });
     }
-    const atlasKey = String(body.atlasKey ?? process.env["ATLASCLOUD_API_KEY"] ?? "");
+    const atlasKey = resolveAtlasApiKey(typeof body.atlasKey === "string" ? body.atlasKey : undefined) ?? "";
     if (!atlasKey && mode !== "broll") {
       // A/C-roll always need Atlas; B-roll can draft a template first
     }
@@ -185,7 +186,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
     if (!meta || !ownerOk(meta, user.id)) return reply.status(404).send({ error: "No encontrado" });
     if (meta.status !== "awaiting_beats") return reply.status(400).send({ error: "Nada que aprobar" });
     if (!readBeats(meta.id)) return reply.status(400).send({ error: "Falta beats.json" });
-    if (!meta.config.atlasKey && !process.env["ATLASCLOUD_API_KEY"]) {
+    if (!resolveAtlasApiKey(meta.config.atlasKey)) {
       return reply.status(400).send({ error: "Configura ATLASCLOUD_API_KEY en Ajustes" });
     }
     setStatus(meta.id, "baking", "style", "En cola: bake-off");
@@ -203,7 +204,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
       return reply.status(400).send({ error: "Este Vox no está en bake-off" });
     }
     if (!readBeats(meta.id)) return reply.status(400).send({ error: "Falta beats.json" });
-    if (!meta.config.atlasKey && !process.env["ATLASCLOUD_API_KEY"]) {
+    if (!resolveAtlasApiKey(meta.config.atlasKey)) {
       return reply.status(400).send({ error: "Configura ATLASCLOUD_API_KEY en Ajustes" });
     }
     setStatus(meta.id, "baking", "style", "En cola: bake-off");

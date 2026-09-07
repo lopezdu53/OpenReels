@@ -50,4 +50,13 @@ describe("AtlasLLM", () => {
     expect(mockProvider).toHaveBeenCalledWith("qwen/qwen3.5-flash");
     expect(createOpenAICompatible).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "custom-key" }));
   });
+
+  it("falls back to env when BYOK is empty or NAME=value leftover", () => {
+    process.env["ATLASCLOUD_API_KEY"] = "env-atlas-key";
+    new AtlasLLM(undefined, "");
+    expect(createOpenAICompatible).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "env-atlas-key" }));
+    vi.clearAllMocks();
+    new AtlasLLM(undefined, "ATLASCLOUD_API_KEY=pasted-key");
+    expect(createOpenAICompatible).toHaveBeenCalledWith(expect.objectContaining({ apiKey: "pasted-key" }));
+  });
 });

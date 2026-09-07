@@ -3,11 +3,69 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { ATLAS_MEDIA_BASE, ATLAS_USER_AGENT } from "./catalog.js";
 
+export const ATLAS_INVALID_KEY_MESSAGE =
+  "Atlas: API key inválida. En EasyPanel el VALOR debe ser solo la clave completa " +
+  "(empieza por apikey-), no ATLASCLOUD_API_KEY=.... Cópiala de " +
+  "https://www.atlascloud.ai/console/api-keys y vuelve a Implementar video y video-worker.";
+
+export function rewriteAtlasAuthError(err: unknown): Error {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/invalid.*api.?key|unauthorized|api key is invalid|incorrect api key|401/i.test(msg)) {
+    return new AtlasCloudError(ATLAS_INVALID_KEY_MESSAGE);
+  }
+  return err instanceof Error ? err : new Error(String(err));
+}
+
 export class AtlasCloudError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "AtlasCloudError";
   }
+}
+
+const KEY_NAME_PREFIX = /^ATLASCLOUD_API_KEY\s*=\s*/i;
+
+/** Strip quotes, whitespace, and accidental `ATLASCLOUD_API_KEY=` pasted into the value. */
+export function sanitizeAtlasApiKey(raw?: string | null): string | undefined {
+  if (raw == null) return undefined;
+  let key = String(raw).trim();
+  if (!key) return undefined;
+  if (
+    (key.startsWith('"') && key.endsWith('"')) ||
+    (key.startsWith("'") && key.endsWith("'"))
+  ) {
+    key = key.slice(1, -1).trim();
+  }
+  if (KEY_NAME_PREFIX.test(key)) {
+    key = key.replace(KEY_NAME_PREFIX, "").trim();
+    if (
+      (key.startsWith('"') && key.endsWith('"')) ||
+      (key.startsWith("'") && key.endsWith("'"))
+    ) {
+      key = key.slice(1, -1).trim();
+    }
+  }
+  return key || undefined;
+}
+
+/** First usable candidate, then env. Empty / NAME=value leftovers do not win over env. */
+export function resolveAtlasApiKey(...candidates: Array<string | undefined | null>): string | undefined {
+  for (const candidate of candidates) {
+    const cleaned = sanitizeAtlasApiKey(candidate);
+    if (cleaned) return cleaned;
+  }
+  return sanitizeAtlasApiKey(process.env["ATLASCLOUD_API_KEY"]);
+}
+
+export function requireAtlasApiKey(
+  purpose: string,
+  ...candidates: Array<string | undefined | null>
+): string {
+  const key = resolveAtlasApiKey(...candidates);
+  if (!key) {
+    throw new Error(`ATLASCLOUD_API_KEY environment variable is required for Atlas ${purpose}`);
+  }
+  return key;
 }
 
 export function atlasHeaders(apiKey: string, jsonBody = true): Record<string, string> {
@@ -39,6 +97,10 @@ function errorText(status: number, pathName: string, json: unknown): string {
     row.message ??
     row.data?.message ??
     JSON.stringify(json).slice(0, 300);
+  const text = String(msg ?? "");
+  if (status === 401 || /invalid.*api.?key|unauthorized|api key is invalid/i.test(text)) {
+    return ATLAS_INVALID_KEY_MESSAGE;
+  }
   return `Atlas ${status} ${pathName}: ${msg}`;
 }
 

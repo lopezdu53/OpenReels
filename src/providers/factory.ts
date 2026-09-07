@@ -37,6 +37,7 @@ import {
   ATLAS_USER_AGENT,
   ATLAS_VIDEO_MODELS,
 } from "./atlas/catalog.js";
+import { resolveAtlasApiKey } from "./atlas/client.js";
 export { ATLAS_IMAGE_MODELS, ATLAS_LLM_MODELS, ATLAS_LIPSYNC_MODELS, ATLAS_TTS_VOICES, ATLAS_VIDEO_MODELS };
 import {
   DEFAULT_SHARPII_IMAGE_MODEL,
@@ -241,7 +242,7 @@ export function createProviders(config: ProviderConfig): Providers {
       break;
     case "atlas-tts":
       tts = new AlignedTTSProvider(
-        new AtlasTTS(config.atlasTtsVoice, k["ATLASCLOUD_API_KEY"] ?? process.env["ATLASCLOUD_API_KEY"]),
+        new AtlasTTS(config.atlasTtsVoice, k["ATLASCLOUD_API_KEY"]),
         aligner,
       );
       break;
@@ -261,7 +262,7 @@ export function createProviders(config: ProviderConfig): Providers {
   const runpodVideoEndpoint = k["RUNPOD_VIDEO_ENDPOINT_ID"] ?? process.env["RUNPOD_VIDEO_ENDPOINT_ID"];
   const xaiKey = k["XAI_API_KEY"] ?? process.env["XAI_API_KEY"];
   const sharpiiKey = k["SHARPII_API_KEY"] ?? process.env["SHARPII_API_KEY"];
-  const atlasKey = k["ATLASCLOUD_API_KEY"] ?? process.env["ATLASCLOUD_API_KEY"];
+  const atlasKey = resolveAtlasApiKey(k["ATLASCLOUD_API_KEY"]);
 
   let imageGen: ImageProvider;
   if (config.image === "fal") {
@@ -467,7 +468,7 @@ export function createVerificationModel(
       return grok(model ?? "grok-4");
     }
     case "atlas": {
-      const key = apiKey ?? process.env["ATLASCLOUD_API_KEY"];
+      const key = resolveAtlasApiKey(apiKey);
       if (!key) throw new Error("ATLASCLOUD_API_KEY is required for Atlas provider");
       const atlas = createOpenAICompatible({
         name: "atlascloud",

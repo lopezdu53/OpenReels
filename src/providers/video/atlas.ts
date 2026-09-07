@@ -9,7 +9,7 @@ import {
   resolveAtlasLipSyncModel,
   resolveAtlasVideoModel,
 } from "../atlas/catalog.js";
-import { downloadUrl, generateVideo, toDataUri, uploadBuffer } from "../atlas/client.js";
+import { downloadUrl, generateVideo, requireAtlasApiKey, toDataUri, uploadBuffer } from "../atlas/client.js";
 
 function pickDuration(supported: number[], wanted: number): number {
   if (supported.includes(wanted)) return wanted;
@@ -27,10 +27,8 @@ export class AtlasVideo implements VideoProvider {
     apiKey?: string,
     lipSyncModelId?: string | null,
   ) {
-    const key = apiKey ?? process.env["ATLASCLOUD_API_KEY"];
-    if (!key) throw new Error("ATLASCLOUD_API_KEY environment variable is required for Atlas video");
+    this.apiKey = requireAtlasApiKey("video", apiKey);
     const spec = resolveAtlasVideoModel(modelId);
-    this.apiKey = key;
     this.modelId = spec.id;
     this.lipSyncModelId = lipSyncModelId === undefined ? DEFAULT_ATLAS_LIPSYNC_MODEL : lipSyncModelId;
     this.supportedDurations = spec.durations;

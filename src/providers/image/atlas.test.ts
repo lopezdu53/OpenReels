@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../atlas/client.js", () => ({
-  generateImage: vi.fn().mockResolvedValue("https://cdn.example/out.png"),
-  downloadUrl: vi.fn().mockResolvedValue(Buffer.from("x".repeat(2000))),
-  toDataUri: (buf: Buffer) => `data:image/png;base64,${buf.toString("base64")}`,
-}));
+vi.mock("../atlas/client.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../atlas/client.js")>();
+  return {
+    ...actual,
+    generateImage: vi.fn().mockResolvedValue("https://cdn.example/out.png"),
+    downloadUrl: vi.fn().mockResolvedValue(Buffer.from("x".repeat(2000))),
+    toDataUri: (buf: Buffer) => `data:image/png;base64,${buf.toString("base64")}`,
+  };
+});
 
 import { downloadUrl, generateImage } from "../atlas/client.js";
 import { AtlasImage } from "./atlas.js";

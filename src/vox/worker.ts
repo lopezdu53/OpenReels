@@ -1,6 +1,7 @@
 import type { Job } from "bullmq";
 import { Queue, Worker } from "bullmq";
 import type IORedis from "ioredis";
+import { resolveAtlasApiKey } from "../providers/atlas/client.js";
 import { hydrateJobFromSnapshot, migrateLegacyVoxJobs, readBeats, readMeta, setStatus, voxJobsDir, writeBeats } from "./store.js";
 import {
   runArollAssemble,
@@ -53,7 +54,7 @@ function logTo(id: string) {
 
 function apiKeyOf(id: string): string {
   const meta = readMeta(id);
-  const key = meta?.config.atlasKey || process.env["ATLASCLOUD_API_KEY"];
+  const key = resolveAtlasApiKey(meta?.config.atlasKey);
   if (!key) throw new Error("Falta ATLASCLOUD_API_KEY (Ajustes o .env)");
   return key;
 }
