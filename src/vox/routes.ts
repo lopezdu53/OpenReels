@@ -29,6 +29,7 @@ import {
   patchMeta,
   readBeats,
   readMeta,
+  saveJobSnapshot,
   setStatus,
   writeBeats,
   writeUpload,
@@ -117,12 +118,14 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
       beats.mode = "croll";
       writeBeats(meta.id, beats);
       setStatus(meta.id, "awaiting_beats", "beats", "Revisa el beat map (C-roll)");
+      await saveJobSnapshot(redis, meta.id);
       return { id: meta.id, status: "awaiting_beats" };
     }
 
     if (typeof body.arollVideo === "string" && body.arollVideo.startsWith("data:")) {
       if (!atlasKey) return reply.status(400).send({ error: "A-roll necesita ATLASCLOUD_API_KEY" });
       const source = writeUpload(meta.id, "aroll", body.arollVideo);
+      await saveJobSnapshot(redis, meta.id);
       await queue.add("asr", { id: meta.id, action: "asr", source }, { removeOnComplete: 50, removeOnFail: 50 });
       return { id: meta.id, status: "drafting" };
     }
@@ -140,6 +143,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
       setStatus(meta.id, "failed", "beats", msg, { error: msg });
       return reply.status(500).send({ error: msg, id: meta.id });
     }
+    await saveJobSnapshot(redis, meta.id);
     return { id: meta.id, status: "awaiting_beats" };
   });
 
@@ -170,6 +174,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
     const body = (request.body ?? {}) as { beats?: VoxBeatsDoc };
     if (!body.beats?.beats?.length) return reply.status(400).send({ error: "beats.json inválido" });
     writeBeats(meta.id, { ...body.beats, aspect_approx_confirmed: true });
+    await saveJobSnapshot(redis, meta.id);
     return { ok: true };
   });
 
@@ -184,6 +189,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
       return reply.status(400).send({ error: "Configura ATLASCLOUD_API_KEY en Ajustes" });
     }
     setStatus(meta.id, "baking", "style", "En cola: bake-off");
+    await saveJobSnapshot(redis, meta.id);
     await queue.add("bakeoff", { id: meta.id, action: "bakeoff" }, { removeOnComplete: 50, removeOnFail: 50 });
     return { ok: true, status: "baking" };
   });
@@ -201,6 +207,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
       return reply.status(400).send({ error: "Configura ATLASCLOUD_API_KEY en Ajustes" });
     }
     setStatus(meta.id, "baking", "style", "En cola: bake-off");
+    await saveJobSnapshot(redis, meta.id);
     await queue.add("bakeoff", { id: meta.id, action: "bakeoff" }, { removeOnComplete: 50, removeOnFail: 50 });
     return { ok: true, status: "baking" };
   });
@@ -220,6 +227,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
     writeBeats(meta.id, beats);
     patchMeta(meta.id, { selectedTheme: theme });
     setStatus(meta.id, "producing", "produce", "En cola: producción");
+    await saveJobSnapshot(redis, meta.id);
     await queue.add("produce", { id: meta.id, action: "produce" }, { removeOnComplete: 50, removeOnFail: 50 });
     return { ok: true, status: "producing", theme };
   });

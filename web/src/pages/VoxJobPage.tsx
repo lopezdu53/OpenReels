@@ -179,7 +179,7 @@ export function VoxJobPage() {
                 <p>
                   {workerDown
                     ? "El worker de Vox no está conectado. Reimplementa el servicio video-worker en EasyPanel (misma rama y mismas variables que video)."
-                    : "El bake-off está en Redis. Si no avanza en un minuto, el API y el worker no están viendo el mismo disco de jobs."}
+                    : "Si no avanza: en video-worker quita el volumen extra montado en /app/jobs/vox. Deja solo jobs_data → /app/jobs."}
                 </p>
                 <Button variant="outline" onClick={() => void retryBakeoff()} disabled={busy}>
                   {busy ? <Loader2 className="size-4 animate-spin" /> : null}

@@ -1,43 +1,75 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { randomBytes } from "node:crypto";
+import type IORedis from "ioredis";
 import type { VoxBeatsDoc, VoxJobConfig, VoxJobMeta, VoxStatus } from "./types.js";
+
+const SNAP_TTL_SEC = 7 * 24 * 60 * 60;
 
 function openReelsJobsDir(): string {
   return process.env["JOBS_DIR"] ?? path.join(process.cwd(), "jobs");
 }
 
-/** EasyPanel already shares JOBS_DIR between API and worker. Keep Vox on that volume. */
-export function voxJobsDir(): string {
-  if (process.env["VOX_JOBS_DIR"]) return process.env["VOX_JOBS_DIR"];
-  return path.join(openReelsJobsDir(), "vox");
+function samePath(a: string, b: string): boolean {
+  return path.resolve(a) === path.resolve(b);
 }
 
-/** `jobs/vox` (and stray `jobs/vox-*`) must never be listed or pruned as Short/Film jobs. */
+/**
+ * Vox jobs live as `$JOBS_DIR/vox-<id>` on the volume EasyPanel already shares.
+ * Never use `$JOBS_DIR/vox` as the root: a separate volume mounted there hides
+ * the real folder from the other container (the current prod failure).
+ */
+export function voxJobsDir(): string {
+  const jobs = openReelsJobsDir();
+  const nested = path.join(jobs, "vox");
+  const configured = process.env["VOX_JOBS_DIR"];
+  if (configured && !samePath(configured, nested)) return configured;
+  return jobs;
+}
+
+/** `jobs/vox` and `jobs/vox-*` must never be listed or pruned as Short/Film jobs. */
 export function isVoxSharedVolumeEntry(name: string): boolean {
   return name === "vox" || isVoxJobId(name);
 }
 
-function legacyVoxDirs(): string[] {
-  const configured = voxJobsDir();
-  const candidates = [path.join(process.cwd(), "vox-jobs"), "/app/vox-jobs"];
-  return [...new Set(candidates.filter((dir) => dir !== configured && fs.existsSync(dir)))];
+export function voxSnapshotKey(id: string): string {
+  return `vox:snap:${id}`;
 }
 
-/** Copy leftover jobs from the old isolated /app/vox-jobs disk onto the shared volume. */
-export function migrateLegacyVoxJobs(): number {
+function extraLookupRoots(): string[] {
+  const jobs = openReelsJobsDir();
+  return [path.join(jobs, "vox"), path.join(process.cwd(), "vox-jobs"), "/app/vox-jobs"];
+}
+
+function jobDirCandidates(id: string): string[] {
+  const roots = [voxJobsDir(), ...extraLookupRoots()];
+  return [...new Set(roots.map((root) => path.join(root, id)))];
+}
+
+function legacyVoxDirs(): string[] {
   const dest = voxJobsDir();
-  fs.mkdirSync(dest, { recursive: true });
+  return [...new Set(extraLookupRoots().filter((dir) => !samePath(dir, dest) && fs.existsSync(dir)))];
+}
+
+function copyJobIfMissing(from: string, to: string, name: string): boolean {
+  if (!fs.existsSync(path.join(from, "meta.json")) || fs.existsSync(path.join(to, "meta.json"))) return false;
+  fs.mkdirSync(path.dirname(to), { recursive: true });
+  fs.cpSync(from, to, { recursive: true });
+  console.log(`[vox] migrated ${name} from ${from} → ${to}`);
+  return true;
+}
+
+/** Copy leftover jobs from isolated /app/vox-jobs or a nested jobs/vox mount onto $JOBS_DIR. */
+export function migrateLegacyVoxJobs(): number {
+  const destRoot = voxJobsDir();
+  fs.mkdirSync(destRoot, { recursive: true });
   let copied = 0;
   for (const src of legacyVoxDirs()) {
     for (const name of fs.readdirSync(src)) {
       if (!isVoxJobId(name)) continue;
       const from = path.join(src, name);
-      const to = path.join(dest, name);
-      if (!fs.statSync(from).isDirectory() || fs.existsSync(to)) continue;
-      fs.cpSync(from, to, { recursive: true });
-      copied += 1;
-      console.log(`[vox] migrated ${name} from ${src} → ${dest}`);
+      if (!fs.statSync(from).isDirectory()) continue;
+      if (copyJobIfMissing(from, path.join(destRoot, name), name)) copied += 1;
     }
   }
   return copied;
@@ -56,6 +88,9 @@ export function newVoxId(): string {
 }
 
 export function jobDir(id: string): string {
+  for (const dir of jobDirCandidates(id)) {
+    if (fs.existsSync(path.join(dir, "meta.json"))) return dir;
+  }
   return path.join(voxJobsDir(), id);
 }
 
@@ -130,15 +165,38 @@ export function setStatus(id: string, status: VoxStatus, stage: string, detail: 
 
 export function listJobs(userId: string, limit = 30): VoxJobMeta[] {
   ensureVoxJobsDir();
-  const root = voxJobsDir();
-  if (!fs.existsSync(root)) return [];
-  return fs
-    .readdirSync(root, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && isVoxJobId(d.name))
-    .map((d) => readMeta(d.name))
-    .filter((m): m is VoxJobMeta => Boolean(m && m.userId === userId))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, limit);
+  const seen = new Set<string>();
+  const metas: VoxJobMeta[] = [];
+  for (const root of [voxJobsDir(), ...extraLookupRoots()]) {
+    if (!fs.existsSync(root)) continue;
+    for (const d of fs.readdirSync(root, { withFileTypes: true })) {
+      if (!d.isDirectory() || !isVoxJobId(d.name) || seen.has(d.name)) continue;
+      const meta = readMeta(d.name);
+      if (!meta || meta.userId !== userId) continue;
+      seen.add(d.name);
+      metas.push(meta);
+    }
+  }
+  return metas.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+}
+
+export async function saveJobSnapshot(redis: IORedis, id: string): Promise<void> {
+  const meta = readMeta(id);
+  if (!meta) return;
+  const payload = { meta, beats: readBeats(id) };
+  await redis.set(voxSnapshotKey(id), JSON.stringify(payload), "EX", SNAP_TTL_SEC);
+}
+
+export async function hydrateJobFromSnapshot(redis: IORedis, id: string): Promise<boolean> {
+  if (readMeta(id)) return true;
+  const raw = await redis.get(voxSnapshotKey(id));
+  if (!raw) return false;
+  const snap = JSON.parse(raw) as { meta: VoxJobMeta; beats: VoxBeatsDoc | null };
+  if (!snap?.meta?.id) return false;
+  writeMeta(snap.meta);
+  if (snap.beats) writeBeats(id, snap.beats);
+  console.log(`[vox] hydrated ${id} from Redis → ${jobDir(id)}`);
+  return true;
 }
 
 export function bakeoffFiles(id: string): string[] {

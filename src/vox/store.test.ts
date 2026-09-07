@@ -3,7 +3,18 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { draftBeatsTemplate } from "./draft.js";
-import { createJob, isVoxSharedVolumeEntry, listJobs, migrateLegacyVoxJobs, readBeats, voxJobsDir, writeBeats } from "./store.js";
+import {
+  createJob,
+  hydrateJobFromSnapshot,
+  isVoxSharedVolumeEntry,
+  jobDir,
+  listJobs,
+  migrateLegacyVoxJobs,
+  readBeats,
+  saveJobSnapshot,
+  voxJobsDir,
+  writeBeats,
+} from "./store.js";
 import type { VoxJobConfig } from "./types.js";
 
 const config: VoxJobConfig = {
@@ -56,13 +67,50 @@ describe("vox store", () => {
     expect(meta.createdAt).toBeTruthy();
   });
 
-  it("defaults to JOBS_DIR/vox so API and worker share the EasyPanel volume", () => {
+  it("stores vox jobs on JOBS_DIR, not a nestable /vox mount", () => {
     delete process.env["VOX_JOBS_DIR"];
     process.env["JOBS_DIR"] = path.join(os.tmpdir(), "openreels-jobs");
-    expect(voxJobsDir()).toBe(path.join(process.env["JOBS_DIR"], "vox"));
+    expect(voxJobsDir()).toBe(process.env["JOBS_DIR"]);
+    process.env["VOX_JOBS_DIR"] = path.join(process.env["JOBS_DIR"], "vox");
+    expect(voxJobsDir()).toBe(process.env["JOBS_DIR"]);
     expect(isVoxSharedVolumeEntry("vox")).toBe(true);
     expect(isVoxSharedVolumeEntry("vox-8d6aff31")).toBe(true);
     expect(isVoxSharedVolumeEntry("abc123")).toBe(false);
+  });
+
+  it("lifts nested jobs/vox/<id> onto JOBS_DIR/<id>", () => {
+    const jobsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "or-jobs-"));
+    const id = "vox-nested01";
+    fs.mkdirSync(path.join(jobsRoot, "vox", id), { recursive: true });
+    fs.writeFileSync(path.join(jobsRoot, "vox", id, "meta.json"), JSON.stringify({ id, kind: "vox" }));
+    delete process.env["VOX_JOBS_DIR"];
+    process.env["JOBS_DIR"] = jobsRoot;
+    try {
+      expect(migrateLegacyVoxJobs()).toBe(1);
+      expect(fs.existsSync(path.join(jobsRoot, id, "meta.json"))).toBe(true);
+    } finally {
+      fs.rmSync(jobsRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("hydrates a missing job from the Redis snapshot", async () => {
+    const meta = createJob("user-1", config);
+    writeBeats(meta.id, draftBeatsTemplate(config, "dinero-15s"));
+    const mem = new Map<string, string>();
+    const redis = {
+      async set(key: string, value: string) {
+        mem.set(key, value);
+        return "OK";
+      },
+      async get(key: string) {
+        return mem.get(key) ?? null;
+      },
+    };
+    await saveJobSnapshot(redis as never, meta.id);
+    fs.rmSync(jobDir(meta.id), { recursive: true, force: true });
+    expect(readBeats(meta.id)).toBeNull();
+    await hydrateJobFromSnapshot(redis as never, meta.id);
+    expect(readBeats(meta.id)?.style).toBe("collage");
   });
 
   it("migrates leftover jobs from the old isolated folder", () => {

@@ -1,7 +1,7 @@
 import type { Job } from "bullmq";
 import { Queue, Worker } from "bullmq";
 import type IORedis from "ioredis";
-import { migrateLegacyVoxJobs, readBeats, readMeta, setStatus, voxJobsDir, writeBeats } from "./store.js";
+import { hydrateJobFromSnapshot, migrateLegacyVoxJobs, readBeats, readMeta, setStatus, voxJobsDir, writeBeats } from "./store.js";
 import {
   runArollAssemble,
   runArollClips,
@@ -58,12 +58,13 @@ function apiKeyOf(id: string): string {
   return key;
 }
 
-async function handleBakeoff(id: string): Promise<void> {
+async function handleBakeoff(id: string, redis: IORedis): Promise<void> {
   migrateLegacyVoxJobs();
+  await hydrateJobFromSnapshot(redis, id);
   const meta = readMeta(id);
   if (!meta) {
     throw new Error(
-      `Vox job ${id} no está en el disco compartido (${voxJobsDir()}). Reimplementa API y worker, o crea el Vox de nuevo.`,
+      `Vox job ${id} no está en el disco compartido (${voxJobsDir()}). Quita el volumen extra montado en /app/jobs/vox y deja solo jobs_data → /app/jobs.`,
     );
   }
   setStatus(id, "baking", "style", "Bake-off de estilos");
@@ -72,8 +73,9 @@ async function handleBakeoff(id: string): Promise<void> {
   setStatus(id, "awaiting_style", "style", "Elige un look", { bakeoffThemes: themes });
 }
 
-async function handleProduce(id: string): Promise<void> {
+async function handleProduce(id: string, redis: IORedis): Promise<void> {
   migrateLegacyVoxJobs();
+  await hydrateJobFromSnapshot(redis, id);
   const meta = readMeta(id);
   const beats = readBeats(id);
   if (!meta || !beats) throw new Error("missing job/beats");
@@ -105,7 +107,8 @@ async function handleProduce(id: string): Promise<void> {
   setStatus(id, "completed", "done", "Listo", { completedAt: new Date().toISOString() });
 }
 
-async function handleAsr(id: string, source: string): Promise<void> {
+async function handleAsr(id: string, source: string, redis: IORedis): Promise<void> {
+  await hydrateJobFromSnapshot(redis, id);
   setStatus(id, "drafting", "asr", "Transcribiendo A-roll");
   await runAsrBeats(id, source, apiKeyOf(id), logTo(id));
   const beats = readBeats(id);
@@ -131,9 +134,9 @@ export function startVoxWorker(connection: IORedis): Worker {
       const { id, action, source } = job.data;
       console.log(`[vox] ${action} ${id} dir=${voxJobsDir()}`);
       try {
-        if (action === "bakeoff") await handleBakeoff(id);
-        else if (action === "asr") await handleAsr(id, source ?? "");
-        else await handleProduce(id);
+        if (action === "bakeoff") await handleBakeoff(id, connection);
+        else if (action === "asr") await handleAsr(id, source ?? "", connection);
+        else await handleProduce(id, connection);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[vox] ${action} ${id} failed: ${msg}`);
