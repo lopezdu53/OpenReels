@@ -55,7 +55,7 @@ import { GrokLLM } from "./llm/grok.js";
 import { OpenAILLM } from "./llm/openai.js";
 import { OpenAICompatibleLLM } from "./llm/openai-compatible.js";
 import { OpenRouterLLM } from "./llm/openrouter.js";
-import { ViviLLM } from "./llm/vivi.js";
+import { resolveViviLlmModel, ViviLLM } from "./llm/vivi.js";
 import { AtlasLLM } from "./llm/atlas.js";
 import { BundledMusic } from "./music/bundled-adapter.js";
 import { LyriaMusic } from "./music/lyria.js";
@@ -474,7 +474,7 @@ export function createVerificationModel(
       const key = apiKey ?? process.env["VIVI_LLM_API_KEY"];
       if (!key) throw new Error("VIVI_LLM_API_KEY is required for VIVI provider");
       const vivi = createOpenAICompatible({ name: "vivi", baseURL: "https://api.viviai.cc/v1", apiKey: key });
-      return vivi(model ?? "claude-sonnet-4-6");
+      return vivi(resolveViviLlmModel(model));
     }
     case "grok": {
       const key = apiKey ?? process.env["XAI_API_KEY"];

@@ -438,7 +438,7 @@ export function FilmPage() {
       image: imageProvider,
       music: musicProvider === "none" ? "bundled" : musicProvider,
       ...(videoProvider ? { video: videoProvider } : {}),
-      ...(llmModel ? { llmModel } : {}),
+      ...(llmProvider !== "vivi" && llmProvider !== "atlas" && llmModel ? { llmModel } : {}),
       ...(llmBaseUrl ? { llmBaseUrl } : {}),
       ...(searchProvider ? { searchProvider } : {}),
       ...(ttsProvider === "inworld" ? { inworldVoice } : {}),
@@ -521,7 +521,7 @@ export function FilmPage() {
         idea: ideaText,
         durationMinutes,
         llm: llmProvider,
-        llmModel: llmModel || undefined,
+        llmModel: llmProvider === "vivi" ? undefined : llmModel || undefined,
         youtubeUrls,
         youtubeText: youtubeDraft,
         characters: characterIds

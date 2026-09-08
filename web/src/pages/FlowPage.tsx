@@ -430,7 +430,7 @@ export function FlowPage() {
       image: imageProvider,
       music: musicProvider === "none" ? "bundled" : musicProvider,
       ...(videoProvider ? { video: videoProvider } : {}),
-      ...(llmModel ? { llmModel } : {}),
+      ...(llmProvider === "openai-compatible" && llmModel ? { llmModel } : {}),
       ...(llmBaseUrl ? { llmBaseUrl } : {}),
       searchProvider: searchProvider || "tavily",
       ...(ttsProvider === "inworld" ? { inworldVoice } : {}),
@@ -515,7 +515,10 @@ export function FlowPage() {
         idea: ideaText,
         durationMinutes,
         llm: llmProvider,
-        llmModel: llmModel || undefined,
+        llmModel:
+          llmProvider === "atlas" || llmProvider === "openai-compatible"
+            ? llmModel || undefined
+            : undefined,
         youtubeUrls,
         youtubeText: youtubeDraft,
         characters: characterIds
