@@ -108,15 +108,23 @@ describe("film script helpers", () => {
 });
 
 describe("pickFilmLlm", () => {
-  const orig = process.env["ATLASCLOUD_API_KEY"];
+  const origAtlas = process.env["ATLASCLOUD_API_KEY"];
+  const origVivi = process.env["VIVI_LLM_API_KEY"];
 
   afterEach(() => {
-    if (orig !== undefined) process.env["ATLASCLOUD_API_KEY"] = orig;
+    if (origAtlas !== undefined) process.env["ATLASCLOUD_API_KEY"] = origAtlas;
     else delete process.env["ATLASCLOUD_API_KEY"];
+    if (origVivi !== undefined) process.env["VIVI_LLM_API_KEY"] = origVivi;
+    else delete process.env["VIVI_LLM_API_KEY"];
   });
 
   it("uses AtlasLLM when Film selects ATLAS (not Anthropic)", () => {
     process.env["ATLASCLOUD_API_KEY"] = "test-atlas-key";
     expect(pickFilmLlm("atlas", "deepseek-ai/deepseek-v4-flash").id).toBe("atlas");
+  });
+
+  it("uses ViviLLM when Film/Flow selects VIVI", () => {
+    process.env["VIVI_LLM_API_KEY"] = "test-vivi-key";
+    expect(pickFilmLlm("vivi", "deepseek-ai/deepseek-v4-flash").id).toBe("vivi");
   });
 });

@@ -8,18 +8,35 @@ import type { LLMResult } from "../../schema/providers.js";
 
 const VIVI_BASE_URL = "https://api.viviai.cc/v1";
 
+/** Default Claude SKU in VIVI's `claude特价` group. */
+export const DEFAULT_VIVI_LLM_MODEL = "claude-sonnet-4-6";
+
+/**
+ * VIVI keys are bound to a model group (often `claude特价`).
+ * Film/Flow keep an Atlas default (`deepseek-ai/...`) in the form state and
+ * used to send it even when the user picked VIVI — VIVI then 400s.
+ */
+export function resolveViviLlmModel(model?: string): string {
+  const m = model?.trim() ?? "";
+  if (!m) return DEFAULT_VIVI_LLM_MODEL;
+  if (m.includes("/") || /^(deepseek|qwen|gpt-|o1|o3|o4)/i.test(m)) {
+    return DEFAULT_VIVI_LLM_MODEL;
+  }
+  return m;
+}
+
 export class ViviLLM extends BaseLLM {
   readonly id = "vivi" as const;
   private provider: ReturnType<typeof createOpenAICompatible>;
   private model: string;
 
   constructor(
-    model: string = "claude-sonnet-4-6",
+    model: string = DEFAULT_VIVI_LLM_MODEL,
     apiKey?: string,
     searchTools?: Record<string, unknown>,
   ) {
     super(searchTools);
-    this.model = model;
+    this.model = resolveViviLlmModel(model);
     const key = apiKey ?? process.env["VIVI_LLM_API_KEY"];
     if (!key) throw new Error("VIVI_LLM_API_KEY environment variable is required");
     this.provider = createOpenAICompatible({

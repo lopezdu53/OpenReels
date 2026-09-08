@@ -329,7 +329,7 @@ export function HomePage() {
           image: imageProvider,
           music: musicProvider,
           ...(videoProvider ? { video: videoProvider } : {}),
-          ...(llmModel ? { llmModel } : {}),
+          ...(llmProvider !== "vivi" && llmProvider !== "atlas" && llmModel ? { llmModel } : {}),
           ...(llmBaseUrl ? { llmBaseUrl } : {}),
           ...(searchProvider ? { searchProvider } : {}),
           ...(ttsProvider === "inworld" ? { inworldVoice } : {}),
