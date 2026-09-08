@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { GflowCliError } from "./errors.js";
+import { enqueueGflow } from "./queue.js";
 
 export function gflowBridgeUrl(): string | undefined {
   const raw = process.env["GFLOW_BRIDGE_URL"]?.trim();
@@ -77,6 +78,16 @@ export async function bridgeGenerateImage(opts: {
   model: string;
   referencePng?: Buffer;
 }): Promise<Buffer> {
+  return enqueueGflow(() => bridgeGenerateImageNow(opts));
+}
+
+async function bridgeGenerateImageNow(opts: {
+  prompt: string;
+  style?: string;
+  aspect: string;
+  model: string;
+  referencePng?: Buffer;
+}): Promise<Buffer> {
   const res = await bridgeFetch(
     "/v1/image",
     {
@@ -102,6 +113,16 @@ export async function bridgeGenerateImage(opts: {
 }
 
 export async function bridgeGenerateVideo(opts: {
+  prompt: string;
+  aspect: string;
+  model: string;
+  durationSeconds: number;
+  imagePng: Buffer;
+}): Promise<{ filePath: string; durationSeconds: number }> {
+  return enqueueGflow(() => bridgeGenerateVideoNow(opts));
+}
+
+async function bridgeGenerateVideoNow(opts: {
   prompt: string;
   aspect: string;
   model: string;

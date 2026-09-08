@@ -33,6 +33,7 @@ PROFILE = os.environ.get("GFLOW_CLI_PROFILE") or ""
 PROJECT = os.environ.get("GFLOW_CLI_PROJECT") or ""
 IMAGE_TIMEOUT = int(os.environ.get("GFLOW_BRIDGE_IMAGE_TIMEOUT", "240"))
 VIDEO_TIMEOUT = int(os.environ.get("GFLOW_BRIDGE_VIDEO_TIMEOUT", "480"))
+QUEUE_WAIT = int(os.environ.get("GFLOW_BRIDGE_QUEUE_WAIT", "1200"))
 MAX_BODY = int(os.environ.get("GFLOW_BRIDGE_MAX_BODY", str(48 * 1024 * 1024)))
 
 LOCK = threading.Lock()
@@ -263,7 +264,7 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(body, dict):
             self._json(400, {"ok": False, "error": "JSON inválido"})
             return
-        if not LOCK.acquire(blocking=False):
+        if not LOCK.acquire(timeout=max(30, QUEUE_WAIT)):
             self._json(429, {"ok": False, "error": "gflow ocupado (un Chrome, una generación a la vez)"})
             return
         try:
