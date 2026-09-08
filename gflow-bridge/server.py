@@ -206,8 +206,21 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
+        if code >= 400:
+            self.send_header("Connection", "close")
+            self.close_connection = True
         self.end_headers()
         self.wfile.write(raw)
+
+    def _read_body(self) -> bytes:
+        """Always consume Content-Length so a 401 does not leave PNG/base64 as the next request line (HTTP 414)."""
+        try:
+            length = int(self.headers.get("Content-Length") or "0")
+        except ValueError:
+            length = 0
+        if length <= 0:
+            return b""
+        return self.rfile.read(min(length, MAX_BODY + 1))
 
     def _auth(self) -> bool:
         ip = self._client_ip()
@@ -247,17 +260,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
+        raw = self._read_body()
         if path not in {"/v1/image", "/v1/video"}:
             self._json(404, {"ok": False, "error": "not found"})
             return
         if not self._auth():
             return
-        length = int(self.headers.get("Content-Length") or "0")
-        if length <= 0 or length > MAX_BODY:
+        if not raw or len(raw) > MAX_BODY:
             self._json(413, {"ok": False, "error": f"body inválido o > {MAX_BODY} bytes"})
             return
         try:
-            body = json.loads(self.rfile.read(length).decode("utf-8"))
+            body = json.loads(raw.decode("utf-8"))
         except Exception:
             self._json(400, {"ok": False, "error": "JSON inválido"})
             return

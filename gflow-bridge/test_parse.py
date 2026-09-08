@@ -17,5 +17,13 @@ class ParseTests(unittest.TestCase):
             _parse_gflow_json("no json here")
 
 
+class DrainTests(unittest.TestCase):
+    def test_read_body_helper_exists(self):
+        from server import Handler, MAX_BODY
+
+        self.assertTrue(hasattr(Handler, "_read_body"))
+        self.assertGreater(MAX_BODY, 1024)
+
+
 if __name__ == "__main__":
     unittest.main()
