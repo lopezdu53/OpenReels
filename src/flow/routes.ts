@@ -5,6 +5,7 @@ import { generateFilmScript, parseYoutubeUrls } from "../film/script.js";
 import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "../providers/gflow/catalog.js";
 import { gflowBridgeUrl } from "../providers/gflow/bridge.js";
 import { gflowDoctor } from "../providers/gflow/client.js";
+import { FLOW_IMAGE_PROVIDERS, FLOW_VIDEO_PROVIDERS } from "./providers.js";
 
 export async function registerFlowRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/v1/flow/catalog", async () => ({
@@ -21,8 +22,8 @@ export async function registerFlowRoutes(app: FastifyInstance): Promise<void> {
       { key: "grok-tts", label: "Grok TTS" },
       { key: "gemini-tts", label: "Gemini TTS" },
     ],
-    image: [{ key: "gflow", label: "gflow-cli (Imagen)" }],
-    video: [{ key: "gflow", label: "gflow-cli (Veo I2V)" }],
+    image: [...FLOW_IMAGE_PROVIDERS],
+    video: [...FLOW_VIDEO_PROVIDERS],
     doctor: await gflowDoctor(),
     bridge: Boolean(gflowBridgeUrl()),
   }));

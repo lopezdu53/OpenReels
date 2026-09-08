@@ -6,12 +6,18 @@ Corre **en la PC Windows** con Chrome. El pipeline de EasyPanel (Xeon) llama aqu
 
 1. Instala [gflow-cli](https://github.com/lopezdu53/gflow-cli) y Chrome.
 2. `gflow auth login --browser chrome`
-3. Si Google te pasó a `flow.google.com` (Chrome abre Flow y gflow dice *handed this session*):
-   - En Chrome entra a https://flow.google.com y crea un proyecto (o genera una imagen a mano).
-   - En CMD: `gflow project create OpenReels` y luego `gflow project list`.
-   - Pon el id en `GFLOW_CLI_PROJECT` antes de `start.bat`.
-   - Prueba **una** imagen: `gflow image t2i "un coliseo romano" --model nano2 --json`
-   - Imagen (t2i) a veces sigue en el driver viejo de `labs.google`. Video I2V sí está portado. Si t2i falla con *not ported*, las fotos no salen con esta cuenta hasta que gflow-cli lo porte; el I2V sí puede usarse si las stills vienen de otro proveedor.
+3. Si Google te pasó a `flow.google.com`:
+   - **Imagen t2i no funciona** (`FlowHostMigratedError`). En Nuevo Flow usa Atlas o VIVI para las fotos.
+   - I2V sí: crea un proyecto en https://flow.google.com (o `gflow project create --name OpenReels`) y `gflow project list`.
+   - En **PowerShell** (no `set` ni `%USERPROFILE%`):
+     ```powershell
+     $env:GFLOW_BRIDGE_TOKEN = "el-mismo-secreto"
+     $env:GFLOW_BRIDGE_ALLOW_IPS = "192.168.1.71"
+     $env:GFLOW_CLI_PROJECT = "el-id-de-project-list"
+     cd "$env:USERPROFILE\OpenReels\gflow-bridge"
+     uv run --no-project python server.py
+     ```
+   - El id de un *incident* de error **no** es un project id.
 
 ## Cada vez que produzcas
 
