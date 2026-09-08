@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -31,6 +32,7 @@ ALLOW_IPS = {
 GFLOW_BIN = os.environ.get("GFLOW_CLI_BIN") or shutil.which("gflow") or "gflow"
 PROFILE = os.environ.get("GFLOW_CLI_PROFILE") or ""
 PROJECT = os.environ.get("GFLOW_CLI_PROJECT") or ""
+PROJECT_NAME = os.environ.get("GFLOW_CLI_PROJECT_NAME") or ("OpenReels" if PROJECT else "")
 IMAGE_TIMEOUT = int(os.environ.get("GFLOW_BRIDGE_IMAGE_TIMEOUT", "240"))
 VIDEO_TIMEOUT = int(os.environ.get("GFLOW_BRIDGE_VIDEO_TIMEOUT", "480"))
 QUEUE_WAIT = int(os.environ.get("GFLOW_BRIDGE_QUEUE_WAIT", "1200"))
@@ -55,14 +57,35 @@ def _parse_gflow_json(stdout: str) -> dict[str, Any]:
     return json.loads(stdout[start : end + 1])
 
 
+def _sanitize_prompt(prompt: str) -> str:
+    # Migrated I2V rejects @Name / UUID frames.
+    return re.sub(r"@\S+", "", prompt).strip()
+
+
+def _gflow_fail_message(payload: dict[str, Any] | None, stdout: str, stderr: str, code: int) -> str:
+    err = payload.get("error") if payload else None
+    if isinstance(err, dict):
+        detail = str(err.get("detail") or err.get("title") or "")
+        hint = str(err.get("remediation_hint") or "")
+        klass = str(err.get("class") or "")
+        parts = [p for p in (klass, detail, hint) if p]
+        if parts:
+            return " — ".join(parts)[:500]
+    return (stderr or stdout or f"gflow exit {code}")[:400]
+
+
 def _run_gflow(args: list[str], timeout: int) -> dict[str, Any]:
     cmd = [GFLOW_BIN, *args, "--json"]
     if PROFILE and "--profile" not in args:
         cmd.extend(["--profile", PROFILE])
     if PROJECT and "--project" not in args:
         cmd.extend(["--project", PROJECT])
+    if PROJECT_NAME and "--project-name" not in args:
+        cmd.extend(["--project-name", PROJECT_NAME])
     env = os.environ.copy()
     env["GFLOW_CLI_LOG_FORMAT"] = "json"
+    env.setdefault("GFLOW_CLI_FLOW_HOST", "auto")
+    print(f"[gflow-bridge] exec {' '.join(cmd[:6])} … project={PROJECT or '-'} name={PROJECT_NAME or '-'}", flush=True)
     proc = subprocess.run(
         cmd,
         capture_output=True,
@@ -76,15 +99,10 @@ def _run_gflow(args: list[str], timeout: int) -> dict[str, Any]:
         payload = _parse_gflow_json(proc.stdout or "")
     except Exception:
         payload = None
-    if payload and payload.get("status") == "fail":
-        err = payload.get("error") or {}
-        raise RuntimeError(str(err.get("detail") or err.get("title") or "gflow falló"))
-    if proc.returncode != 0:
-        err = (payload or {}).get("error") if payload else None
-        detail = ""
-        if isinstance(err, dict):
-            detail = str(err.get("detail") or "")
-        raise RuntimeError(detail or (proc.stderr or proc.stdout or f"gflow exit {proc.returncode}")[:400])
+    if (payload and payload.get("status") == "fail") or proc.returncode != 0:
+        msg = _gflow_fail_message(payload, proc.stdout or "", proc.stderr or "", proc.returncode)
+        print(f"[gflow-bridge] gflow fail: {msg}", flush=True)
+        raise RuntimeError(msg)
     if not payload:
         raise RuntimeError(f"gflow no devolvió JSON: {(proc.stdout or '')[:240]}")
     return payload
@@ -132,7 +150,7 @@ def generate_image(body: dict[str, Any]) -> dict[str, Any]:
 
 
 def generate_video(body: dict[str, Any]) -> dict[str, Any]:
-    prompt = str(body.get("prompt") or "").strip()
+    prompt = _sanitize_prompt(str(body.get("prompt") or ""))
     if len(prompt) < 2:
         raise ValueError("prompt requerido")
     still = _decode_b64(body.get("imagePng") if isinstance(body.get("imagePng"), str) else None)
@@ -250,6 +268,7 @@ class Handler(BaseHTTPRequestHandler):
                     "ok": True,
                     "gflow": GFLOW_BIN,
                     "project": bool(PROJECT),
+                    "projectName": PROJECT_NAME or "",
                     "profile": bool(PROFILE),
                     "busy": LOCK.locked(),
                     "ts": int(time.time()),
