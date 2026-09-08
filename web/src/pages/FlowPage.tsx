@@ -152,7 +152,11 @@ const FALLBACK = {
     { key: "grok-tts", label: "Grok TTS" },
     { key: "gemini-tts", label: "Gemini TTS" },
   ],
-  image: [{ key: "gflow", label: "gflow-cli (Imagen)" }],
+  image: [
+    { key: "atlas", label: "ATLAS" },
+    { key: "vivi", label: "VIVI" },
+    { key: "gflow", label: "gflow-cli (Imagen · solo labs.google)" },
+  ],
   video: [{ key: "gflow", label: "gflow-cli (Veo I2V)" }],
   search: [{ key: "tavily", label: "Tavily" }],
 };
@@ -255,7 +259,7 @@ export function FlowPage() {
   const [grokTtsSpeed, setGrokTtsSpeed] = useState(1);
   const [kokoroVoice, setKokoroVoice] = useState("ef_dora");
   const [kokoroSpeed, setKokoroSpeed] = useState(1);
-  const [imageProvider, setImageProvider] = useState("gflow");
+  const [imageProvider, setImageProvider] = useState("atlas");
   const [videoProvider, setVideoProvider] = useState("gflow");
   const [gflowImageModel, setGflowImageModel] = useState("nano2");
   const [gflowVideoModel, setGflowVideoModel] = useState("veo-lite");
@@ -691,7 +695,8 @@ export function FlowPage() {
           </h1>
           <p className="mt-3 text-sm text-muted-foreground">
             Misma ventana que Nuevo Film. LLM: VIVI, RunPod o Atlas. Web: Tavily. Voz: Atlas,
-            Grok o Gemini. Imagen e I2V: gflow-cli (Imagen + Veo en tu cuenta de Google Flow).
+            Grok o Gemini. Fotos: Atlas o VIVI (gflow Imagen no corre si Google te pasó a
+            flow.google.com). Video: gflow Veo I2V en Chrome.
           </p>
         </div>
 
@@ -1152,7 +1157,7 @@ export function FlowPage() {
         />
         </PipelineStep>
 
-        <PipelineStep id="film-visuales" step={5} icon={ImageIcon} title="Visuales" subtitle="gflow-cli: Imagen stills + Veo I2V">
+        <PipelineStep id="film-visuales" step={5} icon={ImageIcon} title="Visuales" subtitle="Fotos: Atlas/VIVI · Video: gflow Veo I2V">
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Imagen">
@@ -1204,9 +1209,9 @@ export function FlowPage() {
                   </Field>
                 ) : null}
                 <p className="sm:col-span-2 text-[11px] text-muted-foreground">
-                  El Xeon llama al puente en la PC Windows (<code>GFLOW_BRIDGE_URL</code>).
-                  En esa PC: <code>gflow-bridge/start.bat</code> + Chrome logueado.
-                  Firewall: puerto 8787 solo desde la IP del Xeon.
+                  I2V usa el puente Windows (<code>GFLOW_BRIDGE_URL</code>) y exige un
+                  proyecto de <code>flow.google.com</code> (<code>GFLOW_CLI_PROJECT</code>).
+                  No uses gflow para fotos si tu cuenta ya migró.
                 </p>
               </div>
             ) : null}
