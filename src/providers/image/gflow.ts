@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { ImageProvider } from "../../schema/providers.js";
+import { bridgeGenerateImage, gflowBridgeUrl } from "../gflow/bridge.js";
 import { resolveGflowImageModel } from "../gflow/catalog.js";
 import { GflowCliError, runGflowJson } from "../gflow/client.js";
 
@@ -29,6 +30,15 @@ export class GflowImage implements ImageProvider {
   ): Promise<Buffer> {
     const aspect = aspectRatio === "9:16" || aspectRatio === "1:1" ? aspectRatio : "16:9";
     const full = style ? `${prompt}. Style: ${style}` : prompt;
+    if (gflowBridgeUrl()) {
+      return bridgeGenerateImage({
+        prompt: full,
+        aspect,
+        model: this.modelId,
+        referencePng: referenceImage,
+      });
+    }
+
     const dest = path.join(os.tmpdir(), `openreels-gflow-${Date.now()}.png`);
     const args = referenceImage && referenceImage.length > 80
       ? ["image", "i2i", full, "--ref", writeTempPng(referenceImage), "--model", this.modelId, "--aspect", aspect, "-o", dest]

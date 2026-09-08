@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { VideoProvider, VideoResult } from "../../schema/providers.js";
+import { bridgeGenerateVideo, gflowBridgeUrl } from "../gflow/bridge.js";
 import { pickGflowDuration, resolveGflowVideoModel } from "../gflow/catalog.js";
 import { GflowCliError, runGflowJson } from "../gflow/client.js";
 
@@ -23,6 +24,16 @@ export class GflowVideo implements VideoProvider {
   }): Promise<VideoResult> {
     const aspect = opts.aspectRatio === "9:16" ? "9:16" : "16:9";
     const duration = pickGflowDuration(this.modelId, opts.durationSeconds);
+    if (gflowBridgeUrl()) {
+      return bridgeGenerateVideo({
+        prompt: opts.prompt,
+        aspect,
+        model: this.modelId,
+        durationSeconds: duration,
+        imagePng: opts.sourceImage,
+      });
+    }
+
     const still = path.join(os.tmpdir(), `openreels-gflow-still-${Date.now()}.png`);
     const dest = path.join(os.tmpdir(), `openreels-gflow-${Date.now()}.mp4`);
     fs.writeFileSync(still, opts.sourceImage);

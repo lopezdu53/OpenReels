@@ -1201,9 +1201,9 @@ export function FlowPage() {
                   </Field>
                 ) : null}
                 <p className="sm:col-span-2 text-[11px] text-muted-foreground">
-                  El worker necesita <code>gflow</code> autenticado (<code>gflow auth login --browser chrome</code>)
-                  y, si tu cuenta ya migró a flow.google.com, <code>GFLOW_CLI_PROJECT</code>.
-                  No corre en el video-worker slim de EasyPanel sin Chrome.
+                  El Xeon llama al puente en la PC Windows (<code>GFLOW_BRIDGE_URL</code>).
+                  En esa PC: <code>gflow-bridge/start.bat</code> + Chrome logueado.
+                  Firewall: puerto 8787 solo desde la IP del Xeon.
                 </p>
               </div>
             ) : null}

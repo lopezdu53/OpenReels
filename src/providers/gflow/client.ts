@@ -1,4 +1,7 @@
 import { spawn } from "node:child_process";
+import { bridgeHealth, gflowBridgeUrl } from "./bridge.js";
+import { GflowCliError } from "./errors.js";
+export { GflowCliError } from "./errors.js";
 
 export function gflowBin(): string {
   return process.env["GFLOW_CLI_BIN"] || "gflow";
@@ -10,18 +13,6 @@ export function gflowProfile(): string | undefined {
 
 export function gflowProject(): string | undefined {
   return process.env["GFLOW_CLI_PROJECT"] || undefined;
-}
-
-export class GflowCliError extends Error {
-  readonly exitCode: number;
-  readonly retryable: boolean;
-
-  constructor(message: string, exitCode = 1, retryable = false) {
-    super(message);
-    this.name = "GflowCliError";
-    this.exitCode = exitCode;
-    this.retryable = retryable;
-  }
 }
 
 export interface GflowRunResult {
@@ -116,6 +107,7 @@ export async function runGflowJson(args: string[], timeoutMs?: number): Promise<
 }
 
 export async function gflowDoctor(): Promise<{ ok: boolean; detail: string }> {
+  if (gflowBridgeUrl()) return bridgeHealth();
   try {
     const payload = await runGflowJson(["doctor"], 30_000);
     const status = String(payload["overall_status"] ?? "unknown");

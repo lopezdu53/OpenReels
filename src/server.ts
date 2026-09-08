@@ -191,6 +191,8 @@ app.get("/api/v1/health", async () => {
       SHARPII_API_KEY: !!process.env["SHARPII_API_KEY"],
       ATLASCLOUD_API_KEY: !!process.env["ATLASCLOUD_API_KEY"],
       YOUTUBE_API_KEY: !!process.env["YOUTUBE_API_KEY"],
+      GFLOW_BRIDGE_URL: !!process.env["GFLOW_BRIDGE_URL"],
+      GFLOW_BRIDGE_TOKEN: !!process.env["GFLOW_BRIDGE_TOKEN"],
     },
   };
 });
