@@ -96,6 +96,8 @@ interface JobData {
     atlasTtsVoice?: string;
     atlasTtsModel?: string;
     atlasLipSyncModel?: string | null;
+    gflowImageModel?: string;
+    gflowVideoModel?: string;
   };
   userId?: string;
   keys: Record<string, string>;
@@ -238,6 +240,8 @@ const worker = new Worker<JobData>(
       atlasTtsVoice: providers.atlasTtsVoice,
       atlasTtsModel: providers.atlasTtsModel,
       atlasLipSyncModel: providers.atlasLipSyncModel,
+      gflowImageModel: providers.gflowImageModel,
+      gflowVideoModel: providers.gflowVideoModel,
     });
 
     // Build callbacks that emit BullMQ progress events and update meta.json

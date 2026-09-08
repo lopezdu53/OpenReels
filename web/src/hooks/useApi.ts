@@ -162,6 +162,8 @@ export interface ProviderOptions {
     durations: number[];
     perSecond?: boolean;
   }[];
+  gflowImageModels?: { id: string; label: string; note?: string }[];
+  gflowVideoModels?: { id: string; label: string; note?: string; durations?: number[] }[];
 }
 
 export interface StatsResponse {
@@ -495,6 +497,8 @@ export interface CreateJobRequest {
     atlasTtsModel?: string;
     atlasTtsVoice?: string;
     atlasLipSyncModel?: string | null;
+    gflowImageModel?: string;
+    gflowVideoModel?: string;
   };
 }
 
@@ -514,6 +518,25 @@ export const api = {
 
   getJob(id: string) {
     return fetchJson<JobSummary>(`/jobs/${id}`);
+  },
+
+  generateFlowScript(data: {
+    idea: string;
+    durationMinutes?: number;
+    llm?: string;
+    llmModel?: string;
+    youtubeText?: string;
+    youtubeUrls?: string[];
+    characters?: Array<{ name: string; species?: string; kind?: string }>;
+    locations?: Array<{ name: string; place?: string }>;
+    objects?: Array<{ name: string; prompt?: string }>;
+    castMode?: "scene" | "hero";
+    previousStory?: string;
+  }) {
+    return fetchJson<{ script: { title: string; hook: string; script: string }; youtubeUrls: string[] }>(
+      "/flow/script",
+      { method: "POST", body: JSON.stringify(data) },
+    );
   },
 
   generateFilmScript(data: {

@@ -7,6 +7,7 @@ import {
   FlaskConical,
   Newspaper,
   PersonStanding,
+  Workflow,
   LayoutDashboard,
   LayoutGrid,
   LogOut,
@@ -28,6 +29,7 @@ const NAV_ITEMS: { path: string; label: string; icon: typeof LayoutDashboard; ad
     { path: "/learning", label: "Aprendizaje", icon: BookOpen },
     { path: "/", label: "Nuevo Short", icon: PlusCircle },
     { path: "/film", label: "Nuevo Film", icon: Film },
+    { path: "/flow", label: "Nuevo Flow", icon: Workflow },
     { path: "/vox", label: "Nuevo Vox", icon: Newspaper },
     { path: "/stickman", label: "Nuevo Stickman", icon: PersonStanding },
     { path: "/gallery", label: "Galería", icon: LayoutGrid },
@@ -49,6 +51,7 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
   const isActive = (path: string) => {
     if (path === "/") return location.pathname === "/";
     if (path === "/film") return location.pathname === "/film";
+    if (path === "/flow") return location.pathname === "/flow";
     if (path === "/vox") return location.pathname === "/vox" || location.pathname.startsWith("/vox/");
     if (path === "/stickman") return location.pathname === "/stickman" || location.pathname.startsWith("/stickman/");
     return location.pathname.startsWith(path);

@@ -8,6 +8,7 @@ import { AdminPage } from "@/pages/AdminPage";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { FilmPage } from "@/pages/FilmPage";
+import { FlowPage } from "@/pages/FlowPage";
 import { StickmanJobPage } from "@/pages/StickmanJobPage";
 import { StickmanPage } from "@/pages/StickmanPage";
 import { VoxJobPage } from "@/pages/VoxJobPage";
@@ -27,6 +28,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route element={<Layout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/film" element={<FilmPage />} />
+            <Route path="/flow" element={<FlowPage />} />
             <Route path="/vox" element={<VoxPage />} />
             <Route path="/vox/:id" element={<VoxJobPage />} />
             <Route path="/stickman" element={<StickmanPage />} />

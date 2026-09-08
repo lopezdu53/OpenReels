@@ -14,6 +14,7 @@ import { getArchetype, listArchetypes } from "./config/archetype-registry.js";
 import { ATELIER_STYLES } from "./config/atelier-styles.js";
 import { PLATFORMS } from "./config/platforms.js";
 import { registerFilmRoutes } from "./film/routes.js";
+import { registerFlowRoutes } from "./flow/routes.js";
 import { registerLibraryRoutes } from "./library/routes.js";
 import { isIsolatedJobDir } from "./jobs/isolated.js";
 import { registerStickmanRoutes } from "./stickman/routes.js";
@@ -22,6 +23,7 @@ import { getStickmanQueueStats } from "./stickman/worker.js";
 import { registerVoxRoutes } from "./vox/routes.js";
 import { ensureVoxJobsDir, voxJobsDir } from "./vox/store.js";
 import { getVoxQueueStats } from "./vox/worker.js";
+import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "./providers/gflow/catalog.js";
 import { AliCloudImage } from "./providers/image/alicloud.js";
 import { FalImage } from "./providers/image/fal.js";
 import { GeminiImage } from "./providers/image/gemini.js";
@@ -362,8 +364,11 @@ app.get("/api/v1/providers", async () => ({
     kind: m.kind,
     priceLabel: atlasPerSecondPriceLabel(m.usdPerSecond),
   })),
+  gflowImageModels: GFLOW_IMAGE_MODELS,
+  gflowVideoModels: GFLOW_VIDEO_MODELS,
   atelierStyles: ATELIER_STYLES,
   image: [
+    { key: "gflow", label: "gflow-cli (Imagen / Flow)" },
     { key: "atlas", label: "ATLAS" },
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI (GPT Image)" },
@@ -375,6 +380,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "sharpii", label: "Sharpii (Nano Banana / Flux / MJ)" },
   ],
   video: [
+    { key: "gflow", label: "gflow-cli (Veo I2V)" },
     { key: "atlas", label: "ATLAS" },
     { key: "gemini", label: "Google Veo" },
     { key: "grok", label: "Grok Imagine Video 1.5" },
@@ -389,6 +395,7 @@ app.get("/api/v1/providers", async () => ({
 
 await registerAnalyticsRoutes(app);
 await registerFilmRoutes(app);
+await registerFlowRoutes(app);
 await registerLibraryRoutes(app);
 await registerVoxRoutes(app, redis);
 await registerStickmanRoutes(app, redis);
@@ -655,6 +662,8 @@ interface CreateJobBody {
     atlasTtsVoice?: string;
     atlasTtsModel?: string;
     atlasLipSyncModel?: string | null;
+    gflowImageModel?: string;
+    gflowVideoModel?: string;
   };
   keys?: Record<string, string>;
 }
@@ -867,6 +876,8 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       atlasTtsVoice: providers?.atlasTtsVoice,
       atlasTtsModel: providers?.atlasTtsModel,
       atlasLipSyncModel: providers?.atlasLipSyncModel,
+      gflowImageModel: providers?.gflowImageModel,
+      gflowVideoModel: providers?.gflowVideoModel,
     },
     keys: keys ?? {},
     jobsDir: JOBS_DIR,

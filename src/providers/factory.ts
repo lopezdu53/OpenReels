@@ -29,6 +29,7 @@ import { RunPodImage } from "./image/runpod.js";
 import { ViviImage } from "./image/vivi.js";
 import { SharpiiImage } from "./image/sharpii.js";
 import { AtlasImage } from "./image/atlas.js";
+import { GflowImage } from "./image/gflow.js";
 import {
   ATLAS_IMAGE_MODELS,
   ATLAS_LLM_MODELS,
@@ -84,6 +85,7 @@ import { ViduVideo } from "./video/vidu.js";
 import { ViviVideo } from "./video/vivi.js";
 import { SharpiiVideo } from "./video/sharpii.js";
 import { AtlasVideo } from "./video/atlas.js";
+import { GflowVideo } from "./video/gflow.js";
 
 export interface ProviderConfig {
   llm: LLMProviderKey;
@@ -116,6 +118,8 @@ export interface ProviderConfig {
   atlasTtsVoice?: string;
   atlasTtsModel?: string;
   atlasLipSyncModel?: string | null;
+  gflowImageModel?: string;
+  gflowVideoModel?: string;
 }
 
 export interface Providers {
@@ -306,6 +310,8 @@ export function createProviders(config: ProviderConfig): Providers {
     imageGen = googleKey
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "atlas", "gemini")
       : primary;
+  } else if (config.image === "gflow") {
+    imageGen = new GflowImage(config.gflowImageModel);
   } else if (config.image === "alicloud") {
     const primary = new AliCloudImage(undefined, alicloudKey);
     // Fallback chain: alicloud → vivi → gemini
@@ -404,6 +410,8 @@ export function createProviders(config: ProviderConfig): Providers {
     else if (alicloudKey) videoProviders.push(new AliCloudVideo(undefined, alicloudKey));
   } else if (videoPrimary === "sharpii") {
     videoProviders.push(new SharpiiVideo(config.sharpiiVideoModel ?? DEFAULT_SHARPII_VIDEO_MODEL, sharpiiKey));
+  } else if (videoPrimary === "gflow") {
+    videoProviders.push(new GflowVideo(config.gflowVideoModel));
   } else if (videoPrimary === "atlas") {
     if (atlasKey) {
       videoProviders.push(new AtlasVideo(config.atlasVideoModel, atlasKey, config.atlasLipSyncModel));
