@@ -5,7 +5,7 @@ import { generateFilmScript, parseYoutubeUrls } from "../film/script.js";
 import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "../providers/gflow/catalog.js";
 import { gflowBridgeUrl } from "../providers/gflow/bridge.js";
 import { gflowDoctor } from "../providers/gflow/client.js";
-import { FLOW_IMAGE_PROVIDERS, FLOW_VIDEO_PROVIDERS } from "./providers.js";
+import { FLOW_IMAGE_PROVIDERS, FLOW_TTS_PROVIDERS, FLOW_VIDEO_PROVIDERS } from "./providers.js";
 
 export async function registerFlowRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/v1/flow/catalog", async () => ({
@@ -17,11 +17,7 @@ export async function registerFlowRoutes(app: FastifyInstance): Promise<void> {
       { key: "openai-compatible", label: "RunPod (OpenAI-compatible)" },
     ],
     search: [{ key: "tavily", label: "Tavily" }],
-    tts: [
-      { key: "atlas-tts", label: "ATLAS" },
-      { key: "grok-tts", label: "Grok TTS" },
-      { key: "gemini-tts", label: "Gemini TTS" },
-    ],
+    tts: [...FLOW_TTS_PROVIDERS],
     image: [...FLOW_IMAGE_PROVIDERS],
     video: [...FLOW_VIDEO_PROVIDERS],
     doctor: await gflowDoctor(),

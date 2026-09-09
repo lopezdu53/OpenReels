@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """LAN bridge: Xeon OpenReels worker → this Windows box → gflow-cli + Chrome.
 
-Stdlib only. One Chrome profile, so image/I2V run one at a time.
+Stdlib only. One Chrome profile, so image/t2v/I2V run one at a time.
 """
 
 from __future__ import annotations
@@ -60,6 +60,29 @@ def _parse_gflow_json(stdout: str) -> dict[str, Any]:
 def _sanitize_prompt(prompt: str) -> str:
     # Migrated I2V rejects @Name / UUID frames.
     return re.sub(r"@\S+", "", prompt).strip()
+
+
+def _resolve_video_mode(raw: object) -> str:
+    mode = str(raw or "t2v").strip().lower()
+    return mode if mode in {"t2v", "i2v"} else "t2v"
+
+
+def _video_cli_args(
+    *,
+    mode: str,
+    prompt: str,
+    model: str,
+    duration: int,
+    aspect: str,
+    dest: str,
+    still_path: str | None,
+) -> list[str]:
+    common = ["--model", model, "--duration", str(duration), "--aspect", aspect, "-o", dest]
+    if mode == "i2v":
+        if not still_path:
+            raise ValueError("imagePng requerido (still PNG en base64)")
+        return ["video", "i2v", "--initial-frame", still_path, prompt, *common]
+    return ["video", "t2v", prompt, *common]
 
 
 def _gflow_fail_message(payload: dict[str, Any] | None, stdout: str, stderr: str, code: int) -> str:
@@ -153,8 +176,9 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
     prompt = _sanitize_prompt(str(body.get("prompt") or ""))
     if len(prompt) < 2:
         raise ValueError("prompt requerido")
+    mode = _resolve_video_mode(body.get("mode"))
     still = _decode_b64(body.get("imagePng") if isinstance(body.get("imagePng"), str) else None)
-    if not still or len(still) < 80:
+    if mode == "i2v" and (not still or len(still) < 80):
         raise ValueError("imagePng requerido (still PNG en base64)")
     model = str(body.get("model") or "veo-lite")
     aspect = "9:16" if body.get("aspect") == "9:16" else "16:9"
@@ -164,28 +188,21 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
         duration = 6
     duration = max(4, min(duration, 10))
     work = Path(tempfile.mkdtemp(prefix="gflow-bridge-vid-"))
-    still_path = work / "still.png"
     dest = work / "out.mp4"
-    still_path.write_bytes(still)
+    still_path = work / "still.png"
+    if mode == "i2v" and still:
+        still_path.write_bytes(still)
     try:
-        payload = _run_gflow(
-            [
-                "video",
-                "i2v",
-                "--initial-frame",
-                str(still_path),
-                prompt,
-                "--model",
-                model,
-                "--duration",
-                str(duration),
-                "--aspect",
-                aspect,
-                "-o",
-                str(dest),
-            ],
-            VIDEO_TIMEOUT,
+        args = _video_cli_args(
+            mode=mode,
+            prompt=prompt,
+            model=model,
+            duration=duration,
+            aspect=aspect,
+            dest=str(dest),
+            still_path=str(still_path) if mode == "i2v" else None,
         )
+        payload = _run_gflow(args, VIDEO_TIMEOUT)
         local = dest if dest.exists() and dest.stat().st_size > 1000 else None
         if local is None and isinstance(payload.get("local_path"), str):
             p = Path(str(payload["local_path"]))

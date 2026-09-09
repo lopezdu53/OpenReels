@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { pickGflowDuration, resolveGflowImageModel, resolveGflowVideoModel } from "./catalog.js";
+import {
+  pickGflowDuration,
+  resolveGflowImageModel,
+  resolveGflowVideoMode,
+  resolveGflowVideoModel,
+} from "./catalog.js";
 
 describe("gflow catalog", () => {
   it("defaults unknown image models to nano2", () => {
@@ -16,5 +21,12 @@ describe("gflow catalog", () => {
   it("resolves video models", () => {
     expect(resolveGflowVideoModel("veo-quality").id).toBe("veo-quality");
     expect(resolveGflowVideoModel("missing").id).toBe("veo-lite");
+  });
+
+  it("defaults Veo mode to t2v", () => {
+    expect(resolveGflowVideoMode()).toBe("t2v");
+    expect(resolveGflowVideoMode("t2v")).toBe("t2v");
+    expect(resolveGflowVideoMode("i2v")).toBe("i2v");
+    expect(resolveGflowVideoMode("nope")).toBe("t2v");
   });
 });

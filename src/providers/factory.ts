@@ -120,6 +120,7 @@ export interface ProviderConfig {
   atlasLipSyncModel?: string | null;
   gflowImageModel?: string;
   gflowVideoModel?: string;
+  gflowVideoMode?: string;
 }
 
 export interface Providers {
@@ -411,7 +412,7 @@ export function createProviders(config: ProviderConfig): Providers {
   } else if (videoPrimary === "sharpii") {
     videoProviders.push(new SharpiiVideo(config.sharpiiVideoModel ?? DEFAULT_SHARPII_VIDEO_MODEL, sharpiiKey));
   } else if (videoPrimary === "gflow") {
-    videoProviders.push(new GflowVideo(config.gflowVideoModel));
+    videoProviders.push(new GflowVideo(config.gflowVideoModel, config.gflowVideoMode));
   } else if (videoPrimary === "atlas") {
     if (atlasKey) {
       videoProviders.push(new AtlasVideo(config.atlasVideoModel, atlasKey, config.atlasLipSyncModel));

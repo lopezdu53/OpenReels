@@ -4,30 +4,43 @@ Corre **en la PC Windows** con Chrome. El pipeline de EasyPanel (Xeon) llama aqu
 
 ## Una vez
 
-1. Instala [gflow-cli](https://github.com/lopezdu53/gflow-cli) y Chrome.
+1. Instala [gflow-cli](https://github.com/ffroliva/gflow-cli) y Chrome.
 2. `gflow auth login --browser chrome`
-3. Si Google te pasó a `flow.google.com`:
-   - **Imagen t2i no funciona** (`FlowHostMigratedError`). En Nuevo Flow usa Atlas o VIVI para las fotos.
-   - I2V sí: crea un proyecto en https://flow.google.com (o `gflow project create --name OpenReels`) y `gflow project list`.
-   - En **PowerShell** (no `set` ni `%USERPROFILE%`):
-     ```powershell
-     $env:GFLOW_BRIDGE_TOKEN = "el-mismo-secreto"
-     $env:GFLOW_BRIDGE_ALLOW_IPS = "192.168.1.71"
-     $env:GFLOW_CLI_PROJECT = "el-id-de-project-list"
-     cd "$env:USERPROFILE\OpenReels\gflow-bridge"
-     uv run --no-project python server.py
-     ```
-   - El id de un *incident* de error **no** es un project id.
+3. Crea un proyecto en https://flow.google.com (o `gflow project create --name OpenReels`) y `gflow project list`.
+4. En Chrome, abre ese proyecto y deja el chip **Agent en OFF** (`aria-pressed=false`). Si queda ON, gflow 0.71 no ve el botón Settings.
+5. En **PowerShell** (no `set` ni `%USERPROFILE%`):
+
+```powershell
+$env:GFLOW_BRIDGE_TOKEN = "el-mismo-secreto"
+$env:GFLOW_BRIDGE_ALLOW_IPS = "192.168.1.71"
+$env:GFLOW_CLI_PROJECT = "el-id-de-project-list"
+$env:GFLOW_CLI_PROJECT_NAME = "OpenReels"
+cd "$env:USERPROFILE\OpenReels\gflow-bridge"
+uv run --no-project python server.py
+```
+
+El id de un *incident* de error **no** es un project id.
+
+Tras cada merge, vuelve a bajar `server.py`:
+
+```powershell
+cd "$env:USERPROFILE\OpenReels\gflow-bridge"
+irm https://raw.githubusercontent.com/lopezdu53/OpenReels/cursor/grok-providers-fixes-6f6a/gflow-bridge/server.py -OutFile server.py
+```
+
+Nuevo Flow usa **Imagen t2i** + **Veo t2v** por defecto. I2V (subir un still) sigue fallando en gflow 0.71 (`no maseQ reply`).
 
 ## Cada vez que produzcas
 
 En PowerShell (ajusta la IP del Xeon):
 
-```bat
-set GFLOW_BRIDGE_TOKEN=el-mismo-secreto-que-en-easypanel
-set GFLOW_BRIDGE_ALLOW_IPS=192.168.1.71
-set GFLOW_CLI_PROJECT=id-del-proyecto
-start.bat
+```powershell
+cd "$env:USERPROFILE\OpenReels\gflow-bridge"
+$env:GFLOW_BRIDGE_TOKEN = "el-mismo-secreto-que-en-easypanel"
+$env:GFLOW_BRIDGE_ALLOW_IPS = "192.168.1.71"
+$env:GFLOW_CLI_PROJECT = "id-del-proyecto"
+$env:GFLOW_CLI_PROJECT_NAME = "OpenReels"
+uv run --no-project python server.py
 ```
 
 Firewall de Windows: regla de entrada TCP **8787** **solo** desde la IP del Xeon.
@@ -39,7 +52,7 @@ Energía: que el Windows no se suspenda.
 Mismas variables en `video` y `video-worker`, luego **Implementar** ambos:
 
 ```
-GFLOW_BRIDGE_URL=http://192.168.1.50:8787
+GFLOW_BRIDGE_URL=http://192.168.1.9:8787
 GFLOW_BRIDGE_TOKEN=el-mismo-secreto-que-en-el-windows
 ```
 

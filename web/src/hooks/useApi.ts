@@ -499,6 +499,7 @@ export interface CreateJobRequest {
     atlasLipSyncModel?: string | null;
     gflowImageModel?: string;
     gflowVideoModel?: string;
+    gflowVideoMode?: string;
   };
 }
 

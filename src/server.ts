@@ -382,7 +382,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "sharpii", label: "Sharpii (Nano Banana / Flux / MJ)" },
   ],
   video: [
-    { key: "gflow", label: "gflow-cli (Veo I2V)" },
+    { key: "gflow", label: "gflow-cli (Veo t2v)" },
     { key: "atlas", label: "ATLAS" },
     { key: "gemini", label: "Google Veo" },
     { key: "grok", label: "Grok Imagine Video 1.5" },
@@ -666,6 +666,7 @@ interface CreateJobBody {
     atlasLipSyncModel?: string | null;
     gflowImageModel?: string;
     gflowVideoModel?: string;
+    gflowVideoMode?: string;
   };
   keys?: Record<string, string>;
 }
@@ -880,6 +881,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       atlasLipSyncModel: providers?.atlasLipSyncModel,
       gflowImageModel: providers?.gflowImageModel,
       gflowVideoModel: providers?.gflowVideoModel,
+      gflowVideoMode: providers?.gflowVideoMode,
     },
     keys: keys ?? {},
     jobsDir: JOBS_DIR,

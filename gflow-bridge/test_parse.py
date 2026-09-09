@@ -1,7 +1,13 @@
 import json
 import unittest
 
-from server import _gflow_fail_message, _parse_gflow_json, _sanitize_prompt
+from server import (
+    _gflow_fail_message,
+    _parse_gflow_json,
+    _resolve_video_mode,
+    _sanitize_prompt,
+    _video_cli_args,
+)
 
 
 class ParseTests(unittest.TestCase):
@@ -30,6 +36,38 @@ class PromptTests(unittest.TestCase):
         )
         self.assertIn("FlowHostMigratedError", msg)
         self.assertIn("handed off", msg)
+
+
+class VideoModeTests(unittest.TestCase):
+    def test_defaults_to_t2v(self):
+        self.assertEqual(_resolve_video_mode(None), "t2v")
+        self.assertEqual(_resolve_video_mode("nope"), "t2v")
+        self.assertEqual(_resolve_video_mode("i2v"), "i2v")
+
+    def test_t2v_args_omit_initial_frame(self):
+        args = _video_cli_args(
+            mode="t2v",
+            prompt="a cat walks",
+            model="veo-lite",
+            duration=6,
+            aspect="16:9",
+            dest="out.mp4",
+            still_path=None,
+        )
+        self.assertEqual(args[:3], ["video", "t2v", "a cat walks"])
+        self.assertNotIn("--initial-frame", args)
+
+    def test_i2v_args_need_still(self):
+        args = _video_cli_args(
+            mode="i2v",
+            prompt="pan left",
+            model="veo-lite",
+            duration=6,
+            aspect="16:9",
+            dest="out.mp4",
+            still_path="C:/tmp/still.png",
+        )
+        self.assertEqual(args[:4], ["video", "i2v", "--initial-frame", "C:/tmp/still.png"])
 
 
 class DrainTests(unittest.TestCase):

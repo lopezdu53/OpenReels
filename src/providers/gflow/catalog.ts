@@ -5,7 +5,7 @@ export const GFLOW_IMAGE_MODELS = [
 ] as const;
 
 export const GFLOW_VIDEO_MODELS = [
-  { id: "veo-lite", label: "Veo Lite", note: "barato · default I2V", durations: [4, 6, 8] },
+  { id: "veo-lite", label: "Veo Lite", note: "barato · default t2v", durations: [4, 6, 8] },
   { id: "veo-fast", label: "Veo Fast", note: "más rápido", durations: [4, 6, 8] },
   { id: "veo-quality", label: "Veo Quality", note: "mejor look", durations: [4, 6, 8] },
   { id: "omni-flash", label: "Omni Flash", note: "hasta 10s", durations: [4, 6, 8, 10] },
@@ -14,6 +14,13 @@ export const GFLOW_VIDEO_MODELS = [
 
 export const DEFAULT_GFLOW_IMAGE_MODEL = "nano2";
 export const DEFAULT_GFLOW_VIDEO_MODEL = "veo-lite";
+export const DEFAULT_GFLOW_VIDEO_MODE = "t2v";
+
+export type GflowVideoMode = "t2v" | "i2v";
+
+export function resolveGflowVideoMode(mode?: string): GflowVideoMode {
+  return mode === "i2v" ? "i2v" : "t2v";
+}
 
 export function resolveGflowImageModel(id?: string): string {
   return GFLOW_IMAGE_MODELS.some((m) => m.id === id) ? id! : DEFAULT_GFLOW_IMAGE_MODEL;

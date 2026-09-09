@@ -34,6 +34,7 @@ import { LocationStudio } from "@/components/film/LocationStudio";
 import { ObjectStudio } from "@/components/film/ObjectStudio";
 import { VisualStyleStudio } from "@/components/film/VisualStyleStudio";
 import { estimateJobCost } from "@/lib/job-cost-preview";
+import { KOKORO_DEFAULT_CONNECT_MIX } from "@/lib/kokoro-voice";
 import { estimateFilmSceneCount, VIDEO_SCENE_MODE_OPTIONS } from "@/lib/video-scene-modes";
 import { fetchUsdToCopRate } from "@/lib/cop-rate";
 import { loadPrices } from "@/pages/LabPage";
@@ -148,16 +149,17 @@ const FALLBACK = {
     { key: "openai-compatible", label: "RunPod (OpenAI-compatible)" },
   ],
   tts: [
+    { key: "kokoro", label: "Kokoro (Local)" },
     { key: "atlas-tts", label: "ATLAS" },
     { key: "grok-tts", label: "Grok TTS" },
     { key: "gemini-tts", label: "Gemini TTS" },
   ],
   image: [
+    { key: "gflow", label: "gflow-cli (Imagen · Flow)" },
     { key: "atlas", label: "ATLAS" },
     { key: "vivi", label: "VIVI" },
-    { key: "gflow", label: "gflow-cli (Imagen · solo labs.google)" },
   ],
-  video: [{ key: "gflow", label: "gflow-cli (Veo I2V)" }],
+  video: [{ key: "gflow", label: "gflow-cli (Veo t2v)" }],
   search: [{ key: "tavily", label: "Tavily" }],
 };
 
@@ -252,17 +254,18 @@ export function FlowPage() {
   const [llmModel, setLlmModel] = useState("deepseek-ai/deepseek-v4-flash");
   const [llmBaseUrl, setLlmBaseUrl] = useState("");
   const [searchProvider, setSearchProvider] = useState("tavily");
-  const [ttsProvider, setTtsProvider] = useState("atlas-tts");
+  const [ttsProvider, setTtsProvider] = useState("kokoro");
   const [inworldVoice, setInworldVoice] = useState("Pedro");
   const [geminiTtsVoice, setGeminiTtsVoice] = useState("Kore");
   const [grokTtsVoice, setGrokTtsVoice] = useState("eve");
   const [grokTtsSpeed, setGrokTtsSpeed] = useState(1);
-  const [kokoroVoice, setKokoroVoice] = useState("ef_dora");
-  const [kokoroSpeed, setKokoroSpeed] = useState(1);
-  const [imageProvider, setImageProvider] = useState("atlas");
+  const [kokoroVoice, setKokoroVoice] = useState(KOKORO_DEFAULT_CONNECT_MIX);
+  const [kokoroSpeed, setKokoroSpeed] = useState(1.1);
+  const [imageProvider, setImageProvider] = useState("gflow");
   const [videoProvider, setVideoProvider] = useState("gflow");
   const [gflowImageModel, setGflowImageModel] = useState("nano2");
   const [gflowVideoModel, setGflowVideoModel] = useState("veo-lite");
+  const [gflowVideoMode, setGflowVideoMode] = useState("t2v");
   const [atlasTtsModel, setAtlasTtsModel] = useState("xai/tts-v1");
   const [atlasTtsVoice, setAtlasTtsVoice] = useState("eve");
   const [atlasImageModel, setAtlasImageModel] = useState("google/nano-banana-2-lite/text-to-image");
@@ -465,7 +468,7 @@ export function FlowPage() {
         ? { atlasVideoModel, atlasLipSyncModel: atlasLipSyncModel === "none" ? null : atlasLipSyncModel }
         : {}),
       ...(imageProvider === "gflow" ? { gflowImageModel } : {}),
-      ...(videoProvider === "gflow" ? { gflowVideoModel } : {}),
+      ...(videoProvider === "gflow" ? { gflowVideoModel, gflowVideoMode } : {}),
     };
   }
 
@@ -694,9 +697,9 @@ export function FlowPage() {
             Nuevo Flow
           </h1>
           <p className="mt-3 text-sm text-muted-foreground">
-            Misma ventana que Nuevo Film. LLM: VIVI, RunPod o Atlas. Web: Tavily. Voz: Atlas,
-            Grok o Gemini. Fotos: Atlas o VIVI (gflow Imagen no corre si Google te pasó a
-            flow.google.com). Video: gflow Veo I2V en Chrome.
+            Misma ventana que Nuevo Film. LLM: VIVI, RunPod o Atlas. Web: Tavily. Voz: Kokoro
+            (mix Conexión), Atlas, Grok o Gemini. Fotos: gflow Imagen. Video: gflow Veo t2v
+            en Chrome. Deja el chip Agent apagado en Flow.
           </p>
         </div>
 
@@ -704,9 +707,9 @@ export function FlowPage() {
           steps={[
             { id: "film-historia", n: 1, title: "Historia", hint: "Idea y duración", icon: Sparkles },
             { id: "film-guion", n: 2, title: "Guion", hint: "LLM y scripts", icon: PenLine },
-            { id: "film-voz", n: 3, title: "Voz", hint: "TTS Atlas", icon: Mic2 },
+            { id: "film-voz", n: 3, title: "Voz", hint: "Kokoro mix", icon: Mic2 },
             { id: "film-elenco", n: 4, title: "Elenco", hint: "Refs y estilo", icon: Users },
-            { id: "film-visuales", n: 5, title: "Visuales", hint: "gflow Imagen + Veo", icon: ImageIcon },
+            { id: "film-visuales", n: 5, title: "Visuales", hint: "gflow Imagen + Veo t2v", icon: ImageIcon },
             { id: "film-musica", n: 6, title: "Música", hint: "Banda", icon: Music },
           ]}
         />
@@ -933,7 +936,7 @@ export function FlowPage() {
         </div>
         </PipelineStep>
 
-        <PipelineStep id="film-voz" step={3} icon={Mic2} title="Voz" subtitle="TTS y voces Atlas por modelo">
+        <PipelineStep id="film-voz" step={3} icon={Mic2} title="Voz" subtitle="Kokoro mix, Atlas, Grok o Gemini">
           <Field label="Proveedor TTS">
             <Select value={ttsProvider} onValueChange={(v) => v && setTtsProvider(v)}>
               <SelectTrigger className={FIELD}><SelectValue>{labelOf(ttsList, ttsProvider)}</SelectValue></SelectTrigger>
@@ -1157,7 +1160,7 @@ export function FlowPage() {
         />
         </PipelineStep>
 
-        <PipelineStep id="film-visuales" step={5} icon={ImageIcon} title="Visuales" subtitle="Fotos: Atlas/VIVI · Video: gflow Veo I2V">
+        <PipelineStep id="film-visuales" step={5} icon={ImageIcon} title="Visuales" subtitle="Fotos: gflow Imagen · Video: Veo t2v">
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Imagen">
@@ -1197,21 +1200,32 @@ export function FlowPage() {
                   </Field>
                 ) : null}
                 {videoProvider === "gflow" ? (
-                  <Field label="Modelo Veo I2V (gflow)">
-                    <Select value={gflowVideoModel} onValueChange={(v) => v && setGflowVideoModel(v)}>
-                      <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {(providers?.gflowVideoModels?.length ? providers.gflowVideoModels : FALLBACK_GFLOW_VIDEO).map((m) => (
-                          <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
+                  <>
+                    <Field label="Modelo Veo (gflow)">
+                      <Select value={gflowVideoModel} onValueChange={(v) => v && setGflowVideoModel(v)}>
+                        <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {(providers?.gflowVideoModels?.length ? providers.gflowVideoModels : FALLBACK_GFLOW_VIDEO).map((m) => (
+                            <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <Field label="Modo Veo">
+                      <Select value={gflowVideoMode} onValueChange={(v) => v && setGflowVideoMode(v)}>
+                        <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="t2v">Texto → video (t2v)</SelectItem>
+                          <SelectItem value="i2v">Foto → video (I2V)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                  </>
                 ) : null}
                 <p className="sm:col-span-2 text-[11px] text-muted-foreground">
-                  I2V usa el puente Windows (<code>GFLOW_BRIDGE_URL</code>) y exige un
-                  proyecto de <code>flow.google.com</code> (<code>GFLOW_CLI_PROJECT</code>).
-                  No uses gflow para fotos si tu cuenta ya migró.
+                  El puente Windows (<code>GFLOW_BRIDGE_URL</code>) corre gflow en Chrome.
+                  Deja Agent apagado. t2v es el que ya funciona; I2V local aún falla en
+                  gflow 0.71 al subir el still.
                 </p>
               </div>
             ) : null}
