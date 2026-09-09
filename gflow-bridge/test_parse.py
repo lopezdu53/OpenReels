@@ -180,5 +180,34 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(server.ALLOW_IPS, {"192.168.1.71", "10.0.0.2"})
 
 
+class RelayClientTests(unittest.TestCase):
+    def test_headers_look_like_chrome_not_python(self):
+        from relay_client import BROWSER_UA, _headers
+
+        headers = _headers("secret", "https://contenido.alfonsolopezd.com")
+        self.assertIn("Chrome/", headers["User-Agent"])
+        self.assertNotIn("Python", headers["User-Agent"])
+        self.assertEqual(headers["User-Agent"], BROWSER_UA)
+        self.assertTrue(headers["Authorization"].startswith("Bearer secret"))
+        self.assertEqual(headers["Origin"], "https://contenido.alfonsolopezd.com")
+
+    def test_cloudflare_1010_message(self):
+        from relay_client import format_remote_http_error
+
+        msg = format_remote_http_error(
+            403,
+            '{"type":"https://developers.cloudflare.com/.../error-1010/","title":"Error 1010: Access denied"}',
+        )
+        self.assertIn("Cloudflare 1010", msg)
+        self.assertNotIn("Python-urllib", msg)
+
+    def test_missing_relay_routes_message(self):
+        from relay_client import format_remote_http_error
+
+        msg = format_remote_http_error(404, '{"error":"Not found"}')
+        self.assertIn("EasyPanel", msg)
+        self.assertIn("video-worker", msg)
+
+
 if __name__ == "__main__":
     unittest.main()
