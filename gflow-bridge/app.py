@@ -18,8 +18,10 @@ except ImportError as err:  # pragma: no cover
     raise SystemExit("Necesitas Python con Tcl/Tk (el instalador oficial de python.org)") from err
 
 import server
+from install import format_gflow_status, inspect_gflow, install_gflow_stack, version_newer
 from profiles import (
     find_gflow,
+    find_chrome,
     gflow_login_cmd,
     list_chrome_profiles,
     list_gflow_accounts,
@@ -99,7 +101,11 @@ class App(tk.Tk):
         self.gflow_bin = tk.StringVar(value=self.cfg.get("gflowBin") or find_gflow() or "")
         self.chrome_choice = tk.StringVar(value="")
         self.status = tk.StringVar(value="Apagado")
+        self.gflow_status = tk.StringVar(value="gflow: comprobando…")
         self._chrome_by_label: dict[str, str] = {}
+        self._gflow_meta: dict[str, str | None] = {}
+        self._installing = False
+        self._after_install = None
 
         self._build()
         self.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -153,7 +159,11 @@ class App(tk.Tk):
         self._field(form, "Nombre del proyecto", self.project_name)
         self._chrome_menu(form)
         self._field(form, "Perfil gflow (vacío = default). Tras login se nombra con tu Gmail.", self.gflow_profile)
-        self._field(form, "Ruta de gflow.exe (si WinError 2, pégala aquí)", self.gflow_bin)
+        self._field(form, "Ruta de gflow.exe (opcional; Instalar todo la rellena)", self.gflow_bin)
+
+        tk.Label(self, textvariable=self.gflow_status, fg=LIME, bg=BG, font=("Segoe UI", 10, "bold")).pack(
+            anchor="w", padx=16, pady=(4, 0)
+        )
 
         btns = tk.Frame(self, bg=BG)
         btns.pack(fill="x", padx=16, pady=(8, 2))
@@ -183,13 +193,26 @@ class App(tk.Tk):
         tk.Button(row2, text="Inicio con Windows", command=self.toggle_autostart, bg=CARD, fg=FG, relief="flat", padx=12, pady=8).pack(
             side="left", padx=8
         )
+        self.install_btn = tk.Button(
+            row2,
+            text="Instalar todo",
+            command=self.install_clicked,
+            bg=LIME,
+            fg=BG,
+            relief="flat",
+            padx=12,
+            pady=8,
+        )
+        self.install_btn.pack(side="left", padx=8)
 
         tk.Label(self, textvariable=self.status, fg=LIME, bg=BG, font=("Segoe UI", 10, "bold")).pack(anchor="w", padx=16)
         self.log = scrolledtext.ScrolledText(self, height=14, bg=CARD, fg=FG, insertbackground=FG, relief="flat")
         self.log.pack(fill="both", expand=True, padx=16, pady=(4, 16))
-        self._log("Listo. 1) Elige el Chrome del Gmail Gemini. 2) Entrar a Flow. 3) Token + Conectar.")
-        self._log("gflow no usa tu Chrome de cada día: al entrar, en la ventana nueva elige ESA cuenta Gemini.")
-        self._refresh_gflow_hint()
+        self._log("Listo. Si falta gflow, pulsa Instalar todo (o Conectar: se instala solo).")
+        self._log("Luego elige el Chrome Gemini, Entrar a Flow, token y Conectar.")
+        if not find_chrome():
+            self._log("No veo Google Chrome. Instálalo: https://www.google.com/chrome/")
+        self.after(200, self.refresh_gflow_status)
 
     def _field(self, parent: tk.Frame, label: str, var: tk.StringVar, show: str | None = None) -> None:
         tk.Label(parent, text=label, fg=MUTED, bg=CARD, font=("Segoe UI", 8)).pack(anchor="w")
@@ -221,19 +244,89 @@ class App(tk.Tk):
     def _chrome_directory(self) -> str:
         return self._chrome_by_label.get(self.chrome_choice.get(), "Default")
 
-    def _refresh_gflow_hint(self) -> None:
-        found = find_gflow(self.gflow_bin.get())
-        if found:
-            if not self.gflow_bin.get().strip():
-                self.gflow_bin.set(found)
-            self._log(f"gflow-cli: {found}")
-        else:
+    def refresh_gflow_status(self) -> None:
+        def work() -> None:
+            try:
+                meta = inspect_gflow(self.gflow_bin.get())
+            except Exception as err:
+                meta = {"path": find_gflow(self.gflow_bin.get()), "installed": None, "latest": None, "status": str(err)}
+            self.after(0, lambda: self._apply_gflow_meta(meta))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _apply_gflow_meta(self, meta: dict[str, str | None]) -> None:
+        self._gflow_meta = meta
+        path = meta.get("path")
+        if path:
+            self.gflow_bin.set(path)
+        status = meta.get("status") or format_gflow_status(meta.get("installed"), meta.get("latest"))
+        self.gflow_status.set(status)
+        installed = meta.get("installed")
+        latest = meta.get("latest")
+        if not path:
+            self.install_btn.configure(text="Instalar todo")
             self._log(missing_gflow_message())
+        elif latest and installed and version_newer(latest, installed):
+            self.install_btn.configure(text=f"Actualizar a {latest}")
+            self._log(status)
+        else:
+            self.install_btn.configure(text="Reinstalar gflow")
+            self._log(status + (f" → {path}" if path else ""))
         accounts = list_gflow_accounts()
         if accounts:
-            self._log("Sesiones gflow en este PC: " + " | ".join(accounts))
-        else:
-            self._log("Aún no hay sesión Flow. Pulsa «Entrar a Flow» y entra con el Gmail Gemini (plan).")
+            self._log("Sesiones gflow: " + " | ".join(accounts))
+
+    def install_clicked(self) -> None:
+        installed = self._gflow_meta.get("installed")
+        latest = self._gflow_meta.get("latest")
+        upgrade = bool(installed and latest and version_newer(latest, installed))
+        self.install_stack(upgrade=upgrade or bool(installed))
+
+    def install_stack(self, *, upgrade: bool = False, then=None) -> None:
+        if self._installing:
+            self._log("Ya hay una instalación en curso…")
+            return
+        self._installing = True
+        self._after_install = then
+        self.install_btn.configure(text="Instalando…")
+        self.gflow_status.set("gflow: instalando uv + gflow-cli + Chromium…")
+        self._log("Instalando lo necesario (sin PowerShell). Puede tardar unos minutos.")
+
+        def work() -> None:
+            try:
+                path = install_gflow_stack(self._log, upgrade=upgrade)
+                self.after(0, lambda: self._install_ok(path))
+            except Exception as err:
+                self.after(0, lambda e=err: self._install_fail(e))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _install_ok(self, path: str) -> None:
+        self._installing = False
+        self.gflow_bin.set(path)
+        self.persist()
+        self._log(f"gflow listo: {path}")
+        then = self._after_install
+        self._after_install = None
+        self.refresh_gflow_status()
+        if then:
+            then()
+
+    def _install_fail(self, err: Exception) -> None:
+        self._installing = False
+        self._after_install = None
+        self.install_btn.configure(text="Instalar todo")
+        self.gflow_status.set("gflow: falló la instalación")
+        messagebox.showerror("Instalar gflow", str(err)[:600])
+
+    def _ensure_gflow(self, then) -> None:
+        path = find_gflow(self.gflow_bin.get())
+        if path:
+            self.gflow_bin.set(path)
+            then()
+            return
+        self._log("Falta gflow. Lo instalo ahora y sigo…")
+        self.install_stack(upgrade=False, then=then)
 
     def open_flow(self) -> None:
         directory = self._chrome_directory()
@@ -245,6 +338,9 @@ class App(tk.Tk):
 
     def login_flow(self) -> None:
         self.persist()
+        self._ensure_gflow(self._login_flow_now)
+
+    def _login_flow_now(self) -> None:
         bin_path = find_gflow(self.gflow_bin.get())
         if not bin_path:
             messagebox.showerror("gflow-cli", missing_gflow_message())
@@ -299,12 +395,17 @@ class App(tk.Tk):
         if not token:
             messagebox.showerror("Token", "Pega el mismo GFLOW_BRIDGE_TOKEN que en EasyPanel.")
             return
-        mode = self.mode.get()
         try:
-            port = int(self.port.get() or 8787)
+            int(self.port.get() or 8787)
         except ValueError:
             messagebox.showerror("Puerto", "Puerto inválido")
             return
+        self._ensure_gflow(self._start_now)
+
+    def _start_now(self) -> None:
+        token = self.token.get().strip()
+        mode = self.mode.get()
+        port = int(self.port.get() or 8787)
         allow = self.xeon.get().strip()
         gflow_bin = find_gflow(self.gflow_bin.get()) or self.gflow_bin.get().strip()
         if not find_gflow(self.gflow_bin.get()):
