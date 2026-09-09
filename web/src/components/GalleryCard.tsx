@@ -98,7 +98,7 @@ export function GalleryCard({ job, bulkMode, selected, onToggleSelect, timeAgo, 
           ) : isRunning ? (
             <div className="flex flex-col items-center gap-2">
               <div className="size-6 animate-spin rounded-full border-2 border-border border-t-status-info" />
-              <span className="text-[10px] text-muted-foreground">Generating...</span>
+              <span className="text-[10px] text-muted-foreground">Generando…</span>
             </div>
           ) : (
             <Layers className="size-8 text-border" />
@@ -111,7 +111,7 @@ export function GalleryCard({ job, bulkMode, selected, onToggleSelect, timeAgo, 
               !bulkMode && onDelete ? "right-10" : "right-2"
             )}>
               <span className="size-1.5 rounded-full bg-status-info animate-pulse" />
-              <span className="text-[9px] text-status-info">Running</span>
+              <span className="text-[9px] text-status-info">En curso</span>
             </div>
           )}
 
@@ -120,7 +120,7 @@ export function GalleryCard({ job, bulkMode, selected, onToggleSelect, timeAgo, 
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
               className="absolute top-2 right-2 flex size-7 items-center justify-center rounded-full bg-black/60 text-white/70 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive hover:text-white"
-              title={isRunning ? "Force delete (stuck job)" : "Delete video"}
+              title={isRunning ? "Forzar borrado (trabajo colgado)" : "Borrar video"}
             >
               <Trash2 className="size-3.5" />
             </button>
@@ -144,7 +144,7 @@ export function GalleryCard({ job, bulkMode, selected, onToggleSelect, timeAgo, 
             )}
             {isFailed && (
               <Badge variant="destructive" className="text-[10px] font-normal">
-                Failed
+                Fallido
               </Badge>
             )}
           </div>

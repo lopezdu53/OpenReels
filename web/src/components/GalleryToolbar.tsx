@@ -49,7 +49,7 @@ export function GalleryToolbar({
         <Input
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search topics..."
+          placeholder="Buscar temas…"
           className="h-9 rounded-lg border-border bg-surface-inset pl-9 text-sm text-foreground placeholder:text-text-faint"
         />
       </div>
@@ -57,10 +57,10 @@ export function GalleryToolbar({
       {/* Archetype filter */}
       <Select value={archetypeFilter} onValueChange={(v) => v && onArchetypeChange(v)}>
         <SelectTrigger className="h-9 w-auto min-w-[120px] rounded-lg border-border bg-surface-inset text-xs">
-          <SelectValue placeholder="All Styles" />
+          <SelectValue placeholder="Todos los estilos" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All Styles</SelectItem>
+          <SelectItem value="all">Todos los estilos</SelectItem>
           {archetypes.map((a) => (
             <SelectItem key={a.name} value={a.name}>
               {formatArchetypeName(a.name)}
@@ -78,10 +78,10 @@ export function GalleryToolbar({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All Status</SelectItem>
-          <SelectItem value="completed">Completed</SelectItem>
-          <SelectItem value="failed">Failed</SelectItem>
-          <SelectItem value="running">Running</SelectItem>
+          <SelectItem value="all">Todos</SelectItem>
+          <SelectItem value="completed">Completados</SelectItem>
+          <SelectItem value="failed">Fallidos</SelectItem>
+          <SelectItem value="running">En curso</SelectItem>
         </SelectContent>
       </Select>
 
@@ -91,10 +91,10 @@ export function GalleryToolbar({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="newest">Newest</SelectItem>
-          <SelectItem value="oldest">Oldest</SelectItem>
-          <SelectItem value="cost">Highest Cost</SelectItem>
-          <SelectItem value="score">Highest Score</SelectItem>
+          <SelectItem value="newest">Más nuevos</SelectItem>
+          <SelectItem value="oldest">Más antiguos</SelectItem>
+          <SelectItem value="cost">Mayor costo</SelectItem>
+          <SelectItem value="score">Mayor puntuación</SelectItem>
         </SelectContent>
       </Select>
 

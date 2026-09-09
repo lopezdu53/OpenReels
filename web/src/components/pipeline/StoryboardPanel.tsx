@@ -43,10 +43,10 @@ export function StoryboardPanel({
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
-          DIRECTOR'S SCORE
+          DIRECTOR SCORE
         </span>
         <span className="text-xs font-medium text-status-success">
-          {score.scenes.length} scenes planned
+          {score.scenes.length} escenas planificadas
         </span>
       </div>
 
@@ -263,7 +263,7 @@ function StoryboardScene({
         {/* Warning overlay for failed assets */}
         {hasFailed && (
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-status-warning/12 to-transparent px-2 py-1">
-            <span className="text-[9px] font-medium text-status-warning">Asset failed</span>
+            <span className="text-[9px] font-medium text-status-warning">Recurso fallido</span>
           </div>
         )}
       </div>

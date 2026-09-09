@@ -22,6 +22,17 @@ export interface CLIOptions {
   videoModel?: string;
   musicProvider: MusicProviderKey;
   kokoroVoice?: string;
+  kokoroSpeed?: number;
+  runpodImageModel?: string;
+  runpodVideoModel?: string;
+  runpodImageSteps?: number;
+  runpodVideoResolution?: string;
+  sharpiiImageModel?: string;
+  sharpiiVideoModel?: string;
+  atlasImageModel?: string;
+  atlasVideoModel?: string;
+  atlasTtsVoice?: string;
+  atlasLipSyncModel?: string | null;
   llmModel?: string;
   llmBaseUrl?: string;
   searchProvider?: SearchProviderKey;
@@ -96,6 +107,10 @@ export function parseArgs(): CLIOptions {
           "openai-compatible",
           "google",
           "local",
+          "grok",
+          "vivi",
+          "alicloud",
+          "atlas",
         ])
         .default("anthropic"),
     )
@@ -115,19 +130,36 @@ export function parseArgs(): CLIOptions {
     )
     .addOption(
       new Option("-i, --image-provider <provider>", "Image generation provider")
-        .choices(["gemini", "openai"])
+        .choices(["gemini", "openai", "grok", "vivi", "alicloud", "runpod", "fal", "sharpii", "atlas"])
         .default("gemini"),
     )
     .addOption(
       new Option("--tts-provider <provider>", "TTS provider")
-        .choices(["elevenlabs", "inworld", "kokoro", "gemini-tts", "openai-tts"])
+        .choices(["elevenlabs", "inworld", "kokoro", "gemini-tts", "openai-tts", "grok-tts", "atlas-tts"])
         .default("elevenlabs"),
     )
     .option(
       "--kokoro-voice <voice>",
-      "Kokoro voice preset (e.g. af_heart, bf_emma, am_fenrir)",
-      "af_heart",
+      "Kokoro voice (ef_dora/em_alex/em_santa español; af_heart, bf_emma inglés)",
+      "ef_dora",
     )
+    .option("--kokoro-speed <n>", "Kokoro speaking speed (0.7–1.5)", parseFloat)
+    .option(
+      "--runpod-image-model <model>",
+      "RunPod public image endpoint (default: p-image-t2i)",
+    )
+    .option(
+      "--runpod-video-model <model>",
+      "RunPod public I2V endpoint (default: p-video)",
+    )
+    .option("--runpod-image-steps <n>", "RunPod image inference steps", parseInt)
+    .option("--runpod-video-resolution <res>", "RunPod video resolution (720p, 1080p, 480p)")
+    .option("--sharpii-image-model <model>", "Sharpii image model (default: nano-banana-2)")
+    .option("--sharpii-video-model <model>", "Sharpii I2V model (default: kling-v2.6-pro-i2v)")
+    .option("--atlas-image-model <model>", "Atlas image model (default: nano-banana-2-lite)")
+    .option("--atlas-video-model <model>", "Atlas I2V model (default: seedance-2.0-mini)")
+    .option("--atlas-tts-voice <voice>", "Atlas TTS voice (eve/ara/leo/rex/sal)", "eve")
+    .option("--atlas-lipsync-model <model>", "Atlas lip-sync model (default: veed/lipsync; 'none' disables)")
     .option("-a, --archetype <archetype>", "Visual archetype override")
     .addOption(
       new Option("--pacing <tier>", "Pacing tier override (overrides archetype default)").choices(
@@ -162,6 +194,23 @@ export function parseArgs(): CLIOptions {
       new Option("--video-provider <provider>", "Video generation provider").choices([
         "gemini",
         "fal",
+        "grok",
+        "vivi",
+        "runpod",
+        "sharpii",
+        "atlas",
+        "vidu",
+        "vidu-q3-pro",
+        "vidu-q3-fast",
+        "vidu-q3-turbo",
+        "vidu-q2-pro",
+        "vidu-q2-fast",
+        "vidu-q2-turbo",
+        "vidu-q1",
+        "vidu-q1-classic",
+        "vidu-2.0",
+        "alicloud-wan-turbo",
+        "alicloud-wan-plus",
       ]),
     )
     .option(
@@ -235,6 +284,18 @@ export function parseArgs(): CLIOptions {
     videoModel: opts["videoModel"] as string | undefined,
     musicProvider: opts["musicProvider"] as MusicProviderKey,
     kokoroVoice: opts["kokoroVoice"] as string | undefined,
+    kokoroSpeed: opts["kokoroSpeed"] as number | undefined,
+    runpodImageModel: opts["runpodImageModel"] as string | undefined,
+    runpodVideoModel: opts["runpodVideoModel"] as string | undefined,
+    runpodImageSteps: opts["runpodImageSteps"] as number | undefined,
+    runpodVideoResolution: opts["runpodVideoResolution"] as string | undefined,
+    sharpiiImageModel: opts["sharpiiImageModel"] as string | undefined,
+    sharpiiVideoModel: opts["sharpiiVideoModel"] as string | undefined,
+    atlasImageModel: opts["atlasImageModel"] as string | undefined,
+    atlasVideoModel: opts["atlasVideoModel"] as string | undefined,
+    atlasTtsVoice: opts["atlasTtsVoice"] as string | undefined,
+    atlasLipSyncModel:
+      opts["atlasLipsyncModel"] === "none" ? null : (opts["atlasLipsyncModel"] as string | undefined),
     llmModel: opts["llmModel"] as string | undefined,
     llmBaseUrl: opts["llmBaseUrl"] as string | undefined,
     searchProvider: opts["searchProvider"] as SearchProviderKey | undefined,

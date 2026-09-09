@@ -17,14 +17,14 @@ export function CostBreakdownCard({ estimate, actual, variant = "compact" }: Cos
     return (
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-border bg-card px-4 py-3">
         <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
-          {actual ? "COST BREAKDOWN" : "COST ESTIMATE"}
+          {actual ? "DESGLOSE DE COSTO" : "ESTIMACIÓN DE COSTO"}
         </span>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <CostItem label="LLM" value={cost.llmCost} />
           <CostItem label="TTS" value={cost.ttsCost} />
-          <CostItem label="Images" value={cost.imageCost} />
+          <CostItem label="Imágenes" value={cost.imageCost} />
           {hasVideo && <CostItem label="Video" value={cost.videoCost} />}
-          {hasMusic && <CostItem label="Music" value={cost.musicCost} />}
+          {hasMusic && <CostItem label="Música" value={cost.musicCost} />}
           <div className="flex items-center gap-1">
             <span className="text-xs font-bold text-status-info">
               ${cost.totalCost.toFixed(2)}
@@ -39,14 +39,14 @@ export function CostBreakdownCard({ estimate, actual, variant = "compact" }: Cos
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-border bg-card px-4 py-3">
       <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
-        COST BREAKDOWN
+        DESGLOSE DE COSTO
       </span>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <CostItem label="LLM" value={cost.llmCost} />
         <CostItem label="TTS" value={cost.ttsCost} />
-        <CostItem label="Images" value={cost.imageCost} />
+        <CostItem label="Imágenes" value={cost.imageCost} />
         {hasVideo && <CostItem label="Video" value={cost.videoCost} />}
-        {hasMusic && <CostItem label="Music" value={cost.musicCost} />}
+        {hasMusic && <CostItem label="Música" value={cost.musicCost} />}
         <div className="flex items-center gap-1">
           <span className="text-xs font-bold text-status-info">
             ${cost.totalCost.toFixed(2)}

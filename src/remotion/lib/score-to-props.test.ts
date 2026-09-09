@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ArchetypeConfig } from "../../schema/archetype.js";
 import type { DirectorScore } from "../../schema/director-score.js";
 import type { ResolvedAssets } from "./score-to-props.js";
+import { MATCH_CUT_BLEND_FRAMES, MATCH_CUT_SKIP_FRAMES } from "./motion.js";
 import { getTotalDurationInFrames, mapScoreToProps } from "./score-to-props.js";
 
 const makeWords = (start: number, end: number) => [
@@ -74,8 +75,8 @@ describe("mapScoreToProps", () => {
 
   it("calculates scene duration from word timestamps with padding", () => {
     const props = mapScoreToProps(baseScore, baseAssets, 30);
-    // Scene 1: words from 0 to 3 = 3s + 0.5s padding = 3.5s = 105 frames
-    expect(props.scenes[0]!.durationInFrames).toBe(105);
+    // Scene 0 spans 0→3s until the next scene's first word (90 frames at 30fps)
+    expect(props.scenes[0]!.durationInFrames).toBe(90);
   });
 
   it("uses minimum 2 second duration for scenes with short voiceover", () => {
@@ -96,6 +97,31 @@ describe("mapScoreToProps", () => {
     expect(props.captionStyle).toBe("bold_outline");
   });
 
+  it("stitches hero video match-cuts with a short blend and incoming skip", () => {
+    const score: DirectorScore = {
+      ...baseScore,
+      scenes: [
+        { visual_type: "ai_video", visual_prompt: "drive", motion: "static", script_line: "Arranca el Mercedes.", transition: "none" },
+        { visual_type: "ai_video", visual_prompt: "wave", motion: "static", script_line: "Acelera en el semáforo.", transition: "none" },
+        { visual_type: "ai_video", visual_prompt: "crash", motion: "static", script_line: "Choca y se queda sin auto.", transition: null },
+      ],
+    };
+    const props = mapScoreToProps(score, {
+      ...baseAssets,
+      sceneAssets: ["/v0.mp4", "/v1.mp4", "/v2.mp4"],
+      sceneSourceDurations: [5, 5, 5],
+    });
+    expect(props.scenes[0]!.transition).toBe("crossfade");
+    expect(props.scenes[0]!.transitionDurationFrames).toBe(MATCH_CUT_BLEND_FRAMES);
+    expect(props.scenes[0]!.fillScene).toBe(true);
+    expect(props.scenes[1]!.startFrom).toBe(MATCH_CUT_SKIP_FRAMES);
+    expect(props.scenes[1]!.fillScene).toBe(true);
+    expect(props.scenes[1]!.transition).toBe("crossfade");
+    expect(props.scenes[1]!.transitionDurationFrames).toBe(MATCH_CUT_BLEND_FRAMES);
+    expect(props.scenes[2]!.startFrom).toBe(MATCH_CUT_SKIP_FRAMES);
+    expect(props.scenes[2]!.fillScene).toBe(true);
+  });
+
   it("uses scene transition when explicitly set", () => {
     const score: DirectorScore = {
       ...baseScore,
@@ -106,14 +132,14 @@ describe("mapScoreToProps", () => {
     };
     const props = mapScoreToProps(score, baseAssets);
     expect(props.scenes[0]!.transition).toBe("crossfade");
-    expect(props.scenes[1]!.transition).toBe("wipe");
+    expect(props.scenes[1]!.transition).toBe("crossfade");
   });
 
   it("falls back to archetype default when scene transition is undefined", () => {
     // editorial_caricature has defaultTransition: "slide_left"
     const props = mapScoreToProps(baseScore, baseAssets);
     expect(props.scenes[0]!.transition).toBe("slide_left");
-    expect(props.scenes[1]!.transition).toBe("slide_left");
+    expect(props.scenes[1]!.transition).toBe("crossfade");
   });
 
   it("falls back to 'none' when archetype has no default transition", async () => {
@@ -237,8 +263,8 @@ describe("getTotalDurationInFrames", () => {
 
     const sum = props.scenes.reduce((acc, s) => acc + s.durationInFrames, 0);
     const total = getTotalDurationInFrames(props, 30);
-    // Overlaps: 15 + 10 = 25 frames
-    expect(total).toBe(sum - 25);
+    // Overlaps: 15 + 10 = 25 frames, then clamp up to the 9s voiceover (270)
+    expect(total).toBe(Math.max(sum - 25, 270));
   });
 
   it("extends last scene when overlap causes voiceover truncation", () => {
@@ -248,13 +274,15 @@ describe("getTotalDurationInFrames", () => {
     props.scenes[1]!.transition = "crossfade";
     props.scenes[1]!.transitionDurationFrames = 60;
 
-    const lastSceneBefore = props.scenes[2]!.durationInFrames;
+    const stillBefore = props.scenes[1]!.durationInFrames;
+    const lastVideoBefore = props.scenes[2]!.durationInFrames;
     const total = getTotalDurationInFrames(props, 30);
 
-    // Voiceover ends at 9 seconds = 270 frames
+    // Voiceover ends at 9 seconds = 270 frames. Pad a still, not the last video clip.
     const voiceoverEnd = Math.ceil(9 * 30);
     expect(total).toBeGreaterThanOrEqual(voiceoverEnd);
-    expect(props.scenes[2]!.durationInFrames).toBeGreaterThan(lastSceneBefore);
+    expect(props.scenes[1]!.durationInFrames).toBeGreaterThan(stillBefore);
+    expect(props.scenes[2]!.durationInFrames).toBe(lastVideoBefore);
   });
 
   it("handles empty words array without clamping", () => {
@@ -292,5 +320,38 @@ describe("getTotalDurationInFrames", () => {
     const second = getTotalDurationInFrames(props, 30);
     expect(second).toBe(first);
     expect(props.scenes[2]!.durationInFrames).toBe(lastSceneAfterFirst);
+  });
+
+  it("does not clip the voiceover when the last scene is a short AI clip", () => {
+    const props = mapScoreToProps(
+      {
+        ...baseScore,
+        scenes: [
+          { visual_type: "ai_image", visual_prompt: "still", motion: "zoom_in", script_line: "Uno.", transition: "crossfade" },
+          { visual_type: "ai_video", visual_prompt: "clip", motion: "static", script_line: "Dos y el final de la locución.", transition: "none" },
+        ],
+      },
+      {
+        ...baseAssets,
+        sceneAssets: ["/images/a.png", "/videos/b.mp4"],
+        sceneWords: [makeWords(0, 20), makeWords(20, 46)],
+        allWords: [
+          { word: "Uno", start: 0, end: 2 },
+          { word: "final", start: 40, end: 46 },
+        ],
+        sceneSourceDurations: [null, 5],
+        voiceoverDurationSeconds: 46,
+      },
+      30,
+    );
+    props.scenes[0]!.transition = "crossfade";
+    props.scenes[0]!.transitionDurationFrames = 18;
+    props.scenes[1]!.visualType = "ai_video";
+    props.scenes[1]!.sourceDurationInSeconds = 5;
+
+    const total = getTotalDurationInFrames(props, 30, { minDurationSeconds: 60 });
+    expect(total).toBeGreaterThanOrEqual(Math.ceil(60 * 30));
+    expect(total).toBeGreaterThanOrEqual(Math.ceil(46 * 30));
+    expect(props.scenes[0]!.durationInFrames).toBeGreaterThan(2);
   });
 });

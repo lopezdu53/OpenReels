@@ -141,6 +141,37 @@ describe("WhisperAligner", () => {
       expect(result[0]!.word).toBe("Hello");
       expect(result[1]!.word).toBe("World");
     });
+
+    it("matches Spanish words with accents", () => {
+      const hyp = [
+        { word: "Hola", start: 0, end: 0.3 },
+        { word: "información", start: 0.3, end: 0.8 },
+      ];
+      const result = aligner.alignToTranscript("Hola información", hyp);
+      expect(result).toHaveLength(2);
+      expect(result[0]!.word).toBe("Hola");
+      expect(result[1]!.word).toBe("información");
+      expect(result[1]!.start).toBe(0.3);
+    });
+
+    it("matches Spanish when Whisper drops accents", () => {
+      const hyp = [{ word: "informacion", start: 0, end: 0.5 }];
+      const result = aligner.alignToTranscript("información", hyp);
+      expect(result).toHaveLength(1);
+      expect(result[0]!.word).toBe("información");
+      expect(result[0]!.start).toBe(0);
+    });
+
+    it("keeps short accented tokens like sí and año", () => {
+      const hyp = [
+        { word: "si", start: 0, end: 0.15 },
+        { word: "ano", start: 0.15, end: 0.4 },
+      ];
+      const result = aligner.alignToTranscript("sí año", hyp);
+      expect(result).toHaveLength(2);
+      expect(result[0]!.word).toBe("sí");
+      expect(result[1]!.word).toBe("año");
+    });
   });
 
   describe("align", () => {
@@ -170,6 +201,36 @@ describe("WhisperAligner", () => {
         chunk_length_s: 30,
         stride_length_s: 5,
       });
+    });
+
+    it("uses the multilingual timestamped whisper-small model", () => {
+      expect(WhisperAligner.MODEL_ID).toBe("onnx-community/whisper-small_timestamped");
+    });
+
+    it("falls back to duration timestamps when the model lacks cross attentions", async () => {
+      mockTranscriber.mockRejectedValueOnce(
+        new Error(
+          "Model outputs must contain cross attentions to extract timestamps. This is most likely because the model was not exported with `output_attentions=True`.",
+        ),
+      );
+      const audio = Buffer.from("fake audio data");
+      const result = await aligner.align(audio, "Hola mundo");
+      expect(result).toHaveLength(2);
+      expect(result[0]!.word).toBe("Hola");
+      expect(result[1]!.word).toBe("mundo");
+      expect(result[1]!.end).toBeGreaterThan(0);
+    });
+
+    it("hints Spanish to Whisper when the transcript has accents", async () => {
+      const audio = Buffer.from("fake audio data");
+      await aligner.align(audio, "Hola información");
+      expect(mockTranscriber).toHaveBeenCalledWith(
+        expect.any(Float32Array),
+        expect.objectContaining({
+          return_timestamps: "word",
+          language: "spanish",
+        }),
+      );
     });
   });
 });

@@ -5,7 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api, type ProviderOptions } from "@/hooks/useApi";
 import { Loader2, FlaskConical, Cpu, Mic, Image, Video } from "lucide-react";
+import { KokoroVoiceMixer } from "@/components/new-short/KokoroVoiceMixer";
 import { cn } from "@/lib/utils";
+import { KOKORO_DEFAULT_CONNECT_MIX } from "@/lib/kokoro-voice";
+import { VIVI_IMAGE_CNY, VIVI_LLM_CNY, VIVI_VIDEO_CLIP_SECONDS, VIVI_VIDEO_CNY, yuanToUsd } from "@/lib/vivi-prices";
 
 // ─── Pricing types & defaults ─────────────────────────────────────────────────
 
@@ -22,34 +25,44 @@ export const DEFAULT_PRICES: ApiPrices = {
     openai:     { inputPer1M: 2.5,  outputPer1M: 10.0 },
     gemini:     { inputPer1M: 0.1,  outputPer1M: 0.4  },
     openrouter: { inputPer1M: 2.0,  outputPer1M: 6.0  },
-    vivi:       { inputPer1M: 3.0,  outputPer1M: 15.0 },
+    vivi:       { inputPer1M: yuanToUsd(VIVI_LLM_CNY.inputPer1M), outputPer1M: yuanToUsd(VIVI_LLM_CNY.outputPer1M) },
     alicloud:   { inputPer1M: 0.5,  outputPer1M: 2.0  },
+    grok:       { inputPer1M: 3.0,  outputPer1M: 15.0 },
+    atlas:      { inputPer1M: 0.14, outputPer1M: 0.28 },
   },
   tts: {
     elevenlabs:  { per1kChars: 0.33  },
     "gemini-tts":{ per1kChars: 0.05  },
     "openai-tts":{ per1kChars: 0.015 },
-    "grok-tts":  { per1kChars: 0.05  },
+    "grok-tts":  { per1kChars: 0.015 },
     kokoro:      { per1kChars: 0.0   },
     inworld:     { per1kChars: 0.05  },
+    "atlas-tts": { per1kChars: 0.015 },
   },
   image: {
     gemini:   { perImage: 0.04 },
     openai:   { perImage: 0.08 },
-    vivi:     { perImage: 0.04 },
+    grok:     { perImage: 0.04 },
+    vivi:     { perImage: yuanToUsd(VIVI_IMAGE_CNY.perImage) },
     alicloud: { perImage: 0.05 },
-    runpod:   { perImage: 0.02 },
+    runpod:   { perImage: 0.003 },
+    sharpii:  { perImage: 0.036 },
+    atlas:    { perImage: 0.04 },
+    gflow:    { perImage: 0 },
   },
   video: {
     gemini: { perSecond: 0.05 },
+    gflow:  { perSecond: 0 },
     grok:   { perSecond: 0.08 },
-    vivi:   { perSecond: 0.08 },
+    vivi:   { perSecond: yuanToUsd(VIVI_VIDEO_CNY.perClip) / VIVI_VIDEO_CLIP_SECONDS },
     fal:    { perSecond: 0.12 },
-    runpod: { perSecond: 0.03 },
+    runpod: { perSecond: 0.02 },
+    sharpii: { perSecond: 0.076 },
+    atlas:   { perSecond: 0.024 },
   },
 };
 
-export const PRICING_KEY = "openreels_api_prices";
+export const PRICING_KEY = "openreels_api_prices_v3";
 
 export function loadPrices(): ApiPrices {
   try {
@@ -131,37 +144,49 @@ export function LabPage() {
   const [prices, setPrices] = useState<ApiPrices>(DEFAULT_PRICES);
 
   // LLM
-  const [llmProvider, setLlmProvider] = useState("anthropic");
-  const [llmModel, setLlmModel] = useState("");
+  const [llmProvider, setLlmProvider] = useState("atlas");
+  const [llmModel, setLlmModel] = useState("deepseek-ai/deepseek-v4-flash");
   const [llmPrompt, setLlmPrompt] = useState("Explain quantum entanglement in one paragraph.");
   const [llmResult, setLlmResult] = useState<{ text: string; durationMs: number; tokens: { inputTokens: number; outputTokens: number } } | null>(null);
   const [llmLoading, setLlmLoading] = useState(false);
   const [llmError, setLlmError] = useState("");
 
   // TTS
-  const [ttsProvider, setTtsProvider] = useState("elevenlabs");
+  const [ttsProvider, setTtsProvider] = useState("atlas-tts");
   const [ttsText, setTtsText] = useState("Welcome to OpenReels, the open source AI video pipeline.");
   const [ttsResult, setTtsResult] = useState<{ audioBase64: string; durationMs: number; charCount: number } | null>(null);
   const [ttsLoading, setTtsLoading] = useState(false);
   const [ttsError, setTtsError] = useState("");
-  const [ttsVoice, setTtsVoice] = useState("");
+  const [ttsVoice, setTtsVoice] = useState("eve");
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
+  const [gflowImgModel, setGflowImgModel] = useState("nano2");
+  const [gflowVidModel, setGflowVidModel] = useState("veo-lite");
+  const [gflowVidMode, setGflowVidMode] = useState("t2v");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Image
-  const [imgProvider, setImgProvider] = useState("gemini");
+  const [imgProvider, setImgProvider] = useState("atlas");
   const [imgPrompt, setImgPrompt] = useState("A futuristic city at sunset with flying cars and neon lights.");
   const [imgAspect, setImgAspect] = useState("9:16");
+  const [imgModel, setImgModel] = useState("p-image-t2i");
+  const [imgSteps, setImgSteps] = useState(4);
+  const [sharpiiImgModel, setSharpiiImgModel] = useState("nano-banana-2");
+  const [atlasImgModel, setAtlasImgModel] = useState("google/nano-banana-2-lite/text-to-image");
+  const [atlasVidModel, setAtlasVidModel] = useState("bytedance/seedance-2.0-mini/image-to-video");
+  const [atlasLipModel, setAtlasLipModel] = useState("veed/lipsync");
   const [imgResult, setImgResult] = useState<{ imageBase64: string; durationMs: number } | null>(null);
   const [imgLoading, setImgLoading] = useState(false);
   const [imgError, setImgError] = useState("");
 
   // Video
-  const [vidProvider, setVidProvider] = useState("gemini");
+  const [vidProvider, setVidProvider] = useState("atlas");
   const [vidImage, setVidImage] = useState<string | null>(null);
   const [vidPrompt, setVidPrompt] = useState("Camera slowly zooms in with cinematic motion.");
   const [vidDuration, setVidDuration] = useState(5);
   const [vidAspect, setVidAspect] = useState("9:16");
+  const [vidModel, setVidModel] = useState("p-video");
+  const [vidResolution, setVidResolution] = useState("720p");
+  const [sharpiiVidModel, setSharpiiVidModel] = useState("kling-v2.6-pro-i2v");
   const [vidResult, setVidResult] = useState<{ videoBase64: string; durationMs: number; videoSeconds: number } | null>(null);
   const [vidLoading, setVidLoading] = useState(false);
   const [vidError, setVidError] = useState("");
@@ -192,7 +217,11 @@ export function LabPage() {
       const r = await api.testTTS({
         provider: ttsProvider,
         text: ttsText,
-        ...(ttsVoice ? { voice: ttsVoice } : {}),
+        ...(ttsProvider === "kokoro"
+          ? { voice: ttsVoice || KOKORO_DEFAULT_CONNECT_MIX, speed: ttsSpeed }
+          : ttsVoice
+            ? { voice: ttsVoice }
+            : {}),
         ...(ttsProvider === "grok-tts" ? { speed: ttsSpeed } : {}),
       });
       setTtsResult(r);
@@ -208,7 +237,15 @@ export function LabPage() {
   const runImage = async () => {
     setImgLoading(true); setImgError(""); setImgResult(null);
     try {
-      const r = await api.testImage({ provider: imgProvider, prompt: imgPrompt, aspectRatio: imgAspect });
+      const r = await api.testImage({
+        provider: imgProvider,
+        prompt: imgPrompt,
+        aspectRatio: imgAspect,
+        ...(imgProvider === "runpod" ? { model: imgModel, steps: imgSteps } : {}),
+        ...(imgProvider === "sharpii" ? { model: sharpiiImgModel } : {}),
+        ...(imgProvider === "atlas" ? { model: atlasImgModel } : {}),
+        ...(imgProvider === "gflow" ? { model: gflowImgModel } : {}),
+      });
       setImgResult(r);
     } catch (e) {
       setImgError(String(e));
@@ -230,16 +267,26 @@ export function LabPage() {
     reader.readAsDataURL(file);
   };
 
+  const gflowT2v = vidProvider === "gflow" && gflowVidMode !== "i2v";
   const runVideo = async () => {
-    if (!vidImage) { setVidError("Por favor sube una imagen primero"); return; }
+    if (!gflowT2v && !vidImage) { setVidError("Por favor sube una imagen primero"); return; }
     setVidLoading(true); setVidError(""); setVidResult(null);
     try {
       const r = await api.testVideo({
         provider: vidProvider,
-        imageBase64: vidImage,
+        ...(vidImage ? { imageBase64: vidImage } : {}),
         prompt: vidPrompt,
-        durationSeconds: vidDuration,
         aspectRatio: vidAspect,
+        ...(vidProvider === "runpod" ? { model: vidModel, resolution: vidResolution } : {}),
+        ...(vidProvider === "sharpii" ? { model: sharpiiVidModel } : {}),
+        ...(vidProvider === "atlas" ? { model: atlasVidModel, lipSyncModel: atlasLipModel === "none" ? null : atlasLipModel } : {}),
+        ...(vidProvider === "gflow"
+          ? {
+              model: gflowVidModel,
+              mode: gflowVidMode,
+              ...(gflowVidModel === "omni-flash" ? { durationSeconds: vidDuration } : {}),
+            }
+          : { durationSeconds: vidDuration }),
       });
       setVidResult(r);
     } catch (e) {
@@ -259,9 +306,9 @@ export function LabPage() {
       <div className="mb-8 flex items-center gap-3">
         <FlaskConical className="size-6 text-primary" />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">API Laboratory</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">API Lab</h1>
           <p className="text-[13px] text-muted-foreground mt-0.5">
-            Prueba cada proveedor de forma individual. Los costos usan los precios configurados en Settings.
+            Prueba cada proveedor de forma individual. Los costos usan los precios configurados en Ajustes.
           </p>
         </div>
       </div>
@@ -287,21 +334,36 @@ export function LabPage() {
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Proveedor</label>
-              <Select value={llmProvider} onValueChange={setLlmProvider}>
+              <Select value={llmProvider} onValueChange={(v) => v && setLlmProvider(v)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {llmProviders.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-40">
-              <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo (opcional)</label>
-              <Input
-                className="h-9 font-mono text-[12px]"
-                placeholder="claude-sonnet-4-6"
-                value={llmModel}
-                onChange={e => setLlmModel(e.target.value)}
-              />
+            <div className="flex-1">
+              <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo</label>
+              {llmProvider === "atlas" ? (
+                <Select value={llmModel} onValueChange={(v) => v && setLlmModel(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[...(providers?.atlasLlmModels ?? [])]
+                      .sort((a, b) => a.inputPer1M + a.outputPer1M - (b.inputPer1M + b.outputPer1M))
+                      .map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.label} · {m.priceLabel ?? `$${m.inputPer1M} / $${m.outputPer1M}`}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  className="h-9 font-mono text-[12px]"
+                  placeholder="claude-sonnet-4-6"
+                  value={llmModel}
+                  onChange={e => setLlmModel(e.target.value)}
+                />
+              )}
             </div>
           </div>
           <div>
@@ -339,7 +401,16 @@ export function LabPage() {
         <TabsContent value="tts" className="space-y-3">
           <div>
             <label className="mb-1.5 block text-[12px] text-muted-foreground">Proveedor</label>
-            <Select value={ttsProvider} onValueChange={(v) => { setTtsProvider(v); setTtsVoice(""); }}>
+            <Select value={ttsProvider} onValueChange={(v) => {
+              if (!v) return;
+              setTtsProvider(v);
+              if (v === "kokoro") {
+                setTtsVoice(KOKORO_DEFAULT_CONNECT_MIX);
+                setTtsSpeed(1.1);
+              } else {
+                setTtsVoice("");
+              }
+            }}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {ttsProviders.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
@@ -351,7 +422,7 @@ export function LabPage() {
           {ttsProvider === "gemini-tts" && providers?.geminiTtsVoices && (
             <div>
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Voz</label>
-              <Select value={ttsVoice || "Kore"} onValueChange={setTtsVoice}>
+              <Select value={ttsVoice || "Kore"} onValueChange={(v) => v && setTtsVoice(v)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
@@ -376,7 +447,7 @@ export function LabPage() {
             <>
               <div>
                 <label className="mb-1.5 block text-[12px] text-muted-foreground">Voz</label>
-                <Select value={ttsVoice || "eve"} onValueChange={setTtsVoice}>
+                <Select value={ttsVoice || "eve"} onValueChange={(v) => v && setTtsVoice(v)}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
@@ -409,6 +480,36 @@ export function LabPage() {
                 </div>
               </div>
             </>
+          )}
+
+          {ttsProvider === "atlas-tts" && (
+            <div>
+              <label className="mb-1.5 block text-[12px] text-muted-foreground">Voz ATLAS · $0.015 / 1K chars</label>
+              <Select value={ttsVoice || "eve"} onValueChange={(v) => v && setTtsVoice(v)}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(providers?.atlasTtsVoices ?? [
+                    { id: "eve", label: "Eve — Energetic (F)" },
+                    { id: "ara", label: "Ara — Warm (F)" },
+                    { id: "leo", label: "Leo — Authoritative (M)" },
+                    { id: "rex", label: "Rex — Confident (M)" },
+                    { id: "sal", label: "Sal — Smooth (M)" },
+                  ]).map((v) => (
+                    <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {ttsProvider === "kokoro" && providers?.kokoroVoices && (
+            <KokoroVoiceMixer
+              voices={providers.kokoroVoices}
+              value={ttsVoice || KOKORO_DEFAULT_CONNECT_MIX}
+              onChange={setTtsVoice}
+              speed={ttsSpeed}
+              onSpeedChange={setTtsSpeed}
+            />
           )}
 
           <div>
@@ -446,7 +547,7 @@ export function LabPage() {
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Proveedor</label>
-              <Select value={imgProvider} onValueChange={setImgProvider}>
+              <Select value={imgProvider} onValueChange={(v) => v && setImgProvider(v)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {imgProviders.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
@@ -455,7 +556,7 @@ export function LabPage() {
             </div>
             <div className="w-32">
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Proporción</label>
-              <Select value={imgAspect} onValueChange={setImgAspect}>
+              <Select value={imgAspect} onValueChange={(v) => v && setImgAspect(v)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="9:16">9:16 Vertical</SelectItem>
@@ -465,6 +566,101 @@ export function LabPage() {
               </Select>
             </div>
           </div>
+          {imgProvider === "gflow" && (
+            <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-2">
+              <p className="text-[11px] text-muted-foreground">gflow Imagen · puente Windows · Agent OFF</p>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo Imagen</label>
+                <Select value={gflowImgModel} onValueChange={(v) => v && setGflowImgModel(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.gflowImageModels ?? [
+                      { id: "nano2", label: "Imagen Nano 2" },
+                      { id: "nano-pro", label: "Imagen Nano Pro" },
+                      { id: "image4", label: "Imagen 4" },
+                    ]).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          {imgProvider === "atlas" && (
+            <div>
+              <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo ATLAS</label>
+              <Select value={atlasImgModel} onValueChange={(v) => v && setAtlasImgModel(v)}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {[...(providers?.atlasImageModels ?? [])].sort((a, b) => a.usd - b.usd).map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.label} · {m.priceLabel ?? `$${m.usd} / imagen`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {imgProvider === "sharpii" && (
+            <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <p className="text-[11px] text-muted-foreground">Opciones Sharpii — SHARPII_API_KEY</p>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo</label>
+                <Select value={sharpiiImgModel} onValueChange={(v) => v && setSharpiiImgModel(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.sharpiiImageModels ?? [
+                      { id: "nano-banana-2", label: "Nano Banana 2 (1K)", credits: 65, usd: 0.036 },
+                    ]).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label} · ${m.usd.toFixed(3)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          {imgProvider === "runpod" && (
+            <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <p className="text-[11px] text-muted-foreground">Opciones RunPod — endpoints públicos (solo API key)</p>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo</label>
+                <Select
+                  value={imgModel}
+                  onValueChange={(v) => {
+                    if (!v) return;
+                    setImgModel(v);
+                    const spec = providers?.runpodImageModels?.find((m) => m.id === v);
+                    if (spec?.defaultSteps) setImgSteps(spec.defaultSteps);
+                  }}
+                >
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.runpodImageModels ?? []).filter((m) => m.id !== "custom").map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label}{m.costHint ? ` · ${m.costHint}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {typeof providers?.runpodImageModels?.find((m) => m.id === imgModel)?.maxSteps === "number" && (
+                <div>
+                  <label className="mb-1.5 block text-[12px] text-muted-foreground">Pasos: {imgSteps}</label>
+                  <input
+                    type="range"
+                    min={1}
+                    max={providers?.runpodImageModels?.find((m) => m.id === imgModel)?.maxSteps ?? 28}
+                    step={1}
+                    value={imgSteps}
+                    onChange={(e) => setImgSteps(Number(e.target.value))}
+                    className="w-full accent-primary"
+                  />
+                </div>
+              )}
+            </div>
+          )}
           <div>
             <label className="mb-1.5 block text-[12px] text-muted-foreground">Prompt</label>
             <textarea
@@ -501,7 +697,11 @@ export function LabPage() {
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Proveedor</label>
-              <Select value={vidProvider} onValueChange={setVidProvider}>
+              <Select value={vidProvider} onValueChange={(v) => {
+                if (!v) return;
+                setVidProvider(v);
+                if (v === "gflow" && ![4, 6, 8, 10].includes(vidDuration)) setVidDuration(6);
+              }}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {vidProviders.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
@@ -510,7 +710,7 @@ export function LabPage() {
             </div>
             <div className="w-32">
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Proporción</label>
-              <Select value={vidAspect} onValueChange={setVidAspect}>
+              <Select value={vidAspect} onValueChange={(v) => v && setVidAspect(v)}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="9:16">9:16 Vertical</SelectItem>
@@ -518,19 +718,180 @@ export function LabPage() {
                 </SelectContent>
               </Select>
             </div>
+            {vidProvider === "gflow" && gflowVidModel !== "omni-flash" ? (
+              <div className="w-36">
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Duración</label>
+                <div className="flex h-9 items-center rounded-md border border-input px-3 text-[12px] text-muted-foreground">
+                  Default Flow
+                </div>
+              </div>
+            ) : (
             <div className="w-28">
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Duración</label>
               <Select value={String(vidDuration)} onValueChange={v => setVidDuration(Number(v))}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {[3, 5, 8].map(s => <SelectItem key={s} value={String(s)}>{s}s</SelectItem>)}
+                  {(vidProvider === "sharpii"
+                    ? (providers?.sharpiiVideoModels?.find((m) => m.id === sharpiiVidModel)?.durations ?? [5, 10])
+                    : vidProvider === "runpod"
+                    ? (providers?.runpodVideoModels?.find((m) => m.id === vidModel)?.durations ?? [5, 8, 10])
+                    : vidProvider === "gflow"
+                    ? (providers?.gflowVideoModels?.find((m) => m.id === gflowVidModel)?.durations ?? [4, 6, 8, 10])
+                    : [3, 5, 8]
+                  ).map(s => <SelectItem key={s} value={String(s)}>{s}s</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
+            )}
           </div>
+          {vidProvider === "gflow" && (
+            <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <p className="text-[11px] text-muted-foreground">
+                gflow Veo · puente Windows · Agent OFF. I2V funciona en proyecto vacío; con
+                otros archivos el picker no cierra hasta “Add to prompt” (gflow 0.71 no lo
+                pulsa; el puente sí). Cierra ese modal si quedó abierto. t2v no sube el
+                still. Veo no tiene control de duración en Flow migrado; solo Omni Flash
+                acepta 4/6/8/10s.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo Veo</label>
+                  <Select
+                    value={gflowVidModel}
+                    onValueChange={(v) => {
+                      if (!v) return;
+                      setGflowVidModel(v);
+                      const spec = providers?.gflowVideoModels?.find((m) => m.id === v);
+                      if (spec?.durations.length && !spec.durations.includes(vidDuration)) {
+                        setVidDuration(spec.durations[0]!);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(providers?.gflowVideoModels ?? [
+                        { id: "veo-lite", label: "Veo Lite", durations: [4, 6, 8] },
+                      ]).map((m) => (
+                        <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[12px] text-muted-foreground">Modo</label>
+                  <Select value={gflowVidMode} onValueChange={(v) => v && setGflowVidMode(v)}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="t2v">Texto → video (t2v)</SelectItem>
+                      <SelectItem value="i2v">Foto → video (I2V)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+          {vidProvider === "atlas" && (
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">I2V ATLAS</label>
+                <Select value={atlasVidModel} onValueChange={(v) => v && setAtlasVidModel(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[...(providers?.atlasVideoModels ?? [])].sort((a, b) => a.usd - b.usd).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label} · {m.priceLabel ?? `$${m.usd} / s`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Lip-sync</label>
+                <Select value={atlasLipModel} onValueChange={(v) => v && setAtlasLipModel(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin lip-sync · $0</SelectItem>
+                    {[...(providers?.atlasLipSyncModels ?? [])].sort((a, b) => a.usd - b.usd).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label} · {m.priceLabel ?? `$${m.usd} / s`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          {vidProvider === "sharpii" && (
+            <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <p className="text-[11px] text-muted-foreground">Opciones Sharpii — SHARPII_API_KEY</p>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo I2V</label>
+                <Select
+                  value={sharpiiVidModel}
+                  onValueChange={(v) => {
+                    if (!v) return;
+                    setSharpiiVidModel(v);
+                    const spec = providers?.sharpiiVideoModels?.find((m) => m.id === v);
+                    if (spec?.durations[0]) setVidDuration(spec.durations[0]);
+                  }}
+                >
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.sharpiiVideoModels ?? [
+                      { id: "kling-v2.6-pro-i2v", label: "Kling 2.6 Pro I2V", credits: 684, usd: 0.377, durations: [5, 10] },
+                    ]).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label} · ${m.usd.toFixed(2)}{m.perSecond ? " /5s" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          {vidProvider === "runpod" && (
+            <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <p className="text-[11px] text-muted-foreground">Opciones RunPod — endpoints públicos (solo API key)</p>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo I2V</label>
+                <Select
+                  value={vidModel}
+                  onValueChange={(v) => {
+                    if (!v) return;
+                    setVidModel(v);
+                    const spec = providers?.runpodVideoModels?.find((m) => m.id === v);
+                    if (spec?.resolutions[0]) setVidResolution(spec.resolutions[0]);
+                    if (spec?.durations[0]) setVidDuration(spec.durations[0]);
+                  }}
+                >
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.runpodVideoModels ?? []).filter((m) => m.id !== "custom").map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label}{m.costHint ? ` · ${m.costHint}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Resolución</label>
+                <Select value={vidResolution} onValueChange={(v) => v && setVidResolution(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.runpodVideoModels?.find((m) => m.id === vidModel)?.resolutions ?? ["720p"]).map((r) => (
+                      <SelectItem key={r} value={r}>{r}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
           <div>
-            <label className="mb-1.5 block text-[12px] text-muted-foreground">Imagen fuente</label>
+            <label className="mb-1.5 block text-[12px] text-muted-foreground">
+              {gflowT2v ? "Imagen fuente (opcional · t2v no la usa)" : "Imagen fuente"}
+            </label>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageFile} className="hidden" />
             <div
               onClick={() => fileInputRef.current?.click()}
@@ -565,10 +926,12 @@ export function LabPage() {
               onChange={e => setVidPrompt(e.target.value)}
             />
           </div>
-          <Button onClick={runVideo} disabled={vidLoading || !vidImage || !vidPrompt.trim()} className="w-full">
+          <Button onClick={runVideo} disabled={vidLoading || !vidPrompt.trim() || (!gflowT2v && !vidImage)} className="w-full">
             {vidLoading
               ? <><Loader2 className="size-4 mr-2 animate-spin" />Generando video ({vidDuration}s)...</>
-              : "Generar video I2V"}
+              : gflowT2v
+                ? "Generar video t2v"
+                : "Generar video I2V"}
           </Button>
           {vidError && <ErrorBox msg={vidError} />}
           {vidResult && (
