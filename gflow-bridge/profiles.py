@@ -86,6 +86,11 @@ def find_gflow(explicit: str = "") -> str | None:
     env = (os.environ.get("GFLOW_CLI_BIN") or "").strip()
     if env and Path(env).is_file():
         return env
+    from install import bundled_bin_dir
+
+    bundled = bundled_bin_dir() / ("gflow.exe" if sys.platform == "win32" else "gflow")
+    if bundled.is_file():
+        return str(bundled)
     which = shutil.which("gflow") or shutil.which("gflow.exe")
     if which:
         return which
@@ -97,6 +102,7 @@ def find_gflow(explicit: str = "") -> str | None:
         _local_app_data() / "uv" / "tools" / "gflow-cli" / "Scripts" / "gflow.exe",
         home / ".local" / "pipx" / "venvs" / "gflow-cli" / "Scripts" / "gflow.exe",
         home / ".local" / "share" / "uv" / "tools" / "gflow-cli" / "bin" / "gflow",
+        _local_app_data() / "OpenReelsPuente" / "bin" / "gflow.exe",
     ]
     for folder in (
         _roaming_app_data() / "Python",
@@ -112,11 +118,8 @@ def find_gflow(explicit: str = "") -> str | None:
 
 def missing_gflow_message() -> str:
     return (
-        "No se encontró gflow-cli (WinError 2). En ESTE PC, PowerShell:  "
-        "pip install gflow-cli    (o: uv tool install gflow-cli).  "
-        "Luego pega en la app la ruta de gflow.exe "
-        "(suele estar en AppData\\Roaming\\Python\\Python3xx\\Scripts\\gflow.exe) "
-        "y pulsa «Entrar a Flow» eligiendo el Gmail del plan Gemini."
+        "Falta gflow-cli. Pulsa «Instalar todo» en esta ventana: el exe baja uv, "
+        "gflow-cli y Chromium (sin PowerShell). Luego «Entrar a Flow» con el Gmail Gemini."
     )
 
 

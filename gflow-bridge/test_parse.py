@@ -259,6 +259,20 @@ class ChromeProfileTests(unittest.TestCase):
         self.assertIn("--profile", cmd)
         self.assertIn("gemini", cmd)
         self.assertIn("gflow-cli", missing_gflow_message())
+        self.assertIn("Instalar todo", missing_gflow_message())
+
+
+class InstallStatusTests(unittest.TestCase):
+    def test_version_helpers(self):
+        from install import format_gflow_status, parse_version, version_newer, uv_zip_name
+
+        self.assertEqual(parse_version("gflow-cli 0.72.0"), "0.72.0")
+        self.assertTrue(version_newer("0.72.0", "0.71.0"))
+        self.assertFalse(version_newer("0.71.0", "0.72.0"))
+        self.assertIn("no instalado", format_gflow_status(None, "0.72.0"))
+        self.assertIn("al día", format_gflow_status("0.72.0", "0.72.0"))
+        self.assertIn("hay 0.72.0", format_gflow_status("0.71.0", "0.72.0"))
+        self.assertTrue(uv_zip_name().startswith("uv-"))
 
 
 if __name__ == "__main__":
