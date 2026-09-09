@@ -154,16 +154,16 @@ function characterSection(lock?: string, castMode?: string): string {
   const hero = castMode === "hero";
   if (lock?.trim()) {
     const named = lock.match(/\bName:\s*/gi)?.length ?? 0;
-    if (hero) {
-      return `\n## CHARACTER IDENTITY LOCK — FOLLOW-CAM HERO\n${lock.trim()}\nThe FIRST named CAST member is the optical axis of ONE continuous take split into clips. Every visual_prompt is the NEXT BEAT of the same shot — not a new portrait, not a location plate.\nCamera TRACKS the body (camera_move: track, pan, or push_in). The world and props attach to or scroll around the hero.\nEach visual_prompt has THREE beats (start / mid / end): action, a NEW named object/logo/country from THIS script_line (do not repeat the previous beat's prop), match-cut end pose (facing, hands, stride) that the next scene inherits.\nKeep the SAME body style and wardrobe (if they are a 2D stickman they stay 2D; never morph to 3D).\nOther CAST members join ONLY when that script_line names them; they enter the same take and never replace the hero.\nPrefer ai_video. Still images are a last resort.\n`;
-    }
+  if (hero) {
+    return `\n## CHARACTER IDENTITY LOCK — FOLLOW-CAM HERO\n${lock.trim()}\nThe FIRST named CAST member is the optical axis of ONE continuous take split into clips. Every visual_prompt is the NEXT BEAT of the same shot — not a new portrait, not a location plate.\nCamera TRACKS the body (camera_move: track, pan, or push_in). The world and props attach to or scroll around the hero.\nEach visual_prompt has THREE beats (start / mid / end): action, a NEW named object/logo/country from THIS script_line (do not repeat the previous beat's prop), match-cut end pose (facing, hands, stride) that the next scene inherits.\nVIRAL DENSITY: the hero PHYSICALLY handles that new object (holds, stamps, unfolds, crushes, hurls) or the world EXPLODES/MORPHS around the body. Ban idle walks, standing, and looking-at-camera as the only action. Scene 0 is a visual WTF in two seconds.\nKeep the SAME body style and wardrobe (if they are a 2D stickman they stay 2D; never morph to 3D).\nOther CAST members join ONLY when that script_line names them; they enter the same take and never replace the hero.\nPrefer ai_video. Still images are a last resort.\n`;
+  }
     if (named >= 2) {
       return `\n## CHARACTER IDENTITY LOCK\n${lock.trim()}\nNamed CAST of ${named}. Each named individual keeps their own species, race, markings, age, and face. Do not merge, swap, or replace anyone.\nON SCREEN RULE: a visual_prompt may show ONLY the character(s) named in THAT scene's script_line. If the line is about one person, the others must be absent — not even in the background. Show two or more together only when the line names them together. Do NOT paste the full CAST bible into every visual_prompt; copy only the on-screen person's appearance.\n`;
     }
     return `\n## CHARACTER IDENTITY LOCK\n${lock.trim()}\nThe SAME individual in every visual_prompt. Never change species, race, markings, age, face, wardrobe, or body style (2D stickman stays 2D; never become a 3D sphere-head). Do not swap an ocelot for a Bengal tiger, a coatí for a fox/raccoon, or a cub for an adult. Contrast via camera, props named in the line, and emotion only.\n`;
   }
   if (hero) {
-    return `\n## FOLLOW-CAM HERO\nA single protagonist is the optical axis of ONE continuous take. Camera tracks the body; the world scrolls or transforms around them. Never atmosphere-only or a jump-cut portrait. Three beats per clip; close with a match-cut pose the next inherits. Prefer ai_video.\n`;
+    return `\n## FOLLOW-CAM HERO\nA single protagonist is the optical axis of ONE continuous take. Camera tracks the body; the world scrolls or transforms around them. Never atmosphere-only or a jump-cut portrait. Three beats per clip; close with a match-cut pose the next inherits. Prefer ai_video.\nVIRAL: each clip a new spectacle (object the hero handles, scale gag, environment morph). No idle walking loops.\n`;
   }
   return `\n## CHARACTER CONTINUITY\nIf the story has a recurring character (animal or person), lock species, race, age, markings, and face in EVERY visual_prompt. Repeat the exact description. Never morph to a similar species.\n`;
 }
@@ -258,7 +258,7 @@ ${isLongForm
     : isFilmOneMinute(filmMinutes)
       ? `MANDATORY: This is a 1-minute film. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total ~${wordsTarget} words. NO text_card. Hook, advance the plot, cliffhanger CTA. ${
           options?.castMode === "hero"
-            ? "FOLLOW-CAM HERO: one continuous take. Camera tracks the first CAST member. World and props attach to the body. Three beats + match-cut. Prefer ai_video."
+            ? "FOLLOW-CAM HERO: one continuous take. Camera tracks the first CAST member. Each clip a NEW spectacle (object the hero handles or world morph). Three beats + match-cut. Prefer ai_video. No idle walking."
             : castCount >= 2
               ? "Keep each CAST member's species, markings and face. Only the character named in that script_line is on screen."
               : "Same character in every visual_prompt."
@@ -269,7 +269,7 @@ ${isLongForm
   : "If over budget, cut a scene rather than cramming."
 }${options?.platform === "youtube_horizontal"
   ? options?.castMode === "hero"
-    ? `\nEvery AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars.\nFOLLOW-CAM FRAMING (overrides shot variety): shot_type is only medium or wide. Do NOT use close_up, extreme_close_up, over_shoulder, aerial, insert, or empty wide_establishing. Neighboring shots MAY share shot_type — keep the hero the same size in frame. camera_move is track, pan, or push_in (never static). The environment morphs or scrolls around the body; extras must not be a second copy of the hero.\nMATCH-CUT JOIN: each visual_prompt is the NEXT BEAT of the same take, not a new master. Close with a stable pose (hands, seat, facing) the following scene inherits. A location change is the world rolling past the same window/body — never "cut to the wreck" or "now standing beside the car" unless that action happens in-camera from the previous pose. Set transition to none.\nlocation is ${
+    ? `\nEvery AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars.\nFOLLOW-CAM FRAMING: shot_type is medium or wide by default. Every 3rd beat MUST be insert (NEW named object filling 30-50% of frame, hero hand/shoulder still visible) OR close_up of the hero reacting. Never empty wide_establishing and never a new portrait without the body. Neighboring shots MAY share medium/wide. camera_move is track, pan, or push_in (never static). The environment morphs or scrolls around the body; extras must not be a second copy of the hero.\nMATCH-CUT JOIN: each visual_prompt is the NEXT BEAT of the same take, not a new master. Close with a stable pose (hands, seat, facing) the following scene inherits. A location change is the world rolling past the same window/body — never "cut to the wreck" unless that action happens in-camera from the previous pose. Set transition to none.\nVIRAL SCRIPT: hook in scene 0 is a curiosity gap, not a textbook opener. Each script_line is one punchy claim. Ban encyclopedia cadence.\nlocation is ${
         locationCount >= 2 ? "the exact Name of ONE roster place" : "a short reusable place name"
       }.`
     : `\nEvery AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars.\nFor every ai_image/ai_video scene set shot_type (wide_establishing|wide|medium|close_up|extreme_close_up|over_shoulder|aerial|insert), camera_move (static|push_in|pull_out|pan|track), and location (${
@@ -545,7 +545,7 @@ ${options?.locationLock?.trim() ? `LOCATION: each scene is ONE roster place only
 ${options?.artStyleOverride?.trim() ? `ART STYLE LOCK: ${options.artStyleOverride.trim()}. Do not switch photoreal ↔ cartoon.` : ""}
 ${options?.platform === "youtube_horizontal"
     ? options?.castMode === "hero"
-      ? "Every AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars. FOLLOW-CAM: shot_type stays medium or wide; camera_move is track/pan/push_in; neighboring shots MAY share shot_type; environment morphs around the hero. MATCH-CUT JOIN: next beat of the same take, transition none, close on a stable pose."
+      ? "Every AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars. FOLLOW-CAM: medium/wide, every 3rd beat insert or close_up reaction; camera_move track/pan/push_in; environment morphs around the hero. MATCH-CUT JOIN. VIRAL: unique handled object per clip, no idle walks."
       : "Every AI visual_prompt must start with: 16:9 landscape widescreen cinematic frame, full-bleed, no letterbox bars. Fill shot_type, camera_move, and a reusable location. Neighboring AI shots must not share the same shot_type."
     : ""}`;
 

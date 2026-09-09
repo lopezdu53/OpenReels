@@ -43,6 +43,7 @@ export function filmWordsTarget(minutes: number): number {
 
 export function filmSceneTarget(minutes: number): number {
   if (isFilmTest15Minutes(minutes)) return 3;
+  if (isFilmOneMinute(minutes)) return 10;
   const words = filmWordsTarget(minutes);
   return Math.min(FILM_MAX_SCENES, Math.max(4, Math.round(words / FILM_WORDS_PER_SCENE)));
 }

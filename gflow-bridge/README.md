@@ -1,67 +1,46 @@
-# Puente gflow (Windows → Xeon)
+# Puente gflow (Windows → Xeon o estudio)
 
-Corre **en la PC Windows** con Chrome. El pipeline de EasyPanel (Xeon) llama aquí por la LAN. No abras este puerto a internet.
+App de **un clic** en Windows. El worker de EasyPanel llama aquí: en casa por LAN, fuera de casa por un túnel inverso (el PC Windows **sale** a internet, no hay que abrir puertos).
 
-## Una vez
+## Instalar (sin PowerShell)
 
-1. Instala [gflow-cli](https://github.com/ffroliva/gflow-cli) y Chrome.
-2. `gflow auth login --browser chrome`
-3. Crea un proyecto en https://flow.google.com (o `gflow project create --name OpenReels`) y `gflow project list`.
-4. En Chrome, abre ese proyecto y deja el chip **Agent en OFF** (`aria-pressed=false`). Si queda ON, gflow 0.71 no ve el botón Settings.
-5. En **PowerShell** (no `set` ni `%USERPROFILE%`):
+1. Instala [Python 3.12+](https://www.python.org/downloads/) (marca **tcl/tk** y **Add to PATH**).
+2. Instala [gflow-cli](https://github.com/ffroliva/gflow-cli) y Chrome. Una vez: `gflow auth login --browser chrome`.
+3. Copia la carpeta `gflow-bridge` a este PC (o baja el `.exe` del Action *Windows bridge exe*).
+4. Doble clic en **`OpenReelsPuente.vbs`** (o `OpenReelsPuente.exe`).
+5. En la ventana:
+   - **En casa** — IP del Xeon (`192.168.1.71`) y **Firewall Xeon**.
+   - **Fuera de casa** — URL del estudio (`https://contenido.alfonsolopezd.com`) y el mismo token.
+   - **Ambos** — LAN + remoto (recomendado si EasyPanel está en la nube y a veces estás en casa).
+6. Pega el **token** (el mismo `GFLOW_BRIDGE_TOKEN` que en EasyPanel).
+7. Project id de `gflow project list` y **Conectar**.
+8. Chrome: proyecto Flow abierto, chip **Agent en OFF**.
 
-```powershell
-$env:GFLOW_BRIDGE_TOKEN = "el-mismo-secreto"
-$env:GFLOW_BRIDGE_ALLOW_IPS = "192.168.1.71"
-$env:GFLOW_CLI_PROJECT = "el-id-de-project-list"
-$env:GFLOW_CLI_PROJECT_NAME = "OpenReels"
-cd "$env:USERPROFILE\OpenReels\gflow-bridge"
-uv run --no-project python server.py
+**Inicio con Windows** deja el puente al encender el PC. Energía: que no se suspenda.
+
+Tras cada merge, vuelve a bajar `server.py` (y `app.py` si usas la carpeta, no el exe):
+
+```
+https://raw.githubusercontent.com/lopezdu53/OpenReels/cursor/grok-providers-fixes-6f6a/gflow-bridge/server.py
 ```
 
-El id de un *incident* de error **no** es un project id.
+(o el branch que esté desplegado en EasyPanel).
 
-Tras cada merge, vuelve a bajar `server.py`:
-
-```powershell
-cd "$env:USERPROFILE\OpenReels\gflow-bridge"
-irm https://raw.githubusercontent.com/lopezdu53/OpenReels/cursor/grok-providers-fixes-6f6a/gflow-bridge/server.py -OutFile server.py
-```
-
-Nuevo Flow: **VIVI** stills + **Veo I2V** en serie (foto 1 → video 1 → foto 2). I2V no gasta el crédito de t2v.
-
-Proyecto **vacío**: I2V suele cerrar el picker solo. Mismo proyecto **con stills/videos ya subidos**: Flow deja el modal abierto hasta **Add to prompt**, gflow 0.71 no lo pulsa y espera 15 s (`frame picker stayed open`). El puente pulsa ese botón (`GFLOW_BRIDGE_CLICK_ADD_TO_PROMPT=0` lo apaga), nombra cada still `or-i2v-*.png` para no mezclar decenas de `still.png`, y manda Escape si el modal de un intento anterior quedó abierto. No hace falta un proyecto nuevo en cada reel. Si el picker se traba, el puente espera y reintenta I2V; t2v solo con `GFLOW_I2V_FALLBACK_T2V=1`. Si Flow genera el clip y gflow no ve el ACK de submit (`no YhhmEf/eb1hJf… within 60s`), el puente espera `GFLOW_BRIDGE_RECOVER_SECONDS` (default 90) y solo mira el `out.mp4` de **esa** petición I2V — no Videos/, no el catálogo, no pruebas del Lab. En Veo no pases `--duration` (solo Omni Flash). Tras cada I2V espera `GFLOW_BRIDGE_SETTLE_SECONDS` (default 8).
-
-En el Windows, gflow-cli **0.71.1+** (sale del chip Agent solo):
-
-```powershell
-uv tool install --force --with colorama gflow-cli
-```
-
-## Cada vez que produzcas
-
-En PowerShell (ajusta la IP del Xeon):
-
-```powershell
-cd "$env:USERPROFILE\OpenReels\gflow-bridge"
-$env:GFLOW_BRIDGE_TOKEN = "el-mismo-secreto-que-en-easypanel"
-$env:GFLOW_BRIDGE_ALLOW_IPS = "192.168.1.71"
-$env:GFLOW_CLI_PROJECT = "id-del-proyecto"
-$env:GFLOW_CLI_PROJECT_NAME = "OpenReels"
-uv run --no-project python server.py
-```
-
-Firewall de Windows: regla de entrada TCP **8787** **solo** desde la IP del Xeon.
-
-Energía: que el Windows no se suspenda.
-
-## En EasyPanel (Xeon)
-
-Mismas variables en `video` y `video-worker`, luego **Implementar** ambos:
+## EasyPanel (`video` + `video-worker`)
 
 ```
 GFLOW_BRIDGE_URL=http://192.168.1.9:8787
 GFLOW_BRIDGE_TOKEN=el-mismo-secreto-que-en-el-windows
 ```
 
-Usa la IP LAN del Windows, no `localhost`.
+Con el token, el worker usa LAN si responde; si el Windows no está en casa, espera al **modo Remoto** de la app. Para apagar el remoto: `GFLOW_BRIDGE_RELAY=0`.
+
+## I2V (Nuevo Flow)
+
+VIVI stills + Veo I2V en serie. El puente pulsa **Add to prompt**, nombra stills `or-i2v-*.png`, y no recupera clips del Lab. En Veo no pases `--duration`.
+
+Si no estás en casa y el puente está apagado, el job cae a fotos (Ken Burns) en vez de colgar 15 veces el I2V.
+
+## Avanzado (CMD)
+
+`start.bat` sigue existiendo si prefieres consola. La GUI no la necesita.

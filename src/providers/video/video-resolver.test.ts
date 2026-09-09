@@ -294,7 +294,8 @@ describe("resolveAIVideo", () => {
     expect(generateCall.prompt).toContain("SOURCE IMAGE LOCK");
     expect(generateCall.prompt).toContain("last frame");
     expect(generateCall.prompt).toContain("Watch as the rocket lifts off.");
-    expect(generateCall.prompt).not.toContain("A rocket launching");
+    expect(generateCall.prompt).toContain("A rocket launching");
+    expect(generateCall.prompt).toContain("ACTION:");
     expect(generateCall.durationSeconds).toBe(5);
     expect(generateCall.negativePrompt).toContain("different person");
     expect(generateCall.negativePrompt).toContain("wardrobe change");
@@ -321,14 +322,17 @@ describe("resolveAIVideo", () => {
 });
 
 describe("buildHeroMotionPrompt", () => {
-  it("uses only the spoken line as the action", () => {
+  it("uses the spoken line and optional visual action", () => {
     const prompt = buildHeroMotionPrompt({
       scriptLine: "Casimiro se pone el Rolex.",
+      visualPrompt: "16:9 SCENE: he stamps a giant gold Rolex",
       cameraMove: "pan_right",
       continuation: false,
     });
     expect(prompt).toContain("Casimiro se pone el Rolex.");
     expect(prompt).toContain("pan_right");
+    expect(prompt).toContain("ACTION:");
+    expect(prompt).toContain("stamps a giant gold Rolex");
     expect(prompt).not.toContain("tweed");
   });
 

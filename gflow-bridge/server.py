@@ -663,7 +663,42 @@ class Handler(BaseHTTPRequestHandler):
             LOCK.release()
 
 
-def main() -> None:
+def apply_settings(
+    *,
+    token: str,
+    allow_ips: str = "",
+    project: str = "",
+    project_name: str = "",
+    host: str | None = None,
+    port: int | None = None,
+) -> None:
+    global TOKEN, ALLOW_IPS, PROJECT, PROJECT_NAME, HOST, PORT
+    TOKEN = (token or "").strip()
+    ALLOW_IPS = {ip.strip() for ip in (allow_ips or "").split(",") if ip.strip()}
+    PROJECT = (project or "").strip()
+    PROJECT_NAME = (project_name or "").strip() or ("OpenReels" if PROJECT else "")
+    if host:
+        HOST = host
+    if port:
+        PORT = int(port)
+    os.environ["GFLOW_BRIDGE_TOKEN"] = TOKEN
+    os.environ["GFLOW_BRIDGE_ALLOW_IPS"] = ",".join(sorted(ALLOW_IPS))
+    os.environ["GFLOW_CLI_PROJECT"] = PROJECT
+    os.environ["GFLOW_CLI_PROJECT_NAME"] = PROJECT_NAME
+
+
+def run_kind(kind: str, body: dict[str, Any]) -> dict[str, Any]:
+    if kind not in {"image", "video"}:
+        raise ValueError(f"kind inválido: {kind}")
+    if not LOCK.acquire(timeout=max(30, QUEUE_WAIT)):
+        raise RuntimeError("gflow ocupado (un Chrome, una generación a la vez)")
+    try:
+        return generate_image(body) if kind == "image" else generate_video(body)
+    finally:
+        LOCK.release()
+
+
+def serve_forever() -> ThreadingHTTPServer:
     if not TOKEN and not ALLOW_ANON:
         raise SystemExit("Define GFLOW_BRIDGE_TOKEN (el mismo valor que en el Xeon) o GFLOW_BRIDGE_ALLOW_ANON=1")
     print(
@@ -671,6 +706,11 @@ def main() -> None:
         flush=True,
     )
     httpd = ThreadingHTTPServer((HOST, PORT), Handler)
+    return httpd
+
+
+def main() -> None:
+    httpd = serve_forever()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

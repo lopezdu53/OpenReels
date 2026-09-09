@@ -182,6 +182,24 @@ export function auditDirectorScore(score: DirectorScore, opts: CriticEvalOptions
     }
   }
 
+  if (heroFollowCam) {
+    const bland = /\b(walks?|walking|camina|caminando|stands?|standing|está de pie|looks at the camera|mira a la cámara)\b/i;
+    const spectacle = /\b(giant|explodes?|morph|holds?|stamps?|crushes?|unfolds?|hurls?|gigante|estalla|sella|aplasta)\b/i;
+    const blandScenes = score.scenes.filter((s) => {
+      if (s.visual_type !== "ai_image" && s.visual_type !== "ai_video") return false;
+      const action = sceneActionPrompt(s.visual_prompt);
+      return bland.test(action) && !spectacle.test(action);
+    });
+    if (blandScenes.length >= 3) {
+      findings.push(
+        `${blandScenes.length} planos de héroe son caminar/estar de pie. Eso no retiene: hace falta un objeto nuevo o un morph del mundo en cada clip.`,
+      );
+      revisionFocus.push(
+        "Cada visual_prompt: el héroe TOCA un objeto NUEVO nombrado en esa línea, o el entorno explota/cambia a su alrededor. Prohibido 'camina por' como única acción.",
+      );
+    }
+  }
+
   if (mode === "short") {
     const pacing = (opts.pacing && opts.pacing in PACING_CONFIG ? opts.pacing : undefined) as ScenePacing | undefined;
     const cfg = pacing ? PACING_CONFIG[pacing] : undefined;
@@ -221,7 +239,7 @@ export function auditDirectorScore(score: DirectorScore, opts: CriticEvalOptions
   }
 
   const identityHits = findings.filter((f) => f.includes("especie") || f.includes("humano")).length;
-  const varietyHits = findings.filter((f) => f.includes("variedad") || f.includes("Slideshow")).length;
+  const varietyHits = findings.filter((f) => f.includes("variedad") || f.includes("Slideshow") || f.includes("caminar")).length;
   let maxScore: number | null = null;
   if (identityHits > 0) maxScore = 6;
   if (varietyHits > 0) maxScore = maxScore == null ? 7 : Math.min(maxScore, 7);

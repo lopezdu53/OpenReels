@@ -15,6 +15,7 @@ import { ATELIER_STYLES } from "./config/atelier-styles.js";
 import { PLATFORMS } from "./config/platforms.js";
 import { registerFilmRoutes } from "./film/routes.js";
 import { registerFlowRoutes } from "./flow/routes.js";
+import { registerGflowBridgeRoutes } from "./gflow/relay-routes.js";
 import { registerLibraryRoutes } from "./library/routes.js";
 import { isIsolatedJobDir } from "./jobs/isolated.js";
 import { registerStickmanRoutes } from "./stickman/routes.js";
@@ -93,12 +94,13 @@ const redis = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
 const queue = new Queue("openreels", { connection: redis });
 const queueEvents = new QueueEvents("openreels", { connection: redis.duplicate() });
 
-const app = Fastify({ logger: true, bodyLimit: 8 * 1024 * 1024 });
+const app = Fastify({ logger: true, bodyLimit: 80 * 1024 * 1024 });
 
 await app.register(cors, { origin: true, credentials: true });
 
 await registerAuth(app, redis);
 await registerSocial(app, redis);
+await registerGflowBridgeRoutes(app);
 
 queueEvents.on("completed", ({ jobId }) => {
   if (!jobId) return;
@@ -178,6 +180,7 @@ app.get("/api/v1/health", async () => {
       YOUTUBE_API_KEY: !!process.env["YOUTUBE_API_KEY"],
       GFLOW_BRIDGE_URL: !!process.env["GFLOW_BRIDGE_URL"],
       GFLOW_BRIDGE_TOKEN: !!process.env["GFLOW_BRIDGE_TOKEN"],
+      GFLOW_BRIDGE_RELAY: process.env["GFLOW_BRIDGE_RELAY"] !== "0" && !!process.env["GFLOW_BRIDGE_TOKEN"],
     },
   };
 });

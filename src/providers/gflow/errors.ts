@@ -9,3 +9,9 @@ export class GflowCliError extends Error {
     this.retryable = retryable;
   }
 }
+
+export function isGflowBridgeUnreachable(message: string): boolean {
+  return /No se alcanzó el puente|Ningún Windows remoto|El Windows remoto no contestó|GFLOW_BRIDGE_URL/i.test(
+    message,
+  );
+}

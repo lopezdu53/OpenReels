@@ -10,6 +10,7 @@ import type {
 } from "../../schema/providers.js";
 import type { PipelineCallbacks } from "../../pipeline/utils.js";
 import { optimizeImagePrompt } from "../../agents/image-prompter.js";
+import { isGflowBridgeUnreachable } from "../gflow/errors.js";
 
 export interface VideoResolution {
   method: "image_to_video" | "image_fallback";
@@ -24,6 +25,11 @@ export interface VideoResolution {
 
 // Module-level concurrency limiter for video gen API calls
 const videoGenLimit = pLimit(3);
+let skipGflowUntil = 0;
+
+export function resetGflowBridgeSkipForTests(): void {
+  skipGflowUntil = 0;
+}
 
 const DEFAULT_VIDEO_NEGATIVES =
   "blur, low resolution, flickering, compression artifacts, frame drops, jitter, stutter, warping, morphing, unnatural physics, deformed hands, extra fingers, morphing faces, sliding motion";
@@ -34,8 +40,20 @@ const HERO_IDENTITY_NEGATIVES =
 /** Hero I2V drifts hard after ~5s; hold the last frame in assembly instead of a longer morph. */
 export const HERO_I2V_MAX_SECONDS = 5;
 
+export function actionFromVisualPrompt(visualPrompt: string): string {
+  const scene = visualPrompt.split(/\bSCENE:\s*/i)[1]?.trim();
+  const raw = (scene || visualPrompt)
+    .replace(/IDENTITY LOCK:[\s\S]*?(?=\bSCENE:|$)/gi, " ")
+    .replace(/FOLLOW-CAM[\s\S]*?(?=\bSCENE:|$)/gi, " ")
+    .replace(/16\s*:\s*9[^.]*\./gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return raw.slice(0, 280);
+}
+
 export function buildHeroMotionPrompt(opts: {
   scriptLine: string;
+  visualPrompt?: string;
   cameraMove?: string;
   continuation: boolean;
 }): string {
@@ -46,7 +64,9 @@ export function buildHeroMotionPrompt(opts: {
     opts.cameraMove && opts.cameraMove !== "static"
       ? ` Camera: ${opts.cameraMove} following the body.`
       : "";
-  return `${hold} Only the action changes: ${opts.scriptLine.trim()}.${cam} One take. End on a stable pose the next clip can inherit.`;
+  const action = opts.visualPrompt ? actionFromVisualPrompt(opts.visualPrompt) : "";
+  const actionBit = action ? ` ACTION: ${action}.` : "";
+  return `${hold}${actionBit} VO beat: ${opts.scriptLine.trim()}.${cam} Spectacle this clip: a named object or the world morphs around the body. One take. End on a stable pose the next clip can inherit.`;
 }
 
 /**
@@ -106,6 +126,7 @@ export async function resolveAIVideo(
   if (opts.heroFollowCam) {
     motionPrompt = buildHeroMotionPrompt({
       scriptLine: scene.script_line,
+      visualPrompt: scene.visual_prompt,
       cameraMove: scene.camera_move,
       continuation: Boolean(opts.continuation),
     });
@@ -136,12 +157,40 @@ export async function resolveAIVideo(
 
   opts.callbacks.onProgress?.("visuals", { type: "video_image_ready", scene: sceneIndex });
 
+  const skipReason =
+    Date.now() < skipGflowUntil
+      ? "Puente Windows desconectado; se omite I2V en esta escena (no reintentar 15 veces)."
+      : "";
+
   // Construct negative prompt: defaults + archetype anti-artifact guidance
   const archetypeGuidance = opts.archetype.antiArtifactGuidance?.trim();
   const identityNegatives = opts.heroFollowCam ? `, ${HERO_IDENTITY_NEGATIVES}` : "";
   const negativePrompt = archetypeGuidance
     ? `${DEFAULT_VIDEO_NEGATIVES}, ${archetypeGuidance}${identityNegatives}`
     : `${DEFAULT_VIDEO_NEGATIVES}${identityNegatives}`;
+
+  if (skipReason) {
+    console.warn(`[video] Scene ${sceneIndex} ${skipReason}`);
+    opts.callbacks.onProgress?.("visuals", {
+      type: "video_fallback",
+      scene: sceneIndex,
+      reason: skipReason,
+    });
+    return {
+      path: imageResult.path,
+      usage: imageResult.usage,
+      durationSeconds: null,
+      videoResolution: {
+        method: "image_fallback",
+        provider: "none",
+        durationSeconds: null,
+        error: skipReason,
+        imageGenTimeMs,
+        videoGenTimeMs: null,
+      },
+      prompterUsage,
+    };
+  }
 
   // Try each video provider in order
   for (let i = 0; i < opts.videoProviders.length; i++) {
@@ -209,6 +258,9 @@ export async function resolveAIVideo(
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.warn(`[video] Scene ${sceneIndex} ${providerName} provider failed: ${errorMsg}`);
+      if (isGflowBridgeUnreachable(errorMsg)) {
+        skipGflowUntil = Date.now() + 90_000;
+      }
 
       // If this is the last provider, fall through to image fallback
       if (i === opts.videoProviders.length - 1) {

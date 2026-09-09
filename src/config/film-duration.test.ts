@@ -45,6 +45,6 @@ describe("film duration", () => {
 
   it("sizes a 1-minute film so fast TTS still reaches ~60s", () => {
     expect(filmWordsTarget(FILM_ONE_MINUTE)).toBe(180);
-    expect(filmSceneTarget(FILM_ONE_MINUTE)).toBe(15);
+    expect(filmSceneTarget(FILM_ONE_MINUTE)).toBe(10);
   });
 });
