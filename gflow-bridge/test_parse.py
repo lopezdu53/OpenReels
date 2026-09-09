@@ -179,6 +179,19 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(server.TOKEN, "abc")
         self.assertEqual(server.ALLOW_IPS, {"192.168.1.71", "10.0.0.2"})
 
+    def test_apply_settings_sets_gflow_profile(self):
+        import server
+
+        server.apply_settings(
+            token="abc",
+            project="p1",
+            project_name="OpenReels",
+            profile="gemini",
+            gflow_bin="/tmp/does-not-exist-gflow",
+        )
+        self.assertEqual(server.PROFILE, "gemini")
+        self.assertEqual(server.GFLOW_BIN, "/tmp/does-not-exist-gflow")
+
 
 class RelayClientTests(unittest.TestCase):
     def test_headers_look_like_chrome_not_python(self):
@@ -207,6 +220,45 @@ class RelayClientTests(unittest.TestCase):
         msg = format_remote_http_error(404, '{"error":"Not found"}')
         self.assertIn("EasyPanel", msg)
         self.assertIn("video-worker", msg)
+
+
+class ChromeProfileTests(unittest.TestCase):
+    def test_reads_gmail_from_local_state(self):
+        import tempfile
+        from pathlib import Path
+
+        from profiles import gflow_login_cmd, list_chrome_profiles, missing_gflow_message
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "Local State").write_text(
+                json.dumps(
+                    {
+                        "profile": {
+                            "info_cache": {
+                                "Default": {"name": "Personal", "user_name": "yo@gmail.com"},
+                                "Profile 3": {"name": "Gemini", "user_name": "plan@gmail.com"},
+                                "System Profile": {"name": "System", "user_name": "x"},
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            rows = list_chrome_profiles(root)
+            dirs = {row["directory"] for row in rows}
+            self.assertIn("Default", dirs)
+            self.assertIn("Profile 3", dirs)
+            self.assertNotIn("System Profile", dirs)
+            gemini = next(row for row in rows if row["directory"] == "Profile 3")
+            self.assertIn("plan@gmail.com", gemini["label"])
+
+        cmd = gflow_login_cmd(r"C:\Tools\gflow.exe", "gemini")
+        self.assertEqual(cmd[:4], [r"C:\Tools\gflow.exe", "auth", "login", "--browser"])
+        self.assertIn("chrome", cmd)
+        self.assertIn("--profile", cmd)
+        self.assertIn("gemini", cmd)
+        self.assertIn("gflow-cli", missing_gflow_message())
 
 
 if __name__ == "__main__":

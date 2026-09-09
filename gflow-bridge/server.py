@@ -21,6 +21,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from profiles import find_gflow, missing_gflow_message
+
 HOST = os.environ.get("GFLOW_BRIDGE_HOST", "0.0.0.0")
 PORT = int(os.environ.get("GFLOW_BRIDGE_PORT", "8787"))
 TOKEN = (os.environ.get("GFLOW_BRIDGE_TOKEN") or "").strip()
@@ -30,7 +32,7 @@ ALLOW_IPS = {
     for ip in os.environ.get("GFLOW_BRIDGE_ALLOW_IPS", "").split(",")
     if ip.strip()
 }
-GFLOW_BIN = os.environ.get("GFLOW_CLI_BIN") or shutil.which("gflow") or "gflow"
+GFLOW_BIN = find_gflow() or os.environ.get("GFLOW_CLI_BIN") or shutil.which("gflow") or "gflow"
 PROFILE = os.environ.get("GFLOW_CLI_PROFILE") or ""
 PROJECT = os.environ.get("GFLOW_CLI_PROJECT") or ""
 PROJECT_NAME = os.environ.get("GFLOW_CLI_PROJECT_NAME") or ("OpenReels" if PROJECT else "")
@@ -324,15 +326,21 @@ def _run_gflow(args: list[str], timeout: int) -> dict[str, Any]:
     env = os.environ.copy()
     env["GFLOW_CLI_LOG_FORMAT"] = "json"
     env.setdefault("GFLOW_CLI_FLOW_HOST", "auto")
+    bin_path = Path(GFLOW_BIN)
+    if bin_path.is_file():
+        env["PATH"] = str(bin_path.parent) + os.pathsep + env.get("PATH", "")
     print(f"[gflow-bridge] exec {' '.join(cmd[:6])} … project={PROJECT or '-'} name={PROJECT_NAME or '-'}", flush=True)
-    proc = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        env=env,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            env=env,
+            check=False,
+        )
+    except FileNotFoundError as err:
+        raise RuntimeError(missing_gflow_message()) from err
     payload: dict[str, Any] | None = None
     try:
         payload = _parse_gflow_json(proc.stdout or "")
@@ -671,12 +679,20 @@ def apply_settings(
     project_name: str = "",
     host: str | None = None,
     port: int | None = None,
+    profile: str = "",
+    gflow_bin: str = "",
 ) -> None:
-    global TOKEN, ALLOW_IPS, PROJECT, PROJECT_NAME, HOST, PORT
+    global TOKEN, ALLOW_IPS, PROJECT, PROJECT_NAME, HOST, PORT, PROFILE, GFLOW_BIN
     TOKEN = (token or "").strip()
     ALLOW_IPS = {ip.strip() for ip in (allow_ips or "").split(",") if ip.strip()}
     PROJECT = (project or "").strip()
     PROJECT_NAME = (project_name or "").strip() or ("OpenReels" if PROJECT else "")
+    PROFILE = (profile or "").strip()
+    found = find_gflow(gflow_bin) or find_gflow()
+    if found:
+        GFLOW_BIN = found
+    elif gflow_bin.strip():
+        GFLOW_BIN = gflow_bin.strip()
     if host:
         HOST = host
     if port:
@@ -685,6 +701,10 @@ def apply_settings(
     os.environ["GFLOW_BRIDGE_ALLOW_IPS"] = ",".join(sorted(ALLOW_IPS))
     os.environ["GFLOW_CLI_PROJECT"] = PROJECT
     os.environ["GFLOW_CLI_PROJECT_NAME"] = PROJECT_NAME
+    if PROFILE:
+        os.environ["GFLOW_CLI_PROFILE"] = PROFILE
+    if GFLOW_BIN:
+        os.environ["GFLOW_CLI_BIN"] = GFLOW_BIN
 
 
 def run_kind(kind: str, body: dict[str, Any]) -> dict[str, Any]:

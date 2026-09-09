@@ -5,7 +5,7 @@ App de **un clic** en Windows. El worker de EasyPanel llama aquí: en casa por L
 ## Instalar (sin PowerShell)
 
 1. Instala [Python 3.12+](https://www.python.org/downloads/) (marca **tcl/tk** y **Add to PATH**).
-2. Instala [gflow-cli](https://github.com/ffroliva/gflow-cli) y Chrome. Una vez: `gflow auth login --browser chrome`.
+2. Instala [gflow-cli](https://github.com/ffroliva/gflow-cli) y Chrome. En la app: elige el **perfil de Chrome** del Gmail Gemini → **Entrar a Flow** (en la ventana nueva entra con ESA cuenta) → Agent OFF.
 3. Copia la carpeta `gflow-bridge` a este PC (o baja el `.exe` del Action *Windows bridge exe*).
 4. Doble clic en **`OpenReelsPuente.vbs`** (o `OpenReelsPuente.exe`).
 5. En la ventana:
