@@ -261,6 +261,34 @@ class ChromeProfileTests(unittest.TestCase):
         self.assertIn("gflow-cli", missing_gflow_message())
         self.assertIn("Instalar todo", missing_gflow_message())
 
+    def test_reads_gflow_account_and_login_batch_pauses(self):
+        import os
+        import tempfile
+        from pathlib import Path
+
+        from profiles import list_gflow_profiles, pick_gflow_profile, write_login_batch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "gflow-cli"
+            acc = home / "profile_keepupwalking7" / ".gflow_account"
+            acc.parent.mkdir(parents=True)
+            acc.write_text("keepupwalking7@gmail.com\n", encoding="utf-8")
+            rows = list_gflow_profiles(home)
+            self.assertEqual(rows[0]["name"], "keepupwalking7")
+            self.assertEqual(rows[0]["email"], "keepupwalking7@gmail.com")
+            picked = pick_gflow_profile("keepupwalking7@gmail.com", home)
+            self.assertIsNotNone(picked)
+            assert picked is not None
+            self.assertEqual(picked["name"], "keepupwalking7")
+
+            os.environ["LOCALAPPDATA"] = tmp
+            bat = write_login_batch(r"C:\Tools\gflow.exe", "")
+            text = bat.read_text(encoding="utf-8")
+            self.assertIn("auth login", text)
+            self.assertIn("--browser chrome", text)
+            self.assertIn("pause", text)
+            self.assertIn("GFLOW_CLI_AUTH_BROWSER", text)
+
 
 class InstallStatusTests(unittest.TestCase):
     def test_version_helpers(self):
