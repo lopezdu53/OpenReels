@@ -43,6 +43,7 @@ I2V_FALLBACK_T2V = os.environ.get("GFLOW_I2V_FALLBACK_T2V", "") == "1"
 # gflow 0.71 picks the library tile then waits for the picker to close. Migrated
 # Flow keeps it open until "Add to prompt" — the CLI never clicks that button.
 CLICK_ADD_TO_PROMPT = os.environ.get("GFLOW_BRIDGE_CLICK_ADD_TO_PROMPT", "1") != "0"
+RECOVER_SECONDS = int(os.environ.get("GFLOW_BRIDGE_RECOVER_SECONDS", "90"))
 STILL_PREFIX = "or-i2v-"
 ADD_TO_PROMPT_NEEDLES = (
     "add to prompt",
@@ -119,6 +120,24 @@ def _should_fallback_t2v(msg: str) -> bool:
             "initial-frame",
             "still.png",
             STILL_PREFIX,
+        )
+    )
+
+
+def _is_submit_miss(msg: str) -> bool:
+    """gflow clicked submit; Flow queued the clip; the observer missed the ACK."""
+    low = msg.lower()
+    if "frame picker" in low:
+        return False
+    return any(
+        n in low
+        for n in (
+            "yhhmef",
+            "eb1hjf",
+            "mzza6b",
+            "transporttimeouterror",
+            "reply within",
+            "not terminal within",
         )
     )
 
@@ -276,7 +295,10 @@ class PickerConfirmWatch:
             if out.startswith("clicked:"):
                 self.clicks += 1
                 print(f"[gflow-bridge] clicked Flow picker confirm ({out})", flush=True)
-                self._stop.wait(5.0)
+                # Stop scanning: UIA walks of Chrome during submit drop Playwright
+                # network events (YhhmEf/eb1hJf miss while Flow still generates).
+                self._stop.set()
+                return
 
 
 def _gflow_fail_message(payload: dict[str, Any] | None, stdout: str, stderr: str, code: int) -> str:
@@ -323,6 +345,110 @@ def _run_gflow(args: list[str], timeout: int) -> dict[str, Any]:
     if not payload:
         raise RuntimeError(f"gflow no devolvió JSON: {(proc.stdout or '')[:240]}")
     return payload
+
+
+def _mp4_search_roots(dest: Path) -> list[Path]:
+    roots = [dest.parent]
+    extra = (os.environ.get("GFLOW_CLI_OUTPUT_DIR") or "").strip()
+    if extra:
+        roots.append(Path(extra))
+    home = Path.home()
+    roots.extend(
+        [
+            home / "Videos",
+            home / ".gflow-cli",
+            home / "AppData" / "Local" / "gflow-cli",
+        ]
+    )
+    seen: set[str] = set()
+    out: list[Path] = []
+    for root in roots:
+        key = str(root)
+        if key in seen or not root.exists():
+            continue
+        seen.add(key)
+        out.append(root)
+    return out
+
+
+def _newest_mp4_since(since: float, dest: Path) -> Path | None:
+    if dest.exists() and dest.stat().st_size > 20_000:
+        return dest
+    found: list[Path] = []
+    for root in _mp4_search_roots(dest):
+        try:
+            for path in root.rglob("*.mp4"):
+                try:
+                    st = path.stat()
+                except OSError:
+                    continue
+                if st.st_size > 20_000 and st.st_mtime >= since - 2:
+                    found.append(path)
+        except OSError:
+            continue
+    if not found:
+        return None
+    return max(found, key=lambda p: p.stat().st_mtime)
+
+
+def _catalog_paths_from_list(stdout: str) -> list[Path]:
+    paths: list[Path] = []
+    text = stdout.strip()
+    if not text:
+        return paths
+    blobs: list[Any] = []
+    try:
+        blobs.append(json.loads(text[text.find("[") : text.rfind("]") + 1] if "[" in text else text[text.find("{") :]))
+    except Exception:
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith("{") or line.startswith("["):
+                try:
+                    blobs.append(json.loads(line))
+                except Exception:
+                    continue
+    rows: list[Any] = []
+    for blob in blobs:
+        if isinstance(blob, list):
+            rows.extend(blob)
+        elif isinstance(blob, dict):
+            inner = blob.get("videos") or blob.get("items") or blob.get("rows")
+            if isinstance(inner, list):
+                rows.extend(inner)
+            else:
+                rows.append(blob)
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        for key, val in row.items():
+            if "path" not in str(key).lower() or not isinstance(val, str):
+                continue
+            p = Path(val)
+            if p.suffix.lower() == ".mp4" and p.exists():
+                paths.append(p)
+    return paths
+
+
+def _recover_generated_mp4(dest: Path, since: float) -> Path | None:
+    print(f"[gflow-bridge] submit ACK missed; wait {RECOVER_SECONDS}s for Flow to finish the clip", flush=True)
+    if RECOVER_SECONDS > 0:
+        time.sleep(RECOVER_SECONDS)
+    found = _newest_mp4_since(since, dest)
+    if found is not None:
+        print(f"[gflow-bridge] recovered mp4 {found} ({found.stat().st_size} bytes)", flush=True)
+        return found
+    try:
+        cmd = [GFLOW_BIN, "data", "list", "videos", "--json"]
+        if PROJECT:
+            cmd.extend(["--project", PROJECT])
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60, check=False)
+        for path in _catalog_paths_from_list((proc.stdout or "") + "\n" + (proc.stderr or "")):
+            if path.stat().st_mtime >= since - 2 and path.stat().st_size > 20_000:
+                print(f"[gflow-bridge] recovered catalog mp4 {path}", flush=True)
+                return path
+    except Exception as err:
+        print(f"[gflow-bridge] catalog scan skipped: {err}", flush=True)
+    return None
 
 
 def generate_image(body: dict[str, Any]) -> dict[str, Any]:
@@ -398,36 +524,47 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
             dest=str(dest),
             still_path=str(still_path) if mode == "i2v" else None,
         )
+        started = time.time()
         if mode == "i2v":
             _dismiss_stale_frame_picker()
         with PickerConfirmWatch(still_path.name, enabled=mode == "i2v"):
             try:
                 payload = _run_gflow(args, VIDEO_TIMEOUT)
             except Exception as err:
-                if mode != "i2v" or not _should_fallback_t2v(str(err)):
+                msg = str(err)
+                recovered = _recover_generated_mp4(dest, started) if mode == "i2v" and _is_submit_miss(msg) else None
+                if recovered is not None:
+                    payload = {"status": "ok", "local_path": str(recovered)}
+                elif mode != "i2v" or not _should_fallback_t2v(msg):
                     raise
-                print(f"[gflow-bridge] I2V picker stuck; wait {SETTLE_SECONDS}s and retry I2V: {err}", flush=True)
-                _dismiss_stale_frame_picker()
-                if SETTLE_SECONDS > 0:
-                    time.sleep(SETTLE_SECONDS)
-                try:
-                    payload = _run_gflow(args, VIDEO_TIMEOUT)
-                except Exception as err2:
-                    if not I2V_FALLBACK_T2V:
-                        raise
-                    print(f"[gflow-bridge] I2V retry failed; t2v fallback (credits): {err2}", flush=True)
-                    payload = _run_gflow(
-                        _video_cli_args(
-                            mode="t2v",
-                            prompt=prompt,
-                            model=model,
-                            duration=duration,
-                            aspect=aspect,
-                            dest=str(dest),
-                            still_path=None,
-                        ),
-                        VIDEO_TIMEOUT,
-                    )
+                else:
+                    print(f"[gflow-bridge] I2V picker stuck; wait {SETTLE_SECONDS}s and retry I2V: {err}", flush=True)
+                    _dismiss_stale_frame_picker()
+                    if SETTLE_SECONDS > 0:
+                        time.sleep(SETTLE_SECONDS)
+                    try:
+                        payload = _run_gflow(args, VIDEO_TIMEOUT)
+                    except Exception as err2:
+                        miss2 = str(err2)
+                        recovered2 = _recover_generated_mp4(dest, started) if _is_submit_miss(miss2) else None
+                        if recovered2 is not None:
+                            payload = {"status": "ok", "local_path": str(recovered2)}
+                        elif not I2V_FALLBACK_T2V:
+                            raise
+                        else:
+                            print(f"[gflow-bridge] I2V retry failed; t2v fallback (credits): {err2}", flush=True)
+                            payload = _run_gflow(
+                                _video_cli_args(
+                                    mode="t2v",
+                                    prompt=prompt,
+                                    model=model,
+                                    duration=duration,
+                                    aspect=aspect,
+                                    dest=str(dest),
+                                    still_path=None,
+                                ),
+                                VIDEO_TIMEOUT,
+                            )
         local = dest if dest.exists() and dest.stat().st_size > 1000 else None
         if local is None and isinstance(payload.get("local_path"), str):
             p = Path(str(payload["local_path"]))

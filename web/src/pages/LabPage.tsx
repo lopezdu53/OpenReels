@@ -748,10 +748,11 @@ export function LabPage() {
             <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
               <p className="text-[11px] text-muted-foreground">
                 gflow Veo · puente Windows · Agent OFF. I2V funciona en proyecto vacío; con
-                otros archivos el picker no cierra hasta “Add to prompt” (gflow 0.71 no lo
-                pulsa; el puente sí). Cierra ese modal si quedó abierto. t2v no sube el
-                still. Veo no tiene control de duración en Flow migrado; solo Omni Flash
-                acepta 4/6/8/10s.
+                otros archivos el picker no cierra hasta “Add to prompt” (el puente lo pulsa
+                y luego deja de barrer Chrome para no perder el submit). Si Flow genera y
+                gflow no baja el mp4, el puente espera y lo busca. t2v no sube el still.
+                Veo no tiene control de duración en Flow migrado; solo Omni Flash acepta
+                4/6/8/10s.
               </p>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>

@@ -4,9 +4,11 @@ import unittest
 from server import (
     I2V_FALLBACK_T2V,
     STILL_PREFIX,
+    _catalog_paths_from_list,
     _flow_picker_script,
     _gflow_fail_message,
     _is_add_to_prompt_label,
+    _is_submit_miss,
     _parse_gflow_json,
     _resolve_video_mode,
     _sanitize_prompt,
@@ -131,6 +133,32 @@ class VideoModeTests(unittest.TestCase):
         self.assertIn("add to prompt", script)
         self.assertIn("or-i2v-demo.png", script)
         self.assertIn("$action = 'click'", script)
+
+    def test_submit_miss_is_not_picker_retry(self):
+        miss = (
+            "TransportTimeoutError — migrated host: no YhhmEf/eb1hJf/MZZA6b "
+            "reply within 60s of clicking submit"
+        )
+        self.assertTrue(_is_submit_miss(miss))
+        self.assertFalse(_should_fallback_t2v(miss))
+        self.assertFalse(
+            _is_submit_miss(
+                "UiSelectorDriftError — migrated host: the frame picker stayed open 15s"
+            )
+        )
+
+    def test_catalog_paths_from_list(self):
+        import os
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            mp4 = Path(tmp) / "clip.mp4"
+            mp4.write_bytes(b"0" * 100)
+            rows = json.dumps([{"local_path": str(mp4), "media_id": "abc"}])
+            found = _catalog_paths_from_list(rows)
+            self.assertEqual(found, [mp4])
+            os.unlink(mp4)
 
 
 class DrainTests(unittest.TestCase):
