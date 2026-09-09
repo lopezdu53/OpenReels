@@ -45,6 +45,10 @@ def tool_env() -> dict[str, str]:
     env["UV_TOOL_BIN_DIR"] = str(bindir)
     env["UV_TOOL_DIR"] = str(app_home() / "uv-tools")
     env["PATH"] = str(bindir) + os.pathsep + env.get("PATH", "")
+    # structlog ConsoleRenderer on Windows crashes without colorama if colors=True
+    env["NO_COLOR"] = "1"
+    env["FORCE_COLOR"] = "0"
+    env.setdefault("GFLOW_CLI_LOG_FORMAT", "json")
     return env
 
 
@@ -62,16 +66,29 @@ def version_newer(latest: str, installed: str) -> bool:
     return version_tuple(latest) > version_tuple(installed)
 
 
-def format_gflow_status(installed: str | None, latest: str | None) -> str:
+def format_gflow_status(
+    installed: str | None,
+    latest: str | None,
+    colorama_installed: str | None = None,
+    colorama_latest: str | None = None,
+) -> str:
     if not installed:
         if latest:
             return f"gflow: no instalado · última en PyPI {latest} — pulsa Instalar todo"
         return "gflow: no instalado — pulsa Instalar todo"
     if latest and version_newer(latest, installed):
-        return f"gflow-cli {installed} · hay {latest} — pulsa Actualizar"
-    if latest:
-        return f"gflow-cli {installed} · al día"
-    return f"gflow-cli {installed}"
+        gflow = f"gflow-cli {installed} · hay {latest}"
+    elif latest:
+        gflow = f"gflow-cli {installed} · al día"
+    else:
+        gflow = f"gflow-cli {installed}"
+    if not colorama_installed:
+        return f"{gflow} · colorama no instalado — pulsa Instalar todo"
+    if colorama_latest and version_newer(colorama_latest, colorama_installed):
+        return f"{gflow} · colorama {colorama_installed} · hay {colorama_latest}"
+    if colorama_latest:
+        return f"{gflow} · colorama {colorama_installed} · al día"
+    return f"{gflow} · colorama {colorama_installed}"
 
 
 def _http_get(url: str, dest: Path | None = None, timeout: int = 60) -> bytes:
@@ -83,11 +100,59 @@ def _http_get(url: str, dest: Path | None = None, timeout: int = 60) -> bytes:
     return data
 
 
-def pypi_latest_version() -> str | None:
-    raw = _http_get(PYPI_URL, timeout=20)
+def pypi_latest_package(name: str) -> str | None:
+    raw = _http_get(f"https://pypi.org/pypi/{name}/json", timeout=20)
     payload = json.loads(raw.decode("utf-8"))
     version = str(payload.get("info", {}).get("version") or "").strip()
     return version or None
+
+
+def pypi_latest_version() -> str | None:
+    return pypi_latest_package("gflow-cli")
+
+
+def gflow_venv_python() -> Path | None:
+    root = app_home() / "uv-tools" / "gflow-cli"
+    for rel in ("Scripts/python.exe", "Scripts/python", "bin/python", "bin/python3"):
+        path = root / rel
+        if path.is_file():
+            return path
+    return None
+
+
+def tool_package_version(package: str) -> str | None:
+    code = f"import importlib.metadata as m; print(m.version({package!r}))"
+    py = gflow_venv_python()
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
+    if py:
+        try:
+            proc = subprocess.run(
+                [str(py), "-c", code],
+                capture_output=True,
+                text=True,
+                timeout=20,
+                env=tool_env(),
+                check=False,
+                creationflags=flags,
+            )
+            found = parse_version(proc.stdout or "")
+            if found:
+                return found
+        except Exception:
+            pass
+    uv = find_uv()
+    if not uv:
+        return None
+    try:
+        out = _run(
+            [uv, "tool", "run", "--from", "gflow-cli", "python", "-c", code],
+            env=tool_env(),
+            timeout=40,
+            log=lambda _s: None,
+        )
+        return parse_version(out)
+    except Exception:
+        return None
 
 
 def uv_zip_name() -> str:
@@ -195,16 +260,45 @@ def inspect_gflow(explicit: str = "") -> dict[str, str | None]:
     path = find_gflow(explicit)
     installed = gflow_version(path) if path else None
     latest: str | None = None
+    colorama_installed = tool_package_version("colorama") if path else None
+    colorama_latest: str | None = None
     try:
         latest = pypi_latest_version()
     except Exception:
         latest = None
+    try:
+        colorama_latest = pypi_latest_package("colorama")
+    except Exception:
+        colorama_latest = None
     return {
         "path": path,
         "installed": installed,
         "latest": latest,
-        "status": format_gflow_status(installed, latest),
+        "colorama": colorama_installed,
+        "colorama_latest": colorama_latest,
+        "status": format_gflow_status(installed, latest, colorama_installed, colorama_latest),
     }
+
+
+def ensure_colorama(log: LogFn) -> str | None:
+    uv = find_uv()
+    if not uv:
+        uv = ensure_uv(log)
+    env = tool_env()
+    py = gflow_venv_python()
+    log("Instalando colorama (structlog en Windows)…")
+    if py:
+        _run([uv, "pip", "install", "--python", str(py), "colorama"], env=env, timeout=180, log=log)
+    else:
+        _run(
+            [uv, "tool", "install", "--force", "--with", "colorama", "gflow-cli"],
+            env=env,
+            timeout=600,
+            log=log,
+        )
+    ver = tool_package_version("colorama")
+    log(f"colorama {ver or 'instalado'}")
+    return ver
 
 
 def install_gflow_stack(log: LogFn, *, upgrade: bool = False) -> str:
@@ -217,15 +311,25 @@ def install_gflow_stack(log: LogFn, *, upgrade: bool = False) -> str:
         _run([uv, "python", "install", "3.12"], env=env, timeout=300, log=log)
     except Exception as err:
         log(f"Python 3.12: {err} (sigo, uv puede traerlo solo)")
+    with_colorama = ["--with", "colorama"]
     if upgrade:
-        log("Actualizando gflow-cli…")
+        log("Actualizando gflow-cli + colorama…")
         try:
-            _run([uv, "tool", "upgrade", "gflow-cli"], env=env, timeout=600, log=log)
+            _run([uv, "tool", "upgrade", "gflow-cli", *with_colorama], env=env, timeout=600, log=log)
         except Exception:
-            _run([uv, "tool", "install", "--force", "gflow-cli"], env=env, timeout=600, log=log)
+            _run(
+                [uv, "tool", "install", "--force", *with_colorama, "gflow-cli"],
+                env=env,
+                timeout=600,
+                log=log,
+            )
     else:
-        log("Instalando gflow-cli desde PyPI…")
-        _run([uv, "tool", "install", "gflow-cli"], env=env, timeout=600, log=log)
+        log("Instalando gflow-cli + colorama desde PyPI…")
+        _run([uv, "tool", "install", *with_colorama, "gflow-cli"], env=env, timeout=600, log=log)
+    try:
+        ensure_colorama(log)
+    except Exception as err:
+        log(f"colorama: {err}")
     log("Playwright Chromium (una vez, ~150 MB)…")
     try:
         _run(
@@ -242,5 +346,6 @@ def install_gflow_stack(log: LogFn, *, upgrade: bool = False) -> str:
     if not path:
         raise RuntimeError("gflow-cli se instaló pero no aparece gflow.exe. Reabre la app.")
     version = gflow_version(path) or "?"
-    log(f"Listo: gflow-cli {version} → {path}")
+    colorama = tool_package_version("colorama") or "?"
+    log(f"Listo: gflow-cli {version} · colorama {colorama} → {path}")
     return path

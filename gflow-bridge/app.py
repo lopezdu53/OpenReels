@@ -264,11 +264,19 @@ class App(tk.Tk):
         self.gflow_status.set(status)
         installed = meta.get("installed")
         latest = meta.get("latest")
+        colorama = meta.get("colorama")
+        colorama_latest = meta.get("colorama_latest")
         if not path:
             self.install_btn.configure(text="Instalar todo")
             self._log(missing_gflow_message())
         elif latest and installed and version_newer(latest, installed):
             self.install_btn.configure(text=f"Actualizar a {latest}")
+            self._log(status)
+        elif installed and not colorama:
+            self.install_btn.configure(text="Instalar colorama")
+            self._log(status)
+        elif colorama and colorama_latest and version_newer(colorama_latest, colorama):
+            self.install_btn.configure(text=f"Actualizar colorama {colorama_latest}")
             self._log(status)
         else:
             self.install_btn.configure(text="Reinstalar gflow")
@@ -278,8 +286,12 @@ class App(tk.Tk):
     def install_clicked(self) -> None:
         installed = self._gflow_meta.get("installed")
         latest = self._gflow_meta.get("latest")
-        upgrade = bool(installed and latest and version_newer(latest, installed))
-        self.install_stack(upgrade=upgrade or bool(installed))
+        colorama = self._gflow_meta.get("colorama")
+        colorama_latest = self._gflow_meta.get("colorama_latest")
+        gflow_update = bool(installed and latest and version_newer(latest, installed))
+        colorama_update = bool(colorama and colorama_latest and version_newer(colorama_latest, colorama))
+        missing_colorama = bool(installed and not colorama)
+        self.install_stack(upgrade=gflow_update or colorama_update or missing_colorama or bool(installed))
 
     def install_stack(self, *, upgrade: bool = False, then=None) -> None:
         if self._installing:
