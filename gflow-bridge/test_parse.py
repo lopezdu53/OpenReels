@@ -3,11 +3,15 @@ import unittest
 
 from server import (
     I2V_FALLBACK_T2V,
+    STILL_PREFIX,
+    _flow_picker_script,
     _gflow_fail_message,
+    _is_add_to_prompt_label,
     _parse_gflow_json,
     _resolve_video_mode,
     _sanitize_prompt,
     _should_fallback_t2v,
+    _unique_still_name,
     _video_cli_args,
 )
 
@@ -104,9 +108,29 @@ class VideoModeTests(unittest.TestCase):
                 "UiSelectorDriftError — the frame picker stayed open 15s after picking 'still.png'"
             )
         )
+        self.assertTrue(
+            _should_fallback_t2v(
+                "migrated host: the frame picker stayed open 15s after picking 'or-i2v-1-aa.png'"
+            )
+        )
         self.assertTrue(_should_fallback_t2v("no maseQ reply within 60s"))
         self.assertFalse(_should_fallback_t2v("Token inválido"))
         self.assertFalse(I2V_FALLBACK_T2V)
+
+    def test_unique_still_name(self):
+        a = _unique_still_name()
+        b = _unique_still_name()
+        self.assertTrue(a.startswith(STILL_PREFIX) and a.endswith(".png"))
+        self.assertNotEqual(a, b)
+
+    def test_add_to_prompt_labels(self):
+        self.assertTrue(_is_add_to_prompt_label("Add to prompt"))
+        self.assertTrue(_is_add_to_prompt_label("Añadir al prompt"))
+        self.assertFalse(_is_add_to_prompt_label("Create"))
+        script = _flow_picker_script("click", "or-i2v-demo.png")
+        self.assertIn("add to prompt", script)
+        self.assertIn("or-i2v-demo.png", script)
+        self.assertIn("$action = 'click'", script)
 
 
 class DrainTests(unittest.TestCase):

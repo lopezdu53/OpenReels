@@ -747,8 +747,10 @@ export function LabPage() {
           {vidProvider === "gflow" && (
             <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
               <p className="text-[11px] text-muted-foreground">
-                gflow Veo · puente Windows · Agent OFF. t2v no sube el still. Veo no tiene
-                control de duración en Flow migrado; solo Omni Flash acepta 4/6/8/10s.
+                gflow Veo · puente Windows · Agent OFF. I2V: cierra el modal “Add to prompt”
+                si quedó abierto; el puente lo pulsa (gflow 0.71 no lo hace). t2v no sube el
+                still. Veo no tiene control de duración en Flow migrado; solo Omni Flash
+                acepta 4/6/8/10s.
               </p>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>

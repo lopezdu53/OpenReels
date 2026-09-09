@@ -10,6 +10,7 @@ import base64
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import tempfile
@@ -39,6 +40,19 @@ QUEUE_WAIT = int(os.environ.get("GFLOW_BRIDGE_QUEUE_WAIT", "1200"))
 MAX_BODY = int(os.environ.get("GFLOW_BRIDGE_MAX_BODY", str(48 * 1024 * 1024)))
 SETTLE_SECONDS = int(os.environ.get("GFLOW_BRIDGE_SETTLE_SECONDS", "8"))
 I2V_FALLBACK_T2V = os.environ.get("GFLOW_I2V_FALLBACK_T2V", "") == "1"
+# gflow 0.71 picks the library tile then waits for the picker to close. Migrated
+# Flow keeps it open until "Add to prompt" — the CLI never clicks that button.
+CLICK_ADD_TO_PROMPT = os.environ.get("GFLOW_BRIDGE_CLICK_ADD_TO_PROMPT", "1") != "0"
+STILL_PREFIX = "or-i2v-"
+ADD_TO_PROMPT_NEEDLES = (
+    "add to prompt",
+    "añadir al prompt",
+    "añadir a la instrucción",
+    "adicionar ao prompt",
+    "incluir no comando",
+    "ajouter à l'invite",
+    "zum prompt hinzufügen",
+)
 
 LOCK = threading.Lock()
 
@@ -104,8 +118,165 @@ def _should_fallback_t2v(msg: str) -> bool:
             "maseq",
             "initial-frame",
             "still.png",
+            STILL_PREFIX,
         )
     )
+
+
+def _unique_still_name() -> str:
+    return f"{STILL_PREFIX}{int(time.time())}-{secrets.token_hex(3)}.png"
+
+
+def _is_add_to_prompt_label(name: str) -> bool:
+    low = name.strip().lower()
+    return any(needle in low for needle in ADD_TO_PROMPT_NEEDLES)
+
+
+def _run_powershell(script: str, timeout: float = 12) -> str:
+    encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+    proc = subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+    return ((proc.stdout or "") + (proc.stderr or "")).strip()
+
+
+def _flow_picker_script(action: str, still_needle: str = STILL_PREFIX) -> str:
+    """Windows UI Automation: find Flow's frame-picker confirm, or send Escape."""
+    labels = ", ".join(repr(n) for n in ADD_TO_PROMPT_NEEDLES)
+    needle = still_needle.replace("'", "")
+    return f"""
+$ErrorActionPreference = 'SilentlyContinue'
+Add-Type -AssemblyName UIAutomationClient | Out-Null
+$needles = @({labels})
+function Test-PromptName([string]$n) {{
+  if (-not $n) {{ return $false }}
+  $low = $n.ToLowerInvariant()
+  foreach ($k in $needles) {{ if ($low.Contains($k)) {{ return $true }} }}
+  return $false
+}}
+function Test-FlowTitle([string]$n) {{
+  return $n -match '(?i)flow|openreels|videofx|labs\\.google'
+}}
+$root = [System.Windows.Automation.AutomationElement]::RootElement
+$winType = [System.Windows.Automation.ControlType]::Window
+$winCond = New-Object System.Windows.Automation.PropertyCondition(
+  [System.Windows.Automation.AutomationElement]::ControlTypeProperty, $winType)
+$windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $winCond)
+$action = '{action}'
+$stillNeedle = '{needle}'
+foreach ($w in $windows) {{
+  if (-not (Test-FlowTitle $w.Current.Name)) {{ continue }}
+  if ($action -eq 'escape') {{
+    Add-Type -AssemblyName System.Windows.Forms | Out-Null
+    $hwnd = [IntPtr]$w.Current.NativeWindowHandle
+    Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class GflowWinEsc {{
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+}}
+"@
+    [GflowWinEsc]::ShowWindow($hwnd, 9) | Out-Null
+    [GflowWinEsc]::SetForegroundWindow($hwnd) | Out-Null
+    Start-Sleep -Milliseconds 120
+    [System.Windows.Forms.SendKeys]::SendWait('{{ESC}}')
+    Write-Output ('esc:' + $w.Current.Name)
+    exit 0
+  }}
+  $editType = [System.Windows.Automation.ControlType]::Edit
+  $editCond = New-Object System.Windows.Automation.PropertyCondition(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty, $editType)
+  $edits = $w.FindAll([System.Windows.Automation.TreeScope]::Descendants, $editCond)
+  $searchReady = $false
+  foreach ($e in $edits) {{
+    $val = ''
+    try {{
+      $vp = $e.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+      if ($vp) {{ $val = [string]$vp.Current.Value }}
+    }} catch {{}}
+    if (-not $val) {{ $val = [string]$e.Current.Name }}
+    if ($val -and $val.ToLowerInvariant().Contains($stillNeedle.ToLowerInvariant())) {{
+      $searchReady = $true
+      break
+    }}
+  }}
+  if (-not $searchReady) {{ continue }}
+  $btnType = [System.Windows.Automation.ControlType]::Button
+  $btnCond = New-Object System.Windows.Automation.PropertyCondition(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty, $btnType)
+  $buttons = $w.FindAll([System.Windows.Automation.TreeScope]::Descendants, $btnCond)
+  foreach ($b in $buttons) {{
+    if (-not (Test-PromptName $b.Current.Name)) {{ continue }}
+    if ($action -eq 'probe') {{
+      Write-Output ('visible:' + $b.Current.Name)
+      exit 0
+    }}
+    $pat = $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+    if (-not $pat) {{ continue }}
+    $pat.Invoke()
+    Write-Output ('clicked:' + $b.Current.Name)
+    exit 0
+  }}
+}}
+exit 1
+"""
+
+
+def _dismiss_stale_frame_picker() -> None:
+    if os.name != "nt":
+        return
+    try:
+        out = _run_powershell(_flow_picker_script("escape"), timeout=8)
+    except Exception as err:
+        print(f"[gflow-bridge] picker Escape skipped: {err}", flush=True)
+        return
+    if out.startswith("esc:"):
+        print(f"[gflow-bridge] closed leftover Flow overlay ({out})", flush=True)
+        time.sleep(0.35)
+        try:
+            _run_powershell(_flow_picker_script("escape"), timeout=8)
+        except Exception:
+            pass
+
+
+class PickerConfirmWatch:
+    """While gflow waits 15s for the picker to close, click Add to prompt."""
+
+    def __init__(self, still_name: str, enabled: bool) -> None:
+        self.still_name = still_name
+        self.enabled = enabled and CLICK_ADD_TO_PROMPT and os.name == "nt"
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self.clicks = 0
+
+    def __enter__(self) -> PickerConfirmWatch:
+        if self.enabled:
+            self._thread = threading.Thread(target=self._loop, name="gflow-add-to-prompt", daemon=True)
+            self._thread.start()
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=4)
+
+    def _loop(self) -> None:
+        needle = Path(self.still_name).name if self.still_name else STILL_PREFIX
+        while not self._stop.wait(1.1):
+            try:
+                out = _run_powershell(_flow_picker_script("click", needle), timeout=10)
+            except Exception as err:
+                print(f"[gflow-bridge] Add to prompt scan: {err}", flush=True)
+                continue
+            if out.startswith("clicked:"):
+                self.clicks += 1
+                print(f"[gflow-bridge] clicked Flow picker confirm ({out})", flush=True)
+                self._stop.wait(5.0)
 
 
 def _gflow_fail_message(payload: dict[str, Any] | None, stdout: str, stderr: str, code: int) -> str:
@@ -214,7 +385,7 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
     reported = duration if duration is not None else 8
     work = Path(tempfile.mkdtemp(prefix="gflow-bridge-vid-"))
     dest = work / "out.mp4"
-    still_path = work / "still.png"
+    still_path = work / _unique_still_name()
     if mode == "i2v" and still:
         still_path.write_bytes(still)
     try:
@@ -227,32 +398,36 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
             dest=str(dest),
             still_path=str(still_path) if mode == "i2v" else None,
         )
-        try:
-            payload = _run_gflow(args, VIDEO_TIMEOUT)
-        except Exception as err:
-            if mode != "i2v" or not _should_fallback_t2v(str(err)):
-                raise
-            print(f"[gflow-bridge] I2V picker stuck; wait {SETTLE_SECONDS}s and retry I2V: {err}", flush=True)
-            if SETTLE_SECONDS > 0:
-                time.sleep(SETTLE_SECONDS)
+        if mode == "i2v":
+            _dismiss_stale_frame_picker()
+        with PickerConfirmWatch(still_path.name, enabled=mode == "i2v"):
             try:
                 payload = _run_gflow(args, VIDEO_TIMEOUT)
-            except Exception as err2:
-                if not I2V_FALLBACK_T2V:
+            except Exception as err:
+                if mode != "i2v" or not _should_fallback_t2v(str(err)):
                     raise
-                print(f"[gflow-bridge] I2V retry failed; t2v fallback (credits): {err2}", flush=True)
-                payload = _run_gflow(
-                    _video_cli_args(
-                        mode="t2v",
-                        prompt=prompt,
-                        model=model,
-                        duration=duration,
-                        aspect=aspect,
-                        dest=str(dest),
-                        still_path=None,
-                    ),
-                    VIDEO_TIMEOUT,
-                )
+                print(f"[gflow-bridge] I2V picker stuck; wait {SETTLE_SECONDS}s and retry I2V: {err}", flush=True)
+                _dismiss_stale_frame_picker()
+                if SETTLE_SECONDS > 0:
+                    time.sleep(SETTLE_SECONDS)
+                try:
+                    payload = _run_gflow(args, VIDEO_TIMEOUT)
+                except Exception as err2:
+                    if not I2V_FALLBACK_T2V:
+                        raise
+                    print(f"[gflow-bridge] I2V retry failed; t2v fallback (credits): {err2}", flush=True)
+                    payload = _run_gflow(
+                        _video_cli_args(
+                            mode="t2v",
+                            prompt=prompt,
+                            model=model,
+                            duration=duration,
+                            aspect=aspect,
+                            dest=str(dest),
+                            still_path=None,
+                        ),
+                        VIDEO_TIMEOUT,
+                    )
         local = dest if dest.exists() and dest.stat().st_size > 1000 else None
         if local is None and isinstance(payload.get("local_path"), str):
             p = Path(str(payload["local_path"]))

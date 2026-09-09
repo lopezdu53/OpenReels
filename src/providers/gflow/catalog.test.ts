@@ -48,6 +48,11 @@ describe("gflow catalog", () => {
         "UiSelectorDriftError — migrated host: the frame picker stayed open 15s after picking 'still.png'",
       ),
     ).toBe(true);
+    expect(
+      gflowI2vShouldFallbackT2v(
+        "migrated host: the frame picker stayed open 15s after picking 'or-i2v-1-aa.png'",
+      ),
+    ).toBe(true);
     expect(gflowI2vShouldFallbackT2v("no maseQ reply within 60s")).toBe(true);
     expect(gflowI2vShouldFallbackT2v("Token inválido")).toBe(false);
   });

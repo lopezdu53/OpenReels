@@ -28,7 +28,13 @@ cd "$env:USERPROFILE\OpenReels\gflow-bridge"
 irm https://raw.githubusercontent.com/lopezdu53/OpenReels/cursor/grok-providers-fixes-6f6a/gflow-bridge/server.py -OutFile server.py
 ```
 
-Nuevo Flow: **VIVI** stills + **Veo I2V** en serie (foto 1 → video 1 → foto 2). I2V no gasta el crédito de t2v. Si el picker se traba, el puente espera y reintenta I2V; t2v solo con `GFLOW_I2V_FALLBACK_T2V=1`. En Veo no pases `--duration` (solo Omni Flash). Tras cada I2V espera `GFLOW_BRIDGE_SETTLE_SECONDS` (default 8).
+Nuevo Flow: **VIVI** stills + **Veo I2V** en serie (foto 1 → video 1 → foto 2). I2V no gasta el crédito de t2v. gflow 0.71 en Flow migrado elige el still y se queda en **Add to prompt** 15 s; el puente pulsa ese botón (`GFLOW_BRIDGE_CLICK_ADD_TO_PROMPT=0` lo apaga) y nombra cada still `or-i2v-*.png` para no mezclarlos. Si el modal quedó abierto, ciérralo (Esc) antes del siguiente I2V. Si el picker se traba, el puente espera y reintenta I2V; t2v solo con `GFLOW_I2V_FALLBACK_T2V=1`. En Veo no pases `--duration` (solo Omni Flash). Tras cada I2V espera `GFLOW_BRIDGE_SETTLE_SECONDS` (default 8).
+
+En el Windows, gflow-cli **0.71.1+** (sale del chip Agent solo):
+
+```powershell
+uv tool install --force --with colorama gflow-cli
+```
 
 ## Cada vez que produzcas
 

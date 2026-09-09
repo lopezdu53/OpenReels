@@ -65,6 +65,7 @@ const I2V_FALLBACK_NEEDLES = [
   "maseq",
   "initial-frame",
   "still.png",
+  "or-i2v-",
 ];
 
 /** Local-file I2V on migrated Flow often uploads the still then dies in the picker. */
