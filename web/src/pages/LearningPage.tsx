@@ -178,17 +178,17 @@ export function LearningPage() {
   return (
     <div className="space-y-8 py-8 px-4 sm:px-10 max-w-[1100px]">
       <header>
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+        <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-primary">
           Aprendizaje
         </p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight">Cómo te paga YouTube</h1>
+        <h1 className="mt-2 text-3xl sm:text-5xl font-bold uppercase tracking-tight">Cómo te paga YouTube</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
           Nada de copy-paste. Toca, calcula y cuenta atrás hasta el 1 de febrero de 2027 — el día en
           que cambian las reglas del Partner Program.
         </p>
       </header>
 
-      <section className="relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/15 via-background to-background p-6 md:p-8">
+      <section className="relative overflow-hidden rounded-2xl hf-l-border bg-card p-6 md:p-8">
         <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary/20 blur-3xl" />
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary">
           <Clock className="h-4 w-4" />

@@ -24,7 +24,7 @@ export function PipelineOverview({ steps }: PipelineOverviewProps) {
             <li key={step.id} className="flex items-center">
               <a
                 href={`#${step.id}`}
-                className="group flex min-w-[140px] items-center gap-3 rounded-2xl border border-border/80 bg-card/70 px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-primary/5"
+                className="group flex min-w-[140px] items-center gap-3 rounded-2xl hf-l-border bg-card px-3 py-2.5 transition-colors hover:bg-primary/5"
               >
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/25">
                   <Icon className="size-4" />

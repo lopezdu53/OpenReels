@@ -88,7 +88,7 @@ export function AdminPage() {
       <div className="flex items-start gap-3">
         <Shield className="mt-0.5 size-6 text-primary" />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Superadmin</h1>
+          <h1 className="text-3xl font-bold uppercase tracking-tight">Superadmin</h1>
           <p className="text-[13px] text-muted-foreground">
             {users.length} usuario{users.length === 1 ? "" : "s"}. La clave de la cuenta marcada
             EasyPanel sale de SUPERADMIN_PASSWORD (servicio video).

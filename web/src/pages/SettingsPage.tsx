@@ -85,7 +85,7 @@ export function SettingsPage() {
 
   return (
     <div className="py-8 px-4 sm:px-10">
-      <h1 className="mb-8 text-2xl font-semibold tracking-tight">Ajustes</h1>
+      <h1 className="mb-8 text-3xl font-bold uppercase tracking-tight">Ajustes</h1>
 
       <div className="max-w-[560px] flex flex-col gap-8">
         {/* Usage Statistics */}

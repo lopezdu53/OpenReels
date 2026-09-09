@@ -687,9 +687,9 @@ export function FilmPage() {
     <div className="px-4 sm:px-6 lg:px-10 py-8 lg:py-10">
       <div className="mx-auto max-w-6xl">
         <div className="mb-6 max-w-2xl">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[2px] text-primary">YouTube 16:9</p>
-          <h1 className="flex items-center gap-2 text-3xl sm:text-4xl font-semibold tracking-tight">
-            <Film className="size-7 text-primary" />
+          <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.22em] text-primary">YouTube 16:9</p>
+          <h1 className="flex items-center gap-2 text-3xl sm:text-5xl font-bold uppercase tracking-tight">
+            <Film className="size-8 text-primary" />
             Nuevo Film
           </h1>
           <p className="mt-3 text-sm text-muted-foreground">

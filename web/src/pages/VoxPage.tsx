@@ -84,9 +84,9 @@ export function VoxPage() {
     <div className="px-4 sm:px-6 lg:px-10 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <div>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[2px] text-primary">Vox Director</p>
-          <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
-            <Newspaper className="size-7 text-primary" />
+          <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.22em] text-primary">Vox Director</p>
+          <h1 className="flex items-center gap-2 text-3xl sm:text-5xl font-bold uppercase tracking-tight">
+            <Newspaper className="size-8 text-primary" />
             Nuevo Vox
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">

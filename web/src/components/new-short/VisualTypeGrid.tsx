@@ -76,14 +76,14 @@ export function VisualTypeGrid({
         className={cn(
           "relative flex flex-col items-start gap-2 rounded-xl border px-3 py-3 text-left transition-all",
           atelierMode
-            ? "border-violet-500/50 bg-violet-500/10 ring-1 ring-violet-500/30"
+            ? "hf-l-border bg-primary/10 ring-1 ring-primary/20"
             : "border-border bg-white/[0.02] hover:border-muted-foreground/40",
         )}
       >
-        <Layers className={cn("size-4", atelierMode ? "text-violet-400" : "text-muted-foreground")} />
+        <Layers className={cn("size-4", atelierMode ? "text-primary" : "text-muted-foreground")} />
         <span className="text-xs font-semibold leading-tight">Atelier</span>
         <span className="text-[10px] text-muted-foreground">Identidad gráfica (activo por defecto)</span>
-        {atelierMode && <span className="absolute top-2 right-2 text-[10px] font-bold text-violet-400">✓</span>}
+        {atelierMode && <span className="absolute top-2 right-2 text-[10px] font-bold text-primary">✓</span>}
       </button>
       ) : null}
     </div>

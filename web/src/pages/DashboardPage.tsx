@@ -111,7 +111,7 @@ export function DashboardPage() {
       <div className="flex items-start gap-3">
         <LayoutDashboard className="mt-0.5 size-6 text-primary" />
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Panel</h1>
+          <h1 className="text-3xl font-bold uppercase tracking-tight">Panel</h1>
           <p className="text-[13px] text-muted-foreground">
             Hola {user?.name}. Método {dailyGoal} publicaciones/día: cada red social cuenta cuando
             el Short se sube solo.
@@ -119,7 +119,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-primary/30 bg-gradient-to-b from-primary/15 via-card to-card p-5">
+      <div className="rounded-2xl hf-l-border bg-card p-5">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Target className="size-4 text-primary" />

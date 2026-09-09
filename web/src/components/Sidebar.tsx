@@ -1,7 +1,6 @@
 import {
   BarChart3,
   BookOpen,
-  Clapperboard,
   DollarSign,
   Film,
   FlaskConical,
@@ -21,6 +20,7 @@ import { Link, useLocation } from "react-router-dom";
 import type { StatsResponse } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+import { BrandMark } from "./BrandMark";
 
 const NAV_ITEMS: { path: string; label: string; icon: typeof LayoutDashboard; admin?: boolean }[] =
   [
@@ -70,9 +70,9 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
           collapsed ? "justify-center px-2" : "px-5",
         )}
       >
-        <Clapperboard className="size-6 shrink-0 text-primary" />
+        <BrandMark className="text-foreground" size={collapsed ? 22 : 26} />
         {!collapsed && (
-          <span className="text-lg font-semibold tracking-tight text-foreground">OpenReels</span>
+          <span className="text-lg font-bold tracking-tight text-foreground">OpenReels</span>
         )}
       </div>
 
@@ -85,11 +85,11 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
               to={item.path}
               title={collapsed ? item.label : undefined}
               className={cn(
-                "flex items-center rounded-[10px] text-sm font-medium transition-colors relative",
+                "flex items-center rounded-2xl text-sm font-medium transition-colors relative",
                 collapsed ? "justify-center px-0 py-2.5" : "gap-2.5 px-3.5 py-2.5",
                 active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
+                  ? "bg-primary text-primary-foreground"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground",
               )}
             >
               <item.icon className="size-5 shrink-0" />
@@ -97,7 +97,8 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
               {(item.path === "/" || item.path === "/film") && stats && stats.activeJobs > 0 && (
                 <span
                   className={cn(
-                    "size-2 rounded-full bg-status-info animate-pulse",
+                    "size-2 rounded-full animate-pulse",
+                    active ? "bg-primary-foreground" : "bg-primary",
                     collapsed ? "absolute top-1.5 right-1.5" : "ml-auto",
                   )}
                 />
@@ -110,7 +111,7 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
       <div className="flex-1" />
 
       {!collapsed && stats && stats.totalJobs > 0 && (
-        <div className="mx-5 mb-4 rounded-[10px] border border-border bg-surface-inset px-3.5 py-3">
+        <div className="mx-5 mb-4 rounded-2xl hf-l-border bg-surface-inset px-3.5 py-3">
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
             <Film className="size-3.5" />
             <span>
@@ -138,7 +139,7 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
           onClick={() => void logout()}
           title="Salir"
           className={cn(
-            "flex w-full items-center rounded-[10px] text-sm text-muted-foreground hover:bg-sidebar-accent/50 hover:text-foreground",
+            "flex w-full items-center rounded-2xl text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
             collapsed ? "justify-center py-2" : "gap-2 px-2 py-1.5",
           )}
         >

@@ -24,9 +24,9 @@ export function PipelineStep({
   return (
     <section id={id} className="relative grid grid-cols-[auto_1fr] gap-x-4 scroll-mt-8">
       <div className="flex flex-col items-center">
-        <div className="relative flex size-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/25 to-primary/5 ring-1 ring-primary/35 text-primary shadow-glow-sm shadow-primary/20">
+        <div className="relative flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-glow-sm shadow-primary/40">
           <Icon className="size-5" />
-          <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+          <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-foreground text-[9px] font-bold text-background">
             {step}
           </span>
         </div>
@@ -44,7 +44,7 @@ export function PipelineStep({
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
         </div>
-        <div className="rounded-2xl border border-border/90 bg-gradient-to-b from-card to-card/60 p-4 sm:p-5 shadow-sm ring-1 ring-white/4">
+        <div className={cn("rounded-2xl hf-l-border bg-card p-4 sm:p-5")}>
           {children}
         </div>
       </div>
