@@ -7,6 +7,7 @@ import { api, type ProviderOptions } from "@/hooks/useApi";
 import { Loader2, FlaskConical, Cpu, Mic, Image, Video } from "lucide-react";
 import { KokoroVoiceMixer } from "@/components/new-short/KokoroVoiceMixer";
 import { cn } from "@/lib/utils";
+import { KOKORO_DEFAULT_CONNECT_MIX } from "@/lib/kokoro-voice";
 import { VIVI_IMAGE_CNY, VIVI_LLM_CNY, VIVI_VIDEO_CLIP_SECONDS, VIVI_VIDEO_CNY, yuanToUsd } from "@/lib/vivi-prices";
 
 // ─── Pricing types & defaults ─────────────────────────────────────────────────
@@ -47,9 +48,11 @@ export const DEFAULT_PRICES: ApiPrices = {
     runpod:   { perImage: 0.003 },
     sharpii:  { perImage: 0.036 },
     atlas:    { perImage: 0.04 },
+    gflow:    { perImage: 0 },
   },
   video: {
     gemini: { perSecond: 0.05 },
+    gflow:  { perSecond: 0 },
     grok:   { perSecond: 0.08 },
     vivi:   { perSecond: yuanToUsd(VIVI_VIDEO_CNY.perClip) / VIVI_VIDEO_CLIP_SECONDS },
     fal:    { perSecond: 0.12 },
@@ -156,6 +159,9 @@ export function LabPage() {
   const [ttsError, setTtsError] = useState("");
   const [ttsVoice, setTtsVoice] = useState("eve");
   const [ttsSpeed, setTtsSpeed] = useState(1.0);
+  const [gflowImgModel, setGflowImgModel] = useState("nano2");
+  const [gflowVidModel, setGflowVidModel] = useState("veo-lite");
+  const [gflowVidMode, setGflowVidMode] = useState("t2v");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Image
@@ -211,8 +217,12 @@ export function LabPage() {
       const r = await api.testTTS({
         provider: ttsProvider,
         text: ttsText,
-        ...(ttsVoice ? { voice: ttsVoice } : {}),
-        ...(ttsProvider === "grok-tts" || ttsProvider === "kokoro" ? { speed: ttsSpeed } : {}),
+        ...(ttsProvider === "kokoro"
+          ? { voice: ttsVoice || KOKORO_DEFAULT_CONNECT_MIX, speed: ttsSpeed }
+          : ttsVoice
+            ? { voice: ttsVoice }
+            : {}),
+        ...(ttsProvider === "grok-tts" ? { speed: ttsSpeed } : {}),
       });
       setTtsResult(r);
       setTimeout(() => audioRef.current?.play().catch(() => {}), 100);
@@ -234,6 +244,7 @@ export function LabPage() {
         ...(imgProvider === "runpod" ? { model: imgModel, steps: imgSteps } : {}),
         ...(imgProvider === "sharpii" ? { model: sharpiiImgModel } : {}),
         ...(imgProvider === "atlas" ? { model: atlasImgModel } : {}),
+        ...(imgProvider === "gflow" ? { model: gflowImgModel } : {}),
       });
       setImgResult(r);
     } catch (e) {
@@ -256,19 +267,21 @@ export function LabPage() {
     reader.readAsDataURL(file);
   };
 
+  const gflowT2v = vidProvider === "gflow" && gflowVidMode !== "i2v";
   const runVideo = async () => {
-    if (!vidImage) { setVidError("Por favor sube una imagen primero"); return; }
+    if (!gflowT2v && !vidImage) { setVidError("Por favor sube una imagen primero"); return; }
     setVidLoading(true); setVidError(""); setVidResult(null);
     try {
       const r = await api.testVideo({
         provider: vidProvider,
-        imageBase64: vidImage,
+        ...(vidImage ? { imageBase64: vidImage } : {}),
         prompt: vidPrompt,
         durationSeconds: vidDuration,
         aspectRatio: vidAspect,
         ...(vidProvider === "runpod" ? { model: vidModel, resolution: vidResolution } : {}),
         ...(vidProvider === "sharpii" ? { model: sharpiiVidModel } : {}),
         ...(vidProvider === "atlas" ? { model: atlasVidModel, lipSyncModel: atlasLipModel === "none" ? null : atlasLipModel } : {}),
+        ...(vidProvider === "gflow" ? { model: gflowVidModel, mode: gflowVidMode } : {}),
       });
       setVidResult(r);
     } catch (e) {
@@ -383,7 +396,16 @@ export function LabPage() {
         <TabsContent value="tts" className="space-y-3">
           <div>
             <label className="mb-1.5 block text-[12px] text-muted-foreground">Proveedor</label>
-            <Select value={ttsProvider} onValueChange={(v) => { if (v) { setTtsProvider(v); setTtsVoice(""); } }}>
+            <Select value={ttsProvider} onValueChange={(v) => {
+              if (!v) return;
+              setTtsProvider(v);
+              if (v === "kokoro") {
+                setTtsVoice(KOKORO_DEFAULT_CONNECT_MIX);
+                setTtsSpeed(1.1);
+              } else {
+                setTtsVoice("");
+              }
+            }}>
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {ttsProviders.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
@@ -478,7 +500,7 @@ export function LabPage() {
           {ttsProvider === "kokoro" && providers?.kokoroVoices && (
             <KokoroVoiceMixer
               voices={providers.kokoroVoices}
-              value={ttsVoice || "ef_dora"}
+              value={ttsVoice || KOKORO_DEFAULT_CONNECT_MIX}
               onChange={setTtsVoice}
               speed={ttsSpeed}
               onSpeedChange={setTtsSpeed}
@@ -539,6 +561,26 @@ export function LabPage() {
               </Select>
             </div>
           </div>
+          {imgProvider === "gflow" && (
+            <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-2">
+              <p className="text-[11px] text-muted-foreground">gflow Imagen · puente Windows · Agent OFF</p>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo Imagen</label>
+                <Select value={gflowImgModel} onValueChange={(v) => v && setGflowImgModel(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.gflowImageModels ?? [
+                      { id: "nano2", label: "Imagen Nano 2" },
+                      { id: "nano-pro", label: "Imagen Nano Pro" },
+                      { id: "image4", label: "Imagen 4" },
+                    ]).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
           {imgProvider === "atlas" && (
             <div>
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo ATLAS</label>
@@ -650,7 +692,11 @@ export function LabPage() {
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Proveedor</label>
-              <Select value={vidProvider} onValueChange={(v) => v && setVidProvider(v)}>
+              <Select value={vidProvider} onValueChange={(v) => {
+                if (!v) return;
+                setVidProvider(v);
+                if (v === "gflow" && ![4, 6, 8, 10].includes(vidDuration)) setVidDuration(6);
+              }}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {vidProviders.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
@@ -676,12 +722,54 @@ export function LabPage() {
                     ? (providers?.sharpiiVideoModels?.find((m) => m.id === sharpiiVidModel)?.durations ?? [5, 10])
                     : vidProvider === "runpod"
                     ? (providers?.runpodVideoModels?.find((m) => m.id === vidModel)?.durations ?? [5, 8, 10])
+                    : vidProvider === "gflow"
+                    ? (providers?.gflowVideoModels?.find((m) => m.id === gflowVidModel)?.durations ?? [4, 6, 8])
                     : [3, 5, 8]
                   ).map(s => <SelectItem key={s} value={String(s)}>{s}s</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           </div>
+          {vidProvider === "gflow" && (
+            <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <p className="text-[11px] text-muted-foreground">gflow Veo · puente Windows · Agent OFF. t2v no sube el still.</p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo Veo</label>
+                  <Select
+                    value={gflowVidModel}
+                    onValueChange={(v) => {
+                      if (!v) return;
+                      setGflowVidModel(v);
+                      const spec = providers?.gflowVideoModels?.find((m) => m.id === v);
+                      if (spec?.durations.length && !spec.durations.includes(vidDuration)) {
+                        setVidDuration(spec.durations[0]!);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(providers?.gflowVideoModels ?? [
+                        { id: "veo-lite", label: "Veo Lite", durations: [4, 6, 8] },
+                      ]).map((m) => (
+                        <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[12px] text-muted-foreground">Modo</label>
+                  <Select value={gflowVidMode} onValueChange={(v) => v && setGflowVidMode(v)}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="t2v">Texto → video (t2v)</SelectItem>
+                      <SelectItem value="i2v">Foto → video (I2V)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
           {vidProvider === "atlas" && (
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
@@ -781,7 +869,9 @@ export function LabPage() {
           )}
 
           <div>
-            <label className="mb-1.5 block text-[12px] text-muted-foreground">Imagen fuente</label>
+            <label className="mb-1.5 block text-[12px] text-muted-foreground">
+              {gflowT2v ? "Imagen fuente (opcional · t2v no la usa)" : "Imagen fuente"}
+            </label>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageFile} className="hidden" />
             <div
               onClick={() => fileInputRef.current?.click()}
@@ -816,10 +906,12 @@ export function LabPage() {
               onChange={e => setVidPrompt(e.target.value)}
             />
           </div>
-          <Button onClick={runVideo} disabled={vidLoading || !vidImage || !vidPrompt.trim()} className="w-full">
+          <Button onClick={runVideo} disabled={vidLoading || !vidPrompt.trim() || (!gflowT2v && !vidImage)} className="w-full">
             {vidLoading
               ? <><Loader2 className="size-4 mr-2 animate-spin" />Generando video ({vidDuration}s)...</>
-              : "Generar video I2V"}
+              : gflowT2v
+                ? "Generar video t2v"
+                : "Generar video I2V"}
           </Button>
           {vidError && <ErrorBox msg={vidError} />}
           {vidResult && (

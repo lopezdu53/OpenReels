@@ -715,13 +715,14 @@ export const api = {
 
   testVideo(data: {
     provider?: string;
-    imageBase64: string;
+    imageBase64?: string;
     prompt: string;
     durationSeconds?: number;
     aspectRatio?: string;
     model?: string;
     resolution?: string;
     lipSyncModel?: string | null;
+    mode?: string;
   }) {
     return fetchJson<{ videoBase64: string; durationMs: number; videoSeconds: number }>(
       "/test/video",

@@ -23,15 +23,8 @@ import { getStickmanQueueStats } from "./stickman/worker.js";
 import { registerVoxRoutes } from "./vox/routes.js";
 import { ensureVoxJobsDir, voxJobsDir } from "./vox/store.js";
 import { getVoxQueueStats } from "./vox/worker.js";
+import { createLabImageProvider, createLabVideoProvider, labVideoRequiresStill } from "./lab/test-providers.js";
 import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "./providers/gflow/catalog.js";
-import { AliCloudImage } from "./providers/image/alicloud.js";
-import { FalImage } from "./providers/image/fal.js";
-import { GeminiImage } from "./providers/image/gemini.js";
-import { GrokImage } from "./providers/image/grok.js";
-import { OpenAIImage } from "./providers/image/openai.js";
-import { RunPodImage } from "./providers/image/runpod.js";
-import { SharpiiImage } from "./providers/image/sharpii.js";
-import { ViviImage } from "./providers/image/vivi.js";
 import {
   ATLAS_TTS_MODELS,
   ATLAS_TTS_VOICES,
@@ -44,10 +37,8 @@ import {
   sortedAtlasLlmModels,
   sortedAtlasVideoModels,
 } from "./providers/atlas/catalog.js";
-import { AtlasImage } from "./providers/image/atlas.js";
 import { AtlasLLM } from "./providers/llm/atlas.js";
 import { AtlasTTS } from "./providers/tts/atlas.js";
-import { AtlasVideo } from "./providers/video/atlas.js";
 import { AliCloudLLM } from "./providers/llm/alicloud.js";
 import { AnthropicLLM } from "./providers/llm/anthropic.js";
 import { GeminiLLM } from "./providers/llm/gemini.js";
@@ -64,12 +55,6 @@ import { INWORLD_VOICES } from "./providers/tts/inworld.js";
 import { KokoroTTS } from "./providers/tts/kokoro.js";
 import { KOKORO_VOICES } from "./providers/tts/kokoro-voices.js";
 import { OpenAITTS } from "./providers/tts/openai.js";
-import { FalVideo } from "./providers/video/fal.js";
-import { GeminiVideo } from "./providers/video/gemini.js";
-import { GrokVideo } from "./providers/video/grok.js";
-import { RunPodVideo } from "./providers/video/runpod.js";
-import { SharpiiVideo } from "./providers/video/sharpii.js";
-import { ViviVideo } from "./providers/video/vivi.js";
 import { registerSocial } from "./publish/plugin.js";
 import { publishCompletedJob } from "./publish/run.js";
 import { DirectorScore } from "./schema/director-score.js";
@@ -516,28 +501,7 @@ app.post("/api/v1/test/image", async (request, reply) => {
   if (!prompt?.trim()) return reply.status(400).send({ error: "prompt is required" });
   const start = Date.now();
   try {
-    const imageGen = (() => {
-      switch (provider) {
-        case "openai":
-          return new OpenAIImage();
-        case "grok":
-          return new GrokImage();
-        case "vivi":
-          return new ViviImage();
-        case "alicloud":
-          return new AliCloudImage();
-        case "runpod":
-          return new RunPodImage({ model, steps, guidance });
-        case "fal":
-          return new FalImage();
-        case "sharpii":
-          return new SharpiiImage(model);
-        case "atlas":
-          return new AtlasImage(model);
-        default:
-          return new GeminiImage();
-      }
-    })();
+    const imageGen = createLabImageProvider({ provider, model, steps, guidance });
     const buffer = await imageGen.generate(prompt, style, undefined, aspectRatio);
     return { imageBase64: buffer.toString("base64"), durationMs: Date.now() - start };
   } catch (err) {
@@ -556,39 +520,26 @@ app.post("/api/v1/test/video", async (request, reply) => {
     model,
     resolution,
     lipSyncModel,
+    mode,
   } = request.body as {
     provider?: string;
-    imageBase64: string;
+    imageBase64?: string;
     prompt: string;
     durationSeconds?: number;
     aspectRatio?: string;
     model?: string;
     resolution?: string;
     lipSyncModel?: string | null;
+    mode?: string;
   };
-  if (!imageBase64 || !prompt?.trim())
+  if (!prompt?.trim()) return reply.status(400).send({ error: "prompt is required" });
+  if (labVideoRequiresStill(provider, mode) && !imageBase64) {
     return reply.status(400).send({ error: "imageBase64 and prompt are required" });
+  }
   const start = Date.now();
   try {
-    const videoProvider = (() => {
-      switch (provider) {
-        case "grok":
-          return new GrokVideo();
-        case "vivi":
-          return new ViviVideo();
-        case "fal":
-          return new FalVideo();
-        case "runpod":
-          return new RunPodVideo({ model, resolution });
-        case "sharpii":
-          return new SharpiiVideo(model);
-        case "atlas":
-          return new AtlasVideo(model, undefined, lipSyncModel === "none" ? null : lipSyncModel);
-        default:
-          return new GeminiVideo();
-      }
-    })();
-    const sourceImage = Buffer.from(imageBase64, "base64");
+    const videoProvider = createLabVideoProvider({ provider, model, mode, resolution, lipSyncModel });
+    const sourceImage = imageBase64 ? Buffer.from(imageBase64, "base64") : Buffer.alloc(0);
     const result = await videoProvider.generate({
       sourceImage,
       prompt,
