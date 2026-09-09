@@ -28,7 +28,7 @@ cd "$env:USERPROFILE\OpenReels\gflow-bridge"
 irm https://raw.githubusercontent.com/lopezdu53/OpenReels/cursor/grok-providers-fixes-6f6a/gflow-bridge/server.py -OutFile server.py
 ```
 
-Nuevo Flow usa **Imagen t2i** + **Veo t2v** por defecto. I2V (subir un still) sigue fallando en gflow 0.71 (`no maseQ reply`).
+Nuevo Flow usa **Imagen t2i** + **Veo t2v** por defecto. I2V (subir un still) sigue fallando en gflow 0.71 (`no maseQ reply`). En Veo **no pases `--duration`**: Flow migrado no tiene esa fila (solo Omni Flash).
 
 ## Cada vez que produzcas
 

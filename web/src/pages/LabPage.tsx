@@ -276,12 +276,17 @@ export function LabPage() {
         provider: vidProvider,
         ...(vidImage ? { imageBase64: vidImage } : {}),
         prompt: vidPrompt,
-        durationSeconds: vidDuration,
         aspectRatio: vidAspect,
         ...(vidProvider === "runpod" ? { model: vidModel, resolution: vidResolution } : {}),
         ...(vidProvider === "sharpii" ? { model: sharpiiVidModel } : {}),
         ...(vidProvider === "atlas" ? { model: atlasVidModel, lipSyncModel: atlasLipModel === "none" ? null : atlasLipModel } : {}),
-        ...(vidProvider === "gflow" ? { model: gflowVidModel, mode: gflowVidMode } : {}),
+        ...(vidProvider === "gflow"
+          ? {
+              model: gflowVidModel,
+              mode: gflowVidMode,
+              ...(gflowVidModel === "omni-flash" ? { durationSeconds: vidDuration } : {}),
+            }
+          : { durationSeconds: vidDuration }),
       });
       setVidResult(r);
     } catch (e) {
@@ -713,6 +718,14 @@ export function LabPage() {
                 </SelectContent>
               </Select>
             </div>
+            {vidProvider === "gflow" && gflowVidModel !== "omni-flash" ? (
+              <div className="w-36">
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Duración</label>
+                <div className="flex h-9 items-center rounded-md border border-input px-3 text-[12px] text-muted-foreground">
+                  Default Flow
+                </div>
+              </div>
+            ) : (
             <div className="w-28">
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Duración</label>
               <Select value={String(vidDuration)} onValueChange={v => setVidDuration(Number(v))}>
@@ -723,16 +736,20 @@ export function LabPage() {
                     : vidProvider === "runpod"
                     ? (providers?.runpodVideoModels?.find((m) => m.id === vidModel)?.durations ?? [5, 8, 10])
                     : vidProvider === "gflow"
-                    ? (providers?.gflowVideoModels?.find((m) => m.id === gflowVidModel)?.durations ?? [4, 6, 8])
+                    ? (providers?.gflowVideoModels?.find((m) => m.id === gflowVidModel)?.durations ?? [4, 6, 8, 10])
                     : [3, 5, 8]
                   ).map(s => <SelectItem key={s} value={String(s)}>{s}s</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
+            )}
           </div>
           {vidProvider === "gflow" && (
             <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
-              <p className="text-[11px] text-muted-foreground">gflow Veo · puente Windows · Agent OFF. t2v no sube el still.</p>
+              <p className="text-[11px] text-muted-foreground">
+                gflow Veo · puente Windows · Agent OFF. t2v no sube el still. Veo no tiene
+                control de duración en Flow migrado; solo Omni Flash acepta 4/6/8/10s.
+              </p>
               <div className="grid sm:grid-cols-2 gap-3">
                 <div>
                   <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo Veo</label>

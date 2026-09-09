@@ -116,7 +116,7 @@ export async function bridgeGenerateVideo(opts: {
   prompt: string;
   aspect: string;
   model: string;
-  durationSeconds: number;
+  durationSeconds?: number;
   mode?: "t2v" | "i2v";
   imagePng?: Buffer;
 }): Promise<{ filePath: string; durationSeconds: number }> {
@@ -127,7 +127,7 @@ async function bridgeGenerateVideoNow(opts: {
   prompt: string;
   aspect: string;
   model: string;
-  durationSeconds: number;
+  durationSeconds?: number;
   mode?: "t2v" | "i2v";
   imagePng?: Buffer;
 }): Promise<{ filePath: string; durationSeconds: number }> {
@@ -140,8 +140,8 @@ async function bridgeGenerateVideoNow(opts: {
         prompt: opts.prompt,
         aspect: opts.aspect,
         model: opts.model,
-        durationSeconds: opts.durationSeconds,
         mode,
+        ...(opts.durationSeconds != null ? { durationSeconds: opts.durationSeconds } : {}),
         ...(mode === "i2v" && opts.imagePng && opts.imagePng.length > 80
           ? { imagePng: opts.imagePng.toString("base64") }
           : {}),

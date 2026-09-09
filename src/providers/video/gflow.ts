@@ -4,7 +4,8 @@ import * as path from "node:path";
 import type { VideoProvider, VideoResult } from "../../schema/providers.js";
 import { bridgeGenerateVideo, gflowBridgeUrl } from "../gflow/bridge.js";
 import {
-  pickGflowDuration,
+  GFLOW_DEFAULT_CLIP_SECONDS,
+  gflowCliDuration,
   resolveGflowVideoMode,
   resolveGflowVideoModel,
   type GflowVideoMode,
@@ -30,20 +31,22 @@ export class GflowVideo implements VideoProvider {
     aspectRatio?: string;
   }): Promise<VideoResult> {
     const aspect = opts.aspectRatio === "9:16" ? "9:16" : "16:9";
-    const duration = pickGflowDuration(this.modelId, opts.durationSeconds);
+    const cliDuration = gflowCliDuration(this.modelId, opts.durationSeconds);
+    const reported = cliDuration ?? GFLOW_DEFAULT_CLIP_SECONDS;
     const useStill = this.mode === "i2v";
     if (gflowBridgeUrl()) {
       return bridgeGenerateVideo({
         prompt: opts.prompt,
         aspect,
         model: this.modelId,
-        durationSeconds: duration,
+        durationSeconds: cliDuration,
         mode: this.mode,
         imagePng: useStill ? opts.sourceImage : undefined,
       });
     }
 
     const dest = path.join(os.tmpdir(), `openreels-gflow-${Date.now()}.mp4`);
+    const durationArgs = cliDuration != null ? ["--duration", String(cliDuration)] : [];
     const args = useStill
       ? [
           "video",
@@ -53,8 +56,7 @@ export class GflowVideo implements VideoProvider {
           opts.prompt,
           "--model",
           this.modelId,
-          "--duration",
-          String(duration),
+          ...durationArgs,
           "--aspect",
           aspect,
           "-o",
@@ -66,8 +68,7 @@ export class GflowVideo implements VideoProvider {
           opts.prompt,
           "--model",
           this.modelId,
-          "--duration",
-          String(duration),
+          ...durationArgs,
           "--aspect",
           aspect,
           "-o",
@@ -87,7 +88,7 @@ export class GflowVideo implements VideoProvider {
     }
     const size = fs.statSync(local).size;
     if (size < 20_000) throw new GflowCliError(`gflow video too small (${size} bytes)`);
-    return { filePath: local, durationSeconds: duration };
+    return { filePath: local, durationSeconds: reported };
   }
 }
 

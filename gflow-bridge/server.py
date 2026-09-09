@@ -67,17 +67,24 @@ def _resolve_video_mode(raw: object) -> str:
     return mode if mode in {"t2v", "i2v"} else "t2v"
 
 
+def _duration_flag(model: str, duration: int | None) -> list[str]:
+    # gflow 0.71: only Omni Flash has a duration row on migrated Flow.
+    if duration is None or str(model).strip().lower() != "omni-flash":
+        return []
+    return ["--duration", str(duration)]
+
+
 def _video_cli_args(
     *,
     mode: str,
     prompt: str,
     model: str,
-    duration: int,
+    duration: int | None,
     aspect: str,
     dest: str,
     still_path: str | None,
 ) -> list[str]:
-    common = ["--model", model, "--duration", str(duration), "--aspect", aspect, "-o", dest]
+    common = ["--model", model, *_duration_flag(model, duration), "--aspect", aspect, "-o", dest]
     if mode == "i2v":
         if not still_path:
             raise ValueError("imagePng requerido (still PNG en base64)")
@@ -182,11 +189,13 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("imagePng requerido (still PNG en base64)")
     model = str(body.get("model") or "veo-lite")
     aspect = "9:16" if body.get("aspect") == "9:16" else "16:9"
-    try:
-        duration = int(body.get("durationSeconds") or 6)
-    except (TypeError, ValueError):
-        duration = 6
-    duration = max(4, min(duration, 10))
+    duration: int | None = None
+    if str(model).strip().lower() == "omni-flash" and body.get("durationSeconds") is not None:
+        try:
+            duration = max(4, min(int(body.get("durationSeconds") or 8), 10))
+        except (TypeError, ValueError):
+            duration = 8
+    reported = duration if duration is not None else 8
     work = Path(tempfile.mkdtemp(prefix="gflow-bridge-vid-"))
     dest = work / "out.mp4"
     still_path = work / "still.png"
@@ -218,7 +227,7 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
             "kind": "video",
             "mp4": base64.b64encode(data).decode("ascii"),
             "bytes": len(data),
-            "durationSeconds": duration,
+            "durationSeconds": reported,
         }
     finally:
         shutil.rmtree(work, ignore_errors=True)

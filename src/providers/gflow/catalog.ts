@@ -5,7 +5,7 @@ export const GFLOW_IMAGE_MODELS = [
 ] as const;
 
 export const GFLOW_VIDEO_MODELS = [
-  { id: "veo-lite", label: "Veo Lite", note: "barato · default t2v", durations: [4, 6, 8] },
+  { id: "veo-lite", label: "Veo Lite", note: "barato · default t2v · sin --duration", durations: [4, 6, 8] },
   { id: "veo-fast", label: "Veo Fast", note: "más rápido", durations: [4, 6, 8] },
   { id: "veo-quality", label: "Veo Quality", note: "mejor look", durations: [4, 6, 8] },
   { id: "omni-flash", label: "Omni Flash", note: "hasta 10s", durations: [4, 6, 8, 10] },
@@ -36,3 +36,16 @@ export function pickGflowDuration(modelId: string, wanted?: number): number {
   if (spec.durations.includes(target as (typeof spec.durations)[number])) return target;
   return spec.durations.find((d) => d >= target) ?? spec.durations[spec.durations.length - 1] ?? 6;
 }
+
+/** gflow 0.71: `--duration` only exists on Omni Flash. Veo has no duration row. */
+export function gflowSupportsDurationFlag(modelId?: string): boolean {
+  return resolveGflowVideoModel(modelId).id === "omni-flash";
+}
+
+/** Seconds to pass as `--duration`, or undefined to accept Flow's default. */
+export function gflowCliDuration(modelId?: string, wanted?: number): number | undefined {
+  if (!gflowSupportsDurationFlag(modelId)) return undefined;
+  return pickGflowDuration(modelId ?? "omni-flash", wanted);
+}
+
+export const GFLOW_DEFAULT_CLIP_SECONDS = 8;

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  gflowCliDuration,
+  gflowSupportsDurationFlag,
   pickGflowDuration,
   resolveGflowImageModel,
   resolveGflowVideoMode,
@@ -28,5 +30,13 @@ describe("gflow catalog", () => {
     expect(resolveGflowVideoMode("t2v")).toBe("t2v");
     expect(resolveGflowVideoMode("i2v")).toBe("i2v");
     expect(resolveGflowVideoMode("nope")).toBe("t2v");
+  });
+
+  it("only sends --duration for Omni Flash", () => {
+    expect(gflowSupportsDurationFlag("veo-lite")).toBe(false);
+    expect(gflowSupportsDurationFlag("veo-fast")).toBe(false);
+    expect(gflowCliDuration("veo-lite", 4)).toBeUndefined();
+    expect(gflowSupportsDurationFlag("omni-flash")).toBe(true);
+    expect(gflowCliDuration("omni-flash", 10)).toBe(10);
   });
 });

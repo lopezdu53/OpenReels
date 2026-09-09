@@ -56,6 +56,32 @@ class VideoModeTests(unittest.TestCase):
         )
         self.assertEqual(args[:3], ["video", "t2v", "a cat walks"])
         self.assertNotIn("--initial-frame", args)
+        self.assertNotIn("--duration", args)
+
+    def test_veo_omits_duration_even_if_requested(self):
+        args = _video_cli_args(
+            mode="t2v",
+            prompt="pan",
+            model="veo-lite",
+            duration=4,
+            aspect="16:9",
+            dest="out.mp4",
+            still_path=None,
+        )
+        self.assertNotIn("--duration", args)
+
+    def test_omni_flash_keeps_duration(self):
+        args = _video_cli_args(
+            mode="t2v",
+            prompt="pan",
+            model="omni-flash",
+            duration=10,
+            aspect="16:9",
+            dest="out.mp4",
+            still_path=None,
+        )
+        self.assertIn("--duration", args)
+        self.assertIn("10", args)
 
     def test_i2v_args_need_still(self):
         args = _video_cli_args(
@@ -68,6 +94,7 @@ class VideoModeTests(unittest.TestCase):
             still_path="C:/tmp/still.png",
         )
         self.assertEqual(args[:4], ["video", "i2v", "--initial-frame", "C:/tmp/still.png"])
+        self.assertNotIn("--duration", args)
 
 
 class DrainTests(unittest.TestCase):
