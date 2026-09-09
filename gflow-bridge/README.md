@@ -5,7 +5,7 @@ App de **un clic** en Windows. El worker de EasyPanel llama aquí: en casa por L
 ## Instalar (sin PowerShell)
 
 1. Instala [Google Chrome](https://www.google.com/chrome/). El exe instala solo **uv + gflow-cli + Chromium** (botón **Instalar todo**; también lo hace al Conectar si falta).
-2. En la app: mira la línea de versión (`gflow-cli x.y · al día` o `hay z.w`). Elige el **perfil de Chrome** del Gmail Gemini → **Entrar a Flow** → Agent OFF.
+2. En la app: mira la línea de versión. Elige el **perfil de Chrome** del Gmail Gemini → **Entrar a Flow** (deja abierta la ventana negra; entra en el Chrome de gflow; cierra Flow; una tecla). El recuadro **Perfil gflow** se rellena con tu Gmail. Agent OFF.
 3. Copia la carpeta `gflow-bridge` a este PC (o baja el `.exe` del Action *Windows bridge exe*).
 4. Doble clic en **`OpenReelsPuente.vbs`** (o `OpenReelsPuente.exe`).
 5. En la ventana:

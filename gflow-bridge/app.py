@@ -22,11 +22,12 @@ from install import format_gflow_status, inspect_gflow, install_gflow_stack, ver
 from profiles import (
     find_gflow,
     find_chrome,
-    gflow_login_cmd,
     list_chrome_profiles,
     list_gflow_accounts,
     missing_gflow_message,
     open_flow_in_chrome,
+    pick_gflow_profile,
+    run_gflow_login,
 )
 from relay_client import run_poll_loop
 
@@ -272,9 +273,7 @@ class App(tk.Tk):
         else:
             self.install_btn.configure(text="Reinstalar gflow")
             self._log(status + (f" → {path}" if path else ""))
-        accounts = list_gflow_accounts()
-        if accounts:
-            self._log("Sesiones gflow: " + " | ".join(accounts))
+        self._fill_gflow_profile()
 
     def install_clicked(self) -> None:
         installed = self._gflow_meta.get("installed")
@@ -336,6 +335,24 @@ class App(tk.Tk):
         except Exception as err:
             messagebox.showerror("Chrome", str(err))
 
+    def _chrome_email(self) -> str:
+        label = self.chrome_choice.get()
+        if "·" in label:
+            return label.split("·", 1)[1].strip()
+        return ""
+
+    def _fill_gflow_profile(self) -> None:
+        row = pick_gflow_profile(self._chrome_email())
+        accounts = list_gflow_accounts()
+        if accounts:
+            self._log("Sesiones gflow: " + " | ".join(accounts))
+        if not row:
+            self._log("Aún no hay sesión gflow. Pulsa «Entrar a Flow» y deja abierta la ventana negra.")
+            return
+        self.gflow_profile.set(row["name"])
+        self.persist()
+        self._log(f"Perfil gflow: {row['name']} · {row['email']}")
+
     def login_flow(self) -> None:
         self.persist()
         self._ensure_gflow(self._login_flow_now)
@@ -346,18 +363,33 @@ class App(tk.Tk):
             messagebox.showerror("gflow-cli", missing_gflow_message())
             return
         self.gflow_bin.set(bin_path)
-        cmd = gflow_login_cmd(bin_path, self.gflow_profile.get())
-        self._log("Abriendo Chrome de gflow. En el selector de Google elige el Gmail del plan Gemini/Flow.")
-        self._log("Cuando cargue el editor de Flow, cierra esa ventana de Chrome. No uses otro Gmail.")
-        try:
-            flags = 0
-            if sys.platform == "win32":
-                flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
-            subprocess.Popen(cmd, creationflags=flags)
-        except FileNotFoundError:
-            messagebox.showerror("gflow-cli", missing_gflow_message())
-        except Exception as err:
-            messagebox.showerror("Entrar a Flow", str(err))
+        self._log("Se abre una ventana negra y Chrome de gflow. NO las cierres al instante.")
+        self._log("En Chrome: Gmail del plan Gemini. Cuando cargue Flow, cierra Chrome. Luego una tecla en la ventana negra.")
+
+        def work() -> None:
+            try:
+                code = run_gflow_login(bin_path, self.gflow_profile.get())
+                self.after(0, lambda: self._login_flow_done(code))
+            except FileNotFoundError:
+                self.after(0, lambda: messagebox.showerror("gflow-cli", missing_gflow_message()))
+            except Exception as err:
+                self.after(0, lambda e=err: messagebox.showerror("Entrar a Flow", str(e)))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _login_flow_done(self, code: int) -> None:
+        self._fill_gflow_profile()
+        row = pick_gflow_profile(self._chrome_email())
+        if row:
+            messagebox.showinfo("Flow", f"Sesión lista: {row['email']}")
+            return
+        hint = (
+            "No se guardó ninguna sesión. La ventana negra tiene que quedarse abierta "
+            "hasta que Chrome de gflow muestre Flow y la cierres. Código "
+            f"{code}."
+        )
+        self._log(hint)
+        messagebox.showerror("Entrar a Flow", hint)
 
     def _log(self, line: str) -> None:
         def append() -> None:

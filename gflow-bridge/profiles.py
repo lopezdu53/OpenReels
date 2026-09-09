@@ -123,19 +123,39 @@ def missing_gflow_message() -> str:
     )
 
 
-def list_gflow_accounts(home: Path | None = None) -> list[str]:
+def list_gflow_profiles(home: Path | None = None) -> list[dict[str, str]]:
+    """gflow-cli sessions: folder profile_<name> + .gflow_account email."""
     root = home or (_local_app_data() / "gflow-cli")
-    emails: list[str] = []
+    rows: list[dict[str, str]] = []
     if not root.is_dir():
-        return emails
+        return rows
     for acc in sorted(root.glob("profile_*/.gflow_account")):
         try:
             email = acc.read_text(encoding="utf-8").strip()
         except Exception:
             continue
-        if email:
-            emails.append(f"{acc.parent.name}: {email}")
-    return emails
+        if not email:
+            continue
+        folder = acc.parent.name
+        name = folder[8:] if folder.startswith("profile_") else folder
+        rows.append({"name": name, "email": email, "dir": str(acc.parent)})
+    return rows
+
+
+def list_gflow_accounts(home: Path | None = None) -> list[str]:
+    return [f"{row['name']}: {row['email']}" for row in list_gflow_profiles(home)]
+
+
+def pick_gflow_profile(preferred_email: str = "", home: Path | None = None) -> dict[str, str] | None:
+    rows = list_gflow_profiles(home)
+    if not rows:
+        return None
+    want = preferred_email.strip().lower()
+    if want:
+        for row in rows:
+            if row["email"].lower() == want:
+                return row
+    return rows[0]
 
 
 def open_flow_in_chrome(profile_directory: str = "Default") -> None:
@@ -159,3 +179,73 @@ def gflow_login_cmd(gflow_bin: str, profile: str = "") -> list[str]:
     if profile.strip():
         cmd.extend(["--profile", profile.strip()])
     return cmd
+
+
+def write_login_batch(gflow_bin: str, profile: str = "") -> Path:
+    """cmd.exe script that keeps a console open so gflow can show Chrome + prompts."""
+    from install import app_home, find_uv, tool_env
+
+    env = tool_env()
+    chrome = find_chrome() or ""
+    uv = find_uv() or ""
+    dest = app_home() / "entrar-flow.cmd"
+    login = subprocess.list2cmdline(gflow_login_cmd(gflow_bin, profile))
+    fallback = ""
+    if uv:
+        extra = ["--profile", profile.strip()] if profile.strip() else []
+        fallback = subprocess.list2cmdline(
+            [uv, "tool", "run", "--from", "gflow-cli", "gflow", "auth", "login", "--browser", "chrome", *extra]
+        )
+    lines = [
+        "@echo off",
+        "title OpenReels — Entrar a Flow",
+        "chcp 65001 >nul",
+        f'set "UV_TOOL_BIN_DIR={env["UV_TOOL_BIN_DIR"]}"',
+        f'set "UV_TOOL_DIR={env["UV_TOOL_DIR"]}"',
+        f'set "PATH={env["UV_TOOL_BIN_DIR"]};%PATH%"',
+        'set "GFLOW_CLI_AUTH_BROWSER=chrome"',
+    ]
+    if chrome:
+        lines.append(f'set "GFLOW_CHROME_BIN={chrome}"')
+        lines.append(f'set "CHROME_BIN={chrome}"')
+    lines += [
+        "echo.",
+        "echo 1) Se abre Chrome de gflow (otro Chrome, no el de cada dia).",
+        "echo 2) Entra con el Gmail del plan Gemini.",
+        "echo 3) Cuando cargue Flow, CIERRA esa ventana de Chrome.",
+        "echo 4) Vuelve a ESTA ventana negra y pulsa una tecla.",
+        "echo    NO la cierres antes: si se cierra, no se guarda la sesion.",
+        "echo.",
+        login,
+        "set ERR=%ERRORLEVEL%",
+    ]
+    if fallback:
+        lines += [
+            "if %ERR% NEQ 0 (",
+            "  echo gflow.exe fallo. Reintento con uv...",
+            f"  {fallback}",
+            "  set ERR=%ERRORLEVEL%",
+            ")",
+        ]
+    lines += [
+        "echo.",
+        "echo Codigo %ERR%. Si Chrome no abrio, deja esta ventana y copia el texto.",
+        "pause",
+        "exit /b %ERR%",
+    ]
+    dest.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
+    return dest
+
+
+def run_gflow_login(gflow_bin: str, profile: str = "") -> int:
+    if sys.platform != "win32":
+        env = os.environ.copy()
+        env["GFLOW_CLI_AUTH_BROWSER"] = "chrome"
+        proc = subprocess.run(gflow_login_cmd(gflow_bin, profile), check=False, env=env)
+        return int(proc.returncode)
+    bat = write_login_batch(gflow_bin, profile)
+    proc = subprocess.run(
+        ["cmd.exe", "/c", "start", "/wait", "OpenReels Entrar a Flow", str(bat)],
+        check=False,
+    )
+    return int(proc.returncode)
