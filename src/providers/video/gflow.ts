@@ -6,6 +6,7 @@ import { bridgeGenerateVideo, gflowBridgeUrl } from "../gflow/bridge.js";
 import {
   GFLOW_DEFAULT_CLIP_SECONDS,
   gflowCliDuration,
+  gflowI2vShouldFallbackT2v,
   resolveGflowVideoMode,
   resolveGflowVideoModel,
   type GflowVideoMode,
@@ -47,6 +48,18 @@ export class GflowVideo implements VideoProvider {
 
     const dest = path.join(os.tmpdir(), `openreels-gflow-${Date.now()}.mp4`);
     const durationArgs = cliDuration != null ? ["--duration", String(cliDuration)] : [];
+    const t2vArgs = [
+      "video",
+      "t2v",
+      opts.prompt,
+      "--model",
+      this.modelId,
+      ...durationArgs,
+      "--aspect",
+      aspect,
+      "-o",
+      dest,
+    ];
     const args = useStill
       ? [
           "video",
@@ -62,20 +75,17 @@ export class GflowVideo implements VideoProvider {
           "-o",
           dest,
         ]
-      : [
-          "video",
-          "t2v",
-          opts.prompt,
-          "--model",
-          this.modelId,
-          ...durationArgs,
-          "--aspect",
-          aspect,
-          "-o",
-          dest,
-        ];
+      : t2vArgs;
 
-    const payload = await runGflowJson(args, 480_000);
+    let payload: Record<string, unknown>;
+    try {
+      payload = await runGflowJson(args, 480_000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!useStill || !gflowI2vShouldFallbackT2v(msg)) throw err;
+      console.warn(`[video/gflow] I2V failed (${msg.slice(0, 160)}); retrying t2v`);
+      payload = await runGflowJson(t2vArgs, 480_000);
+    }
 
     const local =
       fs.existsSync(dest) && fs.statSync(dest).size > 1000

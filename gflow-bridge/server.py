@@ -92,6 +92,20 @@ def _video_cli_args(
     return ["video", "t2v", prompt, *common]
 
 
+def _should_fallback_t2v(msg: str) -> bool:
+    low = msg.lower()
+    return any(
+        n in low
+        for n in (
+            "uiselectordrifterror",
+            "frame picker",
+            "maseq",
+            "initial-frame",
+            "still.png",
+        )
+    )
+
+
 def _gflow_fail_message(payload: dict[str, Any] | None, stdout: str, stderr: str, code: int) -> str:
     err = payload.get("error") if payload else None
     if isinstance(err, dict):
@@ -211,7 +225,24 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
             dest=str(dest),
             still_path=str(still_path) if mode == "i2v" else None,
         )
-        payload = _run_gflow(args, VIDEO_TIMEOUT)
+        try:
+            payload = _run_gflow(args, VIDEO_TIMEOUT)
+        except Exception as err:
+            if mode != "i2v" or not _should_fallback_t2v(str(err)):
+                raise
+            print(f"[gflow-bridge] I2V falló; reintento t2v: {err}", flush=True)
+            payload = _run_gflow(
+                _video_cli_args(
+                    mode="t2v",
+                    prompt=prompt,
+                    model=model,
+                    duration=duration,
+                    aspect=aspect,
+                    dest=str(dest),
+                    still_path=None,
+                ),
+                VIDEO_TIMEOUT,
+            )
         local = dest if dest.exists() and dest.stat().st_size > 1000 else None
         if local is None and isinstance(payload.get("local_path"), str):
             p = Path(str(payload["local_path"]))

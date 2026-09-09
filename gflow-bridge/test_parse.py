@@ -6,6 +6,7 @@ from server import (
     _parse_gflow_json,
     _resolve_video_mode,
     _sanitize_prompt,
+    _should_fallback_t2v,
     _video_cli_args,
 )
 
@@ -95,6 +96,15 @@ class VideoModeTests(unittest.TestCase):
         )
         self.assertEqual(args[:4], ["video", "i2v", "--initial-frame", "C:/tmp/still.png"])
         self.assertNotIn("--duration", args)
+
+    def test_picker_error_falls_back_to_t2v(self):
+        self.assertTrue(
+            _should_fallback_t2v(
+                "UiSelectorDriftError — the frame picker stayed open 15s after picking 'still.png'"
+            )
+        )
+        self.assertTrue(_should_fallback_t2v("no maseQ reply within 60s"))
+        self.assertFalse(_should_fallback_t2v("Token inválido"))
 
 
 class DrainTests(unittest.TestCase):

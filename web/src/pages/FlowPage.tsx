@@ -1216,16 +1216,17 @@ export function FlowPage() {
                         <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="t2v">Texto → video (t2v)</SelectItem>
-                          <SelectItem value="i2v">Foto → video (I2V)</SelectItem>
+                          <SelectItem value="i2v">Foto → video (I2V · si falla, t2v)</SelectItem>
                         </SelectContent>
                       </Select>
                     </Field>
                   </>
                 ) : null}
                 <p className="sm:col-span-2 text-[11px] text-muted-foreground">
-                  El puente Windows (<code>GFLOW_BRIDGE_URL</code>) corre gflow en Chrome.
-                  Deja Agent apagado. t2v es el que ya funciona; I2V local aún falla en
-                  gflow 0.71 al subir el still.
+                  El puente Windows corre gflow en Chrome. Deja Agent apagado.
+                  I2V en Flow migrado suele colgarse en el selector del still;
+                  si pasa, el puente reintenta t2v (texto → video) para no dejar
+                  solo fotos.
                 </p>
               </div>
             ) : null}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   gflowCliDuration,
+  gflowI2vShouldFallbackT2v,
   gflowSupportsDurationFlag,
   pickGflowDuration,
   resolveGflowImageModel,
@@ -30,6 +31,16 @@ describe("gflow catalog", () => {
     expect(resolveGflowVideoMode("t2v")).toBe("t2v");
     expect(resolveGflowVideoMode("i2v")).toBe("i2v");
     expect(resolveGflowVideoMode("nope")).toBe("t2v");
+  });
+
+  it("falls back I2V to t2v when the migrated picker sticks", () => {
+    expect(
+      gflowI2vShouldFallbackT2v(
+        "UiSelectorDriftError — migrated host: the frame picker stayed open 15s after picking 'still.png'",
+      ),
+    ).toBe(true);
+    expect(gflowI2vShouldFallbackT2v("no maseQ reply within 60s")).toBe(true);
+    expect(gflowI2vShouldFallbackT2v("Token inválido")).toBe(false);
   });
 
   it("only sends --duration for Omni Flash", () => {

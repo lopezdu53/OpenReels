@@ -49,3 +49,17 @@ export function gflowCliDuration(modelId?: string, wanted?: number): number | un
 }
 
 export const GFLOW_DEFAULT_CLIP_SECONDS = 8;
+
+const I2V_FALLBACK_NEEDLES = [
+  "uiselectordrifterror",
+  "frame picker",
+  "maseq",
+  "initial-frame",
+  "still.png",
+];
+
+/** Local-file I2V on migrated Flow often uploads the still then dies in the picker. */
+export function gflowI2vShouldFallbackT2v(message: string): boolean {
+  const low = message.toLowerCase();
+  return I2V_FALLBACK_NEEDLES.some((n) => low.includes(n));
+}
