@@ -15,9 +15,9 @@ export function CostEstimatePanel({ preview, usdToCop, rateNote, dryRun, usesViv
   const maxLine = Math.max(...preview.lines.map((l) => l.usd), 0.001);
 
   return (
-    <div className="rounded-2xl border border-primary/30 bg-gradient-to-b from-primary/10 via-card to-card p-5 shadow-glow-sm shadow-primary/20">
+    <div className="rounded-2xl hf-l-border bg-card p-5 shadow-glow-sm shadow-primary/15">
       <div className="mb-4 flex items-center gap-2">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-primary/20 text-primary">
+        <div className="flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground">
           <DollarSign className="size-4" />
         </div>
         <div>

@@ -231,7 +231,7 @@ export function GalleryPage() {
   if (jobs.length === 0) {
     return (
       <div className="py-8 px-4 sm:px-10">
-        <h1 className="mb-6 text-2xl font-semibold tracking-tight">Galería</h1>
+        <h1 className="mb-6 text-3xl font-bold uppercase tracking-tight">Galería</h1>
         <div
           className="flex flex-1 flex-col items-center justify-center min-h-[calc(100vh-160px)]"
         >
@@ -262,7 +262,7 @@ export function GalleryPage() {
     <div className="py-8 px-4 sm:px-10">
       {/* Header */}
       <div className="mb-5 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Galería</h1>
+        <h1 className="text-3xl font-bold uppercase tracking-tight">Galería</h1>
         <span className="text-[13px] text-muted-foreground">
           {filteredJobs.length} de {jobs.length} cargados{jobs.length < total ? ` (${total} en total)` : ""}
         </span>

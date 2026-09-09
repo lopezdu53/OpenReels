@@ -17,12 +17,12 @@ interface CompletedPanelProps {
 
 const STAGE_ORDER = ["research", "director", "tts", "visuals", "assembly", "critic"] as const;
 const STAGE_COLORS: Record<string, string> = {
-  research: "#818CF8",
-  director: "#22D3EE",
-  tts: "#A78BFA",
-  visuals: "#34D399",
-  assembly: "#F59E0B",
-  critic: "#FB923C",
+  research: "#D8FF00",
+  director: "#64D2FF",
+  tts: "#FFD60A",
+  visuals: "#30D158",
+  assembly: "#FF9F0A",
+  critic: "#FF453A",
 };
 
 export function CompletedPanel({

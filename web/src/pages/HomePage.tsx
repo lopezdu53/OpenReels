@@ -23,6 +23,7 @@ import {
   Mic2,
   Music,
   PenLine,
+  Search,
   Shuffle,
   Sparkles,
 } from "lucide-react";
@@ -386,9 +387,9 @@ export function HomePage() {
   return (
     <div className="px-4 sm:px-6 lg:px-10 py-8 lg:py-10">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-6 max-w-2xl">
-          <p className="text-[10px] font-semibold uppercase tracking-[2px] text-primary mb-2">Pipeline OpenReels</p>
-          <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+        <div className="mb-8 max-w-2xl">
+          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-primary mb-3">Nuevo modelo</p>
+          <h1 className="text-3xl sm:text-5xl font-bold uppercase tracking-tight">
             ¿Qué historia contamos?
           </h1>
           <p className="mt-3 text-sm text-muted-foreground">
@@ -409,14 +410,17 @@ export function HomePage() {
         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-8 items-start">
           <div>
             <PipelineStep id="step-historia" step={1} icon={Sparkles} title="Historia" subtitle="Tema, formato y ritmo">
-              <input
-                type="text"
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                maxLength={200}
-                placeholder="La historia del Coliseo romano, black holes explained..."
-                className="w-full bg-transparent text-[15px] text-foreground placeholder:text-text-faint focus:outline-none mb-4"
-              />
+              <div className="mb-4 flex items-center gap-3 rounded-2xl bg-secondary px-4 py-3">
+                <Search className="size-4 shrink-0 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  maxLength={200}
+                  placeholder="Buscar un tema…"
+                  className="w-full bg-transparent text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-none"
+                />
+              </div>
               <div className="flex flex-wrap gap-3">
                 <Select value={platform} onValueChange={(v) => v && setPlatform(v)}>
                   <SelectTrigger className={cn(field, "w-auto min-w-[160px]")}><SelectValue>{displayName(platform)}</SelectValue></SelectTrigger>
@@ -449,8 +453,8 @@ export function HomePage() {
                 <div className="mb-2 flex items-center gap-2 flex-wrap">
                   {CATEGORY_KEYS.map((cat) => (
                     <button key={cat} type="button" onClick={() => setActiveCategory(cat)}
-                      className={cn("rounded-full px-3 py-1 text-[11px] font-medium",
-                        activeCategory === cat ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground")}>
+                      className={cn("rounded-full px-3 py-1 text-[11px] font-semibold",
+                        activeCategory === cat ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground hover:text-foreground")}>
                       {cat}
                     </button>
                   ))}
@@ -857,7 +861,7 @@ export function HomePage() {
                   </p>
                 )}
                 {atelierMode && (
-                  <p className="mt-2 text-[11px] text-violet-300/90">
+                  <p className="mt-2 text-[11px] text-primary/80">
                     Atelier está activo por defecto: la primera imagen bloquea personaje y estilo en todo el video.
                   </p>
                 )}

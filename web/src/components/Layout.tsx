@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { AuthPage } from "@/pages/AuthPage";
 import { BottomNav } from "./BottomNav";
+import { BrandMark } from "./BrandMark";
 import { Sidebar } from "./Sidebar";
 
 const COLLAPSED_KEY = "openreels_sidebar_collapsed";
@@ -77,14 +78,20 @@ export function Layout() {
 
   if (!isDesktop) {
     return (
-      <div className="flex min-h-screen flex-col pb-14">
-        <header className="flex items-center justify-between border-b border-border px-4 py-2.5">
-          <p className="truncate text-sm font-medium">{user.name}</p>
+      <div className="flex min-h-screen flex-col pb-16">
+        <header className="flex items-center justify-between px-4 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <BrandMark className="text-foreground" size={22} />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold tracking-tight">OpenReels</p>
+              <p className="truncate text-[11px] text-muted-foreground">{user.name}</p>
+            </div>
+          </div>
           <div className="flex items-center gap-1">
             {user.role === "admin" ? (
               <Link
                 to="/admin"
-                className="rounded-lg p-2 text-muted-foreground hover:text-foreground"
+                className="rounded-xl bg-secondary p-2 text-muted-foreground hover:text-foreground"
                 aria-label="Admin"
               >
                 <Shield className="size-4" />
@@ -92,7 +99,7 @@ export function Layout() {
             ) : null}
             <Link
               to="/settings"
-              className="rounded-lg p-2 text-muted-foreground hover:text-foreground"
+              className="rounded-xl bg-secondary px-3 py-2 text-[12px] font-medium text-foreground"
               aria-label="Ajustes"
             >
               <Settings className="size-4" />
@@ -100,7 +107,7 @@ export function Layout() {
             <button
               type="button"
               onClick={() => void logout()}
-              className="rounded-lg p-2 text-muted-foreground hover:text-foreground"
+              className="rounded-xl bg-primary px-3 py-2 text-[12px] font-semibold text-primary-foreground"
               aria-label="Salir"
             >
               <LogOut className="size-4" />

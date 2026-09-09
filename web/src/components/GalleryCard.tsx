@@ -11,14 +11,14 @@ import { AlertTriangle, Clock, DollarSign, Layers, Star, Trash2 } from "lucide-r
 const ARCHETYPE_THEME: Record<string, { badge: string; accent: string }> = {
   editorial_caricature: { badge: "bg-orange-500/15 text-orange-400 border-orange-500/20", accent: "#F97316" },
   warm_narrative: { badge: "bg-amber-500/15 text-amber-400 border-amber-500/20", accent: "#F59E0B" },
-  studio_realism: { badge: "bg-indigo-500/15 text-indigo-400 border-indigo-500/20", accent: "#6366F1" },
+  studio_realism: { badge: "bg-primary/15 text-primary border-primary/20", accent: "#D8FF00" },
   infographic: { badge: "bg-teal-500/15 text-teal-400 border-teal-500/20", accent: "#14B8A6" },
   anime_illustration: { badge: "bg-pink-500/15 text-pink-400 border-pink-500/20", accent: "#EC4899" },
   pastoral_watercolor: { badge: "bg-cyan-500/15 text-cyan-400 border-cyan-500/20", accent: "#06B6D4" },
-  comic_book: { badge: "bg-lime-500/15 text-lime-400 border-lime-500/20", accent: "#84CC16" },
+  comic_book: { badge: "bg-primary/15 text-primary border-primary/20", accent: "#D8FF00" },
   gothic_fantasy: { badge: "bg-red-500/15 text-red-400 border-red-500/20", accent: "#EF4444" },
   vintage_snapshot: { badge: "bg-rose-500/15 text-rose-400 border-rose-500/20", accent: "#F43F5E" },
-  surreal_dreamscape: { badge: "bg-violet-500/15 text-violet-400 border-violet-500/20", accent: "#8B5CF6" },
+  surreal_dreamscape: { badge: "bg-primary/15 text-primary border-primary/20", accent: "#D8FF00" },
   warm_editorial: { badge: "bg-orange-500/15 text-orange-400 border-orange-500/20", accent: "#F97316" },
   cinematic_documentary: { badge: "bg-blue-500/15 text-blue-400 border-blue-500/20", accent: "#3B82F6" },
   moody_cinematic: { badge: "bg-slate-500/15 text-slate-400 border-slate-500/20", accent: "#64748B" },
@@ -53,7 +53,7 @@ export function GalleryCard({ job, bulkMode, selected, onToggleSelect, timeAgo, 
       : null;
   const [imgError, setImgError] = useState(false);
 
-  const accentColor = archTheme?.accent ?? "#6366F1";
+  const accentColor = archTheme?.accent ?? "#D8FF00";
 
   return (
     <div className="relative group">
@@ -82,7 +82,7 @@ export function GalleryCard({ job, bulkMode, selected, onToggleSelect, timeAgo, 
           style={{
             background: thumbnailUrl && !imgError
               ? undefined
-              : `linear-gradient(135deg, #0D1526 0%, ${accentColor}20 100%)`,
+              : `linear-gradient(135deg, #000000 0%, ${accentColor}28 100%)`,
           }}
         >
           {thumbnailUrl && !imgError ? (

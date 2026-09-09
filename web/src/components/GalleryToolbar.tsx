@@ -50,13 +50,13 @@ export function GalleryToolbar({
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Buscar temas…"
-          className="h-9 rounded-lg border-border bg-surface-inset pl-9 text-sm text-foreground placeholder:text-text-faint"
+          className="h-11 rounded-2xl border-transparent bg-secondary pl-9 text-sm text-foreground placeholder:text-muted-foreground"
         />
       </div>
 
       {/* Archetype filter */}
       <Select value={archetypeFilter} onValueChange={(v) => v && onArchetypeChange(v)}>
-        <SelectTrigger className="h-9 w-auto min-w-[120px] rounded-lg border-border bg-surface-inset text-xs">
+        <SelectTrigger className="h-9 w-auto min-w-[120px] rounded-2xl border-transparent bg-secondary text-xs">
           <SelectValue placeholder="Todos los estilos" />
         </SelectTrigger>
         <SelectContent>
@@ -74,7 +74,7 @@ export function GalleryToolbar({
         value={statusFilter}
         onValueChange={(v) => onStatusChange(v as StatusFilter)}
       >
-        <SelectTrigger className="h-9 w-auto min-w-[110px] rounded-lg border-border bg-surface-inset text-xs">
+        <SelectTrigger className="h-9 w-auto min-w-[110px] rounded-2xl border-transparent bg-secondary text-xs">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -87,7 +87,7 @@ export function GalleryToolbar({
 
       {/* Sort */}
       <Select value={sortBy} onValueChange={(v) => onSortChange(v as SortBy)}>
-        <SelectTrigger className="h-9 w-auto min-w-[100px] rounded-lg border-border bg-surface-inset text-xs">
+        <SelectTrigger className="h-9 w-auto min-w-[100px] rounded-2xl border-transparent bg-secondary text-xs">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -99,13 +99,13 @@ export function GalleryToolbar({
       </Select>
 
       {/* View toggle */}
-      <div className="flex rounded-lg border border-border overflow-hidden">
+      <div className="flex overflow-hidden rounded-2xl bg-secondary">
         <button
           type="button"
           onClick={() => onViewModeChange("grid")}
           className={cn(
-            "flex items-center justify-center size-9 transition-colors",
-            viewMode === "grid" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
+            "flex size-11 items-center justify-center transition-colors",
+            viewMode === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
           )}
         >
           <LayoutGrid className="size-3.5" />
@@ -114,8 +114,8 @@ export function GalleryToolbar({
           type="button"
           onClick={() => onViewModeChange("list")}
           className={cn(
-            "flex items-center justify-center size-9 border-l border-border transition-colors",
-            viewMode === "list" ? "bg-primary/15 text-primary" : "text-muted-foreground hover:text-foreground",
+            "flex size-11 items-center justify-center transition-colors",
+            viewMode === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
           )}
         >
           <List className="size-3.5" />

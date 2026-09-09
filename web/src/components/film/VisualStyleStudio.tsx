@@ -179,7 +179,7 @@ export function VisualStyleStudio({
             onClick={() => onSelect(s.id, s.artStyle)}
             className={cn(
               "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]",
-              selectedId === s.id ? "border-violet-400 bg-violet-500/15 text-violet-200" : "border-border text-muted-foreground hover:text-foreground",
+              selectedId === s.id ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:text-foreground",
             )}
           >
             {s.referenceImage ? (

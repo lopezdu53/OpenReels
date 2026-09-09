@@ -579,7 +579,7 @@ function providerLabel(key: string | undefined): string {
 function ConfigBadges({ config }: { config: JobConfig }) {
   const items: { label: string; value: string; color?: string }[] = [];
 
-  if (config.llm) items.push({ label: "LLM", value: providerLabel(config.llm), color: "violet" });
+  if (config.llm) items.push({ label: "LLM", value: providerLabel(config.llm), color: "lime" });
   if (config.tts) items.push({ label: "TTS", value: providerLabel(config.tts), color: "blue" });
   if (config.image) items.push({ label: "Imagen", value: providerLabel(config.image), color: "emerald" });
   if (config.video && !config.noVideo) items.push({ label: "Video", value: providerLabel(config.video), color: "orange" });
@@ -589,14 +589,14 @@ function ConfigBadges({ config }: { config: JobConfig }) {
   }
   if (config.pacing) items.push({ label: "Ritmo", value: config.pacing });
   if (config.noSubtitles) items.push({ label: "Subtítulos", value: "Off" });
-  if (config.styleReference) items.push({ label: "Estilo", value: "Imagen propia", color: "violet" });
-  if (config.atelierMode) items.push({ label: "Modo", value: "Atelier", color: "violet" });
+  if (config.styleReference) items.push({ label: "Estilo", value: "Imagen propia", color: "lime" });
+  if (config.atelierMode) items.push({ label: "Modo", value: "Atelier", color: "lime" });
   if (config.artStyleOverride) items.push({ label: "Art", value: config.artStyleOverride.split(",")[0]?.trim() ?? "Atelier", color: "emerald" });
 
   if (items.length === 0) return null;
 
   const colorMap: Record<string, string> = {
-    violet: "bg-violet-500/10 text-violet-400 border-violet-500/20",
+    lime: "bg-primary/10 text-primary border-primary/25",
     blue: "bg-blue-500/10 text-blue-400 border-blue-500/20",
     emerald: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
     orange: "bg-orange-500/10 text-orange-400 border-orange-500/20",
