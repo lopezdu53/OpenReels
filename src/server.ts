@@ -367,7 +367,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "sharpii", label: "Sharpii (Nano Banana / Flux / MJ)" },
   ],
   video: [
-    { key: "gflow", label: "gflow-cli (Veo t2v)" },
+    { key: "gflow", label: "gflow-cli (Veo I2V)" },
     { key: "atlas", label: "ATLAS" },
     { key: "gemini", label: "Google Veo" },
     { key: "grok", label: "Grok Imagine Video 1.5" },

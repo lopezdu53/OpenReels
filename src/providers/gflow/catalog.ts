@@ -50,6 +50,15 @@ export function gflowCliDuration(modelId?: string, wanted?: number): number | un
 
 export const GFLOW_DEFAULT_CLIP_SECONDS = 8;
 
+/** One scene at a time: VIVI still → wait for Flow I2V → next still. */
+export function shouldSerializeGflowI2v(videoProvider?: string, mode?: string): boolean {
+  return videoProvider === "gflow" && resolveGflowVideoMode(mode) === "i2v";
+}
+
+export function gflowI2vFallbackT2vEnabled(): boolean {
+  return process.env["GFLOW_I2V_FALLBACK_T2V"] === "1";
+}
+
 const I2V_FALLBACK_NEEDLES = [
   "uiselectordrifterror",
   "frame picker",

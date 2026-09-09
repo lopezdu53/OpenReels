@@ -17,6 +17,7 @@ import { buildShotContext } from "../library/prompt-context.js";
 import { imageProviderChainsIdentity, imageProviderClonesLayout, planVisualReferences, sheetToSceneHint, type SheetReference } from "./visual-refs.js";
 import { research } from "../agents/research.js";
 import { resolveStockAdaptive, type StockResolution } from "../providers/stock/adaptive-resolver.js";
+import { shouldSerializeGflowI2v } from "../providers/gflow/catalog.js";
 import { resolveAIVideo, type VideoResolution } from "../providers/video/video-resolver.js";
 import { sliceSceneAudio } from "./scene-audio.js";
 import type { CostBreakdown } from "../cli/cost-estimator.js";
@@ -930,6 +931,7 @@ function buildPipelineWorkflow(
       const continuityEnabled =
         heroFollowCam ||
         atlasIdentityLock ||
+        shouldSerializeGflowI2v(opts.videoProvider, opts.gflowVideoMode) ||
         (!multiCast &&
           !multiLocation &&
           (runpodIdentityLock ||
@@ -975,56 +977,7 @@ function buildPipelineWorkflow(
         return fallback;
       };
 
-      const scenePromise = globalReference
-        ? Promise.all(
-            score.scenes.map(async (scene, i) => {
-              try {
-                const sceneDuration = sceneDurations[i];
-                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, globalReference, aspectRatio, shotFor(i, false), undefined, sceneAudioFor(i));
-              } catch (err) {
-                cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
-                return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
-              }
-            }),
-          )
-        : atelierMode && !runpodIdentityLock
-        ? (async () => {
-            // Step 1: generate scene 0 without reference
-            const firstScene = score.scenes[0]!;
-            let firstResult: VisualAssetResult;
-            try {
-              firstResult = await resolveVisualAsset(firstScene, 0, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[0], undefined, aspectRatio, shotFor(0, false), undefined, sceneAudioFor(0));
-            } catch (err) {
-              cb.onProgress?.("visuals", { type: "asset_failed", scene: 0, error: String(err) });
-              firstResult = { path: null, usage: null, durationSeconds: null };
-            }
-            // Step 2: read scene 0's image as the Atelier reference
-            let atelierRef: Buffer | undefined;
-            let atelierUrl: string | undefined = firstResult.remoteUrl;
-            try {
-              const firstAi = ["scene-0-ai.png", ...score.scenes.map((_, i) => `scene-${i}-ai.png`)]
-                .find((name) => fs.existsSync(path.join(assetsDir, name)));
-              if (firstAi) {
-                atelierRef = fs.readFileSync(path.join(assetsDir, firstAi));
-                const urlFile = path.join(assetsDir, `${firstAi}.url`);
-                if (fs.existsSync(urlFile)) atelierUrl = fs.readFileSync(urlFile, "utf-8").trim();
-              }
-            } catch { /* no ai image yet — proceed without ref */ }
-            // Step 3: scenes 1+ in parallel, all receiving scene 0's image as reference
-            const restResults = await Promise.all(
-              score.scenes.slice(1).map(async (scene, idx) => {
-                const i = idx + 1;
-                try {
-                  return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[i], atelierRef, aspectRatio, shotFor(i, false), atelierUrl, sceneAudioFor(i));
-                } catch (err) {
-                  cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
-                  return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
-                }
-              }),
-            );
-            return [firstResult, ...restResults];
-          })()
-        : continuityEnabled
+      const scenePromise = continuityEnabled
         ? (async () => {
             const results: VisualAssetResult[] = [];
             let previousImage: Buffer | undefined =
@@ -1032,7 +985,7 @@ function buildPipelineWorkflow(
               characterSheet &&
               !imageProviderClonesLayout(opts.imageProvider)
                 ? characterSheet
-                : undefined;
+                : globalReference;
             let previousImageUrl: string | undefined;
             for (let i = 0; i < score.scenes.length; i++) {
               const scene = score.scenes[i]!;
@@ -1082,6 +1035,55 @@ function buildPipelineWorkflow(
               }
             }
             return results;
+          })()
+        : globalReference
+        ? Promise.all(
+            score.scenes.map(async (scene, i) => {
+              try {
+                const sceneDuration = sceneDurations[i];
+                return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration, globalReference, aspectRatio, shotFor(i, false), undefined, sceneAudioFor(i));
+              } catch (err) {
+                cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
+                return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
+              }
+            }),
+          )
+        : atelierMode && !runpodIdentityLock
+        ? (async () => {
+            // Step 1: generate scene 0 without reference
+            const firstScene = score.scenes[0]!;
+            let firstResult: VisualAssetResult;
+            try {
+              firstResult = await resolveVisualAsset(firstScene, 0, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[0], undefined, aspectRatio, shotFor(0, false), undefined, sceneAudioFor(0));
+            } catch (err) {
+              cb.onProgress?.("visuals", { type: "asset_failed", scene: 0, error: String(err) });
+              firstResult = { path: null, usage: null, durationSeconds: null };
+            }
+            // Step 2: read scene 0's image as the Atelier reference
+            let atelierRef: Buffer | undefined;
+            let atelierUrl: string | undefined = firstResult.remoteUrl;
+            try {
+              const firstAi = ["scene-0-ai.png", ...score.scenes.map((_, i) => `scene-${i}-ai.png`)]
+                .find((name) => fs.existsSync(path.join(assetsDir, name)));
+              if (firstAi) {
+                atelierRef = fs.readFileSync(path.join(assetsDir, firstAi));
+                const urlFile = path.join(assetsDir, `${firstAi}.url`);
+                if (fs.existsSync(urlFile)) atelierUrl = fs.readFileSync(urlFile, "utf-8").trim();
+              }
+            } catch { /* no ai image yet — proceed without ref */ }
+            // Step 3: scenes 1+ in parallel, all receiving scene 0's image as reference
+            const restResults = await Promise.all(
+              score.scenes.slice(1).map(async (scene, idx) => {
+                const i = idx + 1;
+                try {
+                  return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDurations[i], atelierRef, aspectRatio, shotFor(i, false), atelierUrl, sceneAudioFor(i));
+                } catch (err) {
+                  cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
+                  return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
+                }
+              }),
+            );
+            return [firstResult, ...restResults];
           })()
         : Promise.all(
             score.scenes.map(async (scene, i) => {

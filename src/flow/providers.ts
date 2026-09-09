@@ -1,4 +1,4 @@
-/** Stills default to VIVI. Veo t2v stays on gflow (headed Chrome / LAN bridge). */
+/** Stills: VIVI. Video: gflow I2V one scene at a time (t2v spends Flow credits). */
 export const FLOW_IMAGE_PROVIDERS = [
   { key: "vivi", label: "VIVI" },
   { key: "atlas", label: "ATLAS" },
@@ -6,7 +6,7 @@ export const FLOW_IMAGE_PROVIDERS = [
 ] as const;
 
 export const FLOW_VIDEO_PROVIDERS = [
-  { key: "gflow", label: "gflow-cli (Veo t2v)" },
+  { key: "gflow", label: "gflow-cli (Veo I2V)" },
 ] as const;
 
 export const FLOW_TTS_PROVIDERS = [
@@ -18,4 +18,4 @@ export const FLOW_TTS_PROVIDERS = [
 
 export const DEFAULT_FLOW_IMAGE = "vivi";
 export const DEFAULT_FLOW_TTS = "kokoro";
-export const DEFAULT_GFLOW_VIDEO_MODE = "t2v";
+export const DEFAULT_GFLOW_VIDEO_MODE = "i2v";

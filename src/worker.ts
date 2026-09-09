@@ -394,6 +394,7 @@ const worker = new Worker<JobData>(
         stock: providerInstances.stock,
         videoProviders: noVideo ? [] : providerInstances.videoProviders,
         videoProvider: providers.video as VideoProviderKey | undefined,
+        gflowVideoMode: providers.gflowVideoMode,
         noVideo: noVideo === true,
         noSubtitles: noSubtitles === true,
         allowedVisualTypes,

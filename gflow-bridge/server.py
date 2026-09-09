@@ -37,6 +37,8 @@ IMAGE_TIMEOUT = int(os.environ.get("GFLOW_BRIDGE_IMAGE_TIMEOUT", "240"))
 VIDEO_TIMEOUT = int(os.environ.get("GFLOW_BRIDGE_VIDEO_TIMEOUT", "480"))
 QUEUE_WAIT = int(os.environ.get("GFLOW_BRIDGE_QUEUE_WAIT", "1200"))
 MAX_BODY = int(os.environ.get("GFLOW_BRIDGE_MAX_BODY", str(48 * 1024 * 1024)))
+SETTLE_SECONDS = int(os.environ.get("GFLOW_BRIDGE_SETTLE_SECONDS", "8"))
+I2V_FALLBACK_T2V = os.environ.get("GFLOW_I2V_FALLBACK_T2V", "") == "1"
 
 LOCK = threading.Lock()
 
@@ -230,19 +232,27 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
         except Exception as err:
             if mode != "i2v" or not _should_fallback_t2v(str(err)):
                 raise
-            print(f"[gflow-bridge] I2V falló; reintento t2v: {err}", flush=True)
-            payload = _run_gflow(
-                _video_cli_args(
-                    mode="t2v",
-                    prompt=prompt,
-                    model=model,
-                    duration=duration,
-                    aspect=aspect,
-                    dest=str(dest),
-                    still_path=None,
-                ),
-                VIDEO_TIMEOUT,
-            )
+            print(f"[gflow-bridge] I2V picker stuck; wait {SETTLE_SECONDS}s and retry I2V: {err}", flush=True)
+            if SETTLE_SECONDS > 0:
+                time.sleep(SETTLE_SECONDS)
+            try:
+                payload = _run_gflow(args, VIDEO_TIMEOUT)
+            except Exception as err2:
+                if not I2V_FALLBACK_T2V:
+                    raise
+                print(f"[gflow-bridge] I2V retry failed; t2v fallback (credits): {err2}", flush=True)
+                payload = _run_gflow(
+                    _video_cli_args(
+                        mode="t2v",
+                        prompt=prompt,
+                        model=model,
+                        duration=duration,
+                        aspect=aspect,
+                        dest=str(dest),
+                        still_path=None,
+                    ),
+                    VIDEO_TIMEOUT,
+                )
         local = dest if dest.exists() and dest.stat().st_size > 1000 else None
         if local is None and isinstance(payload.get("local_path"), str):
             p = Path(str(payload["local_path"]))
@@ -261,6 +271,8 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
             "durationSeconds": reported,
         }
     finally:
+        if mode == "i2v" and SETTLE_SECONDS > 0:
+            time.sleep(SETTLE_SECONDS)
         shutil.rmtree(work, ignore_errors=True)
 
 

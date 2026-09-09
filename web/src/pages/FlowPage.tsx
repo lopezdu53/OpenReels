@@ -159,7 +159,7 @@ const FALLBACK = {
     { key: "atlas", label: "ATLAS" },
     { key: "gflow", label: "gflow-cli (Imagen · Flow)" },
   ],
-  video: [{ key: "gflow", label: "gflow-cli (Veo t2v)" }],
+  video: [{ key: "gflow", label: "gflow-cli (Veo I2V)" }],
   search: [{ key: "tavily", label: "Tavily" }],
 };
 
@@ -265,7 +265,7 @@ export function FlowPage() {
   const [videoProvider, setVideoProvider] = useState("gflow");
   const [gflowImageModel, setGflowImageModel] = useState("nano2");
   const [gflowVideoModel, setGflowVideoModel] = useState("veo-lite");
-  const [gflowVideoMode, setGflowVideoMode] = useState("t2v");
+  const [gflowVideoMode, setGflowVideoMode] = useState("i2v");
   const [atlasTtsModel, setAtlasTtsModel] = useState("xai/tts-v1");
   const [atlasTtsVoice, setAtlasTtsVoice] = useState("eve");
   const [atlasImageModel, setAtlasImageModel] = useState("google/nano-banana-2-lite/text-to-image");
@@ -698,8 +698,8 @@ export function FlowPage() {
           </h1>
           <p className="mt-3 text-sm text-muted-foreground">
             Misma ventana que Nuevo Film. LLM: VIVI, RunPod o Atlas. Web: Tavily. Voz: Kokoro
-            (mix Conexión), Atlas, Grok o Gemini. Fotos: VIVI. Video: gflow Veo t2v
-            en Chrome. Deja el chip Agent apagado en Flow.
+            (mix Conexión), Atlas, Grok o Gemini. Fotos: VIVI. Video: gflow Veo I2V
+            (una escena a la vez: still → clip → siguiente). Deja Agent apagado.
           </p>
         </div>
 
@@ -709,7 +709,7 @@ export function FlowPage() {
             { id: "film-guion", n: 2, title: "Guion", hint: "LLM y scripts", icon: PenLine },
             { id: "film-voz", n: 3, title: "Voz", hint: "Kokoro mix", icon: Mic2 },
             { id: "film-elenco", n: 4, title: "Elenco", hint: "Refs y estilo", icon: Users },
-            { id: "film-visuales", n: 5, title: "Visuales", hint: "VIVI + Veo t2v", icon: ImageIcon },
+            { id: "film-visuales", n: 5, title: "Visuales", hint: "VIVI + Veo I2V", icon: ImageIcon },
             { id: "film-musica", n: 6, title: "Música", hint: "Banda", icon: Music },
           ]}
         />
@@ -1160,7 +1160,7 @@ export function FlowPage() {
         />
         </PipelineStep>
 
-        <PipelineStep id="film-visuales" step={5} icon={ImageIcon} title="Visuales" subtitle="Fotos: VIVI · Video: Veo t2v">
+        <PipelineStep id="film-visuales" step={5} icon={ImageIcon} title="Visuales" subtitle="Fotos: VIVI · Video: Veo I2V en serie">
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Imagen">
@@ -1216,17 +1216,17 @@ export function FlowPage() {
                         <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="t2v">Texto → video (t2v)</SelectItem>
-                          <SelectItem value="i2v">Foto → video (I2V · si falla, t2v)</SelectItem>
+                          <SelectItem value="i2v">Foto → video (I2V · sin crédito t2v)</SelectItem>
                         </SelectContent>
                       </Select>
                     </Field>
                   </>
                 ) : null}
                 <p className="sm:col-span-2 text-[11px] text-muted-foreground">
-                  El puente Windows corre gflow en Chrome. Deja Agent apagado.
-                  I2V en Flow migrado suele colgarse en el selector del still;
-                  si pasa, el puente reintenta t2v (texto → video) para no dejar
-                  solo fotos.
+                  Una escena a la vez: VIVI pinta el still, Flow anima con I2V
+                  (no descuenta t2v), espera a que Chrome cierre, y recién ahí
+                  va la siguiente foto. Deja Agent apagado. t2v solo si lo eliges
+                  (gasta créditos).
                 </p>
               </div>
             ) : null}

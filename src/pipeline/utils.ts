@@ -67,6 +67,7 @@ export interface PipelineOptions {
   verifyModel?: LanguageModel;
   videoProviders?: VideoProvider[];
   videoProvider?: VideoProviderKey;
+  gflowVideoMode?: string;
   noVideo?: boolean;
   noSubtitles?: boolean;
   allowedVisualTypes?: string[];

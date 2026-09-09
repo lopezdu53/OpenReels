@@ -2,6 +2,7 @@ import json
 import unittest
 
 from server import (
+    I2V_FALLBACK_T2V,
     _gflow_fail_message,
     _parse_gflow_json,
     _resolve_video_mode,
@@ -105,6 +106,7 @@ class VideoModeTests(unittest.TestCase):
         )
         self.assertTrue(_should_fallback_t2v("no maseQ reply within 60s"))
         self.assertFalse(_should_fallback_t2v("Token inválido"))
+        self.assertFalse(I2V_FALLBACK_T2V)
 
 
 class DrainTests(unittest.TestCase):

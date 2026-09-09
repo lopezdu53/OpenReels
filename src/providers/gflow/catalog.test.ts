@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   gflowCliDuration,
+  gflowI2vFallbackT2vEnabled,
   gflowI2vShouldFallbackT2v,
   gflowSupportsDurationFlag,
   pickGflowDuration,
   resolveGflowImageModel,
   resolveGflowVideoMode,
   resolveGflowVideoModel,
+  shouldSerializeGflowI2v,
 } from "./catalog.js";
 
 describe("gflow catalog", () => {
@@ -31,6 +33,13 @@ describe("gflow catalog", () => {
     expect(resolveGflowVideoMode("t2v")).toBe("t2v");
     expect(resolveGflowVideoMode("i2v")).toBe("i2v");
     expect(resolveGflowVideoMode("nope")).toBe("t2v");
+  });
+
+  it("serializes VIVI still + Flow I2V one scene at a time", () => {
+    expect(shouldSerializeGflowI2v("gflow", "i2v")).toBe(true);
+    expect(shouldSerializeGflowI2v("gflow", "t2v")).toBe(false);
+    expect(shouldSerializeGflowI2v("atlas", "i2v")).toBe(false);
+    expect(gflowI2vFallbackT2vEnabled()).toBe(false);
   });
 
   it("falls back I2V to t2v when the migrated picker sticks", () => {

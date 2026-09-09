@@ -28,7 +28,7 @@ cd "$env:USERPROFILE\OpenReels\gflow-bridge"
 irm https://raw.githubusercontent.com/lopezdu53/OpenReels/cursor/grok-providers-fixes-6f6a/gflow-bridge/server.py -OutFile server.py
 ```
 
-Nuevo Flow usa **VIVI** para fotos y **Veo t2v** para video. I2V local en Flow migrado suele colgar el frame picker (`still.png`); el puente reintenta **t2v**. En Veo **no pases `--duration`** (solo Omni Flash).
+Nuevo Flow: **VIVI** stills + **Veo I2V** en serie (foto 1 → video 1 → foto 2). I2V no gasta el crédito de t2v. Si el picker se traba, el puente espera y reintenta I2V; t2v solo con `GFLOW_I2V_FALLBACK_T2V=1`. En Veo no pases `--duration` (solo Omni Flash). Tras cada I2V espera `GFLOW_BRIDGE_SETTLE_SECONDS` (default 8).
 
 ## Cada vez que produzcas
 
