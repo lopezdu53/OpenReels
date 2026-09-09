@@ -6,6 +6,7 @@ from server import (
     STILL_PREFIX,
     _catalog_paths_from_list,
     _flow_picker_script,
+    _mp4_search_roots,
     _gflow_fail_message,
     _is_add_to_prompt_label,
     _is_submit_miss,
@@ -158,6 +159,7 @@ class VideoModeTests(unittest.TestCase):
             rows = json.dumps([{"local_path": str(mp4), "media_id": "abc"}])
             found = _catalog_paths_from_list(rows)
             self.assertEqual(found, [mp4])
+            self.assertEqual(_mp4_search_roots(mp4), [mp4.parent])
             os.unlink(mp4)
 
 

@@ -750,7 +750,8 @@ export function LabPage() {
                 gflow Veo · puente Windows · Agent OFF. I2V funciona en proyecto vacío; con
                 otros archivos el picker no cierra hasta “Add to prompt” (el puente lo pulsa
                 y luego deja de barrer Chrome para no perder el submit). Si Flow genera y
-                gflow no baja el mp4, el puente espera y lo busca. t2v no sube el still.
+                gflow no baja el mp4, el puente solo mira el out.mp4 de esa petición (no
+                clips del Lab). t2v no sube el still.
                 Veo no tiene control de duración en Flow migrado; solo Omni Flash acepta
                 4/6/8/10s.
               </p>

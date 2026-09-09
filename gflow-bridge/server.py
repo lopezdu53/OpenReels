@@ -348,44 +348,24 @@ def _run_gflow(args: list[str], timeout: int) -> dict[str, Any]:
 
 
 def _mp4_search_roots(dest: Path) -> list[Path]:
-    roots = [dest.parent]
-    extra = (os.environ.get("GFLOW_CLI_OUTPUT_DIR") or "").strip()
-    if extra:
-        roots.append(Path(extra))
-    home = Path.home()
-    roots.extend(
-        [
-            home / "Videos",
-            home / ".gflow-cli",
-            home / "AppData" / "Local" / "gflow-cli",
-        ]
-    )
-    seen: set[str] = set()
-    out: list[Path] = []
-    for root in roots:
-        key = str(root)
-        if key in seen or not root.exists():
-            continue
-        seen.add(key)
-        out.append(root)
-    return out
+    """Only this I2V request's work dir — never Videos/ or Lab leftovers."""
+    return [dest.parent]
 
 
 def _newest_mp4_since(since: float, dest: Path) -> Path | None:
     if dest.exists() and dest.stat().st_size > 20_000:
         return dest
     found: list[Path] = []
-    for root in _mp4_search_roots(dest):
-        try:
-            for path in root.rglob("*.mp4"):
-                try:
-                    st = path.stat()
-                except OSError:
-                    continue
-                if st.st_size > 20_000 and st.st_mtime >= since - 2:
-                    found.append(path)
-        except OSError:
-            continue
+    try:
+        for path in dest.parent.glob("*.mp4"):
+            try:
+                st = path.stat()
+            except OSError:
+                continue
+            if st.st_size > 20_000 and st.st_mtime >= since - 2:
+                found.append(path)
+    except OSError:
+        return None
     if not found:
         return None
     return max(found, key=lambda p: p.stat().st_mtime)
@@ -437,17 +417,7 @@ def _recover_generated_mp4(dest: Path, since: float) -> Path | None:
     if found is not None:
         print(f"[gflow-bridge] recovered mp4 {found} ({found.stat().st_size} bytes)", flush=True)
         return found
-    try:
-        cmd = [GFLOW_BIN, "data", "list", "videos", "--json"]
-        if PROJECT:
-            cmd.extend(["--project", PROJECT])
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60, check=False)
-        for path in _catalog_paths_from_list((proc.stdout or "") + "\n" + (proc.stderr or "")):
-            if path.stat().st_mtime >= since - 2 and path.stat().st_size > 20_000:
-                print(f"[gflow-bridge] recovered catalog mp4 {path}", flush=True)
-                return path
-    except Exception as err:
-        print(f"[gflow-bridge] catalog scan skipped: {err}", flush=True)
+    print("[gflow-bridge] no mp4 in this I2V work dir (not scanning Lab/Videos/catalog)", flush=True)
     return None
 
 
