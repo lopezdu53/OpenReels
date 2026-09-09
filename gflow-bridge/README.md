@@ -35,6 +35,8 @@ GFLOW_BRIDGE_TOKEN=el-mismo-secreto-que-en-el-windows
 
 Con el token, el worker usa LAN si responde; si el Windows no está en casa, espera al **modo Remoto** de la app. Para apagar el remoto: `GFLOW_BRIDGE_RELAY=0`.
 
+Desde la oficina elige **Fuera de casa**. Chrome + Flow van **en ese PC**. Cloudflare (Error 1010) bloqueaba el cliente Python; la app ya manda User-Agent de Chrome. Si ves 404, el estudio aún no tiene el relay: merge + Implementar `video` y `video-worker`.
+
 ## I2V (Nuevo Flow)
 
 VIVI stills + Veo I2V en serie. El puente pulsa **Add to prompt**, nombra stills `or-i2v-*.png`, y no recupera clips del Lab. En Veo no pases `--duration`.

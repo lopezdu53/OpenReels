@@ -99,7 +99,7 @@ class App(tk.Tk):
         tk.Label(head, text="OPENREELS PUENTE", fg=LIME, bg=BG, font=("Segoe UI", 16, "bold")).pack(anchor="w")
         tk.Label(
             head,
-            text="Un clic. Chrome + Flow en este PC. El Xeon (casa) o el estudio (nube) te mandan el I2V.",
+            text="Un clic. Chrome + Flow en ESTE PC (casa u oficina). El estudio te manda el I2V por LAN o por internet.",
             fg=MUTED,
             bg=BG,
             wraplength=600,
