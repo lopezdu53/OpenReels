@@ -24,7 +24,7 @@ const OPTIONS: {
     id: "hero",
     icon: User,
     title: "Modo Héroe",
-    body: "Plano continuo: la cámara sigue al primer personaje; el mundo se pega o se desplaza a su cuerpo. Todas las escenas IA se animan.",
+    body: "Plano continuo viral: la cámara sigue al primero; cada clip un objeto o morph nuevo, no un paseo. Todas las escenas IA se animan.",
   },
 ];
 

@@ -170,6 +170,23 @@ describe("critic audit", () => {
     expect(audit.findings.some((f) => /variedad|slideshow|mismo shot_type/i.test(f))).toBe(false);
   });
 
+  it("flags hero follow-cam plans that only walk or stand", () => {
+    const score: DirectorScore = {
+      emotional_arc: "arc",
+      archetype: "cinematic_documentary",
+      music_mood: "epic_cinematic",
+      scenes: [
+        { visual_type: "ai_video", visual_prompt: "16:9 SCENE: he walks through the forum", motion: "static", script_line: "Uno.", transition: "none" },
+        { visual_type: "ai_video", visual_prompt: "16:9 SCENE: she stands in the street", motion: "static", script_line: "Dos.", transition: "none" },
+        { visual_type: "ai_video", visual_prompt: "16:9 SCENE: he walks past columns", motion: "static", script_line: "Tres.", transition: "none" },
+        { visual_type: "ai_video", visual_prompt: "16:9 SCENE: they walk together", motion: "static", script_line: "Cuatro.", transition: "none" },
+      ],
+    };
+    const audit = auditDirectorScore(score, { platform: "youtube_horizontal", castMode: "hero" });
+    expect(audit.findings.some((f) => /caminar/i.test(f))).toBe(true);
+    expect(audit.revisionNeeded).toBe(true);
+  });
+
   it("summarizes Gemini credit exhaustion as a production note", () => {
     const notes = summarizeVideoFallbacks([
       {

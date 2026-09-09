@@ -171,5 +171,14 @@ class DrainTests(unittest.TestCase):
         self.assertGreater(MAX_BODY, 1024)
 
 
+class SettingsTests(unittest.TestCase):
+    def test_apply_settings_sets_token_and_allow_list(self):
+        import server
+
+        server.apply_settings(token="abc", allow_ips="192.168.1.71, 10.0.0.2", project="p1", project_name="OpenReels")
+        self.assertEqual(server.TOKEN, "abc")
+        self.assertEqual(server.ALLOW_IPS, {"192.168.1.71", "10.0.0.2"})
+
+
 if __name__ == "__main__":
     unittest.main()

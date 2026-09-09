@@ -1053,7 +1053,7 @@ export function FlowPage() {
         />
         <p className="text-xs text-muted-foreground">
           {castMode === "hero"
-            ? "Hasta 3 personajes. El primero es el eje óptico: la cámara lo sigue en un plano continuo; los invitados entran solo si la locución los nombra. Todas las escenas IA se animan."
+            ? "Hasta 3 personajes. El primero es el eje óptico: cada clip un espectáculo nuevo (objeto que toca o mundo que cambia), no un paseo. Todas las escenas IA se animan."
             : "Hasta 3 personajes. Cada plano muestra solo a quien nombra la locución; juntos solo si la frase nombra a más de uno. La ficha 16:9 ancla al primero con imagen cuando está en cuadro."}
         </p>
 

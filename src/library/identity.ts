@@ -51,7 +51,7 @@ export function isHeroFollowCam(lock?: string): boolean {
   return /HERO ON CAMERA:\s*always|FOLLOW-CAM/i.test(lock ?? "");
 }
 
-const HERO_SHOTS = new Set(["medium", "wide"]);
+const HERO_SHOTS = new Set(["medium", "wide", "insert", "close_up"]);
 const HERO_CAMERAS = ["track", "pan", "push_in"] as const;
 
 /** Follow-cam keeps the body in frame — no ECU / OTS / empty establishing plates. */

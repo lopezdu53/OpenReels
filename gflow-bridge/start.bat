@@ -3,9 +3,9 @@ setlocal
 cd /d "%~dp0"
 
 if "%GFLOW_BRIDGE_TOKEN%"=="" (
-  echo Falta GFLOW_BRIDGE_TOKEN. Ejemplo:
+  echo Abre OpenReelsPuente.vbs (app grafica). Para consola:
   echo   set GFLOW_BRIDGE_TOKEN=un-secreto-largo
-  echo   set GFLOW_BRIDGE_ALLOW_IPS=192.168.1.10
+  echo   set GFLOW_BRIDGE_ALLOW_IPS=192.168.1.71
   echo   start.bat
   exit /b 1
 )
