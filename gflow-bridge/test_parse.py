@@ -288,6 +288,7 @@ class ChromeProfileTests(unittest.TestCase):
             self.assertIn("--browser chrome", text)
             self.assertIn("pause", text)
             self.assertIn("GFLOW_CLI_AUTH_BROWSER", text)
+            self.assertIn("NO_COLOR", text)
 
 
 class InstallStatusTests(unittest.TestCase):
@@ -300,6 +301,15 @@ class InstallStatusTests(unittest.TestCase):
         self.assertIn("no instalado", format_gflow_status(None, "0.72.0"))
         self.assertIn("al día", format_gflow_status("0.72.0", "0.72.0"))
         self.assertIn("hay 0.72.0", format_gflow_status("0.71.0", "0.72.0"))
+        self.assertIn("colorama no instalado", format_gflow_status("0.72.0", "0.72.0"))
+        self.assertIn(
+            "colorama 0.4.6 · al día",
+            format_gflow_status("0.72.0", "0.72.0", "0.4.6", "0.4.6"),
+        )
+        self.assertIn(
+            "hay 0.4.7",
+            format_gflow_status("0.72.0", "0.72.0", "0.4.6", "0.4.7"),
+        )
         self.assertTrue(uv_zip_name().startswith("uv-"))
 
 

@@ -204,6 +204,9 @@ def write_login_batch(gflow_bin: str, profile: str = "") -> Path:
         f'set "UV_TOOL_DIR={env["UV_TOOL_DIR"]}"',
         f'set "PATH={env["UV_TOOL_BIN_DIR"]};%PATH%"',
         'set "GFLOW_CLI_AUTH_BROWSER=chrome"',
+        'set "NO_COLOR=1"',
+        'set "FORCE_COLOR=0"',
+        'set "GFLOW_CLI_LOG_FORMAT=json"',
     ]
     if chrome:
         lines.append(f'set "GFLOW_CHROME_BIN={chrome}"')

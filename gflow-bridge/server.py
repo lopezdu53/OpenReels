@@ -325,6 +325,8 @@ def _run_gflow(args: list[str], timeout: int) -> dict[str, Any]:
         cmd.extend(["--project-name", PROJECT_NAME])
     env = os.environ.copy()
     env["GFLOW_CLI_LOG_FORMAT"] = "json"
+    env["NO_COLOR"] = "1"
+    env["FORCE_COLOR"] = "0"
     env.setdefault("GFLOW_CLI_FLOW_HOST", "auto")
     bin_path = Path(GFLOW_BIN)
     if bin_path.is_file():
