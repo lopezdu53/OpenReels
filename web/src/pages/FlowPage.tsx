@@ -155,9 +155,9 @@ const FALLBACK = {
     { key: "gemini-tts", label: "Gemini TTS" },
   ],
   image: [
-    { key: "gflow", label: "gflow-cli (Imagen · Flow)" },
-    { key: "atlas", label: "ATLAS" },
     { key: "vivi", label: "VIVI" },
+    { key: "atlas", label: "ATLAS" },
+    { key: "gflow", label: "gflow-cli (Imagen · Flow)" },
   ],
   video: [{ key: "gflow", label: "gflow-cli (Veo t2v)" }],
   search: [{ key: "tavily", label: "Tavily" }],
@@ -261,7 +261,7 @@ export function FlowPage() {
   const [grokTtsSpeed, setGrokTtsSpeed] = useState(1);
   const [kokoroVoice, setKokoroVoice] = useState(KOKORO_DEFAULT_CONNECT_MIX);
   const [kokoroSpeed, setKokoroSpeed] = useState(1.1);
-  const [imageProvider, setImageProvider] = useState("gflow");
+  const [imageProvider, setImageProvider] = useState("vivi");
   const [videoProvider, setVideoProvider] = useState("gflow");
   const [gflowImageModel, setGflowImageModel] = useState("nano2");
   const [gflowVideoModel, setGflowVideoModel] = useState("veo-lite");
@@ -698,7 +698,7 @@ export function FlowPage() {
           </h1>
           <p className="mt-3 text-sm text-muted-foreground">
             Misma ventana que Nuevo Film. LLM: VIVI, RunPod o Atlas. Web: Tavily. Voz: Kokoro
-            (mix Conexión), Atlas, Grok o Gemini. Fotos: gflow Imagen. Video: gflow Veo t2v
+            (mix Conexión), Atlas, Grok o Gemini. Fotos: VIVI. Video: gflow Veo t2v
             en Chrome. Deja el chip Agent apagado en Flow.
           </p>
         </div>
@@ -709,7 +709,7 @@ export function FlowPage() {
             { id: "film-guion", n: 2, title: "Guion", hint: "LLM y scripts", icon: PenLine },
             { id: "film-voz", n: 3, title: "Voz", hint: "Kokoro mix", icon: Mic2 },
             { id: "film-elenco", n: 4, title: "Elenco", hint: "Refs y estilo", icon: Users },
-            { id: "film-visuales", n: 5, title: "Visuales", hint: "gflow Imagen + Veo t2v", icon: ImageIcon },
+            { id: "film-visuales", n: 5, title: "Visuales", hint: "VIVI + Veo t2v", icon: ImageIcon },
             { id: "film-musica", n: 6, title: "Música", hint: "Banda", icon: Music },
           ]}
         />
@@ -1160,7 +1160,7 @@ export function FlowPage() {
         />
         </PipelineStep>
 
-        <PipelineStep id="film-visuales" step={5} icon={ImageIcon} title="Visuales" subtitle="Fotos: gflow Imagen · Video: Veo t2v">
+        <PipelineStep id="film-visuales" step={5} icon={ImageIcon} title="Visuales" subtitle="Fotos: VIVI · Video: Veo t2v">
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Imagen">
