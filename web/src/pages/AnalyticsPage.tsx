@@ -18,6 +18,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { TopNichesPanel } from "@/components/analytic/TopNichesPanel";
+import { AnalyticsSubnav } from "@/components/analytic/AnalyticsSubnav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -383,6 +384,7 @@ export function AnalyticsPage() {
 
   return (
     <div className="py-8 px-4 sm:px-10 max-w-[1100px]">
+      <AnalyticsSubnav />
       <div className="mb-6 flex items-start gap-3">
         <BarChart3 className="mt-0.5 size-6 text-primary" />
         <div>

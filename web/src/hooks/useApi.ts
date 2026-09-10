@@ -285,6 +285,97 @@ export interface TopNiches {
   warning?: string;
 }
 
+export interface CronogramaNiche {
+  rank: number;
+  name: string;
+  query: string;
+  category: string;
+  youtubeCategory: string;
+  why: string;
+  demand: "alta" | "media" | "baja";
+  competition: "alta" | "media" | "baja";
+  cpmLongformUsd: number;
+  cpmShortsUsd: number;
+  exampleTopics: string[];
+  formats: string[];
+}
+
+export interface CronogramaChannel {
+  name: string;
+  handle: string;
+  tagline: string;
+  description: string;
+  keywords: string[];
+  country: string;
+  defaultLanguage: string;
+  youtubeCategory: string;
+  voiceTone: string;
+  targetAudience: string;
+  links: { label: string; url: string }[];
+  brandColors: { primary: string; accent: string };
+  avatarPrompt: string;
+  bannerPrompt: string;
+  contentPillars: { name: string; description: string; exampleTopics: string[] }[];
+  uploadDefaults: {
+    visibility: "public" | "unlisted" | "private";
+    madeForKids: boolean;
+    allowComments: boolean;
+    license: string;
+  };
+  firstMonthFocus: string;
+}
+
+export interface CronogramaItem {
+  slot: number;
+  time: string;
+  format: "short" | "long";
+  pillar: string;
+  idea: string;
+  hook: string;
+  title: string;
+  description: string;
+  tags: string[];
+  hashtags: string[];
+  category: string;
+  thumbnailText: string;
+  thumbnailPrompt: string;
+  predictedViews: { conservative: number; base: number; optimistic: number };
+  slotScore: number;
+}
+
+export interface CronogramaForecastBand {
+  views: number;
+  subscribers: number;
+  revenueUsd: number;
+}
+
+export interface CronogramaPlan {
+  niche: CronogramaNiche;
+  channel: CronogramaChannel;
+  timezone: string;
+  videosPerDay: number;
+  startDate: string;
+  days: { date: string; weekday: string; items: CronogramaItem[] }[];
+  forecast: {
+    videosInMonth: number;
+    cpmShortsUsd: number;
+    assumptions: string[];
+    month1: { conservative: CronogramaForecastBand; base: CronogramaForecastBand; optimistic: CronogramaForecastBand };
+    day90: { conservative: CronogramaForecastBand; base: CronogramaForecastBand; optimistic: CronogramaForecastBand };
+    yppHint: string;
+  };
+  hours: { weekday: string; slots: { hour: number; minute: number; label: string; score: number; why: string }[] }[];
+  usedLlm: boolean;
+}
+
+export interface CronogramaStatus {
+  llms: { key: string; label: string; ready: boolean }[];
+  images: { key: string; label: string; ready: boolean }[];
+  defaultLlm: string;
+  timezones: { id: string; label: string }[];
+  categories: string[];
+}
+
 export interface ClonedChannel extends ChannelStrategy {
   sourceChannel: string;
   polishNotes: string;
@@ -792,6 +883,49 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     });
+  },
+
+  cronogramaStatus() {
+    return fetchJson<CronogramaStatus>("/cronograma/status");
+  },
+
+  cronogramaNiches() {
+    return fetchJson<{ niches: CronogramaNiche[]; categories: string[] }>("/cronograma/niches");
+  },
+
+  cronogramaChannel(data: { nicheQuery: string; llm?: string; angle?: string }) {
+    return fetchJson<{ niche: CronogramaNiche; channel: CronogramaChannel; usedLlm: boolean }>(
+      "/cronograma/channel",
+      { method: "POST", body: JSON.stringify(data) },
+    );
+  },
+
+  cronogramaPlan(data: {
+    nicheQuery: string;
+    llm?: string;
+    angle?: string;
+    startDate?: string;
+    days?: number;
+    videosPerDay?: number;
+    timezone?: string;
+    channel?: CronogramaChannel;
+  }) {
+    return fetchJson<{ plan: CronogramaPlan }>("/cronograma/plan", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  cronogramaImage(data: {
+    prompt: string;
+    provider?: string;
+    kind?: "thumbnail" | "avatar" | "banner";
+    model?: string;
+  }) {
+    return fetchJson<{ imageBase64: string; durationMs: number; aspect: string; kind: string; provider: string }>(
+      "/cronograma/image",
+      { method: "POST", body: JSON.stringify(data) },
+    );
   },
 
   me() {

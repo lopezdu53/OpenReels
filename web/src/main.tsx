@@ -6,6 +6,7 @@ import { Layout } from "@/components/Layout";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AdminPage } from "@/pages/AdminPage";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
+import { CronogramaPage } from "@/pages/CronogramaPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { FilmPage } from "@/pages/FilmPage";
 import { FlowPage } from "@/pages/FlowPage";
@@ -35,6 +36,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/stickman/:id" element={<StickmanJobPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/analytic" element={<AnalyticsPage />} />
+            <Route path="/analytic/cronograma" element={<CronogramaPage />} />
             <Route path="/learning" element={<LearningPage />} />
             <Route path="/jobs/:id" element={<JobPage />} />
             <Route path="/gallery" element={<GalleryPage />} />
