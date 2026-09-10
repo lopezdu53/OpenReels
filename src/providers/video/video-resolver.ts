@@ -37,8 +37,8 @@ const DEFAULT_VIDEO_NEGATIVES =
 const HERO_IDENTITY_NEGATIVES =
   "different person, new face, face swap, wardrobe change, new clothes, new glasses, new hairstyle, new room, new location, identity morph, clothing morph";
 
-/** Hero I2V drifts hard after ~5s; hold the last frame in assembly instead of a longer morph. */
-export const HERO_I2V_MAX_SECONDS = 5;
+/** Flow Veo I2V is an 8s clip. Use the full generation; Remotion holds the last frame if VO is shorter. */
+export const HERO_I2V_MAX_SECONDS = 8;
 
 export function actionFromVisualPrompt(visualPrompt: string): string {
   const scene = visualPrompt.split(/\bSCENE:\s*/i)[1]?.trim();

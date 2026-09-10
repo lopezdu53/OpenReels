@@ -6,7 +6,9 @@ export const FILM_TEST_MINUTES = 0.5;
 export const FILM_ONE_MINUTE = 1;
 export const FILM_TEST_SECONDS = 30;
 export const FILM_WORDS_PER_MINUTE = 150;
-export const FILM_WORDS_PER_SCENE = 12;
+/** Flow Veo I2V is 8s; 150 wpm × 8/60 ≈ 20 words so the clip plays, not a 5s Ken Burns. */
+export const FILM_CLIP_SECONDS = 8;
+export const FILM_WORDS_PER_SCENE = 20;
 export const FILM_MAX_SCENES = 60;
 
 export function isFilmTest15Minutes(minutes?: number): boolean {
@@ -43,9 +45,9 @@ export function filmWordsTarget(minutes: number): number {
 
 export function filmSceneTarget(minutes: number): number {
   if (isFilmTest15Minutes(minutes)) return 3;
+  if (isFilmTestMinutes(minutes)) return 6;
   if (isFilmOneMinute(minutes)) return 10;
-  const words = filmWordsTarget(minutes);
-  return Math.min(FILM_MAX_SCENES, Math.max(4, Math.round(words / FILM_WORDS_PER_SCENE)));
+  return Math.min(FILM_MAX_SCENES, Math.max(4, Math.round((minutes * 60) / FILM_CLIP_SECONDS)));
 }
 
 export function filmDurationLabel(minutes: number): string {

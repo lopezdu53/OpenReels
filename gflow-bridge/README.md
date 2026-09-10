@@ -39,7 +39,7 @@ Desde la oficina elige **Fuera de casa**. Chrome + Flow van **en ese PC**. Cloud
 
 ## I2V (Nuevo Flow)
 
-VIVI stills + Veo I2V en serie. El puente pulsa **Add to prompt**, nombra stills `or-i2v-*.png`, y no recupera clips del Lab. En Veo no pases `--duration`.
+VIVI stills + Veo I2V en serie. El puente pulsa **Add to prompt**, nombra stills `or-i2v-*.png`, y **espera el mp4 de 8s** (hasta ~4 min) antes de la siguiente still. No recupera clips del Lab. En Veo no pases `--duration` (Flow genera 8s).
 
 Si no estás en casa y el puente está apagado, el job cae a fotos (Ken Burns) en vez de colgar 15 veces el I2V.
 

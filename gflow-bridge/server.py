@@ -37,7 +37,7 @@ PROFILE = os.environ.get("GFLOW_CLI_PROFILE") or ""
 PROJECT = os.environ.get("GFLOW_CLI_PROJECT") or ""
 PROJECT_NAME = os.environ.get("GFLOW_CLI_PROJECT_NAME") or ("OpenReels" if PROJECT else "")
 IMAGE_TIMEOUT = int(os.environ.get("GFLOW_BRIDGE_IMAGE_TIMEOUT", "240"))
-VIDEO_TIMEOUT = int(os.environ.get("GFLOW_BRIDGE_VIDEO_TIMEOUT", "480"))
+VIDEO_TIMEOUT = int(os.environ.get("GFLOW_BRIDGE_VIDEO_TIMEOUT", "900"))
 QUEUE_WAIT = int(os.environ.get("GFLOW_BRIDGE_QUEUE_WAIT", "1200"))
 MAX_BODY = int(os.environ.get("GFLOW_BRIDGE_MAX_BODY", str(48 * 1024 * 1024)))
 SETTLE_SECONDS = int(os.environ.get("GFLOW_BRIDGE_SETTLE_SECONDS", "8"))
@@ -45,7 +45,7 @@ I2V_FALLBACK_T2V = os.environ.get("GFLOW_I2V_FALLBACK_T2V", "") == "1"
 # gflow 0.71 picks the library tile then waits for the picker to close. Migrated
 # Flow keeps it open until "Add to prompt" — the CLI never clicks that button.
 CLICK_ADD_TO_PROMPT = os.environ.get("GFLOW_BRIDGE_CLICK_ADD_TO_PROMPT", "1") != "0"
-RECOVER_SECONDS = int(os.environ.get("GFLOW_BRIDGE_RECOVER_SECONDS", "90"))
+RECOVER_SECONDS = int(os.environ.get("GFLOW_BRIDGE_RECOVER_SECONDS", "240"))
 STILL_PREFIX = "or-i2v-"
 ADD_TO_PROMPT_NEEDLES = (
     "add to prompt",
@@ -140,6 +140,8 @@ def _is_submit_miss(msg: str) -> bool:
             "transporttimeouterror",
             "reply within",
             "not terminal within",
+            "gflow timeout",
+            "no escribió el mp4",
         )
     )
 
@@ -315,7 +317,7 @@ def _gflow_fail_message(payload: dict[str, Any] | None, stdout: str, stderr: str
     return (stderr or stdout or f"gflow exit {code}")[:400]
 
 
-def _run_gflow(args: list[str], timeout: int) -> dict[str, Any]:
+def _run_gflow(args: list[str], timeout: int, output_dir: str | None = None) -> dict[str, Any]:
     cmd = [GFLOW_BIN, *args, "--json"]
     if PROFILE and "--profile" not in args:
         cmd.extend(["--profile", PROFILE])
@@ -328,6 +330,9 @@ def _run_gflow(args: list[str], timeout: int) -> dict[str, Any]:
     env["NO_COLOR"] = "1"
     env["FORCE_COLOR"] = "0"
     env.setdefault("GFLOW_CLI_FLOW_HOST", "auto")
+    env["GFLOW_CLI_TIMEOUT_SECONDS"] = str(max(timeout, 600))
+    if output_dir:
+        env["GFLOW_CLI_OUTPUT_DIR"] = output_dir
     bin_path = Path(GFLOW_BIN)
     if bin_path.is_file():
         env["PATH"] = str(bin_path.parent) + os.pathsep + env.get("PATH", "")
@@ -343,6 +348,11 @@ def _run_gflow(args: list[str], timeout: int) -> dict[str, Any]:
         )
     except FileNotFoundError as err:
         raise RuntimeError(missing_gflow_message()) from err
+    except subprocess.TimeoutExpired as err:
+        raise RuntimeError(
+            f"TransportTimeoutError — gflow timeout {timeout}s (not terminal within). "
+            "Flow puede seguir renderizando el clip de 8s."
+        ) from err
     payload: dict[str, Any] | None = None
     try:
         payload = _parse_gflow_json(proc.stdout or "")
@@ -419,13 +429,23 @@ def _catalog_paths_from_list(stdout: str) -> list[Path]:
     return paths
 
 
+def _wait_for_clip(dest: Path, since: float, seconds: int) -> Path | None:
+    """Poll this I2V work dir until Flow writes the mp4. Do not scan Lab leftovers."""
+    deadline = time.time() + max(0, seconds)
+    while True:
+        found = _newest_mp4_since(since, dest)
+        if found is not None:
+            print(f"[gflow-bridge] I2V mp4 listo {found} ({found.stat().st_size} bytes)", flush=True)
+            return found
+        if time.time() >= deadline:
+            return None
+        time.sleep(4)
+
+
 def _recover_generated_mp4(dest: Path, since: float) -> Path | None:
-    print(f"[gflow-bridge] submit ACK missed; wait {RECOVER_SECONDS}s for Flow to finish the clip", flush=True)
-    if RECOVER_SECONDS > 0:
-        time.sleep(RECOVER_SECONDS)
-    found = _newest_mp4_since(since, dest)
+    print(f"[gflow-bridge] esperando hasta {RECOVER_SECONDS}s a que Flow termine el clip de 8s (no se sube la siguiente still)", flush=True)
+    found = _wait_for_clip(dest, since, RECOVER_SECONDS)
     if found is not None:
-        print(f"[gflow-bridge] recovered mp4 {found} ({found.stat().st_size} bytes)", flush=True)
         return found
     print("[gflow-bridge] no mp4 in this I2V work dir (not scanning Lab/Videos/catalog)", flush=True)
     return None
@@ -509,7 +529,7 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
             _dismiss_stale_frame_picker()
         with PickerConfirmWatch(still_path.name, enabled=mode == "i2v"):
             try:
-                payload = _run_gflow(args, VIDEO_TIMEOUT)
+                payload = _run_gflow(args, VIDEO_TIMEOUT, output_dir=str(work))
             except Exception as err:
                 msg = str(err)
                 recovered = _recover_generated_mp4(dest, started) if mode == "i2v" and _is_submit_miss(msg) else None
@@ -523,7 +543,7 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                     if SETTLE_SECONDS > 0:
                         time.sleep(SETTLE_SECONDS)
                     try:
-                        payload = _run_gflow(args, VIDEO_TIMEOUT)
+                        payload = _run_gflow(args, VIDEO_TIMEOUT, output_dir=str(work))
                     except Exception as err2:
                         miss2 = str(err2)
                         recovered2 = _recover_generated_mp4(dest, started) if _is_submit_miss(miss2) else None
@@ -544,12 +564,18 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                                     still_path=None,
                                 ),
                                 VIDEO_TIMEOUT,
+                                output_dir=str(work),
                             )
-        local = dest if dest.exists() and dest.stat().st_size > 1000 else None
+        local = dest if dest.exists() and dest.stat().st_size > 20_000 else None
         if local is None and isinstance(payload.get("local_path"), str):
             p = Path(str(payload["local_path"]))
-            if p.exists():
+            if p.exists() and p.stat().st_size > 20_000:
                 local = p
+        if local is None and mode == "i2v":
+            print("[gflow-bridge] I2V: gflow volvió sin mp4; espero el clip de 8s. No subo la siguiente still.", flush=True)
+            waited = _wait_for_clip(dest, started, RECOVER_SECONDS)
+            if waited is not None:
+                local = waited
         if local is None:
             raise RuntimeError("gflow video no escribió el mp4")
         data = local.read_bytes()

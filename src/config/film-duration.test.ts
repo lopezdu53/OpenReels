@@ -47,4 +47,9 @@ describe("film duration", () => {
     expect(filmWordsTarget(FILM_ONE_MINUTE)).toBe(180);
     expect(filmSceneTarget(FILM_ONE_MINUTE)).toBe(10);
   });
+
+  it("sizes a 5-minute Flow film for 8s Veo clips", () => {
+    expect(filmWordsTarget(5)).toBe(750);
+    expect(filmSceneTarget(5)).toBe(38);
+  });
 });

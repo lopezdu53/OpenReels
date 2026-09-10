@@ -141,6 +141,9 @@ class VideoModeTests(unittest.TestCase):
             "reply within 60s of clicking submit"
         )
         self.assertTrue(_is_submit_miss(miss))
+        self.assertTrue(
+            _is_submit_miss("TransportTimeoutError — gflow timeout 900s (not terminal within).")
+        )
         self.assertFalse(_should_fallback_t2v(miss))
         self.assertFalse(
             _is_submit_miss(
