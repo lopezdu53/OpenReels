@@ -9,6 +9,7 @@ import IORedis from "ioredis";
 import { z } from "zod";
 import { PACING_CONFIG } from "./agents/creative-director.js";
 import { registerAnalyticsRoutes } from "./analytics/routes.js";
+import { registerCronogramaRoutes } from "./cronograma/routes.js";
 import { type AuthedRequest, registerAuth, requireUser } from "./auth/plugin.js";
 import { getArchetype, listArchetypes } from "./config/archetype-registry.js";
 import { ATELIER_STYLES } from "./config/atelier-styles.js";
@@ -384,6 +385,7 @@ app.get("/api/v1/providers", async () => ({
 }));
 
 await registerAnalyticsRoutes(app);
+await registerCronogramaRoutes(app);
 await registerFilmRoutes(app);
 await registerFlowRoutes(app);
 await registerLibraryRoutes(app);

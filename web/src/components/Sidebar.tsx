@@ -22,10 +22,20 @@ import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "./BrandMark";
 
-const NAV_ITEMS: { path: string; label: string; icon: typeof LayoutDashboard; admin?: boolean }[] =
-  [
+const NAV_ITEMS: {
+  path: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  admin?: boolean;
+  children?: { path: string; label: string }[];
+}[] = [
     { path: "/dashboard", label: "Panel", icon: LayoutDashboard },
-    { path: "/analytic", label: "Analítica", icon: BarChart3 },
+    {
+      path: "/analytic",
+      label: "Analítica",
+      icon: BarChart3,
+      children: [{ path: "/analytic/cronograma", label: "Cronograma" }],
+    },
     { path: "/learning", label: "Aprendizaje", icon: BookOpen },
     { path: "/", label: "Nuevo Short", icon: PlusCircle },
     { path: "/film", label: "Nuevo Film", icon: Film },
@@ -78,32 +88,54 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
 
       <nav className={cn("mt-8 flex flex-col gap-1", collapsed ? "px-2" : "px-5")}>
         {NAV_ITEMS.filter((item) => !item.admin || user?.role === "admin").map((item) => {
-          const active = isActive(item.path);
+          const childActive = item.children?.some((c) => location.pathname.startsWith(c.path));
+          const active = item.path === "/analytic" ? location.pathname === "/analytic" : isActive(item.path);
           return (
-            <Link
-              key={item.path}
-              to={item.path}
-              title={collapsed ? item.label : undefined}
-              className={cn(
-                "flex items-center rounded-2xl text-sm font-medium transition-colors relative",
-                collapsed ? "justify-center px-0 py-2.5" : "gap-2.5 px-3.5 py-2.5",
-                active
-                  ? "bg-primary text-primary-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground",
-              )}
-            >
-              <item.icon className="size-5 shrink-0" />
-              {!collapsed && item.label}
-              {(item.path === "/" || item.path === "/film") && stats && stats.activeJobs > 0 && (
-                <span
-                  className={cn(
-                    "size-2 rounded-full animate-pulse",
-                    active ? "bg-primary-foreground" : "bg-primary",
-                    collapsed ? "absolute top-1.5 right-1.5" : "ml-auto",
-                  )}
-                />
-              )}
-            </Link>
+            <div key={item.path}>
+              <Link
+                to={item.path}
+                title={collapsed ? item.label : undefined}
+                className={cn(
+                  "flex items-center rounded-2xl text-sm font-medium transition-colors relative",
+                  collapsed ? "justify-center px-0 py-2.5" : "gap-2.5 px-3.5 py-2.5",
+                  active
+                    ? "bg-primary text-primary-foreground"
+                    : childActive
+                      ? "bg-sidebar-accent text-foreground"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground",
+                )}
+              >
+                <item.icon className="size-5 shrink-0" />
+                {!collapsed && item.label}
+                {(item.path === "/" || item.path === "/film") && stats && stats.activeJobs > 0 && (
+                  <span
+                    className={cn(
+                      "size-2 rounded-full animate-pulse",
+                      active ? "bg-primary-foreground" : "bg-primary",
+                      collapsed ? "absolute top-1.5 right-1.5" : "ml-auto",
+                    )}
+                  />
+                )}
+              </Link>
+              {!collapsed &&
+                item.children?.map((child) => {
+                  const on = location.pathname.startsWith(child.path);
+                  return (
+                    <Link
+                      key={child.path}
+                      to={child.path}
+                      className={cn(
+                        "mt-1 ml-8 flex items-center rounded-xl px-3 py-1.5 text-[13px] font-medium",
+                        on
+                          ? "bg-primary text-primary-foreground"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground",
+                      )}
+                    >
+                      {child.label}
+                    </Link>
+                  );
+                })}
+            </div>
           );
         })}
       </nav>
