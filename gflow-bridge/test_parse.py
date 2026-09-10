@@ -316,5 +316,46 @@ class InstallStatusTests(unittest.TestCase):
         self.assertTrue(uv_zip_name().startswith("uv-"))
 
 
+class BrandingAndDesktopTests(unittest.TestCase):
+    def test_icon_png_and_ico(self):
+        from branding import ico_from_pngs, render_ico, render_icon_png
+
+        png = render_icon_png(32)
+        self.assertTrue(png.startswith(b"\x89PNG\r\n\x1a\n"))
+        self.assertGreater(len(png), 200)
+        ico = render_ico()
+        self.assertEqual(ico[:4], b"\x00\x00\x01\x00")
+        packed = ico_from_pngs([(16, render_icon_png(16))])
+        self.assertEqual(packed[4:6], b"\x01\x00")
+
+    def test_keep_awake_noop_off_windows(self):
+        from power import KeepAwake, is_windows
+
+        keeper = KeepAwake()
+        msg = keeper.enable()
+        self.assertTrue(keeper.enabled)
+        self.assertTrue(msg)
+        keeper.heartbeat()
+        off = keeper.disable()
+        self.assertFalse(keeper.enabled)
+        self.assertTrue(off)
+        if not is_windows():
+            self.assertIn("no es Windows", msg)
+
+    def test_log_classifier_and_version(self):
+        from config import classify_log, default_config
+        from version import APP_NAME, APP_VERSION
+
+        self.assertEqual(classify_log("I2V: gflow volvió sin mp4; espero el clip de 8s"), "i2v")
+        self.assertEqual(classify_log("gflow fail: crash"), "err")
+        self.assertEqual(classify_log("LAN: escuchando listo"), "ok")
+        self.assertEqual(classify_log("Cloudflare 404 aviso"), "warn")
+        self.assertRegex(APP_VERSION, r"^\d+\.\d+\.\d+$")
+        self.assertIn("Puente", APP_NAME)
+        cfg = default_config()
+        self.assertIn("keepAwake", cfg)
+        self.assertTrue(cfg["keepAwake"])
+
+
 if __name__ == "__main__":
     unittest.main()

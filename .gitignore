@@ -9,6 +9,8 @@ vox-jobs/
 **/__pycache__/
 *.pyc
 .next/
+gflow-bridge/build/
+gflow-bridge/openreels.ico
 docs/out/
 docs/src/data/
 docs/.source/

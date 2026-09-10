@@ -3,12 +3,16 @@ from pathlib import Path
 
 root = Path(SPECPATH)
 
+from branding import write_ico
+
+ico = write_ico(root / "openreels.ico")
+
 a = Analysis(
     [str(root / "app.py")],
     pathex=[str(root)],
     binaries=[],
-    datas=[],
-    hiddenimports=["server", "relay_client", "profiles", "install"],
+    datas=[(str(ico), ".")],
+    hiddenimports=["server", "relay_client", "profiles", "install", "version", "power", "branding", "config"],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -29,5 +33,6 @@ exe = EXE(
     upx=True,
     console=False,
     disable_windowed_traceback=False,
-    icon=None,
+    icon=str(ico),
+    version=str(root / "file_version_info.txt"),
 )
