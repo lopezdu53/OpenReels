@@ -4,6 +4,7 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const hasBody = init?.body != null;
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
+    credentials: "include",
     headers: {
       ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...init?.headers,
@@ -30,6 +31,7 @@ export interface JobConfig {
   noVideo?: boolean;
   noSubtitles?: boolean;
   styleReference?: boolean;
+  characterReference?: boolean;
   atelierMode?: boolean;
   artStyleOverride?: string;
 }
@@ -93,6 +95,7 @@ export interface VoiceOption {
   id: string;
   label: string;
   gender?: string;
+  language?: string;
 }
 
 export interface ProviderOptions {
@@ -105,7 +108,62 @@ export interface ProviderOptions {
   geminiTtsVoices?: VoiceOption[];
   grokTtsVoices?: VoiceOption[];
   grokTtsModels?: { id: string; label: string }[];
+  kokoroVoices?: VoiceOption[];
+  runpodImageModels?: {
+    id: string;
+    label: string;
+    kind: string;
+    costHint: string;
+    defaultSteps?: number;
+    maxSteps?: number;
+    defaultGuidance?: number;
+  }[];
+  runpodVideoModels?: {
+    id: string;
+    label: string;
+    kind: string;
+    costHint: string;
+    durations: number[];
+    resolutions: string[];
+  }[];
   atelierStyles?: { id: string; label: string; artStyle: string }[];
+  atlasTtsVoices?: VoiceOption[];
+  atlasTtsModels?: {
+    id: string;
+    label: string;
+    usdPer1kChars: number;
+    priceLabel?: string;
+    voices?: VoiceOption[];
+  }[];
+  atlasLlmModels?: { id: string; label: string; inputPer1M: number; outputPer1M: number; priceLabel?: string }[];
+  atlasImageModels?: { id: string; label: string; usd: number; refs?: boolean; priceLabel?: string }[];
+  atlasVideoModels?: {
+    id: string;
+    label: string;
+    usd: number;
+    durations: number[];
+    talkingHead?: boolean;
+    lastFrame?: boolean;
+    priceLabel?: string;
+  }[];
+  atlasLipSyncModels?: {
+    id: string;
+    label: string;
+    usd: number;
+    kind?: "video_audio" | "image_audio";
+    priceLabel?: string;
+  }[];
+  sharpiiImageModels?: { id: string; label: string; credits: number; usd: number }[];
+  sharpiiVideoModels?: {
+    id: string;
+    label: string;
+    credits: number;
+    usd: number;
+    durations: number[];
+    perSecond?: boolean;
+  }[];
+  gflowImageModels?: { id: string; label: string; note?: string }[];
+  gflowVideoModels?: { id: string; label: string; note?: string; durations?: number[] }[];
 }
 
 export interface StatsResponse {
@@ -114,6 +172,242 @@ export interface StatsResponse {
   failedJobs: number;
   activeJobs: number;
   totalCost: number;
+}
+
+export interface AnalyticsChannel {
+  id: string;
+  title: string;
+  handle?: string;
+  description: string;
+  thumbnail?: string;
+  country?: string;
+  subscribers: number;
+  views: number;
+  videoCount: number;
+  estimatedRevenueUsd: number;
+  cpmUsd: number;
+  url: string;
+  publishedAt?: string;
+  ageDays?: number;
+  uploadsPerWeek?: number;
+  cadenceLabel?: string;
+}
+
+export interface AnalyticsVideo {
+  id: string;
+  title: string;
+  description: string;
+  channelId?: string;
+  channelTitle?: string;
+  publishedAt?: string;
+  thumbnail?: string;
+  views: number;
+  likes: number;
+  comments: number;
+  durationSeconds: number;
+  shorts: boolean;
+  estimatedRevenueUsd: number;
+  tags: string[];
+  url: string;
+}
+
+export interface AnalyticsWebHit {
+  title: string;
+  url: string;
+  content: string;
+}
+
+export interface NicheResearch {
+  query: string;
+  source: "youtube" | "tavily" | "mixed";
+  cpmLongformUsd: number;
+  cpmShortsUsd: number;
+  channels: AnalyticsChannel[];
+  videos: AnalyticsVideo[];
+  webHits: AnalyticsWebHit[];
+  ideas: string[];
+  warning?: string;
+}
+
+export interface PlatformPack {
+  title: string;
+  description: string;
+  hashtags: string[];
+}
+
+export interface ChannelStrategy {
+  channelName: string;
+  tagline: string;
+  positioning: string;
+  targetAudience: string;
+  voiceTone: string;
+  contentPillars: { name: string; description: string; exampleTopics: string[] }[];
+  differentiation: string[];
+  monetization: { youtube: string; tiktok: string; facebook: string; bilibili: string };
+  firstMonthFocus: string;
+  postingCadence: string;
+}
+
+export interface CalendarItem {
+  slot: number;
+  topic: string;
+  pillar: string;
+  format: "short" | "long";
+  youtube: PlatformPack;
+  tiktok: PlatformPack;
+  bilibili: PlatformPack;
+  facebook: PlatformPack;
+}
+
+export interface ContentCalendar {
+  channelName: string;
+  videosPerDay: number;
+  days: { date: string; weekday: string; items: CalendarItem[] }[];
+}
+
+export interface TopNiche {
+  rank: number;
+  name: string;
+  query: string;
+  why: string;
+  demand: "alta" | "media" | "baja";
+  competition: "alta" | "media" | "baja";
+  cpmLongformUsd: number;
+  cpmShortsUsd: number;
+  exampleTopics: string[];
+  formats: string[];
+}
+
+export interface TopNiches {
+  region: string;
+  source: "curated" | "vivi" | "mixed";
+  niches: TopNiche[];
+  warning?: string;
+}
+
+export interface CronogramaNiche {
+  rank: number;
+  name: string;
+  query: string;
+  category: string;
+  youtubeCategory: string;
+  why: string;
+  demand: "alta" | "media" | "baja";
+  competition: "alta" | "media" | "baja";
+  cpmLongformUsd: number;
+  cpmShortsUsd: number;
+  exampleTopics: string[];
+  formats: string[];
+}
+
+export interface CronogramaChannel {
+  name: string;
+  handle: string;
+  tagline: string;
+  description: string;
+  keywords: string[];
+  country: string;
+  defaultLanguage: string;
+  youtubeCategory: string;
+  voiceTone: string;
+  targetAudience: string;
+  links: { label: string; url: string }[];
+  brandColors: { primary: string; accent: string };
+  avatarPrompt: string;
+  bannerPrompt: string;
+  contentPillars: { name: string; description: string; exampleTopics: string[] }[];
+  uploadDefaults: {
+    visibility: "public" | "unlisted" | "private";
+    madeForKids: boolean;
+    allowComments: boolean;
+    license: string;
+  };
+  firstMonthFocus: string;
+}
+
+export interface CronogramaItem {
+  slot: number;
+  time: string;
+  format: "short" | "long";
+  pillar: string;
+  idea: string;
+  hook: string;
+  title: string;
+  description: string;
+  tags: string[];
+  hashtags: string[];
+  category: string;
+  thumbnailText: string;
+  thumbnailPrompt: string;
+  predictedViews: { conservative: number; base: number; optimistic: number };
+  slotScore: number;
+}
+
+export interface CronogramaForecastBand {
+  views: number;
+  subscribers: number;
+  revenueUsd: number;
+}
+
+export interface CronogramaPlan {
+  niche: CronogramaNiche;
+  channel: CronogramaChannel;
+  timezone: string;
+  videosPerDay: number;
+  startDate: string;
+  days: { date: string; weekday: string; items: CronogramaItem[] }[];
+  forecast: {
+    videosInMonth: number;
+    cpmShortsUsd: number;
+    assumptions: string[];
+    month1: { conservative: CronogramaForecastBand; base: CronogramaForecastBand; optimistic: CronogramaForecastBand };
+    day90: { conservative: CronogramaForecastBand; base: CronogramaForecastBand; optimistic: CronogramaForecastBand };
+    yppHint: string;
+  };
+  hours: { weekday: string; slots: { hour: number; minute: number; label: string; score: number; why: string }[] }[];
+  usedLlm: boolean;
+}
+
+export interface CronogramaStatus {
+  llms: { key: string; label: string; ready: boolean }[];
+  images: { key: string; label: string; ready: boolean }[];
+  defaultLlm: string;
+  timezones: { id: string; label: string }[];
+  categories: string[];
+}
+
+export interface ClonedChannel extends ChannelStrategy {
+  sourceChannel: string;
+  polishNotes: string;
+  firstVideos: { title: string; hook: string; format: "short" | "long" }[];
+}
+
+export interface ClonedContent {
+  sourceTitle: string;
+  sourceChannel: string;
+  polishNotes: string;
+  hook: string;
+  script: string;
+  visualNotes: string;
+  youtube: PlatformPack;
+  tiktok: PlatformPack;
+  bilibili: PlatformPack;
+  facebook: PlatformPack;
+}
+
+export function clonedChannelToStrategy(cloned: ClonedChannel): ChannelStrategy {
+  return {
+    channelName: cloned.channelName,
+    tagline: cloned.tagline,
+    positioning: cloned.positioning,
+    targetAudience: cloned.targetAudience,
+    voiceTone: cloned.voiceTone,
+    contentPillars: cloned.contentPillars,
+    differentiation: cloned.differentiation,
+    monetization: cloned.monetization,
+    firstMonthFocus: cloned.firstMonthFocus,
+    postingCadence: cloned.postingCadence,
+  };
 }
 
 export interface CostBreakdown {
@@ -147,12 +441,79 @@ export interface ActualCostBreakdown {
   };
 }
 
+export type CharacterKind = "human" | "animal" | "fictional";
+
+export interface LibraryCharacter {
+  id: string;
+  name: string;
+  kind?: CharacterKind;
+  species: string;
+  age: string;
+  sex: string;
+  appearance: string;
+  personality: string;
+  wardrobe: string;
+  mustKeep: string;
+  mustAvoid: string;
+  notes: string;
+  aliases?: string;
+  referenceImage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LibraryVisualStyle {
+  id: string;
+  name: string;
+  artStyle: string;
+  lighting: string;
+  palette: string;
+  notes: string;
+  referenceImage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LibraryLocation {
+  id: string;
+  name: string;
+  place: string;
+  timeOfDay: string;
+  weather: string;
+  mustKeep: string;
+  mustAvoid: string;
+  notes: string;
+  aliases?: string;
+  referenceImage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LibraryObject {
+  id: string;
+  name: string;
+  prompt: string;
+  notes: string;
+  aliases?: string;
+  referenceImage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BuiltinVisualStyle {
+  id: string;
+  label: string;
+  artStyle: string;
+}
+
 export interface DirectorScoreScene {
   visual_type: "ai_image" | "ai_video" | "stock_image" | "stock_video" | "text_card";
   visual_prompt: string;
   motion: "zoom_in" | "zoom_out" | "pan_right" | "pan_left" | "static";
   script_line: string;
   transition?: "none" | "crossfade" | "slide_left" | "slide_right" | "wipe" | "flip";
+  location?: string;
+  shot_type?: string;
 }
 
 export interface DirectorScore {
@@ -172,6 +533,7 @@ export interface CriticReview {
   score: number;
   strengths: string[];
   weaknesses: string[];
+  findings?: string[];
 }
 
 export interface CreateJobRequest {
@@ -181,14 +543,22 @@ export interface CreateJobRequest {
   platform?: string;
   dryRun?: boolean;
   noSubtitles?: boolean;
+  noMusic?: boolean;
+  noVideo?: boolean;
   direction?: string;
   targetDurationMinutes?: number;
   score?: Record<string, unknown>;
   allowedVisualTypes?: string[];
   videoSceneMode?: string;
   styleReferenceImage?: string; // base64
+  characterReferenceImage?: string; // base64 character model sheet
   atelierMode?: boolean;
   artStyleOverride?: string;
+  characterLock?: string;
+  castMode?: "scene" | "hero";
+  locationLock?: string;
+  objectLock?: string;
+  locationReferenceImage?: string;
   providers?: {
     llm?: string;
     tts?: string;
@@ -204,12 +574,29 @@ export interface CreateJobRequest {
     grokTtsVoice?: string;
     grokTtsSpeed?: number;
     grokTtsModel?: string;
+    kokoroVoice?: string;
+    kokoroSpeed?: number;
+    runpodImageModel?: string;
+    runpodVideoModel?: string;
+    runpodImageSteps?: number;
+    runpodImageGuidance?: number;
+    runpodVideoResolution?: string;
+    runpodImageEndpointId?: string;
+    runpodVideoEndpointId?: string;
+    atlasImageModel?: string;
+    atlasVideoModel?: string;
+    atlasTtsModel?: string;
+    atlasTtsVoice?: string;
+    atlasLipSyncModel?: string | null;
+    gflowImageModel?: string;
+    gflowVideoModel?: string;
+    gflowVideoMode?: string;
   };
 }
 
 export const api = {
   createJob(data: CreateJobRequest) {
-    return fetchJson<{ id: string }>("/jobs", {
+    return fetchJson<{ id: string; topic?: string; status?: string }>("/jobs", {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -223,6 +610,130 @@ export const api = {
 
   getJob(id: string) {
     return fetchJson<JobSummary>(`/jobs/${id}`);
+  },
+
+  generateFlowScript(data: {
+    idea: string;
+    durationMinutes?: number;
+    llm?: string;
+    llmModel?: string;
+    youtubeText?: string;
+    youtubeUrls?: string[];
+    characters?: Array<{ name: string; species?: string; kind?: string }>;
+    locations?: Array<{ name: string; place?: string }>;
+    objects?: Array<{ name: string; prompt?: string }>;
+    castMode?: "scene" | "hero";
+    previousStory?: string;
+  }) {
+    return fetchJson<{ script: { title: string; hook: string; script: string }; youtubeUrls: string[] }>(
+      "/flow/script",
+      { method: "POST", body: JSON.stringify(data) },
+    );
+  },
+
+  generateFilmScript(data: {
+    idea: string;
+    durationMinutes?: number;
+    llm?: string;
+    llmModel?: string;
+    youtubeText?: string;
+    youtubeUrls?: string[];
+    characters?: Array<{ name: string; species?: string; kind?: string }>;
+    locations?: Array<{ name: string; place?: string }>;
+    objects?: Array<{ name: string; prompt?: string }>;
+    castMode?: "scene" | "hero";
+    previousStory?: string;
+  }) {
+    return fetchJson<{ script: { title: string; hook: string; script: string }; youtubeUrls: string[] }>(
+      "/film/script",
+      { method: "POST", body: JSON.stringify(data) },
+    );
+  },
+
+  listCharacters() {
+    return fetchJson<{ characters: LibraryCharacter[] }>("/library/characters");
+  },
+  saveCharacter(body: Record<string, unknown>) {
+    return fetchJson<{ character: LibraryCharacter }>("/library/characters", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateCharacter(id: string, body: Record<string, unknown>) {
+    return fetchJson<{ character: LibraryCharacter }>(`/library/characters/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteCharacter(id: string) {
+    return fetchJson<{ ok: boolean }>(`/library/characters/${id}`, { method: "DELETE" });
+  },
+  listVisualStyles() {
+    return fetchJson<{ builtins: BuiltinVisualStyle[]; styles: LibraryVisualStyle[] }>("/library/styles");
+  },
+  saveVisualStyle(body: Record<string, unknown>) {
+    return fetchJson<{ style: LibraryVisualStyle }>("/library/styles", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateVisualStyle(id: string, body: Record<string, unknown>) {
+    return fetchJson<{ style: LibraryVisualStyle }>(`/library/styles/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteVisualStyle(id: string) {
+    return fetchJson<{ ok: boolean }>(`/library/styles/${id}`, { method: "DELETE" });
+  },
+  listLocations() {
+    return fetchJson<{ locations: LibraryLocation[] }>("/library/locations");
+  },
+  saveLocation(body: Record<string, unknown>) {
+    return fetchJson<{ location: LibraryLocation }>("/library/locations", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateLocation(id: string, body: Record<string, unknown>) {
+    return fetchJson<{ location: LibraryLocation }>(`/library/locations/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteLocation(id: string) {
+    return fetchJson<{ ok: boolean }>(`/library/locations/${id}`, { method: "DELETE" });
+  },
+  listObjects() {
+    return fetchJson<{ objects: LibraryObject[] }>("/library/objects");
+  },
+  saveObject(body: Record<string, unknown>) {
+    return fetchJson<{ object: LibraryObject }>("/library/objects", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  updateObject(id: string, body: Record<string, unknown>) {
+    return fetchJson<{ object: LibraryObject }>(`/library/objects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+  },
+  deleteObject(id: string) {
+    return fetchJson<{ ok: boolean }>(`/library/objects/${id}`, { method: "DELETE" });
+  },
+  generateLibrarySheet(data: {
+    type: "character" | "style" | "location" | "object";
+    provider?: string;
+    character?: Record<string, unknown>;
+    style?: Record<string, unknown>;
+    location?: Record<string, unknown>;
+    object?: Record<string, unknown>;
+  }) {
+    return fetchJson<{ imageBase64: string; prompt: string; provider: string; durationMs: number }>(
+      "/library/sheets",
+      { method: "POST", body: JSON.stringify(data) },
+    );
   },
 
   cancelJob(id: string) {
@@ -258,26 +769,498 @@ export const api = {
   },
 
   testLLM(data: { provider?: string; model?: string; prompt: string }) {
-    return fetchJson<{ text: string; durationMs: number; tokens: { inputTokens: number; outputTokens: number } }>(
-      "/test/llm", { method: "POST", body: JSON.stringify(data) }
-    );
+    return fetchJson<{
+      text: string;
+      durationMs: number;
+      tokens: { inputTokens: number; outputTokens: number };
+    }>("/test/llm", { method: "POST", body: JSON.stringify(data) });
   },
 
-  testTTS(data: { provider?: string; text: string; voice?: string; speed?: number; model?: string }) {
-    return fetchJson<{ audioBase64: string; durationMs: number; charCount: number }>(
-      "/test/tts", { method: "POST", body: JSON.stringify(data) }
-    );
+  testTTS(data: {
+    provider?: string;
+    text: string;
+    voice?: string;
+    speed?: number;
+    model?: string;
+  }) {
+    return fetchJson<{ audioBase64: string; durationMs: number; charCount: number }>("/test/tts", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 
-  testImage(data: { provider?: string; prompt: string; style?: string; aspectRatio?: string }) {
-    return fetchJson<{ imageBase64: string; durationMs: number }>(
-      "/test/image", { method: "POST", body: JSON.stringify(data) }
-    );
+  testImage(data: {
+    provider?: string;
+    prompt: string;
+    style?: string;
+    aspectRatio?: string;
+    model?: string;
+    steps?: number;
+    guidance?: number;
+  }) {
+    return fetchJson<{ imageBase64: string; durationMs: number }>("/test/image", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 
-  testVideo(data: { provider?: string; imageBase64: string; prompt: string; durationSeconds?: number; aspectRatio?: string }) {
+  testVideo(data: {
+    provider?: string;
+    imageBase64?: string;
+    prompt: string;
+    durationSeconds?: number;
+    aspectRatio?: string;
+    model?: string;
+    resolution?: string;
+    lipSyncModel?: string | null;
+    mode?: string;
+  }) {
     return fetchJson<{ videoBase64: string; durationMs: number; videoSeconds: number }>(
-      "/test/video", { method: "POST", body: JSON.stringify(data) }
+      "/test/video",
+      { method: "POST", body: JSON.stringify(data) },
     );
+  },
+
+  analyticsStatus() {
+    return fetchJson<{ youtube: boolean; tavily: boolean; vivi: boolean }>("/analytics/status");
+  },
+
+  analyticsResearch(query: string) {
+    return fetchJson<NicheResearch>("/analytics/research", {
+      method: "POST",
+      body: JSON.stringify({ query }),
+    });
+  },
+
+  analyticsChannelVideos(channelId: string, niche: string) {
+    return fetchJson<{ videos: AnalyticsVideo[] }>("/analytics/channel-videos", {
+      method: "POST",
+      body: JSON.stringify({ channelId, niche }),
+    });
+  },
+
+  analyticsStrategy(research: NicheResearch, angle?: string) {
+    return fetchJson<{ strategy: ChannelStrategy }>("/analytics/strategy", {
+      method: "POST",
+      body: JSON.stringify({ research, angle }),
+    });
+  },
+
+  analyticsCalendar(data: {
+    research: NicheResearch;
+    strategy: ChannelStrategy;
+    videosPerDay: number;
+    days?: number;
+    startDate?: string;
+  }) {
+    return fetchJson<{ calendar: ContentCalendar }>("/analytics/calendar", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  analyticsTopNiches(data?: { region?: string; seed?: string; refresh?: boolean }) {
+    return fetchJson<TopNiches>("/analytics/top-niches", {
+      method: "POST",
+      body: JSON.stringify(data ?? { refresh: false }),
+    });
+  },
+
+  analyticsCloneChannel(data: {
+    channel: AnalyticsChannel;
+    videos?: AnalyticsVideo[];
+    niche?: string;
+    polish?: string;
+  }) {
+    return fetchJson<{ cloned: ClonedChannel }>("/analytics/clone-channel", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  analyticsCloneContent(data: { video: AnalyticsVideo; niche?: string; polish?: string }) {
+    return fetchJson<{ cloned: ClonedContent }>("/analytics/clone-content", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  cronogramaStatus() {
+    return fetchJson<CronogramaStatus>("/cronograma/status");
+  },
+
+  cronogramaNiches() {
+    return fetchJson<{ niches: CronogramaNiche[]; categories: string[] }>("/cronograma/niches");
+  },
+
+  cronogramaChannel(data: { nicheQuery: string; llm?: string; angle?: string }) {
+    return fetchJson<{ niche: CronogramaNiche; channel: CronogramaChannel; usedLlm: boolean }>(
+      "/cronograma/channel",
+      { method: "POST", body: JSON.stringify(data) },
+    );
+  },
+
+  cronogramaPlan(data: {
+    nicheQuery: string;
+    llm?: string;
+    angle?: string;
+    startDate?: string;
+    days?: number;
+    videosPerDay?: number;
+    timezone?: string;
+    channel?: CronogramaChannel;
+  }) {
+    return fetchJson<{ plan: CronogramaPlan }>("/cronograma/plan", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  cronogramaImage(data: {
+    prompt: string;
+    provider?: string;
+    kind?: "thumbnail" | "avatar" | "banner";
+    model?: string;
+  }) {
+    return fetchJson<{ imageBase64: string; durationMs: number; aspect: string; kind: string; provider: string }>(
+      "/cronograma/image",
+      { method: "POST", body: JSON.stringify(data) },
+    );
+  },
+
+  me() {
+    return fetchJson<{ user: AuthUser }>("/auth/me");
+  },
+
+  register(data: { email: string; name: string; password: string }) {
+    return fetchJson<{ user: AuthUser }>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  login(data: { email: string; password: string }) {
+    return fetchJson<{ user: AuthUser }>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  logout() {
+    return fetchJson<{ ok: boolean }>("/auth/logout", { method: "POST" });
+  },
+
+  dashboard() {
+    return fetchJson<DashboardData>("/me/dashboard");
+  },
+
+  saveCloneChannel(cloned: ClonedChannel) {
+    return fetchJson<{ cloned: unknown }>("/me/clones/channel", {
+      method: "POST",
+      body: JSON.stringify(cloned),
+    });
+  },
+
+  saveCloneContent(cloned: ClonedContent) {
+    return fetchJson<{ cloned: unknown }>("/me/clones/content", {
+      method: "POST",
+      body: JSON.stringify(cloned),
+    });
+  },
+
+  setDailyGoal(dailyGoal: number) {
+    return fetchJson<{ user: AuthUser }>("/me/goal", {
+      method: "POST",
+      body: JSON.stringify({ dailyGoal }),
+    });
+  },
+
+  checkin() {
+    return fetchJson<{ date: string; count: number; dailyGoal: number }>("/me/checkin", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  },
+
+  learningYpp() {
+    return fetchJson<YppInfo>("/learning/ypp");
+  },
+
+  adminUsers() {
+    return fetchJson<{ users: AdminUserRow[] }>("/admin/users");
+  },
+
+  adminUpdateUser(
+    id: string,
+    patch: { name?: string; email?: string; dailyGoal?: number; role?: AuthUser["role"] },
+  ) {
+    return fetchJson<{ user: AdminUserRow }>(`/admin/users/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  },
+
+  adminSetPassword(id: string, password: string) {
+    return fetchJson<{ user: AdminUserRow }>(`/admin/users/${id}/password`, {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
+  },
+
+  social() {
+    return fetchJson<{ platforms: SocialPublic[] }>("/me/social");
+  },
+
+  socialConnect(platform: SocialPlatformId) {
+    return fetchJson<{ url: string }>(`/me/social/${platform}/connect`);
+  },
+
+  socialBilibili(data: { sessdata: string; biliJct: string; handle?: string }) {
+    return fetchJson<{ platforms: SocialPublic[] }>("/me/social/bilibili", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  socialPatch(platform: SocialPlatformId, autoPublish: boolean) {
+    return fetchJson<{ platforms: SocialPublic[] }>(`/me/social/${platform}`, {
+      method: "PATCH",
+      body: JSON.stringify({ autoPublish }),
+    });
+  },
+
+  socialDisconnect(platform: SocialPlatformId) {
+    return fetchJson<{ platforms: SocialPublic[] }>(`/me/social/${platform}`, { method: "DELETE" });
+  },
+
+  voxCatalog() {
+    return fetchJson<{
+      themes: { id: string; label: string; mood: string }[];
+      arcs: { id: string; label: string; when: string }[];
+      voices: { id: string; label: string; gender: string; lang: string; note: string }[];
+      aspects: string[];
+      durations: number[];
+      defaultThemes: string[];
+    }>("/vox/catalog");
+  },
+
+  listVoxJobs() {
+    return fetchJson<{ jobs: VoxJobMeta[] }>("/vox/jobs");
+  },
+
+  createVoxJob(data: Record<string, unknown>) {
+    return fetchJson<{ id: string; status: string }>("/vox/jobs", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  getVoxJob(id: string) {
+    return fetchJson<VoxJobDetail>(`/vox/jobs/${id}`);
+  },
+
+  saveVoxBeats(id: string, beats: unknown) {
+    return fetchJson<{ ok: boolean }>(`/vox/jobs/${id}/beats`, {
+      method: "PATCH",
+      body: JSON.stringify({ beats }),
+    });
+  },
+
+  approveVoxBeats(id: string) {
+    return fetchJson<{ ok: boolean; status: string }>(`/vox/jobs/${id}/approve-beats`, { method: "POST" });
+  },
+
+  retryVoxBakeoff(id: string) {
+    return fetchJson<{ ok: boolean; status: string }>(`/vox/jobs/${id}/retry-bakeoff`, { method: "POST" });
+  },
+
+  pickVoxStyle(id: string, theme: string) {
+    return fetchJson<{ ok: boolean; status: string; theme: string }>(`/vox/jobs/${id}/pick-style`, {
+      method: "POST",
+      body: JSON.stringify({ theme }),
+    });
+  },
+
+  cancelVoxJob(id: string) {
+    return fetchJson<{ ok: boolean }>(`/vox/jobs/${id}/cancel`, { method: "POST" });
+  },
+
+  stickmanCatalog() {
+    return fetchJson<{
+      looks: { id: string; label: string; mood: string }[];
+      arcs: { id: string; label: string; when: string }[];
+      casts: { id: string; label: string }[];
+      voices: { id: string; label: string; gender: string; note: string }[];
+      aspects: string[];
+      durations: number[];
+    }>("/stickman/catalog");
+  },
+
+  listStickmanJobs() {
+    return fetchJson<{ jobs: StickmanJobMeta[] }>("/stickman/jobs");
+  },
+
+  createStickmanJob(data: Record<string, unknown>) {
+    return fetchJson<{ id: string; status: string }>("/stickman/jobs", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  getStickmanJob(id: string) {
+    return fetchJson<StickmanJobDetail>(`/stickman/jobs/${id}`);
+  },
+
+  saveStickmanScript(id: string, script: unknown) {
+    return fetchJson<{ ok: boolean }>(`/stickman/jobs/${id}/script`, {
+      method: "PATCH",
+      body: JSON.stringify({ script }),
+    });
+  },
+
+  produceStickmanJob(id: string) {
+    return fetchJson<{ ok: boolean; status: string }>(`/stickman/jobs/${id}/produce`, { method: "POST" });
+  },
+
+  cancelStickmanJob(id: string) {
+    return fetchJson<{ ok: boolean }>(`/stickman/jobs/${id}/cancel`, { method: "POST" });
+  },
+
+  publishJob(id: string, platforms?: SocialPlatformId[]) {
+    return fetchJson<{
+      results: { platform: SocialPlatformId; ok: boolean; url?: string; error?: string }[];
+    }>(`/me/jobs/${id}/publish`, { method: "POST", body: JSON.stringify({ platforms }) });
   },
 };
+
+export interface VoxJobMeta {
+  id: string;
+  kind: "vox";
+  topic: string;
+  status: string;
+  stage: string;
+  detail: string;
+  error?: string;
+  createdAt: string;
+  selectedTheme?: string;
+  bakeoffThemes?: string[];
+  hasFinal?: boolean;
+}
+
+export interface VoxJobDetail extends VoxJobMeta {
+  beats?: unknown;
+  bakeoff?: string[];
+  config?: Record<string, unknown>;
+  queue?: {
+    waiting: number;
+    active: number;
+    failed: number;
+    delayed: number;
+    workerLive: boolean;
+  };
+}
+
+export interface StickmanJobMeta {
+  id: string;
+  kind: "stickman";
+  topic: string;
+  status: string;
+  stage: string;
+  detail: string;
+  error?: string;
+  createdAt: string;
+  hasFinal?: boolean;
+}
+
+export interface StickmanJobDetail extends StickmanJobMeta {
+  script?: unknown;
+  stills?: string[];
+  config?: Record<string, unknown>;
+  queue?: {
+    waiting: number;
+    active: number;
+    failed: number;
+    delayed: number;
+    workerLive: boolean;
+  };
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  createdAt: string;
+  dailyGoal: number;
+  role: "admin" | "user";
+}
+
+export interface AdminUserRow {
+  id: string;
+  email: string;
+  name: string;
+  createdAt: string;
+  dailyGoal: number;
+  role: "admin" | "user";
+  clones: number;
+  scripts: number;
+  envSuperadmin: boolean;
+}
+
+export interface DashboardDay {
+  date: string;
+  generated: number;
+  posted: number;
+  hit: boolean;
+}
+
+export interface DashboardData {
+  user: AuthUser;
+  dailyGoal: number;
+  today: { date: string; generated: number; posted: number; progress: number; goal: number };
+  week: DashboardDay[];
+  streak: number;
+  clonedChannels: ClonedChannel[];
+  clonedVideos: ClonedContent[];
+  recentJobs: JobSummary[];
+  social?: SocialPublic[];
+  totals: { videos: number; clones: number; scripts: number };
+  countdown: {
+    targetIso: string;
+    expired: boolean;
+    days: number;
+    hours: number;
+    minutes: number;
+    seconds: number;
+  };
+  warning?: string;
+}
+
+export type SocialPlatformId = "youtube" | "tiktok" | "facebook" | "x" | "bilibili";
+
+export interface SocialPublic {
+  platform: SocialPlatformId;
+  connected: boolean;
+  autoPublish: boolean;
+  handle?: string;
+  lastError?: string;
+  lastPublishedAt?: string;
+  lastUrl?: string;
+  publishedToday: boolean;
+  oauthReady: boolean;
+}
+
+export interface YppInfo {
+  subscribers: number;
+  fanFundingSubscribers: number;
+  watchHoursNow: number;
+  watchHours2027: number;
+  shortsViewsNow: number;
+  shortsViews2027: number;
+  shortsPoolViews90d: number;
+  longformShare: number;
+  shortsShare: number;
+  countdown: DashboardData["countdown"];
+  source: string;
+  announced: string;
+  changeDate: string;
+}

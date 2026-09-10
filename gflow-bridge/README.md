@@ -1,0 +1,48 @@
+# Puente gflow (Windows → Xeon o estudio)
+
+App de **un clic** en Windows. El worker de EasyPanel llama aquí: en casa por LAN, fuera de casa por un túnel inverso (el PC Windows **sale** a internet, no hay que abrir puertos).
+
+## Instalar (sin PowerShell)
+
+1. Instala [Google Chrome](https://www.google.com/chrome/). El exe instala **uv + gflow-cli + colorama + Chromium** (botón **Instalar todo**). La línea de estado muestra versiones y si hay actualización.
+2. En la app: mira la línea de versión. Elige el **perfil de Chrome** del Gmail Gemini → **Entrar a Flow** (deja abierta la ventana negra; entra en el Chrome de gflow; cierra Flow; una tecla). El recuadro **Perfil gflow** se rellena con tu Gmail. Agent OFF.
+3. Copia la carpeta `gflow-bridge` a este PC (o baja el `.exe` del Action *Windows bridge exe*).
+4. Doble clic en **`OpenReelsPuente.vbs`** (o `OpenReelsPuente.exe`). La ventana es horizontal: a la izquierda Conexión / Flow / Sistema; a la derecha el registro. **Ayuda → Acerca de** muestra la versión.
+5. En **Conexión**:
+   - **En casa** — IP del Xeon (`192.168.1.71`) y **Firewall Xeon**.
+   - **Fuera de casa** — URL del estudio (`https://contenido.alfonsolopezd.com`) y el mismo token.
+   - **Ambos** — LAN + remoto (recomendado si EasyPanel está en la nube y a veces estás en casa).
+6. Pega el **token** (el mismo `GFLOW_BRIDGE_TOKEN` que en EasyPanel).
+7. Pestaña **Flow**: project id de `gflow project list` y **Conectar**.
+8. Chrome: proyecto Flow abierto, chip **Agent en OFF**.
+
+**Sistema → Evitar suspensión y cierre de sesión** (activado por defecto) pide a Windows que no duerma, no apague la pantalla ni bloquee la sesión mientras el puente está abierto. Hace falta para los clips de 8s de Flow. **Inicio con Windows** deja el puente al encender el PC.
+
+Tras cada merge, vuelve a bajar `server.py` (y `app.py` si usas la carpeta, no el exe):
+
+```
+https://raw.githubusercontent.com/lopezdu53/OpenReels/cursor/grok-providers-fixes-6f6a/gflow-bridge/server.py
+```
+
+(o el branch que esté desplegado en EasyPanel).
+
+## EasyPanel (`video` + `video-worker`)
+
+```
+GFLOW_BRIDGE_URL=http://192.168.1.9:8787
+GFLOW_BRIDGE_TOKEN=el-mismo-secreto-que-en-el-windows
+```
+
+Con el token, el worker usa LAN si responde; si el Windows no está en casa, espera al **modo Remoto** de la app. Para apagar el remoto: `GFLOW_BRIDGE_RELAY=0`.
+
+Desde la oficina elige **Fuera de casa**. Chrome + Flow van **en ese PC**. Cloudflare (Error 1010) bloqueaba el cliente Python; la app ya manda User-Agent de Chrome. Si ves 404, el estudio aún no tiene el relay: merge + Implementar `video` y `video-worker`.
+
+## I2V (Nuevo Flow)
+
+gflow Imagen (0.73+) + Veo I2V en serie. El puente pulsa **Add to prompt**, nombra stills `or-i2v-*.png`, y **espera el mp4 de 8s** (hasta ~4 min) antes de la siguiente still. No recupera clips del Lab. En Veo no pases `--duration` (Flow genera 8s).
+
+Si no estás en casa y el puente está apagado, el job cae a fotos (Ken Burns) en vez de colgar 15 veces el I2V.
+
+## Avanzado (CMD)
+
+`start.bat` sigue existiendo si prefieres consola. La GUI no la necesita.

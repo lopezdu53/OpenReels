@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils";
 import { ImageOff, Pause, Play, Move, ArrowRight, Type } from "lucide-react";
 
 const VISUAL_TYPE_BADGE: Record<string, { label: string; color: string }> = {
-  ai_image: { label: "AI", color: "bg-indigo-500/20 text-indigo-400" },
-  ai_video: { label: "AV", color: "bg-purple-500/20 text-purple-400" },
+  ai_image: { label: "AI", color: "bg-primary/20 text-primary" },
+  ai_video: { label: "AV", color: "bg-chart-2/20 text-chart-2" },
   stock_image: { label: "ST", color: "bg-cyan-500/20 text-cyan-400" },
   stock_video: { label: "SV", color: "bg-emerald-500/20 text-emerald-400" },
   text_card: { label: "TX", color: "bg-amber-500/20 text-amber-400" },
@@ -43,10 +43,10 @@ export function StoryboardPanel({
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
-          DIRECTOR'S SCORE
+          DIRECTOR SCORE
         </span>
         <span className="text-xs font-medium text-status-success">
-          {score.scenes.length} scenes planned
+          {score.scenes.length} escenas planificadas
         </span>
       </div>
 
@@ -263,7 +263,7 @@ function StoryboardScene({
         {/* Warning overlay for failed assets */}
         {hasFailed && (
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-status-warning/12 to-transparent px-2 py-1">
-            <span className="text-[9px] font-medium text-status-warning">Asset failed</span>
+            <span className="text-[9px] font-medium text-status-warning">Recurso fallido</span>
           </div>
         )}
       </div>

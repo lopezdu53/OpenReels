@@ -10,6 +10,7 @@ import type {
 } from "../../schema/providers.js";
 import type { PipelineCallbacks } from "../../pipeline/utils.js";
 import { optimizeImagePrompt } from "../../agents/image-prompter.js";
+import { isGflowBridgeUnreachable } from "../gflow/errors.js";
 
 export interface VideoResolution {
   method: "image_to_video" | "image_fallback";
@@ -24,9 +25,49 @@ export interface VideoResolution {
 
 // Module-level concurrency limiter for video gen API calls
 const videoGenLimit = pLimit(3);
+let skipGflowUntil = 0;
+
+export function resetGflowBridgeSkipForTests(): void {
+  skipGflowUntil = 0;
+}
 
 const DEFAULT_VIDEO_NEGATIVES =
   "blur, low resolution, flickering, compression artifacts, frame drops, jitter, stutter, warping, morphing, unnatural physics, deformed hands, extra fingers, morphing faces, sliding motion";
+
+const HERO_IDENTITY_NEGATIVES =
+  "different person, new face, face swap, wardrobe change, new clothes, new glasses, new hairstyle, new room, new location, identity morph, clothing morph";
+
+/** Flow Veo I2V is an 8s clip. Use the full generation; Remotion holds the last frame if VO is shorter. */
+export const HERO_I2V_MAX_SECONDS = 8;
+
+export function actionFromVisualPrompt(visualPrompt: string): string {
+  const scene = visualPrompt.split(/\bSCENE:\s*/i)[1]?.trim();
+  const raw = (scene || visualPrompt)
+    .replace(/IDENTITY LOCK:[\s\S]*?(?=\bSCENE:|$)/gi, " ")
+    .replace(/FOLLOW-CAM[\s\S]*?(?=\bSCENE:|$)/gi, " ")
+    .replace(/16\s*:\s*9[^.]*\./gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return raw.slice(0, 280);
+}
+
+export function buildHeroMotionPrompt(opts: {
+  scriptLine: string;
+  visualPrompt?: string;
+  cameraMove?: string;
+  continuation: boolean;
+}): string {
+  const hold = opts.continuation
+    ? "SOURCE IMAGE LOCK: this still IS the last frame of the previous clip. Keep the same face, glasses, hair, body, clothes, jewelry, and room. Do not redesign anything. Continue the motion immediately — do not freeze or hold the first frames."
+    : "SOURCE IMAGE LOCK: animate this exact still. Keep the same face, glasses, hair, body, clothes, jewelry, and room. Do not invent a new wardrobe or location.";
+  const cam =
+    opts.cameraMove && opts.cameraMove !== "static"
+      ? ` Camera: ${opts.cameraMove} following the body.`
+      : "";
+  const action = opts.visualPrompt ? actionFromVisualPrompt(opts.visualPrompt) : "";
+  const actionBit = action ? ` ACTION: ${action}.` : "";
+  return `${hold}${actionBit} VO beat: ${opts.scriptLine.trim()}.${cam} Spectacle this clip: a named object or the world morphs around the body. One take. End on a stable pose the next clip can inherit.`;
+}
 
 /**
  * Pick the smallest supported duration that is >= the target.
@@ -40,9 +81,17 @@ function pickDuration(supportedDurations: number[], targetSeconds: number): numb
   return sorted[sorted.length - 1] ?? 5;
 }
 
+/** Largest supported clip that still fits the identity cap. Prefer short over morph. */
+export function pickHeroDuration(supportedDurations: number[], maxSeconds: number): number {
+  const atOrBelow = supportedDurations.filter((d) => d <= maxSeconds).sort((a, b) => b - a);
+  if (atOrBelow[0] != null) return atOrBelow[0];
+  const sorted = [...supportedDurations].sort((a, b) => a - b);
+  return sorted[0] ?? maxSeconds;
+}
+
 export async function resolveAIVideo(
   scene: DirectorScore["scenes"][number],
-  imageResult: { path: string; buffer: Buffer; usage: LLMUsage | null },
+  imageResult: { path: string; buffer: Buffer; usage: LLMUsage | null; remoteUrl?: string },
   sceneIndex: number,
   assetsDir: string,
   opts: {
@@ -53,6 +102,13 @@ export async function resolveAIVideo(
     sceneDurationSeconds?: number;
     totalScenes?: number;
     aspectRatio?: string;
+    characterLock?: string;
+    locationLock?: string;
+    objectLock?: string;
+    shotContext?: string;
+    heroFollowCam?: boolean;
+    continuation?: boolean;
+    sceneAudio?: Buffer;
   },
 ): Promise<{
   path: string;
@@ -63,39 +119,87 @@ export async function resolveAIVideo(
 }> {
   const imageGenTimeMs = 0; // Already tracked by caller
 
-  // Generate motion-aware prompt via LLM
+  // Hero follow-cam: do not let the LLM rewrite a new wardrobe/face. Job 18
+  // chained last frames correctly, then I2V invented a different man each clip.
   let motionPrompt = scene.visual_prompt;
   let prompterUsage: LLMUsage | null = null;
-  try {
-    const optimized = await optimizeImagePrompt(
-      opts.llm,
-      scene.visual_prompt,
-      scene.script_line,
-      sceneIndex,
-      opts.totalScenes ?? 1,
-      opts.archetype,
-      { mode: "video" },
-    );
-    motionPrompt = optimized.prompt;
-    prompterUsage = optimized.usage;
-  } catch (err) {
-    console.warn(`[video] Scene ${sceneIndex} motion prompt gen failed, using visual_prompt: ${err}`);
+  if (opts.heroFollowCam) {
+    motionPrompt = buildHeroMotionPrompt({
+      scriptLine: scene.script_line,
+      visualPrompt: scene.visual_prompt,
+      cameraMove: scene.camera_move,
+      continuation: Boolean(opts.continuation),
+    });
+  } else {
+    try {
+      const optimized = await optimizeImagePrompt(
+        opts.llm,
+        scene.visual_prompt,
+        scene.script_line,
+        sceneIndex,
+        opts.totalScenes ?? 1,
+        opts.archetype,
+        {
+          mode: "video",
+          characterLock: opts.characterLock,
+          locationLock: opts.locationLock,
+          objectLock: opts.objectLock,
+          aspectRatio: opts.aspectRatio,
+          ...(opts.shotContext ? { shotContext: opts.shotContext } : {}),
+        },
+      );
+      motionPrompt = optimized.prompt;
+      prompterUsage = optimized.usage;
+    } catch (err) {
+      console.warn(`[video] Scene ${sceneIndex} motion prompt gen failed, using visual_prompt: ${err}`);
+    }
   }
 
   opts.callbacks.onProgress?.("visuals", { type: "video_image_ready", scene: sceneIndex });
 
+  const skipReason =
+    Date.now() < skipGflowUntil
+      ? "Puente Windows desconectado; se omite I2V en esta escena (no reintentar 15 veces)."
+      : "";
+
   // Construct negative prompt: defaults + archetype anti-artifact guidance
   const archetypeGuidance = opts.archetype.antiArtifactGuidance?.trim();
+  const identityNegatives = opts.heroFollowCam ? `, ${HERO_IDENTITY_NEGATIVES}` : "";
   const negativePrompt = archetypeGuidance
-    ? `${DEFAULT_VIDEO_NEGATIVES}, ${archetypeGuidance}`
-    : DEFAULT_VIDEO_NEGATIVES;
+    ? `${DEFAULT_VIDEO_NEGATIVES}, ${archetypeGuidance}${identityNegatives}`
+    : `${DEFAULT_VIDEO_NEGATIVES}${identityNegatives}`;
+
+  if (skipReason) {
+    console.warn(`[video] Scene ${sceneIndex} ${skipReason}`);
+    opts.callbacks.onProgress?.("visuals", {
+      type: "video_fallback",
+      scene: sceneIndex,
+      reason: skipReason,
+    });
+    return {
+      path: imageResult.path,
+      usage: imageResult.usage,
+      durationSeconds: null,
+      videoResolution: {
+        method: "image_fallback",
+        provider: "none",
+        durationSeconds: null,
+        error: skipReason,
+        imageGenTimeMs,
+        videoGenTimeMs: null,
+      },
+      prompterUsage,
+    };
+  }
 
   // Try each video provider in order
   for (let i = 0; i < opts.videoProviders.length; i++) {
     const provider = opts.videoProviders[i]!;
     const providerName = i === 0 ? "primary" : "secondary";
-    const targetDuration = opts.sceneDurationSeconds ?? 5;
-    const genDuration = pickDuration(provider.supportedDurations, targetDuration);
+    const rawTarget = opts.sceneDurationSeconds ?? 5;
+    const genDuration = opts.heroFollowCam
+      ? pickHeroDuration(provider.supportedDurations, HERO_I2V_MAX_SECONDS)
+      : pickDuration(provider.supportedDurations, rawTarget);
 
     try {
       const videoStart = Date.now();
@@ -106,6 +210,8 @@ export async function resolveAIVideo(
           durationSeconds: genDuration,
           aspectRatio: opts.aspectRatio ?? "9:16",
           negativePrompt,
+          imageUrl: imageResult.remoteUrl,
+          audio: opts.sceneAudio,
         }),
       );
       const videoGenTimeMs = Date.now() - videoStart;
@@ -152,6 +258,9 @@ export async function resolveAIVideo(
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.warn(`[video] Scene ${sceneIndex} ${providerName} provider failed: ${errorMsg}`);
+      if (isGflowBridgeUnreachable(errorMsg)) {
+        skipGflowUntil = Date.now() + 90_000;
+      }
 
       // If this is the last provider, fall through to image fallback
       if (i === opts.videoProviders.length - 1) {

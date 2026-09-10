@@ -8,36 +8,59 @@ import Fastify from "fastify";
 import IORedis from "ioredis";
 import { z } from "zod";
 import { PACING_CONFIG } from "./agents/creative-director.js";
+import { registerAnalyticsRoutes } from "./analytics/routes.js";
+import { registerCronogramaRoutes } from "./cronograma/routes.js";
+import { type AuthedRequest, registerAuth, requireUser } from "./auth/plugin.js";
 import { getArchetype, listArchetypes } from "./config/archetype-registry.js";
-import { PLATFORMS } from "./config/platforms.js";
-import { DirectorScore } from "./schema/director-score.js";
-import { INWORLD_VOICES } from "./providers/tts/inworld.js";
-import { GEMINI_TTS_VOICES } from "./providers/tts/gemini.js";
-import { GROK_TTS_VOICES, GROK_TTS_MODELS } from "./providers/tts/grok.js";
 import { ATELIER_STYLES } from "./config/atelier-styles.js";
-import type { SearchProviderKey } from "./schema/providers.js";
+import { PLATFORMS } from "./config/platforms.js";
+import { registerFilmRoutes } from "./film/routes.js";
+import { registerFlowRoutes } from "./flow/routes.js";
+import { registerGflowBridgeRoutes } from "./gflow/relay-routes.js";
+import { registerLibraryRoutes } from "./library/routes.js";
+import { isIsolatedJobDir } from "./jobs/isolated.js";
+import { registerStickmanRoutes } from "./stickman/routes.js";
+import { ensureStickmanJobsDir, stickmanJobsDir } from "./stickman/store.js";
+import { getStickmanQueueStats } from "./stickman/worker.js";
+import { registerVoxRoutes } from "./vox/routes.js";
+import { ensureVoxJobsDir, voxJobsDir } from "./vox/store.js";
+import { getVoxQueueStats } from "./vox/worker.js";
+import { createLabImageProvider, createLabVideoProvider, labVideoRequiresStill } from "./lab/test-providers.js";
+import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "./providers/gflow/catalog.js";
+import {
+  ATLAS_TTS_MODELS,
+  ATLAS_TTS_VOICES,
+  atlasImagePriceLabel,
+  atlasLlmPriceLabel,
+  atlasPerSecondPriceLabel,
+  atlasTtsPriceLabel,
+  sortedAtlasImageModels,
+  sortedAtlasLipSyncModels,
+  sortedAtlasLlmModels,
+  sortedAtlasVideoModels,
+} from "./providers/atlas/catalog.js";
+import { AtlasLLM } from "./providers/llm/atlas.js";
+import { AtlasTTS } from "./providers/tts/atlas.js";
+import { AliCloudLLM } from "./providers/llm/alicloud.js";
 import { AnthropicLLM } from "./providers/llm/anthropic.js";
 import { GeminiLLM } from "./providers/llm/gemini.js";
+import { GrokLLM } from "./providers/llm/grok.js";
 import { OpenAILLM } from "./providers/llm/openai.js";
 import { OpenRouterLLM } from "./providers/llm/openrouter.js";
 import { ViviLLM } from "./providers/llm/vivi.js";
-import { AliCloudLLM } from "./providers/llm/alicloud.js";
+import { RUNPOD_IMAGE_MODELS, RUNPOD_VIDEO_MODELS } from "./providers/runpod/catalog.js";
+import { SHARPII_IMAGE_MODELS, SHARPII_VIDEO_MODELS, creditsToUsd } from "./providers/sharpii/catalog.js";
 import { ElevenLabsTTS } from "./providers/tts/elevenlabs.js";
-import { GeminiTTS } from "./providers/tts/gemini.js";
-import { OpenAITTS } from "./providers/tts/openai.js";
-import { GrokTTS } from "./providers/tts/grok.js";
+import { GEMINI_TTS_VOICES, GeminiTTS } from "./providers/tts/gemini.js";
+import { GROK_TTS_MODELS, GROK_TTS_VOICES, GrokTTS } from "./providers/tts/grok.js";
+import { INWORLD_VOICES } from "./providers/tts/inworld.js";
 import { KokoroTTS } from "./providers/tts/kokoro.js";
-import { GeminiImage } from "./providers/image/gemini.js";
-import { OpenAIImage } from "./providers/image/openai.js";
-import { ViviImage } from "./providers/image/vivi.js";
-import { AliCloudImage } from "./providers/image/alicloud.js";
-import { FalImage } from "./providers/image/fal.js";
-import { RunPodImage } from "./providers/image/runpod.js";
-import { GeminiVideo } from "./providers/video/gemini.js";
-import { GrokVideo } from "./providers/video/grok.js";
-import { ViviVideo } from "./providers/video/vivi.js";
-import { FalVideo } from "./providers/video/fal.js";
-import { RunPodVideo } from "./providers/video/runpod.js";
+import { KOKORO_VOICES } from "./providers/tts/kokoro-voices.js";
+import { OpenAITTS } from "./providers/tts/openai.js";
+import { registerSocial } from "./publish/plugin.js";
+import { publishCompletedJob } from "./publish/run.js";
+import { DirectorScore } from "./schema/director-score.js";
+import type { SearchProviderKey } from "./schema/providers.js";
 
 const REDIS_URL = process.env["REDIS_URL"] ?? "redis://localhost:6379";
 const PORT = Number(process.env["PORT"] ?? 3000);
@@ -48,19 +71,44 @@ const WEB_DIST = path.join(process.cwd(), "web", "dist");
 
 // Ensure jobs directory exists
 fs.mkdirSync(JOBS_DIR, { recursive: true });
+ensureVoxJobsDir();
+ensureStickmanJobsDir();
 
 /** Validate job ID to prevent path traversal — must be alphanumeric/hyphen/underscore only */
 function isValidJobId(id: string): boolean {
   return /^[\w-]+$/.test(id);
 }
 
+function assertJobOwner(
+  meta: { userId?: string },
+  request: AuthedRequest,
+  reply: { status: (n: number) => { send: (b: unknown) => unknown } },
+): boolean {
+  if (!request.user || meta.userId !== request.user.id) {
+    reply.status(404).send({ error: "Job not found" });
+    return false;
+  }
+  return true;
+}
+
 const redis = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
 const queue = new Queue("openreels", { connection: redis });
 const queueEvents = new QueueEvents("openreels", { connection: redis.duplicate() });
 
-const app = Fastify({ logger: true });
+const app = Fastify({ logger: true, bodyLimit: 80 * 1024 * 1024 });
 
-await app.register(cors, { origin: true });
+await app.register(cors, { origin: true, credentials: true });
+
+await registerAuth(app, redis);
+await registerSocial(app, redis);
+await registerGflowBridgeRoutes(app);
+
+queueEvents.on("completed", ({ jobId }) => {
+  if (!jobId) return;
+  void publishCompletedJob(jobId).catch((err) => {
+    app.log.warn({ err, jobId }, "auto-publish failed");
+  });
+});
 
 // Serve job artifacts from the jobs directory
 await app.register(fastifyStatic, {
@@ -78,11 +126,39 @@ app.get("/api/v1/health", async () => {
   } catch {}
 
   const jobsDirStats = fs.statSync(JOBS_DIR, { throwIfNoEntry: false });
+  const voxDir = voxJobsDir();
+  const voxDirStats = fs.statSync(voxDir, { throwIfNoEntry: false });
+  const stickDir = stickmanJobsDir();
+  const stickDirStats = fs.statSync(stickDir, { throwIfNoEntry: false });
+  const vox = await getVoxQueueStats(redis).catch(() => ({
+    waiting: 0,
+    active: 0,
+    failed: 0,
+    delayed: 0,
+    workerLive: false,
+  }));
+  const stickman = await getStickmanQueueStats(redis).catch(() => ({
+    waiting: 0,
+    active: 0,
+    failed: 0,
+    delayed: 0,
+    workerLive: false,
+  }));
 
   return {
     status: redisOk ? "healthy" : "degraded",
     redis: redisOk ? "connected" : "disconnected",
     jobsDir: jobsDirStats ? "exists" : "missing",
+    voxJobsDir: voxDirStats ? "exists" : "missing",
+    stickmanJobsDir: stickDirStats ? "exists" : "missing",
+    vox: {
+      dir: voxDir,
+      ...vox,
+    },
+    stickman: {
+      dir: stickDir,
+      ...stickman,
+    },
     keys: {
       ANTHROPIC_API_KEY: !!process.env["ANTHROPIC_API_KEY"],
       OPENAI_API_KEY: !!process.env["OPENAI_API_KEY"],
@@ -96,14 +172,23 @@ app.get("/api/v1/health", async () => {
       VIVI_VIDEO_API_KEY: !!process.env["VIVI_VIDEO_API_KEY"],
       ALICLOUD_API_KEY: !!process.env["ALICLOUD_API_KEY"],
       VIDU_API_KEY: !!process.env["VIDU_API_KEY"],
+      TAVILY_API_KEY: !!process.env["TAVILY_API_KEY"],
       XAI_API_KEY: !!process.env["XAI_API_KEY"],
+      FAL_API_KEY: !!process.env["FAL_API_KEY"],
+      RUNPOD_API_KEY: !!process.env["RUNPOD_API_KEY"],
+      SHARPII_API_KEY: !!process.env["SHARPII_API_KEY"],
+      ATLASCLOUD_API_KEY: !!process.env["ATLASCLOUD_API_KEY"],
+      YOUTUBE_API_KEY: !!process.env["YOUTUBE_API_KEY"],
+      GFLOW_BRIDGE_URL: !!process.env["GFLOW_BRIDGE_URL"],
+      GFLOW_BRIDGE_TOKEN: !!process.env["GFLOW_BRIDGE_TOKEN"],
+      GFLOW_BRIDGE_RELAY: process.env["GFLOW_BRIDGE_RELAY"] !== "0" && !!process.env["GFLOW_BRIDGE_TOKEN"],
     },
   };
 });
 
 // --- Aggregate stats ---
-app.get("/api/v1/stats", async () => {
-  if (!fs.existsSync(JOBS_DIR)) {
+app.get("/api/v1/stats", async (request: AuthedRequest) => {
+  if (!fs.existsSync(JOBS_DIR) || !request.user) {
     return { totalJobs: 0, completedJobs: 0, failedJobs: 0, activeJobs: 0, totalCost: 0 };
   }
 
@@ -113,13 +198,16 @@ app.get("/api/v1/stats", async () => {
   let activeJobs = 0;
   let totalCost = 0;
 
-  const dirs = fs.readdirSync(JOBS_DIR, { withFileTypes: true }).filter((d) => d.isDirectory());
+  const dirs = fs
+    .readdirSync(JOBS_DIR, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && !isIsolatedJobDir(d.name));
   await Promise.all(
     dirs.map(async (d) => {
       const metaPath = path.join(JOBS_DIR, d.name, "meta.json");
       try {
         const raw = await fs.promises.readFile(metaPath, "utf-8");
         const meta = JSON.parse(raw);
+        if (meta.userId !== request.user?.id) return;
         totalJobs++;
         if (meta.status === "completed") {
           completedJobs++;
@@ -179,6 +267,7 @@ app.get("/api/v1/platforms", async () => {
 // --- Providers list ---
 app.get("/api/v1/providers", async () => ({
   llm: [
+    { key: "atlas", label: "ATLAS" },
     { key: "anthropic", label: "Anthropic (Claude)" },
     { key: "openai", label: "OpenAI (GPT)" },
     { key: "gemini", label: "Google Gemini" },
@@ -186,6 +275,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "openai-compatible", label: "Custom (OpenAI-compatible)" },
     { key: "vivi", label: "VIVI (Claude)" },
     { key: "alicloud", label: "Alibaba Cloud" },
+    { key: "grok", label: "Grok (xAI)" },
   ],
   search: [
     { key: "native", label: "Native (provider built-in)" },
@@ -193,6 +283,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "none", label: "None (parametric knowledge)" },
   ],
   tts: [
+    { key: "atlas-tts", label: "ATLAS" },
     { key: "elevenlabs", label: "ElevenLabs" },
     { key: "inworld", label: "Inworld" },
     { key: "kokoro", label: "Kokoro (Local)" },
@@ -204,47 +295,141 @@ app.get("/api/v1/providers", async () => ({
   geminiTtsVoices: GEMINI_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
   grokTtsVoices: GROK_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
   grokTtsModels: GROK_TTS_MODELS.map((m) => ({ id: m.id, label: m.label })),
+  kokoroVoices: KOKORO_VOICES.map((v) => ({
+    id: v.id,
+    label: v.label,
+    gender: v.gender,
+    language: v.language,
+  })),
+  runpodImageModels: RUNPOD_IMAGE_MODELS,
+  runpodVideoModels: RUNPOD_VIDEO_MODELS,
+  sharpiiImageModels: SHARPII_IMAGE_MODELS.map((m) => ({
+    id: m.id,
+    label: m.label,
+    credits: m.credits,
+    usd: creditsToUsd(m.credits),
+  })),
+  sharpiiVideoModels: SHARPII_VIDEO_MODELS.map((m) => ({
+    id: m.id,
+    label: m.label,
+    credits: m.credits,
+    usd: creditsToUsd(m.credits),
+    durations: m.durations,
+    perSecond: Boolean(m.perSecond),
+  })),
+  atlasTtsVoices: ATLAS_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
+  atlasTtsModels: ATLAS_TTS_MODELS.map((m) => ({
+    id: m.id,
+    label: m.label,
+    usdPer1kChars: m.usdPer1kChars,
+    priceLabel: atlasTtsPriceLabel(m),
+    voices: m.voices,
+  })),
+  atlasLlmModels: sortedAtlasLlmModels().map((m) => ({
+    id: m.id,
+    label: m.label,
+    inputPer1M: m.inputPer1M,
+    outputPer1M: m.outputPer1M,
+    priceLabel: atlasLlmPriceLabel(m),
+  })),
+  atlasImageModels: sortedAtlasImageModels().map((m) => ({
+    id: m.id,
+    label: m.label,
+    usd: m.usd,
+    refs: Boolean(m.refs),
+    priceLabel: atlasImagePriceLabel(m),
+  })),
+  atlasVideoModels: sortedAtlasVideoModels().map((m) => ({
+    id: m.id,
+    label: m.label,
+    usd: m.usdPerSecond,
+    durations: m.durations,
+    talkingHead: Boolean(m.talkingHead),
+    lastFrame: Boolean(m.lastFrame),
+    priceLabel: atlasPerSecondPriceLabel(m.usdPerSecond),
+  })),
+  atlasLipSyncModels: sortedAtlasLipSyncModels().map((m) => ({
+    id: m.id,
+    label: m.label,
+    usd: m.usdPerSecond,
+    kind: m.kind,
+    priceLabel: atlasPerSecondPriceLabel(m.usdPerSecond),
+  })),
+  gflowImageModels: GFLOW_IMAGE_MODELS,
+  gflowVideoModels: GFLOW_VIDEO_MODELS,
   atelierStyles: ATELIER_STYLES,
   image: [
+    { key: "gflow", label: "gflow-cli (Imagen / Flow)" },
+    { key: "atlas", label: "ATLAS" },
     { key: "gemini", label: "Google Gemini" },
     { key: "openai", label: "OpenAI (GPT Image)" },
+    { key: "grok", label: "Grok Imagine Image" },
     { key: "vivi", label: "VIVI (Gemini)" },
     { key: "alicloud", label: "Alibaba Cloud" },
-    { key: "runpod", label: "RunPod Serverless" },
+    { key: "runpod", label: "RunPod (FLUX / Wan públicos)" },
     { key: "fal", label: "fal.ai (FLUX)" },
+    { key: "sharpii", label: "Sharpii (Nano Banana / Flux / MJ)" },
   ],
   video: [
+    { key: "gflow", label: "gflow-cli (Veo I2V)" },
+    { key: "atlas", label: "ATLAS" },
     { key: "gemini", label: "Google Veo" },
-    { key: "grok", label: "Grok Imagine Video" },
+    { key: "grok", label: "Grok Imagine Video 1.5" },
     { key: "vivi", label: "VIVI (Grok Video 3)" },
     { key: "fal", label: "fal.ai (Kling 2.6 Pro)" },
+    { key: "sharpii", label: "Sharpii (Kling / Seedance / Sora)" },
     { key: "vidu-q2-fast", label: "VIDU Q2 Fast (~27cr/5s)" },
     { key: "vidu-q3-fast", label: "VIDU Q3 Fast" },
-    { key: "runpod", label: "RunPod Serverless" },
+    { key: "runpod", label: "RunPod (Wan / Kling / Seedance)" },
   ],
 }));
+
+await registerAnalyticsRoutes(app);
+await registerCronogramaRoutes(app);
+await registerFilmRoutes(app);
+await registerFlowRoutes(app);
+await registerLibraryRoutes(app);
+await registerVoxRoutes(app, redis);
+await registerStickmanRoutes(app, redis);
 
 // --- API Test endpoints ---
 
 app.post("/api/v1/test/llm", async (request, reply) => {
-  const { provider = "anthropic", model, prompt } = request.body as {
-    provider?: string; model?: string; prompt: string;
+  const {
+    provider = "anthropic",
+    model,
+    prompt,
+  } = request.body as {
+    provider?: string;
+    model?: string;
+    prompt: string;
   };
   if (!prompt?.trim()) return reply.status(400).send({ error: "prompt is required" });
   const start = Date.now();
   try {
     const llm = (() => {
       switch (provider) {
-        case "openai": return new OpenAILLM(model);
-        case "gemini": return new GeminiLLM(model);
-        case "openrouter": return new OpenRouterLLM(model);
-        case "vivi": return new ViviLLM(model);
-        case "alicloud": return new AliCloudLLM(model);
-        default: return new AnthropicLLM(model);
+        case "openai":
+          return new OpenAILLM(model);
+        case "gemini":
+          return new GeminiLLM(model);
+        case "openrouter":
+          return new OpenRouterLLM(model);
+        case "vivi":
+          return new ViviLLM(model);
+        case "alicloud":
+          return new AliCloudLLM(model);
+        case "grok":
+          return new GrokLLM(model);
+        case "atlas":
+          return new AtlasLLM(model);
+        default:
+          return new AnthropicLLM(model);
       }
     })();
     const result = await llm.generate({
-      systemPrompt: "You are a helpful assistant. Answer the user's question directly and concisely.",
+      systemPrompt:
+        "You are a helpful assistant. Answer the user's question directly and concisely.",
       userMessage: prompt,
       schema: z.object({ answer: z.string().describe("Your complete response") }),
     });
@@ -256,23 +441,44 @@ app.post("/api/v1/test/llm", async (request, reply) => {
 });
 
 app.post("/api/v1/test/tts", async (request, reply) => {
-  const { provider = "elevenlabs", text, voice, speed, model } = request.body as {
-    provider?: string; text: string; voice?: string; speed?: number; model?: string;
+  const {
+    provider = "elevenlabs",
+    text,
+    voice,
+    speed,
+    model,
+  } = request.body as {
+    provider?: string;
+    text: string;
+    voice?: string;
+    speed?: number;
+    model?: string;
   };
   if (!text?.trim()) return reply.status(400).send({ error: "text is required" });
   const start = Date.now();
   try {
     const tts = (() => {
       switch (provider) {
-        case "gemini-tts": return new GeminiTTS(undefined, undefined, voice);
-        case "openai-tts": return new OpenAITTS();
-        case "grok-tts": return new GrokTTS(model, voice, undefined, speed);
-        case "kokoro": return new KokoroTTS();
-        default: return new ElevenLabsTTS();
+        case "gemini-tts":
+          return new GeminiTTS(undefined, undefined, voice);
+        case "openai-tts":
+          return new OpenAITTS();
+        case "grok-tts":
+          return new GrokTTS(model, voice, undefined, speed);
+        case "kokoro":
+          return new KokoroTTS(voice, speed);
+        case "atlas-tts":
+          return new AtlasTTS(voice);
+        default:
+          return new ElevenLabsTTS();
       }
     })();
     const result = await tts.generate(text);
-    return { audioBase64: result.audio.toString("base64"), durationMs: Date.now() - start, charCount: text.length };
+    return {
+      audioBase64: result.audio.toString("base64"),
+      durationMs: Date.now() - start,
+      charCount: text.length,
+    };
   } catch (err) {
     reply.status(500);
     return { error: String(err) };
@@ -280,22 +486,27 @@ app.post("/api/v1/test/tts", async (request, reply) => {
 });
 
 app.post("/api/v1/test/image", async (request, reply) => {
-  const { provider = "gemini", prompt, style, aspectRatio = "9:16" } = request.body as {
-    provider?: string; prompt: string; style?: string; aspectRatio?: string;
+  const {
+    provider = "gemini",
+    prompt,
+    style,
+    aspectRatio = "9:16",
+    model,
+    steps,
+    guidance,
+  } = request.body as {
+    provider?: string;
+    prompt: string;
+    style?: string;
+    aspectRatio?: string;
+    model?: string;
+    steps?: number;
+    guidance?: number;
   };
   if (!prompt?.trim()) return reply.status(400).send({ error: "prompt is required" });
   const start = Date.now();
   try {
-    const imageGen = (() => {
-      switch (provider) {
-        case "openai": return new OpenAIImage();
-        case "vivi": return new ViviImage();
-        case "alicloud": return new AliCloudImage();
-        case "runpod": return new RunPodImage();
-        case "fal": return new FalImage();
-        default: return new GeminiImage();
-      }
-    })();
+    const imageGen = createLabImageProvider({ provider, model, steps, guidance });
     const buffer = await imageGen.generate(prompt, style, undefined, aspectRatio);
     return { imageBase64: buffer.toString("base64"), durationMs: Date.now() - start };
   } catch (err) {
@@ -305,26 +516,48 @@ app.post("/api/v1/test/image", async (request, reply) => {
 });
 
 app.post("/api/v1/test/video", async (request, reply) => {
-  const { provider = "gemini", imageBase64, prompt, durationSeconds = 5, aspectRatio = "9:16" } = request.body as {
-    provider?: string; imageBase64: string; prompt: string; durationSeconds?: number; aspectRatio?: string;
+  const {
+    provider = "gemini",
+    imageBase64,
+    prompt,
+    durationSeconds = 5,
+    aspectRatio = "9:16",
+    model,
+    resolution,
+    lipSyncModel,
+    mode,
+  } = request.body as {
+    provider?: string;
+    imageBase64?: string;
+    prompt: string;
+    durationSeconds?: number;
+    aspectRatio?: string;
+    model?: string;
+    resolution?: string;
+    lipSyncModel?: string | null;
+    mode?: string;
   };
-  if (!imageBase64 || !prompt?.trim()) return reply.status(400).send({ error: "imageBase64 and prompt are required" });
+  if (!prompt?.trim()) return reply.status(400).send({ error: "prompt is required" });
+  if (labVideoRequiresStill(provider, mode) && !imageBase64) {
+    return reply.status(400).send({ error: "imageBase64 and prompt are required" });
+  }
   const start = Date.now();
   try {
-    const videoProvider = (() => {
-      switch (provider) {
-        case "grok": return new GrokVideo();
-        case "vivi": return new ViviVideo();
-        case "fal": return new FalVideo();
-        case "runpod": return new RunPodVideo();
-        default: return new GeminiVideo();
-      }
-    })();
-    const sourceImage = Buffer.from(imageBase64, "base64");
-    const result = await videoProvider.generate({ sourceImage, prompt, durationSeconds, aspectRatio });
+    const videoProvider = createLabVideoProvider({ provider, model, mode, resolution, lipSyncModel });
+    const sourceImage = imageBase64 ? Buffer.from(imageBase64, "base64") : Buffer.alloc(0);
+    const result = await videoProvider.generate({
+      sourceImage,
+      prompt,
+      durationSeconds,
+      aspectRatio,
+    });
     const videoBuffer = await fsp.readFile(result.filePath);
     await fsp.unlink(result.filePath).catch(() => {});
-    return { videoBase64: videoBuffer.toString("base64"), durationMs: Date.now() - start, videoSeconds: result.durationSeconds };
+    return {
+      videoBase64: videoBuffer.toString("base64"),
+      durationMs: Date.now() - start,
+      videoSeconds: result.durationSeconds,
+    };
   } catch (err) {
     reply.status(500);
     return { error: String(err) };
@@ -347,8 +580,14 @@ interface CreateJobBody {
   score?: Record<string, unknown>;
   videoSceneMode?: string;
   styleReferenceImage?: string; // base64
+  characterReferenceImage?: string; // base64 character model sheet
   atelierMode?: boolean;
   artStyleOverride?: string;
+  characterLock?: string;
+  castMode?: string;
+  locationLock?: string;
+  objectLock?: string;
+  locationReferenceImage?: string; // base64 location bible board
   providers?: {
     llm?: string;
     tts?: string;
@@ -365,13 +604,59 @@ interface CreateJobBody {
     grokTtsVoice?: string;
     grokTtsSpeed?: number;
     grokTtsModel?: string;
+    kokoroVoice?: string;
+    kokoroSpeed?: number;
+    runpodImageModel?: string;
+    runpodVideoModel?: string;
+    runpodImageSteps?: number;
+    runpodImageGuidance?: number;
+    runpodVideoResolution?: string;
+    runpodImageEndpointId?: string;
+    runpodVideoEndpointId?: string;
+    sharpiiImageModel?: string;
+    sharpiiVideoModel?: string;
+    atlasImageModel?: string;
+    atlasVideoModel?: string;
+    atlasTtsVoice?: string;
+    atlasTtsModel?: string;
+    atlasLipSyncModel?: string | null;
+    gflowImageModel?: string;
+    gflowVideoModel?: string;
+    gflowVideoMode?: string;
   };
   keys?: Record<string, string>;
 }
 
 app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
-  const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, atelierMode, artStyleOverride, providers, keys } =
-    request.body ?? {};
+  const user = requireUser(request as AuthedRequest, reply);
+  if (!user) return;
+
+  const {
+    topic,
+    archetype,
+    pacing,
+    platform,
+    dryRun,
+    noMusic,
+    noVideo,
+    noSubtitles,
+    allowedVisualTypes,
+    direction,
+    targetDurationMinutes,
+    score,
+    videoSceneMode,
+    styleReferenceImage,
+    characterReferenceImage,
+    atelierMode,
+    artStyleOverride,
+    characterLock,
+    castMode,
+    locationLock,
+    objectLock,
+    locationReferenceImage,
+    providers,
+    keys,
+  } = request.body ?? {};
 
   if (!topic || typeof topic !== "string" || topic.trim().length === 0) {
     return reply.status(400).send({ error: "topic is required" });
@@ -415,13 +700,62 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     }
   }
 
+  if (characterReferenceImage != null) {
+    if (typeof characterReferenceImage !== "string") {
+      return reply.status(400).send({ error: "characterReferenceImage must be a base64 string" });
+    }
+    if (Buffer.byteLength(characterReferenceImage, "base64") > 8 * 1024 * 1024) {
+      return reply.status(400).send({ error: "characterReferenceImage exceeds 8MB limit" });
+    }
+  }
+
   // Validate direction text size if provided
   if (direction != null) {
     if (typeof direction !== "string") {
       return reply.status(400).send({ error: "direction must be a string" });
     }
-    if (Buffer.byteLength(direction, "utf-8") > 10240) {
-      return reply.status(400).send({ error: "direction exceeds 10KB limit" });
+    if (Buffer.byteLength(direction, "utf-8") > 65536) {
+      return reply.status(400).send({ error: "direction exceeds 64KB limit" });
+    }
+  }
+
+  if (characterLock != null) {
+    if (typeof characterLock !== "string") {
+      return reply.status(400).send({ error: "characterLock must be a string" });
+    }
+    if (Buffer.byteLength(characterLock, "utf-8") > 24576) {
+      return reply.status(400).send({ error: "characterLock exceeds 24KB limit" });
+    }
+  }
+
+  if (castMode != null && castMode !== "scene" && castMode !== "hero") {
+    return reply.status(400).send({ error: "castMode must be scene or hero" });
+  }
+
+  if (locationLock != null) {
+    if (typeof locationLock !== "string") {
+      return reply.status(400).send({ error: "locationLock must be a string" });
+    }
+    if (Buffer.byteLength(locationLock, "utf-8") > 24576) {
+      return reply.status(400).send({ error: "locationLock exceeds 24KB limit" });
+    }
+  }
+
+  if (objectLock != null) {
+    if (typeof objectLock !== "string") {
+      return reply.status(400).send({ error: "objectLock must be a string" });
+    }
+    if (Buffer.byteLength(objectLock, "utf-8") > 49152) {
+      return reply.status(400).send({ error: "objectLock exceeds 48KB limit" });
+    }
+  }
+
+  if (locationReferenceImage != null) {
+    if (typeof locationReferenceImage !== "string") {
+      return reply.status(400).send({ error: "locationReferenceImage must be a base64 string" });
+    }
+    if (Buffer.byteLength(locationReferenceImage, "base64") > 8 * 1024 * 1024) {
+      return reply.status(400).send({ error: "locationReferenceImage exceeds 8MB limit" });
     }
   }
 
@@ -445,21 +779,30 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
 
   const job = await queue.add("render", {
     topic: topic.trim(),
+    userId: user.id,
     archetype,
     pacing,
     platform: platform ?? "youtube",
     dryRun: dryRun ?? false,
-    noMusic: noMusic === true,
+    noMusic: noMusic === true || providers?.music === "none",
     noVideo: noVideo === true,
     noSubtitles: noSubtitles === true,
     ...(allowedVisualTypes?.length ? { allowedVisualTypes } : {}),
     ...(direction?.trim() ? { direction: direction.trim() } : {}),
-    ...(targetDurationMinutes != null ? { targetDurationMinutes: Number(targetDurationMinutes) } : {}),
+    ...(targetDurationMinutes != null
+      ? { targetDurationMinutes: Number(targetDurationMinutes) }
+      : {}),
     ...(validatedScore ? { score: validatedScore } : {}),
     ...(videoSceneMode ? { videoSceneMode } : {}),
     ...(styleReferenceImage ? { styleReferenceImage } : {}),
-    ...(atelierMode ? { atelierMode: true } : {}),
+    ...(characterReferenceImage ? { characterReferenceImage } : {}),
+    atelierMode: atelierMode !== false,
     ...(artStyleOverride?.trim() ? { artStyleOverride: artStyleOverride.trim() } : {}),
+    ...(characterLock?.trim() ? { characterLock: characterLock.trim() } : {}),
+    castMode: castMode === "hero" ? "hero" : "scene",
+    ...(locationLock?.trim() ? { locationLock: locationLock.trim() } : {}),
+    ...(objectLock?.trim() ? { objectLock: objectLock.trim() } : {}),
+    ...(locationReferenceImage ? { locationReferenceImage } : {}),
     providers: {
       llm: providers?.llm ?? "anthropic",
       tts: providers?.tts ?? "elevenlabs",
@@ -467,7 +810,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       stock: providers?.stock ?? "pexels",
       video: providers?.video,
       videoModel: providers?.videoModel,
-      music: providers?.music ?? "bundled",
+      music: providers?.music === "none" ? "bundled" : (providers?.music ?? "bundled"),
       llmModel: providers?.llmModel,
       llmBaseUrl: providers?.llmBaseUrl,
       searchProvider: providers?.searchProvider,
@@ -476,6 +819,25 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       grokTtsVoice: providers?.grokTtsVoice,
       grokTtsSpeed: providers?.grokTtsSpeed,
       grokTtsModel: providers?.grokTtsModel,
+      kokoroVoice: providers?.kokoroVoice,
+      kokoroSpeed: providers?.kokoroSpeed,
+      runpodImageModel: providers?.runpodImageModel,
+      runpodVideoModel: providers?.runpodVideoModel,
+      runpodImageSteps: providers?.runpodImageSteps,
+      runpodImageGuidance: providers?.runpodImageGuidance,
+      runpodVideoResolution: providers?.runpodVideoResolution,
+      runpodImageEndpointId: providers?.runpodImageEndpointId,
+      runpodVideoEndpointId: providers?.runpodVideoEndpointId,
+      sharpiiImageModel: providers?.sharpiiImageModel,
+      sharpiiVideoModel: providers?.sharpiiVideoModel,
+      atlasImageModel: providers?.atlasImageModel,
+      atlasVideoModel: providers?.atlasVideoModel,
+      atlasTtsVoice: providers?.atlasTtsVoice,
+      atlasTtsModel: providers?.atlasTtsModel,
+      atlasLipSyncModel: providers?.atlasLipSyncModel,
+      gflowImageModel: providers?.gflowImageModel,
+      gflowVideoModel: providers?.gflowVideoModel,
+      gflowVideoMode: providers?.gflowVideoMode,
     },
     keys: keys ?? {},
     jobsDir: JOBS_DIR,
@@ -487,6 +849,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
   const placeholderMeta = {
     id: job.id,
     topic: topic.trim(),
+    userId: user.id,
     archetype,
     pacing,
     status: "queued",
@@ -502,15 +865,18 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       tts: providers?.tts ?? "elevenlabs",
       image: providers?.image ?? "gemini",
       video: providers?.video,
-      music: providers?.music ?? "bundled",
+      music: providers?.music === "none" ? "bundled" : (providers?.music ?? "bundled"),
       platform: platform ?? "youtube",
       pacing: pacing,
       videoSceneMode: videoSceneMode,
       noVideo: noVideo === true || undefined,
       noSubtitles: noSubtitles === true || undefined,
+      noMusic: noMusic === true || providers?.music === "none" || undefined,
       styleReference: styleReferenceImage ? true : undefined,
-      atelierMode: atelierMode === true || undefined,
+      characterReference: characterReferenceImage ? true : undefined,
+      atelierMode: atelierMode !== false,
       artStyleOverride: artStyleOverride?.trim() || undefined,
+      castMode: castMode === "hero" ? "hero" : "scene",
     },
   };
   fs.writeFileSync(path.join(jobDir, "meta.json"), JSON.stringify(placeholderMeta, null, 2));
@@ -524,31 +890,39 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
 });
 
 // --- Job listing ---
-app.get("/api/v1/jobs", async (request) => {
+app.get("/api/v1/jobs", async (request: AuthedRequest) => {
   const { limit = "20", offset = "0" } = request.query as Record<string, string>;
   const limitNum = Math.min(Number(limit) || 20, 100);
   const offsetNum = Number(offset) || 0;
 
-  if (!fs.existsSync(JOBS_DIR)) return { jobs: [], total: 0 };
+  if (!fs.existsSync(JOBS_DIR) || !request.user) return { jobs: [], total: 0 };
 
-  const dirents = fs.readdirSync(JOBS_DIR, { withFileTypes: true }).filter((d) => d.isDirectory());
+  const dirents = fs
+    .readdirSync(JOBS_DIR, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && !isIsolatedJobDir(d.name));
   const entries = await Promise.all(
     dirents.map(async (d) => {
       const metaPath = path.join(JOBS_DIR, d.name, "meta.json");
       try {
         const raw = await fs.promises.readFile(metaPath, "utf-8");
         const meta = JSON.parse(raw);
+        if (meta.userId !== request.user?.id) return null;
         return { id: d.name, ...meta };
       } catch {
-        return { id: d.name, status: "unknown" };
+        return null;
       }
     }),
   );
-  entries.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  const owned = entries.filter((e): e is NonNullable<typeof e> => e != null);
+  owned.sort((a, b) =>
+    ((b as { createdAt?: string }).createdAt ?? "").localeCompare(
+      (a as { createdAt?: string }).createdAt ?? "",
+    ),
+  );
 
   return {
-    jobs: entries.slice(offsetNum, offsetNum + limitNum),
-    total: entries.length,
+    jobs: owned.slice(offsetNum, offsetNum + limitNum),
+    total: owned.length,
   };
 });
 
@@ -565,6 +939,7 @@ app.get<{ Params: { id: string } }>("/api/v1/jobs/:id", async (request, reply) =
   }
 
   const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+  if (!assertJobOwner(meta, request as AuthedRequest, reply)) return;
   return meta;
 });
 
@@ -728,6 +1103,7 @@ app.post<{ Params: { id: string } }>("/api/v1/jobs/:id/cancel", async (request, 
   if (fs.existsSync(metaPath)) {
     try {
       const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+      if (!assertJobOwner(meta, request as AuthedRequest, reply)) return;
       meta.cancelRequested = true;
       meta.status = "cancelled";
       meta.error = "Cancelled by user";
@@ -743,8 +1119,12 @@ app.post<{ Params: { id: string } }>("/api/v1/jobs/:id/cancel", async (request, 
   if (job) {
     const state = await job.getState();
     if (state !== "completed" && state !== "failed") {
-      try { await job.moveToFailed(new Error("Cancelled by user"), "0", true); } catch {}
-      try { await job.remove(); } catch {}
+      try {
+        await job.moveToFailed(new Error("Cancelled by user"), "0", true);
+      } catch {}
+      try {
+        await job.remove();
+      } catch {}
     }
   }
 
@@ -762,13 +1142,28 @@ app.delete<{ Params: { id: string } }>("/api/v1/jobs/:id", async (request, reply
   if (!fs.existsSync(jobDir)) {
     return reply.status(404).send({ error: "Job not found" });
   }
+  const metaPath = path.join(jobDir, "meta.json");
+  if (fs.existsSync(metaPath)) {
+    try {
+      const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
+      if (!assertJobOwner(meta, request as AuthedRequest, reply)) return;
+    } catch {
+      return reply.status(404).send({ error: "Job not found" });
+    }
+  } else if (!(request as AuthedRequest).user) {
+    return reply.status(401).send({ error: "Inicia sesión" });
+  }
 
   // Force-remove from BullMQ regardless of state (handles orphaned/stuck active jobs).
   // For truly active jobs the worker will fail gracefully when it can't find the files.
   const job = await queue.getJob(jobId);
   if (job) {
-    try { await job.moveToFailed(new Error("Deleted by user"), "0", true); } catch {}
-    try { await job.remove(); } catch {}
+    try {
+      await job.moveToFailed(new Error("Deleted by user"), "0", true);
+    } catch {}
+    try {
+      await job.remove();
+    } catch {}
   }
 
   fs.rmSync(jobDir, { recursive: true, force: true });
@@ -781,7 +1176,7 @@ async function pruneOldJobs() {
 
   const dirs = fs
     .readdirSync(JOBS_DIR, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
+    .filter((d) => d.isDirectory() && !isIsolatedJobDir(d.name))
     .map((d) => {
       const metaPath = path.join(JOBS_DIR, d.name, "meta.json");
       try {

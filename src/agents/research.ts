@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { z } from "zod";
+import { fetchTavilyNotes } from "../providers/search/tavily.js";
 import type { LLMProvider, LLMUsage } from "../schema/providers.js";
 
 const SYSTEM_PROMPT_PATH = path.join(process.cwd(), "prompts", "researcher.md");
@@ -18,21 +19,52 @@ export interface ResearchOutput {
   usage: LLMUsage;
 }
 
-export async function research(llm: LLMProvider, topic: string): Promise<ResearchOutput> {
-  let systemPrompt =
-    "You are a research assistant. Given a topic, search the web for current information and produce a structured research summary with key facts, mood/tone, and sources.";
+const PARAMETRIC_SUFFIX =
+  "\n\nYou do not have access to web search. Use your training knowledge to provide the best possible research.";
 
+function loadSystemPrompt(): string {
   try {
-    systemPrompt = fs.readFileSync(SYSTEM_PROMPT_PATH, "utf-8");
+    return fs.readFileSync(SYSTEM_PROMPT_PATH, "utf-8");
   } catch {
-    // Use default prompt if file doesn't exist
+    return "You are a research assistant. Given a topic, search the web for current information and produce a structured research summary with key facts, mood/tone, and sources.";
+  }
+}
+
+export async function research(llm: LLMProvider, topic: string): Promise<ResearchOutput> {
+  const systemPrompt = loadSystemPrompt();
+  const notes = llm.id === "atlas" ? await fetchTavilyNotes(topic) : "";
+  const userMessage = notes
+    ? `Research this topic for a short-form video script: ${topic}\n\nWeb findings (use these facts and cite URLs in sources):\n${notes}`
+    : `Research this topic for a short-form video script: ${topic}`;
+
+  // Atlas OpenAI-compat models reject tool calling with HTTP 400.
+  if (llm.id === "atlas") {
+    const result = await llm.generate({
+      systemPrompt: notes ? systemPrompt : systemPrompt + PARAMETRIC_SUFFIX,
+      userMessage,
+      schema: ResearchResult,
+      enableWebSearch: false,
+    });
+    return { data: result.data, usage: result.usage };
   }
 
-  const result = await llm.generate({
-    systemPrompt,
-    userMessage: `Research this topic for a short-form video script: ${topic}`,
-    schema: ResearchResult,
-    enableWebSearch: true,
-  });
-  return { data: result.data, usage: result.usage };
+  try {
+    const result = await llm.generate({
+      systemPrompt,
+      userMessage,
+      schema: ResearchResult,
+      enableWebSearch: true,
+    });
+    return { data: result.data, usage: result.usage };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[research] Web search failed, retrying with parametric knowledge: ${msg}`);
+    const result = await llm.generate({
+      systemPrompt: systemPrompt + PARAMETRIC_SUFFIX,
+      userMessage,
+      schema: ResearchResult,
+      enableWebSearch: false,
+    });
+    return { data: result.data, usage: result.usage };
+  }
 }

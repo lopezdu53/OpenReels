@@ -1,0 +1,75 @@
+export const GFLOW_IMAGE_MODELS = [
+  { id: "nano2", label: "Imagen Nano 2", note: "rápido, diario" },
+  { id: "nano-pro", label: "Imagen Nano Pro", note: "más detalle" },
+  { id: "image4", label: "Imagen 4", note: "máxima calidad" },
+] as const;
+
+export const GFLOW_VIDEO_MODELS = [
+  { id: "veo-lite", label: "Veo Lite", note: "barato · default t2v · sin --duration", durations: [4, 6, 8] },
+  { id: "veo-fast", label: "Veo Fast", note: "más rápido", durations: [4, 6, 8] },
+  { id: "veo-quality", label: "Veo Quality", note: "mejor look", durations: [4, 6, 8] },
+  { id: "omni-flash", label: "Omni Flash", note: "hasta 10s", durations: [4, 6, 8, 10] },
+  { id: "veo-lite-lp", label: "Veo Lite LP", note: "low-power", durations: [4, 6, 8] },
+] as const;
+
+export const DEFAULT_GFLOW_IMAGE_MODEL = "nano2";
+export const DEFAULT_GFLOW_VIDEO_MODEL = "veo-lite";
+export const DEFAULT_GFLOW_VIDEO_MODE = "t2v";
+
+export type GflowVideoMode = "t2v" | "i2v";
+
+export function resolveGflowVideoMode(mode?: string): GflowVideoMode {
+  return mode === "i2v" ? "i2v" : "t2v";
+}
+
+export function resolveGflowImageModel(id?: string): string {
+  return GFLOW_IMAGE_MODELS.some((m) => m.id === id) ? id! : DEFAULT_GFLOW_IMAGE_MODEL;
+}
+
+export function resolveGflowVideoModel(id?: string): (typeof GFLOW_VIDEO_MODELS)[number] {
+  return GFLOW_VIDEO_MODELS.find((m) => m.id === id) ?? GFLOW_VIDEO_MODELS[0];
+}
+
+export function pickGflowDuration(modelId: string, wanted?: number): number {
+  const spec = resolveGflowVideoModel(modelId);
+  const target = wanted ?? 6;
+  if (spec.durations.includes(target as (typeof spec.durations)[number])) return target;
+  return spec.durations.find((d) => d >= target) ?? spec.durations[spec.durations.length - 1] ?? 6;
+}
+
+/** gflow 0.71: `--duration` only exists on Omni Flash. Veo has no duration row. */
+export function gflowSupportsDurationFlag(modelId?: string): boolean {
+  return resolveGflowVideoModel(modelId).id === "omni-flash";
+}
+
+/** Seconds to pass as `--duration`, or undefined to accept Flow's default. */
+export function gflowCliDuration(modelId?: string, wanted?: number): number | undefined {
+  if (!gflowSupportsDurationFlag(modelId)) return undefined;
+  return pickGflowDuration(modelId ?? "omni-flash", wanted);
+}
+
+export const GFLOW_DEFAULT_CLIP_SECONDS = 8;
+
+/** One scene at a time: gflow Imagen still → wait for Flow I2V → next still. */
+export function shouldSerializeGflowI2v(videoProvider?: string, mode?: string): boolean {
+  return videoProvider === "gflow" && resolveGflowVideoMode(mode) === "i2v";
+}
+
+export function gflowI2vFallbackT2vEnabled(): boolean {
+  return process.env["GFLOW_I2V_FALLBACK_T2V"] === "1";
+}
+
+const I2V_FALLBACK_NEEDLES = [
+  "uiselectordrifterror",
+  "frame picker",
+  "maseq",
+  "initial-frame",
+  "still.png",
+  "or-i2v-",
+];
+
+/** Local-file I2V on migrated Flow often uploads the still then dies in the picker. */
+export function gflowI2vShouldFallbackT2v(message: string): boolean {
+  const low = message.toLowerCase();
+  return I2V_FALLBACK_NEEDLES.some((n) => low.includes(n));
+}

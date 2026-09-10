@@ -1,0 +1,2 @@
+# Vox Director local extras (Atlas is HTTP-only).
+pillow>=10.0.0
