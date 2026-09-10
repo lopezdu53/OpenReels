@@ -296,7 +296,7 @@ describe("resolveAIVideo", () => {
     expect(generateCall.prompt).toContain("Watch as the rocket lifts off.");
     expect(generateCall.prompt).toContain("A rocket launching");
     expect(generateCall.prompt).toContain("ACTION:");
-    expect(generateCall.durationSeconds).toBe(5);
+    expect(generateCall.durationSeconds).toBe(8);
     expect(generateCall.negativePrompt).toContain("different person");
     expect(generateCall.negativePrompt).toContain("wardrobe change");
     expect(generateCall.negativePrompt).toContain("new room");
@@ -315,7 +315,7 @@ describe("resolveAIVideo", () => {
     });
 
     const generateCall = (primary.generate as ReturnType<typeof vi.fn>).mock.calls[0]![0];
-    expect(generateCall.durationSeconds).toBe(4);
+    expect(generateCall.durationSeconds).toBe(8);
     expect(generateCall.prompt).toContain("SOURCE IMAGE LOCK");
     expect(generateCall.prompt).not.toContain("last frame");
   });
@@ -351,9 +351,10 @@ describe("buildHeroMotionPrompt", () => {
 
 describe("pickHeroDuration", () => {
   it("picks the longest clip that still fits the identity cap", () => {
-    expect(HERO_I2V_MAX_SECONDS).toBe(5);
-    expect(pickHeroDuration([5, 8, 10], HERO_I2V_MAX_SECONDS)).toBe(5);
-    expect(pickHeroDuration([4, 6, 8], HERO_I2V_MAX_SECONDS)).toBe(4);
-    expect(pickHeroDuration([6, 8], HERO_I2V_MAX_SECONDS)).toBe(6);
+    expect(HERO_I2V_MAX_SECONDS).toBe(8);
+    expect(pickHeroDuration([5, 8, 10], HERO_I2V_MAX_SECONDS)).toBe(8);
+    expect(pickHeroDuration([4, 6, 8], HERO_I2V_MAX_SECONDS)).toBe(8);
+    expect(pickHeroDuration([6, 8], HERO_I2V_MAX_SECONDS)).toBe(8);
+    expect(pickHeroDuration([4, 6], HERO_I2V_MAX_SECONDS)).toBe(6);
   });
 });

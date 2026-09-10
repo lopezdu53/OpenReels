@@ -380,7 +380,7 @@ The same character (crest, black patches, markings, species) appears in every vi
         : "Structure: engaging intro (2-3 scenes), multiple topic chapters of 5-8 scenes each, strong conclusion with CTA (2-3 scenes).\nEach chapter must have a clear thematic focus. Vary visual types throughout.";
     return `This is a ${formatLabel} video targeting ${minutes} minutes.
 Create a DirectorScore with exactly ${sceneCount} scenes.
-Per-scene word budget: ${wordsPerScene - 2}-${wordsPerScene + 2} words (~5 seconds per scene at 150 words/minute).
+Per-scene word budget: ${wordsPerScene - 2}-${wordsPerScene + 2} words (~8 seconds per scene so Flow Veo I2V plays in full, not a 5s trim).
 Total word budget: approximately ${wordsTarget} words at ~150 words/minute.
 ${structure}${noCards}`;
   }
