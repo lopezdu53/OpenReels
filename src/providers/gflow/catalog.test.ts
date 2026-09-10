@@ -35,7 +35,7 @@ describe("gflow catalog", () => {
     expect(resolveGflowVideoMode("nope")).toBe("t2v");
   });
 
-  it("serializes VIVI still + Flow I2V one scene at a time", () => {
+  it("serializes gflow still + Flow I2V one scene at a time", () => {
     expect(shouldSerializeGflowI2v("gflow", "i2v")).toBe(true);
     expect(shouldSerializeGflowI2v("gflow", "t2v")).toBe(false);
     expect(shouldSerializeGflowI2v("atlas", "i2v")).toBe(false);

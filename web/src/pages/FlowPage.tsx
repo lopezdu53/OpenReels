@@ -155,9 +155,9 @@ const FALLBACK = {
     { key: "gemini-tts", label: "Gemini TTS" },
   ],
   image: [
+    { key: "gflow", label: "gflow-cli (Imagen · Flow)" },
     { key: "vivi", label: "VIVI" },
     { key: "atlas", label: "ATLAS" },
-    { key: "gflow", label: "gflow-cli (Imagen · Flow)" },
   ],
   video: [{ key: "gflow", label: "gflow-cli (Veo I2V)" }],
   search: [{ key: "tavily", label: "Tavily" }],
@@ -261,7 +261,7 @@ export function FlowPage() {
   const [grokTtsSpeed, setGrokTtsSpeed] = useState(1);
   const [kokoroVoice, setKokoroVoice] = useState(KOKORO_DEFAULT_CONNECT_MIX);
   const [kokoroSpeed, setKokoroSpeed] = useState(1.1);
-  const [imageProvider, setImageProvider] = useState("vivi");
+  const [imageProvider, setImageProvider] = useState("gflow");
   const [videoProvider, setVideoProvider] = useState("gflow");
   const [gflowImageModel, setGflowImageModel] = useState("nano2");
   const [gflowVideoModel, setGflowVideoModel] = useState("veo-lite");
@@ -698,7 +698,7 @@ export function FlowPage() {
           </h1>
           <p className="mt-3 text-sm text-muted-foreground">
             Misma ventana que Nuevo Film. LLM: VIVI, RunPod o Atlas. Web: Tavily. Voz: Kokoro
-            (mix Conexión), Atlas, Grok o Gemini. Fotos: VIVI. Video: gflow Veo I2V
+            (mix Conexión), Atlas, Grok o Gemini. Fotos: gflow Imagen. Video: gflow Veo I2V
             (una escena a la vez: still → clip → siguiente). Deja Agent apagado.
           </p>
         </div>
@@ -709,7 +709,7 @@ export function FlowPage() {
             { id: "film-guion", n: 2, title: "Guion", hint: "LLM y scripts", icon: PenLine },
             { id: "film-voz", n: 3, title: "Voz", hint: "Kokoro mix", icon: Mic2 },
             { id: "film-elenco", n: 4, title: "Elenco", hint: "Refs y estilo", icon: Users },
-            { id: "film-visuales", n: 5, title: "Visuales", hint: "VIVI + Veo I2V", icon: ImageIcon },
+            { id: "film-visuales", n: 5, title: "Visuales", hint: "gflow Imagen + Veo I2V", icon: ImageIcon },
             { id: "film-musica", n: 6, title: "Música", hint: "Banda", icon: Music },
           ]}
         />
@@ -1160,7 +1160,7 @@ export function FlowPage() {
         />
         </PipelineStep>
 
-        <PipelineStep id="film-visuales" step={5} icon={ImageIcon} title="Visuales" subtitle="Fotos: VIVI · Video: Veo I2V en serie">
+        <PipelineStep id="film-visuales" step={5} icon={ImageIcon} title="Visuales" subtitle="Fotos: gflow Imagen · Video: Veo I2V en serie">
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Imagen">
@@ -1223,10 +1223,10 @@ export function FlowPage() {
                   </>
                 ) : null}
                 <p className="sm:col-span-2 text-[11px] text-muted-foreground">
-                  Una escena a la vez: VIVI pinta el still, Flow anima con I2V
-                  (no descuenta t2v), espera a que Chrome cierre, y recién ahí
-                  va la siguiente foto. Deja Agent apagado. t2v solo si lo eliges
-                  (gasta créditos).
+                  Una escena a la vez: gflow Imagen pinta el still, Flow anima
+                  8s con I2V (no descuenta t2v), espera a que Chrome cierre, y
+                  recién ahí va la siguiente foto. Deja Agent apagado. t2v solo
+                  si lo eliges (gasta créditos). VIVI y Atlas siguen de reserva.
                 </p>
               </div>
             ) : null}

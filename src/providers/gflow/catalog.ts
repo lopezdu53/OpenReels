@@ -50,7 +50,7 @@ export function gflowCliDuration(modelId?: string, wanted?: number): number | un
 
 export const GFLOW_DEFAULT_CLIP_SECONDS = 8;
 
-/** One scene at a time: VIVI still → wait for Flow I2V → next still. */
+/** One scene at a time: gflow Imagen still → wait for Flow I2V → next still. */
 export function shouldSerializeGflowI2v(videoProvider?: string, mode?: string): boolean {
   return videoProvider === "gflow" && resolveGflowVideoMode(mode) === "i2v";
 }
