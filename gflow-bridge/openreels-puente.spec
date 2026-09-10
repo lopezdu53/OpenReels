@@ -1,7 +1,9 @@
 # -*- mode: python ; coding: utf-8 -*-
+import sys
 from pathlib import Path
 
 root = Path(SPECPATH)
+sys.path.insert(0, str(root))
 
 from branding import write_ico
 
