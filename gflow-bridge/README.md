@@ -7,16 +7,16 @@ App de **un clic** en Windows. El worker de EasyPanel llama aquí: en casa por L
 1. Instala [Google Chrome](https://www.google.com/chrome/). El exe instala **uv + gflow-cli + colorama + Chromium** (botón **Instalar todo**). La línea de estado muestra versiones y si hay actualización.
 2. En la app: mira la línea de versión. Elige el **perfil de Chrome** del Gmail Gemini → **Entrar a Flow** (deja abierta la ventana negra; entra en el Chrome de gflow; cierra Flow; una tecla). El recuadro **Perfil gflow** se rellena con tu Gmail. Agent OFF.
 3. Copia la carpeta `gflow-bridge` a este PC (o baja el `.exe` del Action *Windows bridge exe*).
-4. Doble clic en **`OpenReelsPuente.vbs`** (o `OpenReelsPuente.exe`).
-5. En la ventana:
+4. Doble clic en **`OpenReelsPuente.vbs`** (o `OpenReelsPuente.exe`). La ventana es horizontal: a la izquierda Conexión / Flow / Sistema; a la derecha el registro. **Ayuda → Acerca de** muestra la versión.
+5. En **Conexión**:
    - **En casa** — IP del Xeon (`192.168.1.71`) y **Firewall Xeon**.
    - **Fuera de casa** — URL del estudio (`https://contenido.alfonsolopezd.com`) y el mismo token.
    - **Ambos** — LAN + remoto (recomendado si EasyPanel está en la nube y a veces estás en casa).
 6. Pega el **token** (el mismo `GFLOW_BRIDGE_TOKEN` que en EasyPanel).
-7. Project id de `gflow project list` y **Conectar**.
+7. Pestaña **Flow**: project id de `gflow project list` y **Conectar**.
 8. Chrome: proyecto Flow abierto, chip **Agent en OFF**.
 
-**Inicio con Windows** deja el puente al encender el PC. Energía: que no se suspenda.
+**Sistema → Evitar suspensión y cierre de sesión** (activado por defecto) pide a Windows que no duerma, no apague la pantalla ni bloquee la sesión mientras el puente está abierto. Hace falta para los clips de 8s de Flow. **Inicio con Windows** deja el puente al encender el PC.
 
 Tras cada merge, vuelve a bajar `server.py` (y `app.py` si usas la carpeta, no el exe):
 
