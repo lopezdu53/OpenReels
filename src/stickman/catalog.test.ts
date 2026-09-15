@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  STICKMAN_STYLE_LOCK,
   beatCountForDuration,
   frameSize,
   isLookId,
   recommendArc,
+  STICKMAN_ARCS,
+  STICKMAN_STYLE_LOCK,
+  stickmanArcHint,
 } from "./catalog.js";
 
 describe("stickman catalog", () => {
@@ -25,6 +27,12 @@ describe("stickman catalog", () => {
     expect(STICKMAN_STYLE_LOCK).toContain("STICKMAN");
     expect(STICKMAN_STYLE_LOCK.toLowerCase()).toContain("no paper collage");
     expect(STICKMAN_STYLE_LOCK.toLowerCase()).toContain("no sphere-head");
+  });
+
+  it("describes each narrative arc", () => {
+    expect(STICKMAN_ARCS.every((arc) => arc.hint.length > 20)).toBe(true);
+    expect(stickmanArcHint("vs_debate")).toContain("Dos palitos");
+    expect(stickmanArcHint("joke_punchline")).toContain("chiste");
   });
 
   it("maps aspects to render sizes", () => {

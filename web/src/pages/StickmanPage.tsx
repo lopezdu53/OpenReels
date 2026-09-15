@@ -1,11 +1,67 @@
 import { Loader2, PersonStanding, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { DarkSelect } from "@/components/DarkSelect";
 import { StudioVisualFields } from "@/components/StudioVisualFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, type StickmanJobMeta } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
+
+const FALLBACK_LOOKS = [
+  { id: "classic", label: "Clásico" },
+  { id: "chalk", label: "Tiza" },
+  { id: "neon", label: "Neón" },
+  { id: "marker", label: "Rotulador" },
+  { id: "doodle", label: "Garabato" },
+];
+
+const FALLBACK_VOICES = [
+  { id: "eve", label: "Eve", note: "enérgica" },
+  { id: "ara", label: "Ara", note: "cálida" },
+  { id: "leo", label: "Leo", note: "clara" },
+  { id: "rex", label: "Rex", note: "segura" },
+  { id: "sal", label: "Sal", note: "suave" },
+];
+
+const FALLBACK_ARCS = [
+  {
+    id: "joke_punchline",
+    label: "Chiste → punchline",
+    when: "humor rápido",
+    hint: "Abre con un gancho y cierra con el chiste. Para temas cortos, memes o un solo gag.",
+  },
+  {
+    id: "how_it_works",
+    label: "Cómo funciona",
+    when: "explicar un proceso",
+    hint: "Explica un proceso paso a paso: qué es, cómo va y el resultado.",
+  },
+  {
+    id: "vs_debate",
+    label: "Cara a cara",
+    when: "dos palitos discuten",
+    hint: "Dos palitos se contradicen (mejor con elenco Dos palitos): uno dice A, el otro B.",
+  },
+  {
+    id: "listicle",
+    label: "Lista",
+    when: "N puntos",
+    hint: "Promete N puntos y los recorre uno a uno (tips, ranking, errores).",
+  },
+  {
+    id: "origin",
+    label: "Origen",
+    when: "de dónde sale algo",
+    hint: "Cuenta de dónde nace algo: el antes, el salto y cómo quedó hoy.",
+  },
+  {
+    id: "warning",
+    label: "Advertencia",
+    when: "un error común",
+    hint: "Señala un error común, por qué duele y cómo no caer.",
+  },
+];
 
 export function StickmanPage() {
   const navigate = useNavigate();
@@ -96,7 +152,7 @@ export function StickmanPage() {
           <div>
             <p className="mb-2 text-xs text-muted-foreground">Look de palito</p>
             <div className="flex flex-wrap gap-1.5">
-              {(catalog?.looks ?? []).map((item) => (
+              {(catalog?.looks ?? FALLBACK_LOOKS).map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -137,74 +193,55 @@ export function StickmanPage() {
             ))}
           </div>
 
-          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <label className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
               Duración
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
-                value={durationSec}
-                onChange={(e) => setDurationSec(Number(e.target.value))}
-              >
-                {(catalog?.durations ?? [15, 30, 60, 90]).map((d) => (
-                  <option key={d} value={d}>
-                    {d}s
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
+              <DarkSelect
+                aria-label="Duración"
+                value={String(durationSec)}
+                onValueChange={(value) => setDurationSec(Number(value))}
+                options={(catalog?.durations ?? [15, 30, 60, 90]).map((d) => ({
+                  value: String(d),
+                  label: `${d}s`,
+                }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
               Aspecto
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+              <DarkSelect
+                aria-label="Aspecto"
                 value={aspect}
-                onChange={(e) => setAspect(e.target.value)}
-              >
-                {(catalog?.aspects ?? ["9:16", "16:9", "1:1"]).map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
+                onValueChange={setAspect}
+                options={(catalog?.aspects ?? ["9:16", "16:9", "1:1"]).map((a) => ({
+                  value: a,
+                  label: a,
+                }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
               Idioma
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+              <DarkSelect
+                aria-label="Idioma"
                 value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-              >
-                <option value="es">Español</option>
-                <option value="en">English</option>
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
-              Arco
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
-                value={arc}
-                onChange={(e) => setArc(e.target.value)}
-              >
-                {(catalog?.arcs ?? []).map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
+                onValueChange={setLanguage}
+                options={[
+                  { value: "es", label: "Español" },
+                  { value: "en", label: "English" },
+                ]}
+              />
+            </div>
+            <div className="flex items-center gap-2">
               Voz
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+              <DarkSelect
+                aria-label="Voz"
                 value={voiceId}
-                onChange={(e) => setVoiceId(e.target.value)}
-              >
-                {(catalog?.voices ?? []).map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.label} · {v.note}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onValueChange={setVoiceId}
+                options={(catalog?.voices ?? FALLBACK_VOICES).map((v) => ({
+                  value: v.id,
+                  label: `${v.label} · ${v.note}`,
+                }))}
+              />
+            </div>
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -221,6 +258,28 @@ export function StickmanPage() {
               />
               Animar con I2V (opcional)
             </label>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              Arco narrativo
+              <DarkSelect
+                aria-label="Arco narrativo"
+                className="min-w-[14rem]"
+                value={arc}
+                onValueChange={setArc}
+                options={(catalog?.arcs ?? FALLBACK_ARCS).map((item) => ({
+                  value: item.id,
+                  label: item.label,
+                  hint: item.hint ?? item.when,
+                }))}
+              />
+            </div>
+            <p className="max-w-2xl text-[12px] leading-snug text-muted-foreground">
+              {(catalog?.arcs ?? FALLBACK_ARCS).find((item) => item.id === arc)?.hint ??
+                (catalog?.arcs ?? FALLBACK_ARCS).find((item) => item.id === arc)?.when ??
+                "El arco marca cómo se ordena el guion: gancho, desarrollo y cierre."}
+            </p>
           </div>
 
           <StudioVisualFields

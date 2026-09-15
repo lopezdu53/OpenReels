@@ -1064,7 +1064,7 @@ export const api = {
   voxCatalog() {
     return fetchJson<{
       themes: { id: string; label: string; mood: string }[];
-      arcs: { id: string; label: string; when: string }[];
+      arcs: { id: string; label: string; when: string; hint?: string }[];
       voices: { id: string; label: string; gender: string; lang: string; note: string }[];
       aspects: string[];
       durations: number[];
@@ -1126,7 +1126,7 @@ export const api = {
   stickmanCatalog() {
     return fetchJson<{
       looks: { id: string; label: string; mood: string }[];
-      arcs: { id: string; label: string; when: string }[];
+      arcs: { id: string; label: string; when: string; hint?: string }[];
       casts: { id: string; label: string }[];
       voices: { id: string; label: string; gender: string; note: string }[];
       aspects: string[];

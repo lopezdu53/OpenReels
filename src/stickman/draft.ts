@@ -1,12 +1,18 @@
 import {
+  beatCountForDuration,
   DEFAULT_STICKMAN_IMAGE_MODEL,
   DEFAULT_STICKMAN_VIDEO_MODEL,
-  STICKMAN_STYLE_LOCK,
-  beatCountForDuration,
   lookPrompt,
   recommendArc,
+  STICKMAN_STYLE_LOCK,
+  stickmanArcHint,
 } from "./catalog.js";
-import type { StickmanBeat, StickmanCastMember, StickmanJobConfig, StickmanScript } from "./types.js";
+import type {
+  StickmanBeat,
+  StickmanCastMember,
+  StickmanJobConfig,
+  StickmanScript,
+} from "./types.js";
 
 function slug(topic: string): string {
   return (
@@ -57,7 +63,11 @@ function beatPose(i: number, n: number, mode: StickmanJobConfig["castMode"]): st
   }
   if (i === 0) return "Palo steps into frame and points at the viewer";
   if (i === n - 1) return "Palo stands still, one arm raised in a tiny victory pose";
-  return ["Palo walks left to right", "Palo holds a simple square prop", "Palo scratches the circle head"][i % 3]!;
+  return [
+    "Palo walks left to right",
+    "Palo holds a simple square prop",
+    "Palo scratches the circle head",
+  ][i % 3]!;
 }
 
 function beatNarration(i: number, n: number, topic: string, language: string): string {
@@ -132,6 +142,7 @@ export async function draftScriptWithAtlas(
 ): Promise<StickmanScript> {
   const n = beatCountForDuration(config.durationSec);
   const fallback = draftScriptTemplate(config, project);
+  const arc = config.arc || recommendArc(config.topic);
   const prompt = `You write script.json for Stickman Studio, a 2D stick-figure explainer.
 Return ONLY JSON matching this schema (no markdown):
 project, topic, language, aspect, style="stickman", provider="atlas_cloud",
@@ -144,7 +155,8 @@ Hard rules:
 - Look: ${lookPrompt(config.look)}. Never paper collage. Never 3D hero. Never photoreal.
 - Duration ${config.durationSec}s → ${n} beats, 2–6s each, sum ≈ ${config.durationSec}.
 - Cast mode ${config.castMode}. Lock the SAME stick figures in bible.cast for every beat.
-- Language of narration: ${config.language}. Topic: ${config.topic}. Arc: ${config.arc || recommendArc(config.topic)}.
+- Language of narration: ${config.language}. Topic: ${config.topic}.
+- Arc ${arc}: ${stickmanArcHint(arc)} Shape every beat to that story. Do not flatten it into a generic hook/payoff unless that is the arc.
 - Aspect ${config.aspect}. Voice ${config.voiceId}.
 - pose describes limb positions of the stick figures only.
 - scene is a flat backdrop + at most one geometric prop. No rooms, no collage, no faces with skin.
@@ -161,7 +173,11 @@ Base object to fill (keep keys): ${JSON.stringify(fallback).slice(0, 2500)}`;
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       messages: [
-        { role: "system", content: "You are the Stickman Studio writer. Output JSON only. Never write collage or 3D hero briefs." },
+        {
+          role: "system",
+          content:
+            "You are the Stickman Studio writer. Output JSON only. Never write collage or 3D hero briefs.",
+        },
         { role: "user", content: prompt },
       ],
       temperature: 0.7,
@@ -197,7 +213,10 @@ Base object to fill (keep keys): ${JSON.stringify(fallback).slice(0, 2500)}`;
   };
 }
 
-export async function draftScript(config: StickmanJobConfig, apiKey?: string): Promise<StickmanScript> {
+export async function draftScript(
+  config: StickmanJobConfig,
+  apiKey?: string,
+): Promise<StickmanScript> {
   const project = `${slug(config.topic)}-${config.durationSec}s`;
   if (apiKey) {
     try {
