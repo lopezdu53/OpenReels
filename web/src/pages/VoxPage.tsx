@@ -1,6 +1,7 @@
 import { Loader2, Newspaper, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { DarkSelect } from "@/components/DarkSelect";
 import { StudioVisualFields } from "@/components/StudioVisualFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,91 @@ function fileToDataUrl(file: File): Promise<string> {
     r.onerror = () => reject(new Error("No se pudo leer el archivo"));
     r.readAsDataURL(file);
   });
+}
+
+const FALLBACK_VOX_ARCS = [
+  {
+    id: "hook_payoff",
+    label: "Hook → payoff",
+    when: "una idea, el más seguro",
+    hint: "Una sola idea: gancho, contexto, cierra con el payoff. El más seguro.",
+  },
+  {
+    id: "timeline",
+    label: "Línea de tiempo",
+    when: "historia / evolución",
+    hint: "Historia o evolución: entonces → hitos → hoy → qué queda.",
+  },
+  {
+    id: "how_it_works",
+    label: "Cómo funciona",
+    when: "proceso o sistema",
+    hint: "Explicador: qué es, 2–3 pasos que se ven, el beneficio.",
+  },
+  {
+    id: "pas",
+    label: "PAS",
+    when: "anuncio con dolor",
+    hint: "Anuncio: Problema → Agita → Soluciona. Para dolor y urgencia.",
+  },
+  {
+    id: "bab",
+    label: "Before / After / Bridge",
+    when: "el después vende",
+    hint: "Antes feo → después deseable → el puente (tu producto) que une ambos.",
+  },
+  {
+    id: "aida",
+    label: "AIDA",
+    when: "anuncio en frío",
+    hint: "Anuncio en frío: Atención → Interés → Deseo → Acción.",
+  },
+  {
+    id: "man_in_hole",
+    label: "Man in a hole",
+    when: "transformación",
+    hint: "Caída y subida: estaba bien, cae, escala y termina mejor.",
+  },
+  {
+    id: "myth_buster",
+    label: "Myth buster",
+    when: "desmentir una creencia",
+    hint: "Tira un mito: el hecho, la creencia falsa, qué creer en su lugar.",
+  },
+  {
+    id: "listicle",
+    label: "Listicle",
+    when: "N formas de…",
+    hint: "Lista tipo “N formas de…”: promesa, cada ítem, recap.",
+  },
+  {
+    id: "story_spine",
+    label: "Story spine",
+    when: "marca / fundador",
+    hint: "Cuento de marca: había una vez → hasta que un día → desde entonces.",
+  },
+  {
+    id: "origin",
+    label: "Origin",
+    when: "por qué existimos",
+    hint: "Por qué existimos: el mundo, la chispa, el salto y el hoy.",
+  },
+  {
+    id: "three_act",
+    label: "Tres actos",
+    when: "narrativa 60s",
+    hint: "Narrativa de un minuto: setup → conflicto → resolución.",
+  },
+];
+
+function withArcHints(
+  arcs: { id: string; label: string; when: string; hint?: string }[] | undefined,
+  fallback: { id: string; label: string; when: string; hint: string }[],
+) {
+  return (arcs?.length ? arcs : fallback).map((item) => ({
+    ...item,
+    hint: item.hint ?? fallback.find((row) => row.id === item.id)?.hint ?? item.when,
+  }));
 }
 
 export function VoxPage() {
@@ -209,73 +295,57 @@ export function VoxPage() {
             </div>
           )}
 
-          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <label className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
               Duración
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
-                value={durationSec}
-                onChange={(e) => setDurationSec(Number(e.target.value))}
-              >
-                <option value={15}>15s</option>
-                <option value={30}>30s</option>
-                <option value={60}>60s</option>
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
+              <DarkSelect
+                aria-label="Duración"
+                value={String(durationSec)}
+                onValueChange={(value) => setDurationSec(Number(value))}
+                options={[
+                  { value: "15", label: "15s" },
+                  { value: "30", label: "30s" },
+                  { value: "60", label: "60s" },
+                ]}
+              />
+            </div>
+            <div className="flex items-center gap-2">
               Aspecto
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+              <DarkSelect
+                aria-label="Aspecto"
                 value={aspect}
-                onChange={(e) => setAspect(e.target.value)}
-              >
-                {(catalog?.aspects ?? ["16:9", "9:16", "1:1"]).map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
+                onValueChange={setAspect}
+                options={(catalog?.aspects ?? ["16:9", "9:16", "1:1"]).map((a) => ({
+                  value: a,
+                  label: a,
+                }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
               Idioma
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+              <DarkSelect
+                aria-label="Idioma"
                 value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-              >
-                <option value="es">Español</option>
-                <option value="en">English</option>
-                <option value="zh">中文</option>
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
-              Arco
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
-                value={arc}
-                onChange={(e) => setArc(e.target.value)}
-              >
-                {(catalog?.arcs ?? []).map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
+                onValueChange={setLanguage}
+                options={[
+                  { value: "es", label: "Español" },
+                  { value: "en", label: "English" },
+                  { value: "zh", label: "中文" },
+                ]}
+              />
+            </div>
+            <div className="flex items-center gap-2">
               Voz
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+              <DarkSelect
+                aria-label="Voz"
                 value={voiceId}
-                onChange={(e) => setVoiceId(e.target.value)}
-              >
-                {(catalog?.voices ?? []).map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.label} · {v.note}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onValueChange={setVoiceId}
+                options={(catalog?.voices ?? []).map((v) => ({
+                  value: v.id,
+                  label: `${v.label} · ${v.note}`,
+                }))}
+              />
+            </div>
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -304,6 +374,27 @@ export function VoxPage() {
                 }}
               />
             </label>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              Arco narrativo
+              <DarkSelect
+                aria-label="Arco narrativo"
+                className="min-w-[14rem]"
+                value={arc}
+                onValueChange={setArc}
+                options={withArcHints(catalog?.arcs, FALLBACK_VOX_ARCS).map((item) => ({
+                  value: item.id,
+                  label: item.label,
+                  hint: item.hint,
+                }))}
+              />
+            </div>
+            <p className="max-w-2xl text-[12px] leading-snug text-muted-foreground">
+              {withArcHints(catalog?.arcs, FALLBACK_VOX_ARCS).find((item) => item.id === arc)
+                ?.hint ?? "El arco marca cómo se ordena el beat map: gancho, desarrollo y cierre."}
+            </p>
           </div>
 
           <div>

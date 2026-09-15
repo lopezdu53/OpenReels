@@ -1,3 +1,4 @@
+import { DarkSelect } from "@/components/DarkSelect";
 import { cn } from "@/lib/utils";
 
 type Catalog = {
@@ -43,60 +44,51 @@ export function StudioVisualFields(props: {
 
   return (
     <div className="space-y-2">
-      <label className="block text-xs text-muted-foreground">
+      <div className="block text-xs text-muted-foreground">
         Visuales
-        <select
-          className="mt-1 h-10 w-full rounded-lg border border-input bg-transparent px-2 text-foreground"
+        <DarkSelect
+          aria-label="Visuales"
+          className="mt-1 h-10 w-full min-w-full"
           value={visualProvider}
           disabled={disabled}
-          onChange={(e) => onVisualProvider(e.target.value === "gflow" ? "gflow" : "atlas")}
-        >
-          {(catalog?.visualProviders ?? FALLBACK).map((p) => (
-            <option key={p.key} value={p.key}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-      </label>
+          onValueChange={(value) => onVisualProvider(value === "gflow" ? "gflow" : "atlas")}
+          options={(catalog?.visualProviders ?? FALLBACK).map((p) => ({
+            value: p.key,
+            label: p.label,
+          }))}
+        />
+      </div>
       {disabled && disabledHint ? (
         <p className="text-[11px] text-muted-foreground">{disabledHint}</p>
       ) : null}
       {!disabled && visualProvider === "gflow" ? (
         <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-          <label className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             Imagen
-            <select
-              className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+            <DarkSelect
+              aria-label="Modelo Imagen gflow"
               value={gflowImageModel}
-              onChange={(e) => onGflowImageModel(e.target.value)}
-            >
-              {(
+              onValueChange={onGflowImageModel}
+              options={(
                 catalog?.gflowImageModels ?? [
                   { id: "nano2", label: "Imagen Nano 2" },
                   { id: "image4", label: "Imagen 4" },
                 ]
-              ).map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              ).map((m) => ({ value: m.id, label: m.label }))}
+            />
+          </div>
           {showVideo ? (
-            <label className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
               Veo I2V
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+              <DarkSelect
+                aria-label="Modelo Veo gflow"
                 value={gflowVideoModel}
-                onChange={(e) => onGflowVideoModel(e.target.value)}
-              >
-                {(catalog?.gflowVideoModels ?? [{ id: "veo-lite", label: "Veo Lite" }]).map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onValueChange={onGflowVideoModel}
+                options={(catalog?.gflowVideoModels ?? [{ id: "veo-lite", label: "Veo Lite" }]).map(
+                  (m) => ({ value: m.id, label: m.label }),
+                )}
+              />
+            </div>
           ) : null}
           <p className={cn("w-full text-[11px]")}>
             {gflowHint}

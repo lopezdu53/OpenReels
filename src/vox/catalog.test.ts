@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { beatCountForDuration, isThemeId, recommendArc } from "./catalog.js";
+import { beatCountForDuration, isThemeId, recommendArc, VOX_ARCS } from "./catalog.js";
 
 describe("vox catalog", () => {
   it("recommends timeline for history topics", () => {
@@ -15,5 +15,10 @@ describe("vox catalog", () => {
   it("knows theme ids from the skill presets", () => {
     expect(isThemeId("american-retro")).toBe(true);
     expect(isThemeId("openreels-cinematic")).toBe(false);
+  });
+
+  it("describes each Vox narrative arc", () => {
+    expect(VOX_ARCS.every((arc) => arc.hint.length > 20)).toBe(true);
+    expect(VOX_ARCS.find((arc) => arc.id === "pas")?.hint).toContain("Problema");
   });
 });

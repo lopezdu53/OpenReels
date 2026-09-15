@@ -39,12 +39,42 @@ export const STICKMAN_LOOKS = [
 ] as const;
 
 export const STICKMAN_ARCS = [
-  { id: "joke_punchline", label: "Chiste → punchline", when: "humor rápido" },
-  { id: "how_it_works", label: "Cómo funciona", when: "explicar un proceso" },
-  { id: "vs_debate", label: "Cara a cara", when: "dos palitos discuten" },
-  { id: "listicle", label: "Lista", when: "N puntos" },
-  { id: "origin", label: "Origen", when: "de dónde sale algo" },
-  { id: "warning", label: "Advertencia", when: "un error común" },
+  {
+    id: "joke_punchline",
+    label: "Chiste → punchline",
+    when: "humor rápido",
+    hint: "Abre con un gancho y cierra con el chiste. Para temas cortos, memes o un solo gag.",
+  },
+  {
+    id: "how_it_works",
+    label: "Cómo funciona",
+    when: "explicar un proceso",
+    hint: "Explica un proceso paso a paso: qué es, cómo va y el resultado.",
+  },
+  {
+    id: "vs_debate",
+    label: "Cara a cara",
+    when: "dos palitos discuten",
+    hint: "Dos palitos se contradicen (mejor con elenco Dos palitos): uno dice A, el otro B.",
+  },
+  {
+    id: "listicle",
+    label: "Lista",
+    when: "N puntos",
+    hint: "Promete N puntos y los recorre uno a uno (tips, ranking, errores).",
+  },
+  {
+    id: "origin",
+    label: "Origen",
+    when: "de dónde sale algo",
+    hint: "Cuenta de dónde nace algo: el antes, el salto y cómo quedó hoy.",
+  },
+  {
+    id: "warning",
+    label: "Advertencia",
+    when: "un error común",
+    hint: "Señala un error común, por qué duele y cómo no caer.",
+  },
 ] as const;
 
 export const STICKMAN_CASTS = [
@@ -83,6 +113,10 @@ export function isLookId(id: string): boolean {
 
 export function isArcId(id: string): boolean {
   return STICKMAN_ARCS.some((arc) => arc.id === id);
+}
+
+export function stickmanArcHint(id: string): string {
+  return STICKMAN_ARCS.find((arc) => arc.id === id)?.hint ?? "";
 }
 
 export function isCastMode(id: string): id is StickmanCastMode {
