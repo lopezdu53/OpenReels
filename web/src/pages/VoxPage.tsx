@@ -92,6 +92,16 @@ const FALLBACK_VOX_ARCS = [
   },
 ];
 
+function withArcHints(
+  arcs: { id: string; label: string; when: string; hint?: string }[] | undefined,
+  fallback: { id: string; label: string; when: string; hint: string }[],
+) {
+  return (arcs?.length ? arcs : fallback).map((item) => ({
+    ...item,
+    hint: item.hint ?? fallback.find((row) => row.id === item.id)?.hint ?? item.when,
+  }));
+}
+
 export function VoxPage() {
   const navigate = useNavigate();
   const [catalog, setCatalog] = useState<Awaited<ReturnType<typeof api.voxCatalog>> | null>(null);
@@ -374,17 +384,16 @@ export function VoxPage() {
                 className="min-w-[14rem]"
                 value={arc}
                 onValueChange={setArc}
-                options={(catalog?.arcs ?? FALLBACK_VOX_ARCS).map((item) => ({
+                options={withArcHints(catalog?.arcs, FALLBACK_VOX_ARCS).map((item) => ({
                   value: item.id,
                   label: item.label,
-                  hint: item.hint ?? item.when,
+                  hint: item.hint,
                 }))}
               />
             </div>
             <p className="max-w-2xl text-[12px] leading-snug text-muted-foreground">
-              {(catalog?.arcs ?? FALLBACK_VOX_ARCS).find((item) => item.id === arc)?.hint ??
-                (catalog?.arcs ?? FALLBACK_VOX_ARCS).find((item) => item.id === arc)?.when ??
-                "El arco marca cómo se ordena el beat map: gancho, desarrollo y cierre."}
+              {withArcHints(catalog?.arcs, FALLBACK_VOX_ARCS).find((item) => item.id === arc)
+                ?.hint ?? "El arco marca cómo se ordena el beat map: gancho, desarrollo y cierre."}
             </p>
           </div>
 
