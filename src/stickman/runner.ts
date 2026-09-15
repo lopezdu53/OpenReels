@@ -5,7 +5,7 @@ import { createStudioImage, createStudioVideo } from "../studio/visual-provider.
 import { assembleStickman } from "./assemble.js";
 import { jobDir, readScript, writeScript } from "./store.js";
 import type { StickmanJobConfig } from "./types.js";
-import { renderStills } from "./visuals.js";
+import { buildContinuousMotionPrompt, pickMotionDuration, renderStills } from "./visuals.js";
 
 export async function runTts(
   id: string,
@@ -68,35 +68,37 @@ export async function runMotion(
     gflowModel: config.gflowVideoModel,
     gflowMode: config.gflowVideoMode,
   });
-  if (config.visualProvider === "gflow") {
-    log("motion: gflow I2V en serie (un Chrome, espera el clip de 8s)");
+  const firstStillRel = script.beats.find((beat) => beat.stillPath)?.stillPath;
+  const firstStill = firstStillRel ? path.join(jobDir(id), firstStillRel) : "";
+  if (!firstStill || !fs.existsSync(firstStill)) {
+    log("motion: sin still inicial, no hay I2V");
+    return script.beats.map(() => null);
   }
-  const clips: Array<string | null> = [];
-  for (const beat of script.beats) {
-    const stillRel = beat.stillPath;
-    const still = stillRel ? path.join(jobDir(id), stillRel) : "";
-    if (!still || !fs.existsSync(still)) {
-      clips.push(null);
-      continue;
-    }
-    const dest = path.join(clipsDir, `beat-${String(beat.id).padStart(2, "0")}.mp4`);
-    try {
-      const result = await video.generate({
-        sourceImage: fs.readFileSync(still),
-        prompt:
-          "Subtle flipbook motion of the same 2D stick figures. Limbs move a little. Same line style. Never morph into photoreal or collage.",
-        durationSeconds: Math.min(5, Math.max(3, beat.durationSec)),
-        aspectRatio: script.aspect,
-        negativePrompt: "photoreal, collage, torn paper, 3D, detailed face, sphere head",
-      });
-      fs.copyFileSync(result.filePath, dest);
-      beat.clipPath = path.relative(jobDir(id), dest);
-      clips.push(dest);
-      log(`clip ${beat.id} ok`);
-    } catch (err) {
-      log(`clip ${beat.id} skipped: ${err}`);
-      clips.push(null);
-    }
+  const wanted = script.beats.reduce((sum, beat) => sum + Math.max(1, beat.durationSec), 0);
+  const clipSeconds = pickMotionDuration(video.supportedDurations, wanted);
+  const dest = path.join(clipsDir, "continuous.mp4");
+  if (config.visualProvider === "gflow") {
+    log(`motion: un plano gflow I2V continuo (~${clipSeconds}s, sin cortes)`);
+  } else {
+    log(`motion: un plano I2V continuo (${clipSeconds}s, sin cortes)`);
+  }
+  const clips: Array<string | null> = script.beats.map(() => null);
+  try {
+    const result = await video.generate({
+      sourceImage: fs.readFileSync(firstStill),
+      prompt: buildContinuousMotionPrompt(script, clipSeconds),
+      durationSeconds: clipSeconds,
+      aspectRatio: script.aspect,
+      negativePrompt:
+        "photoreal, collage, torn paper, 3D, detailed face, sphere head, jump cut, hard cut",
+    });
+    fs.copyFileSync(result.filePath, dest);
+    const hero = script.beats[0];
+    if (hero) hero.clipPath = path.relative(jobDir(id), dest);
+    clips[0] = dest;
+    log(`clip continuo ok → ${path.basename(dest)}`);
+  } catch (err) {
+    log(`clip continuo skipped: ${err}`);
   }
   writeScript(id, script);
   return clips;

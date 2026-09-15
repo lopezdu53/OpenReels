@@ -88,7 +88,7 @@ export function StickmanPage() {
   const [arc, setArc] = useState("joke_punchline");
   const [voiceId, setVoiceId] = useState("eve");
   const [captions, setCaptions] = useState(true);
-  const [animate, setAnimate] = useState(false);
+  const [animate, setAnimate] = useState(true);
   const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("atlas");
   const [gflowImageModel, setGflowImageModel] = useState("nano2");
   const [gflowVideoModel, setGflowVideoModel] = useState("veo-lite");
@@ -147,7 +147,8 @@ export function StickmanPage() {
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
             Videos de palitos 2D. Visuales: Atlas Cloud del servidor o gflow (Imagen + Veo I2V).
-            Voz: Atlas del entorno. No pega la API key aquí.
+            Voz: Atlas del entorno. No pega la API key aquí. El gif de palitos sin cortes es un
+            solo plano I2V: deja marcado Plano continuo.
           </p>
         </div>
 
@@ -266,7 +267,7 @@ export function StickmanPage() {
                 checked={animate}
                 onChange={(e) => setAnimate(e.target.checked)}
               />
-              Animar con I2V (opcional)
+              Plano continuo I2V (sin cortes)
             </label>
           </div>
 

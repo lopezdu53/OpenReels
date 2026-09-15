@@ -159,7 +159,11 @@ Hard rules:
 - Arc ${arc}: ${stickmanArcHint(arc)} Shape every beat to that story. Do not flatten it into a generic hook/payoff unless that is the arc.
 - Aspect ${config.aspect}. Voice ${config.voiceId}.
 - pose describes limb positions of the stick figures only.
-- scene is a flat backdrop + at most one geometric prop. No rooms, no collage, no faces with skin.
+- ${
+    config.animate
+      ? "ANIMATE=true: beats are timed chapters of ONE continuous camera take. Scene may morph (line-art architecture, oversized props, shattering columns). Beat N must continue Beat N-1. Never jump-cut."
+      : "scene is a flat backdrop + at most one geometric prop. No photoreal rooms, no collage, no faces with skin."
+  }
 
 Base object to fill (keep keys): ${JSON.stringify(fallback).slice(0, 2500)}`;
 

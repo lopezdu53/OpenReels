@@ -4,7 +4,13 @@ import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import { draftScriptTemplate } from "./draft.js";
 import type { StickmanJobConfig } from "./types.js";
-import { buildStillPrompt, castLock, renderStills } from "./visuals.js";
+import {
+  buildContinuousMotionPrompt,
+  buildStillPrompt,
+  castLock,
+  pickMotionDuration,
+  renderStills,
+} from "./visuals.js";
 
 const config: StickmanJobConfig = {
   topic: "el wifi de la oficina",
@@ -59,5 +65,15 @@ describe("stickman visuals", () => {
     expect(calls).toHaveLength(1);
     expect(fs.existsSync(path.join(root, "stills", "beat-01.png"))).toBe(true);
     fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("writes a continuous I2V prompt with timed beats and no-cut language", () => {
+    const script = draftScriptTemplate({ ...config, durationSec: 15, animate: true }, "wifi-15s");
+    const prompt = buildContinuousMotionPrompt(script, 8);
+    expect(prompt).toContain("NO CUTS");
+    expect(prompt).toContain("[0.0–");
+    expect(prompt.toLowerCase()).toContain("morph");
+    expect(pickMotionDuration([4, 6, 8], 15)).toBe(8);
+    expect(pickMotionDuration([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 15)).toBe(15);
   });
 });
