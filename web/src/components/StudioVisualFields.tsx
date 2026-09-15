@@ -28,7 +28,7 @@ function planTakes(supported: number[], wanted: number): number[] {
   const clean = [...new Set(supported.filter((d) => d > 0))].sort((a, b) => a - b);
   const target = Math.max(1, Math.round(wanted));
   if (!clean.length) return [target];
-  const max = clean[clean.length - 1]!;
+  const max = clean.at(-1) ?? 8;
   if (target <= max) {
     if (clean.includes(target)) return [target];
     return [clean.find((d) => d >= target) ?? max];
@@ -143,11 +143,14 @@ export function StudioVisualFields(props: {
                 aria-label="Modelo video gflow"
                 value={gflowVideoModel}
                 onValueChange={onGflowVideoModel}
-                options={videos.map((m) => ({
-                  value: m.id,
-                  label: m.label,
-                  hint: `${m.durations?.join("/") ?? "8"}s · ${planTakes(m.durations ?? [8], durationSec ?? (m.durations?.at(-1) ?? 8)).length} toma(s) · ~${videoCredits(m, durationSec ?? (m.durations?.at(-1) ?? 8))} cr 720p×1`,
-                }))}
+                options={videos.map((m) => {
+                  const jobDur = durationSec ?? m.durations?.at(-1) ?? 8;
+                  return {
+                    value: m.id,
+                    label: m.label,
+                    hint: `${m.durations?.join("/") ?? "8"}s · ${planTakes(m.durations ?? [8], jobDur).length} toma(s) · ~${videoCredits(m, jobDur)} cr 720p×1`,
+                  };
+                })}
               />
             </div>
           ) : null}

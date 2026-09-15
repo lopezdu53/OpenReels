@@ -5,7 +5,7 @@ import { createStudioImage, createStudioVideo } from "../studio/visual-provider.
 import { assembleStickman, concatMotionTakes, extractLastFrame } from "./assemble.js";
 import { planMotionTakes } from "./catalog.js";
 import { jobDir, readScript, writeScript } from "./store.js";
-import type { StickmanJobConfig } from "./types.js";
+import type { StickmanJobConfig, StickmanScript } from "./types.js";
 import { buildContinuousMotionPrompt, renderStills } from "./visuals.js";
 
 export async function runTts(
@@ -48,6 +48,52 @@ export async function runVisuals(
   return paths;
 }
 
+async function generateChainedTakes(opts: {
+  script: StickmanScript;
+  video: ReturnType<typeof createStudioVideo>;
+  firstStill: string;
+  clipsDir: string;
+  takes: number[];
+  log: (line: string) => void;
+}): Promise<string[]> {
+  const generated: string[] = [];
+  let sourcePath = opts.firstStill;
+  let startSec = 0;
+  for (const [i, clipSeconds] of opts.takes.entries()) {
+    const takePath = path.join(opts.clipsDir, `take-${String(i + 1).padStart(2, "0")}.mp4`);
+    try {
+      const result = await opts.video.generate({
+        sourceImage: fs.readFileSync(sourcePath),
+        prompt: buildContinuousMotionPrompt(opts.script, clipSeconds, {
+          startSec,
+          takeIndex: i,
+          takeCount: opts.takes.length,
+        }),
+        durationSeconds: clipSeconds,
+        aspectRatio: opts.script.aspect,
+        negativePrompt:
+          "photoreal, collage, torn paper, 3D, detailed face, sphere head, jump cut, hard cut",
+      });
+      fs.copyFileSync(result.filePath, takePath);
+      generated.push(takePath);
+      opts.log(
+        `take ${i + 1}/${opts.takes.length} ok → ${path.basename(takePath)} (${clipSeconds}s)`,
+      );
+      if (i < opts.takes.length - 1) {
+        sourcePath = extractLastFrame(
+          takePath,
+          path.join(opts.clipsDir, `bridge-${String(i + 1).padStart(2, "0")}.png`),
+        );
+      }
+      startSec += clipSeconds;
+    } catch (err) {
+      opts.log(`take ${i + 1}/${opts.takes.length} skipped: ${err}`);
+      break;
+    }
+  }
+  return generated;
+}
+
 export async function runMotion(
   id: string,
   config: StickmanJobConfig,
@@ -83,46 +129,22 @@ export async function runMotion(
     `motion: ${takes.length} toma${takes.length === 1 ? "" : "s"} ${label} ${takes.join("+")}s (sin freeze, puente por último frame)`,
   );
   const clips: Array<string | null> = script.beats.map(() => null);
-  const generated: string[] = [];
-  let sourcePath = firstStill;
-  let startSec = 0;
-  for (let i = 0; i < takes.length; i++) {
-    const clipSeconds = takes[i]!;
-    const takePath = path.join(clipsDir, `take-${String(i + 1).padStart(2, "0")}.mp4`);
-    try {
-      const result = await video.generate({
-        sourceImage: fs.readFileSync(sourcePath),
-        prompt: buildContinuousMotionPrompt(script, clipSeconds, {
-          startSec,
-          takeIndex: i,
-          takeCount: takes.length,
-        }),
-        durationSeconds: clipSeconds,
-        aspectRatio: script.aspect,
-        negativePrompt:
-          "photoreal, collage, torn paper, 3D, detailed face, sphere head, jump cut, hard cut",
-      });
-      fs.copyFileSync(result.filePath, takePath);
-      generated.push(takePath);
-      log(`take ${i + 1}/${takes.length} ok → ${path.basename(takePath)} (${clipSeconds}s)`);
-      if (i < takes.length - 1) {
-        sourcePath = extractLastFrame(
-          takePath,
-          path.join(clipsDir, `bridge-${String(i + 1).padStart(2, "0")}.png`),
-        );
-      }
-      startSec += clipSeconds;
-    } catch (err) {
-      log(`take ${i + 1}/${takes.length} skipped: ${err}`);
-      break;
-    }
-  }
+  const generated = await generateChainedTakes({
+    script,
+    video,
+    firstStill,
+    clipsDir,
+    takes,
+    log,
+  });
   if (generated.length) {
     concatMotionTakes(generated, dest, script.aspect);
     const hero = script.beats[0];
     if (hero) hero.clipPath = path.relative(jobDir(id), dest);
     clips[0] = dest;
-    log(`clip continuo ok → ${path.basename(dest)} (${generated.length} toma${generated.length === 1 ? "" : "s"})`);
+    log(
+      `clip continuo ok → ${path.basename(dest)} (${generated.length} toma${generated.length === 1 ? "" : "s"})`,
+    );
   }
   writeScript(id, script);
   return clips;

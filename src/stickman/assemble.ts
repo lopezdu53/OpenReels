@@ -113,8 +113,9 @@ export function extractLastFrame(src: string, dest: string): string {
 export function concatMotionTakes(srcs: string[], dest: string, aspect: string): void {
   if (!srcs.length) throw new Error("No hay takes para concatenar");
   fs.mkdirSync(path.dirname(dest), { recursive: true });
-  if (srcs.length === 1) {
-    fs.copyFileSync(srcs[0]!, dest);
+  const only = srcs[0];
+  if (srcs.length === 1 && only) {
+    fs.copyFileSync(only, dest);
     return;
   }
   const { w, h } = frameSize(aspect);
@@ -137,7 +138,10 @@ export function concatMotionTakes(srcs: string[], dest: string, aspect: string):
     return out;
   });
   const list = path.join(work, "takes.txt");
-  fs.writeFileSync(list, normalized.map((file) => `file '${file.replace(/'/g, "'\\''")}'`).join("\n"));
+  fs.writeFileSync(
+    list,
+    normalized.map((file) => `file '${file.replace(/'/g, "'\\''")}'`).join("\n"),
+  );
   ffmpeg(["-y", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", dest]);
 }
 

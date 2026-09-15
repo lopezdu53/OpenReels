@@ -2,7 +2,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ImageProvider } from "../schema/providers.js";
 import { lookPrompt, STICKMAN_STYLE_LOCK } from "./catalog.js";
+
 export { planMotionTakes } from "./catalog.js";
+
 import type { StickmanBeat, StickmanScript } from "./types.js";
 
 function isTransient(err: unknown): boolean {

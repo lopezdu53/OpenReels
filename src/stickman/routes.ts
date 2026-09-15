@@ -95,7 +95,9 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     }
     const durationSec = Number(body.durationSec ?? 30);
     if (!STICKMAN_DURATIONS.includes(durationSec as (typeof STICKMAN_DURATIONS)[number])) {
-      return reply.status(400).send({ error: "Duración: 10s, 15s, 30s, 1 min, 2 min, 5 min o 8 min" });
+      return reply
+        .status(400)
+        .send({ error: "Duración: 10s, 15s, 30s, 1 min, 2 min, 5 min o 8 min" });
     }
     const aspect = String(body.aspect ?? "9:16");
     if (!STICKMAN_ASPECTS.includes(aspect as (typeof STICKMAN_ASPECTS)[number])) {

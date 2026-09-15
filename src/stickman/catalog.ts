@@ -143,7 +143,7 @@ export function planMotionTakes(supported: readonly number[], wanted: number): n
       i === n - 1 ? Math.max(1, target - chunk * (n - 1)) : chunk,
     );
   }
-  const max = clean[clean.length - 1]!;
+  const max = clean.at(-1) ?? 4;
   if (target <= max) {
     if (clean.includes(target)) return [target];
     return [clean.find((d) => d >= target) ?? max];
