@@ -24,7 +24,7 @@ describe("stickman draftScriptTemplate", () => {
     const doc = draftScriptTemplate(base, "cafe-15s");
     expect(doc.style).toBe("stickman");
     expect(doc.provider).toBe("atlas_cloud");
-    expect(doc.beats).toHaveLength(4);
+    expect(doc.beats).toHaveLength(3);
     expect(doc.bible.cast[0]?.name).toBe("Palo");
     const raw = JSON.stringify(doc);
     expect(raw).not.toContain("directorScore");

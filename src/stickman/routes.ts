@@ -10,17 +10,23 @@ import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "../providers/gflow/catal
 import { gflowDoctor } from "../providers/gflow/client.js";
 import { resolveStudioVisualProvider, STUDIO_VISUAL_PROVIDERS } from "../studio/visual-provider.js";
 import {
+  DEFAULT_STICKMAN_GFLOW_IMAGE,
+  DEFAULT_STICKMAN_GFLOW_VIDEO,
   DEFAULT_STICKMAN_IMAGE_MODEL,
+  DEFAULT_STICKMAN_LLM,
   DEFAULT_STICKMAN_TTS_MODEL,
   DEFAULT_STICKMAN_VIDEO_MODEL,
   isArcId,
   isCastMode,
   isLookId,
+  isStickmanLlmId,
   recommendArc,
+  recommendStickmanGflow,
   STICKMAN_ARCS,
   STICKMAN_ASPECTS,
   STICKMAN_CASTS,
   STICKMAN_DURATIONS,
+  STICKMAN_LLMS,
   STICKMAN_LOOKS,
   STICKMAN_VOICES,
 } from "./catalog.js";
@@ -60,9 +66,14 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     defaultImageModel: DEFAULT_STICKMAN_IMAGE_MODEL,
     defaultVideoModel: DEFAULT_STICKMAN_VIDEO_MODEL,
     defaultTtsModel: DEFAULT_STICKMAN_TTS_MODEL,
+    defaultLlm: DEFAULT_STICKMAN_LLM,
+    llms: STICKMAN_LLMS,
     visualProviders: [...STUDIO_VISUAL_PROVIDERS],
     gflowImageModels: GFLOW_IMAGE_MODELS,
-    gflowVideoModels: GFLOW_VIDEO_MODELS,
+    gflowVideoModels: GFLOW_VIDEO_MODELS.filter((m) => m.id !== "veo-lite-lp"),
+    recommendedGflow: recommendStickmanGflow(15),
+    defaultGflowImage: DEFAULT_STICKMAN_GFLOW_IMAGE,
+    defaultGflowVideo: DEFAULT_STICKMAN_GFLOW_VIDEO,
     atlasReady: Boolean(resolveAtlasApiKey()),
     gflowBridge: Boolean(gflowBridgeUrl()),
     doctor: await gflowDoctor(),
@@ -118,6 +129,9 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
       gflowImageModel: body.gflowImageModel ? String(body.gflowImageModel) : undefined,
       gflowVideoModel: body.gflowVideoModel ? String(body.gflowVideoModel) : undefined,
       gflowVideoMode: body.gflowVideoMode ? String(body.gflowVideoMode) : undefined,
+      llmModel: isStickmanLlmId(String(body.llmModel ?? ""))
+        ? String(body.llmModel)
+        : DEFAULT_STICKMAN_LLM,
     };
 
     const meta = createJob(user.id, config);

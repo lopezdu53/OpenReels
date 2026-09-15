@@ -1,10 +1,19 @@
 import { DarkSelect } from "@/components/DarkSelect";
 import { cn } from "@/lib/utils";
 
+type GflowImage = { id: string; label: string; note?: string; credits?: number };
+type GflowVideo = {
+  id: string;
+  label: string;
+  note?: string;
+  durations?: number[];
+  creditPerSecond?: number;
+};
+
 type Catalog = {
   visualProviders?: { key: string; label: string }[];
-  gflowImageModels?: { id: string; label: string }[];
-  gflowVideoModels?: { id: string; label: string }[];
+  gflowImageModels?: GflowImage[];
+  gflowVideoModels?: GflowVideo[];
   atlasReady?: boolean;
   gflowBridge?: boolean;
   doctor?: { ok: boolean; detail: string };
@@ -12,8 +21,17 @@ type Catalog = {
 
 const FALLBACK = [
   { key: "atlas", label: "ATLAS Cloud" },
-  { key: "gflow", label: "gflow (Imagen · Flow)" },
+  { key: "gflow", label: "gflow (Nano Banana · Flow)" },
 ];
+
+function videoCredits(model: GflowVideo | undefined, durationSec: number): number {
+  if (!model?.creditPerSecond) return 0;
+  const durs = model.durations ?? [8];
+  const clip = durs.includes(durationSec)
+    ? durationSec
+    : (durs.find((d) => d >= durationSec) ?? durs[durs.length - 1] ?? 8);
+  return Math.round(model.creditPerSecond * clip);
+}
 
 export function StudioVisualFields(props: {
   catalog: Catalog;
@@ -27,6 +45,7 @@ export function StudioVisualFields(props: {
   disabled?: boolean;
   disabledHint?: string;
   gflowHint: string;
+  durationSec?: number;
 }) {
   const {
     catalog,
@@ -40,7 +59,22 @@ export function StudioVisualFields(props: {
     disabled,
     disabledHint,
     gflowHint,
+    durationSec = 15,
   } = props;
+
+  const images = catalog?.gflowImageModels ?? [
+    { id: "nano-pro", label: "Nano Banana Pro", credits: 0 },
+    { id: "nano2", label: "Nano Banana 2", credits: 0 },
+    { id: "nano-lite", label: "Nano Banana 2 Lite", credits: 0 },
+  ];
+  const videos = catalog?.gflowVideoModels ?? [
+    { id: "omni-flash", label: "Omni 1.1 Flash", durations: [4, 6, 8, 10], creditPerSecond: 2 },
+  ];
+  const video = videos.find((m) => m.id === gflowVideoModel) ?? videos[0];
+  const clipCredits = videoCredits(video, durationSec);
+  const clipSeconds = video?.durations?.includes(durationSec)
+    ? durationSec
+    : (video?.durations?.find((d) => d >= durationSec) ?? video?.durations?.at(-1) ?? 8);
 
   return (
     <div className="space-y-2">
@@ -69,28 +103,33 @@ export function StudioVisualFields(props: {
               aria-label="Modelo Imagen gflow"
               value={gflowImageModel}
               onValueChange={onGflowImageModel}
-              options={(
-                catalog?.gflowImageModels ?? [
-                  { id: "nano2", label: "Imagen Nano 2" },
-                  { id: "image4", label: "Imagen 4" },
-                ]
-              ).map((m) => ({ value: m.id, label: m.label }))}
+              options={images.map((m) => ({
+                value: m.id,
+                label: m.label,
+                hint: `${m.note ?? "Flow"} · 0 créditos`,
+              }))}
             />
           </div>
           {showVideo ? (
             <div className="flex items-center gap-2">
-              Veo I2V
+              Video
               <DarkSelect
-                aria-label="Modelo Veo gflow"
+                aria-label="Modelo video gflow"
                 value={gflowVideoModel}
                 onValueChange={onGflowVideoModel}
-                options={(catalog?.gflowVideoModels ?? [{ id: "veo-lite", label: "Veo Lite" }]).map(
-                  (m) => ({ value: m.id, label: m.label }),
-                )}
+                options={videos.map((m) => ({
+                  value: m.id,
+                  label: m.label,
+                  hint: `${m.durations?.join("/") ?? "8"}s · ~${videoCredits(m, durationSec)} cr 720p×1`,
+                }))}
               />
             </div>
           ) : null}
           <p className={cn("w-full text-[11px]")}>
+            Imagen 0 créditos.{" "}
+            {showVideo
+              ? `Video ${video?.label ?? ""} ${clipSeconds}s ≈ ${clipCredits} créditos Flow (720p ×1). `
+              : ""}
             {gflowHint}
             {catalog?.gflowBridge === false
               ? " El puente no está configurado en este entorno."

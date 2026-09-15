@@ -80,18 +80,19 @@ export function StickmanPage() {
   );
   const [jobs, setJobs] = useState<StickmanJobMeta[]>([]);
   const [topic, setTopic] = useState("");
-  const [durationSec, setDurationSec] = useState(30);
+  const [durationSec, setDurationSec] = useState(15);
   const [aspect, setAspect] = useState("9:16");
   const [language, setLanguage] = useState("es");
   const [look, setLook] = useState("classic");
   const [castMode, setCastMode] = useState("solo");
   const [arc, setArc] = useState("joke_punchline");
   const [voiceId, setVoiceId] = useState("eve");
+  const [llmModel, setLlmModel] = useState("google/gemini-2.5-flash");
   const [captions, setCaptions] = useState(true);
   const [animate, setAnimate] = useState(true);
-  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("atlas");
-  const [gflowImageModel, setGflowImageModel] = useState("nano2");
-  const [gflowVideoModel, setGflowVideoModel] = useState("veo-lite");
+  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("gflow");
+  const [gflowImageModel, setGflowImageModel] = useState("nano-pro");
+  const [gflowVideoModel, setGflowVideoModel] = useState("omni-flash");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -125,6 +126,7 @@ export function StickmanPage() {
         gflowImageModel: visualProvider === "gflow" ? gflowImageModel : undefined,
         gflowVideoModel: visualProvider === "gflow" ? gflowVideoModel : undefined,
         gflowVideoMode: visualProvider === "gflow" ? "i2v" : undefined,
+        llmModel,
       });
       navigate(`/stickman/${res.id}`);
     } catch (err) {
@@ -146,9 +148,9 @@ export function StickmanPage() {
             Nuevo Stickman
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Videos de palitos 2D. Visuales: Atlas Cloud del servidor o gflow (Imagen + Veo I2V).
-            Voz: Atlas del entorno. No pega la API key aquí. El gif de palitos sin cortes es un
-            solo plano I2V: deja marcado Plano continuo.
+            Videos de palitos 2D. Historia: director de stickman (no OpenReels). Visuales baratos:
+            gflow Nano Banana (0 créditos) + Omni 1.1 Flash (hasta 10s, un plano). Atlas sigue
+            disponible. Voz: Atlas del entorno.
           </p>
         </div>
 
@@ -211,7 +213,7 @@ export function StickmanPage() {
                 aria-label="Duración"
                 value={String(durationSec)}
                 onValueChange={(value) => setDurationSec(Number(value))}
-                options={(catalog?.durations ?? [15, 30, 60, 90]).map((d) => ({
+                options={(catalog?.durations ?? [10, 15, 30, 60, 90]).map((d) => ({
                   value: String(d),
                   label: `${d}s`,
                 }))}
@@ -250,6 +252,28 @@ export function StickmanPage() {
                 options={(catalog?.voices ?? FALLBACK_VOICES).map((v) => ({
                   value: v.id,
                   label: `${v.label} · ${v.note}`,
+                }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              LLM historia
+              <DarkSelect
+                aria-label="LLM de la historia"
+                className="min-w-[14rem]"
+                value={llmModel}
+                onValueChange={setLlmModel}
+                options={(
+                  catalog?.llms ?? [
+                    {
+                      id: "google/gemini-2.5-flash",
+                      label: "Gemini 2.5 Flash",
+                      note: "mejor para historia de palitos",
+                    },
+                  ]
+                ).map((llm) => ({
+                  value: llm.id,
+                  label: llm.label,
+                  hint: llm.note,
                 }))}
               />
             </div>
@@ -301,7 +325,8 @@ export function StickmanPage() {
             gflowVideoModel={gflowVideoModel}
             onGflowVideoModel={setGflowVideoModel}
             showVideo={animate}
-            gflowHint="Stills y I2V por el Puente Windows (un Chrome, en serie). Voz: Atlas del servidor."
+            durationSec={durationSec}
+            gflowHint="Un plano I2V (sin cortes) por el Puente Windows. Omni hasta 10s; Veo 8s. Voz: Atlas."
           />
 
           {error && <p className="text-sm text-destructive">{error}</p>}

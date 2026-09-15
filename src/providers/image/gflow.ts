@@ -3,7 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { ImageProvider } from "../../schema/providers.js";
 import { bridgeGenerateImage, gflowBridgeUrl } from "../gflow/bridge.js";
-import { resolveGflowImageModel } from "../gflow/catalog.js";
+import { gflowImageCliId } from "../gflow/catalog.js";
 import { GflowCliError, runGflowJson } from "../gflow/client.js";
 
 function readLocalPath(payload: Record<string, unknown>): string {
@@ -19,7 +19,7 @@ export class GflowImage implements ImageProvider {
   private modelId: string;
 
   constructor(modelId?: string) {
-    this.modelId = resolveGflowImageModel(modelId);
+    this.modelId = gflowImageCliId(modelId);
   }
 
   async generate(
@@ -40,9 +40,22 @@ export class GflowImage implements ImageProvider {
     }
 
     const dest = path.join(os.tmpdir(), `openreels-gflow-${Date.now()}.png`);
-    const args = referenceImage && referenceImage.length > 80
-      ? ["image", "i2i", full, "--ref", writeTempPng(referenceImage), "--model", this.modelId, "--aspect", aspect, "-o", dest]
-      : ["image", "t2i", full, "--model", this.modelId, "--aspect", aspect, "-o", dest];
+    const args =
+      referenceImage && referenceImage.length > 80
+        ? [
+            "image",
+            "i2i",
+            full,
+            "--ref",
+            writeTempPng(referenceImage),
+            "--model",
+            this.modelId,
+            "--aspect",
+            aspect,
+            "-o",
+            dest,
+          ]
+        : ["image", "t2i", full, "--model", this.modelId, "--aspect", aspect, "-o", dest];
 
     const payload = await runGflowJson(args, 240_000);
     const local = fs.existsSync(dest) ? dest : readLocalPath(payload);
