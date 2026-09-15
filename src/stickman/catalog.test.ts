@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   beatCountForDuration,
+  formatStickmanDuration,
   frameSize,
   isLookId,
+  planMotionTakes,
   recommendArc,
   recommendStickmanGflow,
   STICKMAN_ARCS,
+  STICKMAN_DURATIONS,
   STICKMAN_STYLE_LOCK,
   stickmanArcHint,
 } from "./catalog.js";
@@ -15,21 +18,33 @@ describe("stickman catalog", () => {
     expect(recommendArc("Bitcoin vs el negocio tradicional")).toBe("vs_debate");
   });
 
-  it("sizes beat counts for 10/15/30/60/90s", () => {
+  it("sizes beat counts for 10s through 8 min", () => {
     expect(beatCountForDuration(10)).toBe(3);
     expect(beatCountForDuration(15)).toBe(3);
     expect(beatCountForDuration(30)).toBe(6);
     expect(beatCountForDuration(60)).toBe(8);
-    expect(beatCountForDuration(90)).toBe(10);
+    expect(beatCountForDuration(120)).toBe(12);
+    expect(beatCountForDuration(300)).toBe(18);
+    expect(beatCountForDuration(480)).toBe(24);
+    expect(STICKMAN_DURATIONS).toEqual([10, 15, 30, 60, 120, 300, 480]);
+    expect(formatStickmanDuration(120)).toBe("2 min");
+    expect(formatStickmanDuration(15)).toBe("15s");
   });
 
-  it("picks Banana Pro + Omni 10s for a no-cut gflow take", () => {
+  it("chains Omni takes so 15s is 10+6, not a 10s freeze", () => {
+    expect(planMotionTakes([4, 6, 8, 10], 15)).toEqual([10, 6]);
+    expect(planMotionTakes([4, 6, 8, 10], 10)).toEqual([10]);
+    expect(planMotionTakes([4, 6, 8, 10], 30)).toEqual([10, 10, 10]);
+    expect(planMotionTakes([4, 6, 8], 15)).toEqual([8, 8]);
+    expect(planMotionTakes([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 15)).toEqual([15]);
+    expect(planMotionTakes([4, 6, 8, 10], 480)).toHaveLength(48);
     expect(recommendStickmanGflow(15)).toEqual({
       imageModel: "nano-pro",
       videoModel: "omni-flash",
       clipSeconds: 10,
+      takes: [10, 6],
     });
-    expect(recommendStickmanGflow(8).clipSeconds).toBe(8);
+    expect(recommendStickmanGflow(8).takes).toEqual([8]);
   });
 
   it("knows stickman looks and never mentions collage or film hero", () => {

@@ -91,7 +91,7 @@ export const STICKMAN_VOICES = [
 ] as const;
 
 export const STICKMAN_ASPECTS = ["9:16", "16:9", "1:1"] as const;
-export const STICKMAN_DURATIONS = [10, 15, 30, 60, 90] as const;
+export const STICKMAN_DURATIONS = [10, 15, 30, 60, 120, 300, 480] as const;
 
 export const DEFAULT_STICKMAN_IMAGE_MODEL = "google/nano-banana-2-lite/text-to-image";
 export const DEFAULT_STICKMAN_VIDEO_MODEL = "bytedance/seedance-2.0-mini/image-to-video";
@@ -129,18 +129,57 @@ export function isStickmanLlmId(id: string): boolean {
   return STICKMAN_LLMS.some((llm) => llm.id === id);
 }
 
-/** Best gflow pair for a no-cut take: Banana Pro (0 cr) + Omni 10s when the job needs it. */
+/**
+ * Split a long job into model-legal I2V takes.
+ * Omni 15s → [10, 6]; Veo 15s → [8, 8]; Seedance 15s → [15].
+ */
+export function planMotionTakes(supported: readonly number[], wanted: number): number[] {
+  const clean = [...new Set(supported.filter((d) => d > 0))].sort((a, b) => a - b);
+  const target = Math.max(1, Math.round(wanted));
+  if (!clean.length) {
+    const chunk = Math.min(15, Math.max(4, target));
+    const n = Math.max(1, Math.ceil(target / chunk));
+    return Array.from({ length: n }, (_, i) =>
+      i === n - 1 ? Math.max(1, target - chunk * (n - 1)) : chunk,
+    );
+  }
+  const max = clean[clean.length - 1]!;
+  if (target <= max) {
+    if (clean.includes(target)) return [target];
+    return [clean.find((d) => d >= target) ?? max];
+  }
+  const takes: number[] = [];
+  let remaining = target;
+  while (remaining > 0) {
+    if (remaining <= max) {
+      takes.push(clean.find((d) => d >= remaining) ?? max);
+      break;
+    }
+    takes.push(max);
+    remaining -= max;
+  }
+  return takes;
+}
+
+/** Best gflow pair: Banana Pro (0 cr) + Omni, chained when the job is longer than 10s. */
 export function recommendStickmanGflow(durationSec: number): {
   imageModel: string;
   videoModel: string;
   clipSeconds: number;
+  takes: number[];
 } {
-  const clipSeconds = durationSec <= 8 ? 8 : 10;
+  const takes = planMotionTakes([4, 6, 8, 10], durationSec);
   return {
     imageModel: DEFAULT_STICKMAN_GFLOW_IMAGE,
     videoModel: DEFAULT_STICKMAN_GFLOW_VIDEO,
-    clipSeconds,
+    clipSeconds: takes[0] ?? 10,
+    takes,
   };
+}
+
+export function formatStickmanDuration(sec: number): string {
+  if (sec >= 60 && sec % 60 === 0) return `${sec / 60} min`;
+  return `${sec}s`;
 }
 
 export const STICKMAN_STYLE_LOCK = [
@@ -185,7 +224,9 @@ export function beatCountForDuration(seconds: number): number {
   if (seconds <= 15) return 3;
   if (seconds <= 30) return 6;
   if (seconds <= 60) return 8;
-  return 10;
+  if (seconds <= 120) return 12;
+  if (seconds <= 300) return 18;
+  return 24;
 }
 
 export function frameSize(aspect: string): { w: number; h: number } {

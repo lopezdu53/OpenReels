@@ -76,4 +76,16 @@ describe("stickman visuals", () => {
     expect(pickMotionDuration([4, 6, 8], 15)).toBe(8);
     expect(pickMotionDuration([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 15)).toBe(15);
   });
+
+  it("windows a later take so it continues from the last frame", () => {
+    const script = draftScriptTemplate({ ...config, durationSec: 15, animate: true }, "wifi-15s");
+    const prompt = buildContinuousMotionPrompt(script, 6, {
+      startSec: 10,
+      takeIndex: 1,
+      takeCount: 2,
+    });
+    expect(prompt).toContain("CONTINUE");
+    expect(prompt).toContain("2/2");
+    expect(prompt).toContain("[0.0–");
+  });
 });

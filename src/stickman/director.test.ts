@@ -24,6 +24,7 @@ describe("stickman director prompt", () => {
     const prompt = stickmanDirectorPrompt(config, 3, "{}");
     expect(prompt).toContain("Educational");
     expect(prompt).toContain("NO jump cuts");
+    expect(prompt.toLowerCase()).toContain("chain");
     expect(prompt).toContain("0–3s");
     expect(prompt.toLowerCase()).not.toContain("director score");
     expect(prompt.toLowerCase()).not.toContain("archetype");

@@ -24,13 +24,34 @@ const FALLBACK = [
   { key: "gflow", label: "gflow (Nano Banana · Flow)" },
 ];
 
+function planTakes(supported: number[], wanted: number): number[] {
+  const clean = [...new Set(supported.filter((d) => d > 0))].sort((a, b) => a - b);
+  const target = Math.max(1, Math.round(wanted));
+  if (!clean.length) return [target];
+  const max = clean[clean.length - 1]!;
+  if (target <= max) {
+    if (clean.includes(target)) return [target];
+    return [clean.find((d) => d >= target) ?? max];
+  }
+  const takes: number[] = [];
+  let remaining = target;
+  while (remaining > 0) {
+    if (remaining <= max) {
+      takes.push(clean.find((d) => d >= remaining) ?? max);
+      break;
+    }
+    takes.push(max);
+    remaining -= max;
+  }
+  return takes;
+}
+
 function videoCredits(model: GflowVideo | undefined, durationSec: number): number {
   if (!model?.creditPerSecond) return 0;
-  const durs = model.durations ?? [8];
-  const clip = durs.includes(durationSec)
-    ? durationSec
-    : (durs.find((d) => d >= durationSec) ?? durs[durs.length - 1] ?? 8);
-  return Math.round(model.creditPerSecond * clip);
+  return planTakes(model.durations ?? [8], durationSec).reduce(
+    (sum, clip) => sum + Math.round((model.creditPerSecond ?? 0) * clip),
+    0,
+  );
 }
 
 export function StudioVisualFields(props: {
@@ -59,7 +80,7 @@ export function StudioVisualFields(props: {
     disabled,
     disabledHint,
     gflowHint,
-    durationSec = 15,
+    durationSec,
   } = props;
 
   const images = catalog?.gflowImageModels ?? [
@@ -71,10 +92,15 @@ export function StudioVisualFields(props: {
     { id: "omni-flash", label: "Omni 1.1 Flash", durations: [4, 6, 8, 10], creditPerSecond: 2 },
   ];
   const video = videos.find((m) => m.id === gflowVideoModel) ?? videos[0];
-  const clipCredits = videoCredits(video, durationSec);
-  const clipSeconds = video?.durations?.includes(durationSec)
-    ? durationSec
-    : (video?.durations?.find((d) => d >= durationSec) ?? video?.durations?.at(-1) ?? 8);
+  const supported = video?.durations ?? [8];
+  const takes =
+    durationSec != null
+      ? planTakes(supported, durationSec)
+      : [supported.includes(8) ? 8 : (supported.at(-1) ?? 8)];
+  const clipCredits = takes.reduce(
+    (sum, clip) => sum + Math.round((video?.creditPerSecond ?? 0) * clip),
+    0,
+  );
 
   return (
     <div className="space-y-2">
@@ -120,7 +146,7 @@ export function StudioVisualFields(props: {
                 options={videos.map((m) => ({
                   value: m.id,
                   label: m.label,
-                  hint: `${m.durations?.join("/") ?? "8"}s · ~${videoCredits(m, durationSec)} cr 720p×1`,
+                  hint: `${m.durations?.join("/") ?? "8"}s · ${planTakes(m.durations ?? [8], durationSec ?? (m.durations?.at(-1) ?? 8)).length} toma(s) · ~${videoCredits(m, durationSec ?? (m.durations?.at(-1) ?? 8))} cr 720p×1`,
                 }))}
               />
             </div>
@@ -128,7 +154,7 @@ export function StudioVisualFields(props: {
           <p className={cn("w-full text-[11px]")}>
             Imagen 0 créditos.{" "}
             {showVideo
-              ? `Video ${video?.label ?? ""} ${clipSeconds}s ≈ ${clipCredits} créditos Flow (720p ×1). `
+              ? `Video ${video?.label ?? ""} ${takes.join("+")}s (${takes.length} toma${takes.length === 1 ? "" : "s"} encadenada${takes.length === 1 ? "" : "s"}) ≈ ${clipCredits} créditos Flow (720p ×1). `
               : ""}
             {gflowHint}
             {catalog?.gflowBridge === false

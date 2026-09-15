@@ -26,14 +26,15 @@ Choose ONE narrative pattern that fits the source (do not invent a different gen
 - Commercial: pain → consequence → reveal → mechanism → proof → benefit
 Shape those jobs through the selected arc. Never flatten into a generic OpenReels hook/payoff.
 
-Visual-density recipe (inside ONE continuous take when animate=${config.animate === true}):
-- Each beat has three in-shot moments: 0–3s establish, 3–7s transform the metaphor, 7–10s climax into the next pose.
+Visual-density recipe (continuous I2V when animate=${config.animate === true}):
+- Flow/Atlas clips last 8–15s. Jobs longer than one clip CHAIN takes: last frame of take N is the first frame of take N+1. Morph across the join. Never cut.
+- Each beat has in-shot moments: 0–3s establish, 3–7s transform the metaphor, 7–10s climax into the next pose (repeat that pulse inside every take).
 - Perceptible visual change every 2–3 seconds. Camera may push/pull/pan/orbit. Environments MORPH; they do not cut.
 - At least four devices per beat: limb acting, environment transform, concrete metaphor, icon-only symbol, particles, camera move, oversized prop.
 - Beat N must inherit a visible pose/object/camera motion from beat N-1 (continuity interface).
 - ${
     config.animate
-      ? "NO jump cuts. One camera take. Line-art architecture and oversized props are allowed."
+      ? "NO jump cuts. One camera path across chained takes. Line-art architecture and oversized props are allowed."
       : "Still frames only. Flat backdrop plus at most one geometric prop."
   }
 

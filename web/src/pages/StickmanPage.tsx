@@ -63,6 +63,11 @@ const FALLBACK_ARCS = [
   },
 ];
 
+function formatStickmanDuration(sec: number): string {
+  if (sec >= 60 && sec % 60 === 0) return `${sec / 60} min`;
+  return `${sec}s`;
+}
+
 function withArcHints(
   arcs: { id: string; label: string; when: string; hint?: string }[] | undefined,
   fallback: { id: string; label: string; when: string; hint: string }[],
@@ -149,8 +154,8 @@ export function StickmanPage() {
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
             Videos de palitos 2D. Historia: director de stickman (no OpenReels). Visuales baratos:
-            gflow Nano Banana (0 créditos) + Omni 1.1 Flash (hasta 10s, un plano). Atlas sigue
-            disponible. Voz: Atlas del entorno.
+            gflow Nano Banana (0 créditos) + Omni 1.1 Flash encadenado (10s + último frame →
+            siguiente toma) hasta 8 min. Atlas sigue disponible. Voz: Atlas del entorno.
           </p>
         </div>
 
@@ -213,9 +218,9 @@ export function StickmanPage() {
                 aria-label="Duración"
                 value={String(durationSec)}
                 onValueChange={(value) => setDurationSec(Number(value))}
-                options={(catalog?.durations ?? [10, 15, 30, 60, 90]).map((d) => ({
+                options={(catalog?.durations ?? [10, 15, 30, 60, 120, 300, 480]).map((d) => ({
                   value: String(d),
-                  label: `${d}s`,
+                  label: formatStickmanDuration(d),
                 }))}
               />
             </div>
@@ -291,7 +296,7 @@ export function StickmanPage() {
                 checked={animate}
                 onChange={(e) => setAnimate(e.target.checked)}
               />
-              Plano continuo I2V (sin cortes)
+              Plano continuo I2V (tomas encadenadas, sin freeze)
             </label>
           </div>
 
@@ -326,7 +331,7 @@ export function StickmanPage() {
             onGflowVideoModel={setGflowVideoModel}
             showVideo={animate}
             durationSec={durationSec}
-            gflowHint="Un plano I2V (sin cortes) por el Puente Windows. Omni hasta 10s; Veo 8s. Voz: Atlas."
+            gflowHint="Cada toma I2V arranca del último frame de la anterior (Puente Windows). Omni 10s, Veo 8s, Atlas hasta 15s. Voz: Atlas."
           />
 
           {error && <p className="text-sm text-destructive">{error}</p>}

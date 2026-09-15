@@ -2,10 +2,11 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { AtlasTTS } from "../providers/tts/atlas.js";
 import { createStudioImage, createStudioVideo } from "../studio/visual-provider.js";
-import { assembleStickman } from "./assemble.js";
+import { assembleStickman, concatMotionTakes, extractLastFrame } from "./assemble.js";
+import { planMotionTakes } from "./catalog.js";
 import { jobDir, readScript, writeScript } from "./store.js";
 import type { StickmanJobConfig } from "./types.js";
-import { buildContinuousMotionPrompt, pickMotionDuration, renderStills } from "./visuals.js";
+import { buildContinuousMotionPrompt, renderStills } from "./visuals.js";
 
 export async function runTts(
   id: string,
@@ -75,30 +76,53 @@ export async function runMotion(
     return script.beats.map(() => null);
   }
   const wanted = script.beats.reduce((sum, beat) => sum + Math.max(1, beat.durationSec), 0);
-  const clipSeconds = pickMotionDuration(video.supportedDurations, wanted);
+  const takes = planMotionTakes(video.supportedDurations, wanted);
   const dest = path.join(clipsDir, "continuous.mp4");
-  if (config.visualProvider === "gflow") {
-    log(`motion: un plano gflow I2V continuo (~${clipSeconds}s, sin cortes)`);
-  } else {
-    log(`motion: un plano I2V continuo (${clipSeconds}s, sin cortes)`);
-  }
+  const label = config.visualProvider === "gflow" ? "gflow I2V" : "I2V";
+  log(
+    `motion: ${takes.length} toma${takes.length === 1 ? "" : "s"} ${label} ${takes.join("+")}s (sin freeze, puente por último frame)`,
+  );
   const clips: Array<string | null> = script.beats.map(() => null);
-  try {
-    const result = await video.generate({
-      sourceImage: fs.readFileSync(firstStill),
-      prompt: buildContinuousMotionPrompt(script, clipSeconds),
-      durationSeconds: clipSeconds,
-      aspectRatio: script.aspect,
-      negativePrompt:
-        "photoreal, collage, torn paper, 3D, detailed face, sphere head, jump cut, hard cut",
-    });
-    fs.copyFileSync(result.filePath, dest);
+  const generated: string[] = [];
+  let sourcePath = firstStill;
+  let startSec = 0;
+  for (let i = 0; i < takes.length; i++) {
+    const clipSeconds = takes[i]!;
+    const takePath = path.join(clipsDir, `take-${String(i + 1).padStart(2, "0")}.mp4`);
+    try {
+      const result = await video.generate({
+        sourceImage: fs.readFileSync(sourcePath),
+        prompt: buildContinuousMotionPrompt(script, clipSeconds, {
+          startSec,
+          takeIndex: i,
+          takeCount: takes.length,
+        }),
+        durationSeconds: clipSeconds,
+        aspectRatio: script.aspect,
+        negativePrompt:
+          "photoreal, collage, torn paper, 3D, detailed face, sphere head, jump cut, hard cut",
+      });
+      fs.copyFileSync(result.filePath, takePath);
+      generated.push(takePath);
+      log(`take ${i + 1}/${takes.length} ok → ${path.basename(takePath)} (${clipSeconds}s)`);
+      if (i < takes.length - 1) {
+        sourcePath = extractLastFrame(
+          takePath,
+          path.join(clipsDir, `bridge-${String(i + 1).padStart(2, "0")}.png`),
+        );
+      }
+      startSec += clipSeconds;
+    } catch (err) {
+      log(`take ${i + 1}/${takes.length} skipped: ${err}`);
+      break;
+    }
+  }
+  if (generated.length) {
+    concatMotionTakes(generated, dest, script.aspect);
     const hero = script.beats[0];
     if (hero) hero.clipPath = path.relative(jobDir(id), dest);
     clips[0] = dest;
-    log(`clip continuo ok → ${path.basename(dest)}`);
-  } catch (err) {
-    log(`clip continuo skipped: ${err}`);
+    log(`clip continuo ok → ${path.basename(dest)} (${generated.length} toma${generated.length === 1 ? "" : "s"})`);
   }
   writeScript(id, script);
   return clips;
