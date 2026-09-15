@@ -2,6 +2,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ImageProvider } from "../schema/providers.js";
 import { lookPrompt, STICKMAN_STYLE_LOCK } from "./catalog.js";
+
+export { planMotionTakes } from "./catalog.js";
+
 import type { StickmanBeat, StickmanScript } from "./types.js";
 
 function isTransient(err: unknown): boolean {
@@ -57,20 +60,37 @@ export function buildStillPrompt(script: StickmanScript, beat: StickmanBeat): st
   ].join(" ");
 }
 
-/** One Omni-Flash-style take: timed morphs inside a single clip, never jump cuts. */
-export function buildContinuousMotionPrompt(script: StickmanScript, clipSeconds: number): string {
-  const total = totalBeatSeconds(script) || clipSeconds;
+/** One Omni-Flash-style take: timed morphs inside a clip. Longer jobs chain takes from the last frame. */
+export function buildContinuousMotionPrompt(
+  script: StickmanScript,
+  clipSeconds: number,
+  window?: { startSec: number; takeIndex: number; takeCount: number },
+): string {
+  const startSec = window?.startSec ?? 0;
+  const takeIndex = window?.takeIndex ?? 0;
+  const takeCount = window?.takeCount ?? 1;
+  const windowEnd = startSec + clipSeconds;
   let t = 0;
-  const timed = script.beats.map((beat) => {
-    const start = t;
-    const end = t + Math.max(1, beat.durationSec);
-    t = end;
-    const a = ((start / total) * clipSeconds).toFixed(1);
-    const b = ((end / total) * clipSeconds).toFixed(1);
-    return `[${a}–${b}s] ${beat.title}: ${beat.pose}. Environment morphs to: ${beat.scene}.`;
-  });
+  const timed = script.beats
+    .map((beat) => {
+      const beatStart = t;
+      const beatEnd = t + Math.max(1, beat.durationSec);
+      t = beatEnd;
+      const overlapStart = Math.max(beatStart, startSec);
+      const overlapEnd = Math.min(beatEnd, windowEnd);
+      if (overlapEnd <= overlapStart) return null;
+      const a = (overlapStart - startSec).toFixed(1);
+      const b = (overlapEnd - startSec).toFixed(1);
+      return `[${a}–${b}s] ${beat.title}: ${beat.pose}. Environment morphs to: ${beat.scene}.`;
+    })
+    .filter((line): line is string => Boolean(line));
+  const bridge =
+    takeIndex > 0
+      ? "CONTINUE from the exact pose, camera, and line-art in the source image. The first frame IS that image. Then keep morphing. NO cut, NO new shot, NO reset."
+      : "Start from the source still and begin moving immediately.";
   return [
-    `ONE CONTINUOUS ${clipSeconds}s 2D stickman take. NO CUTS. NO jump cuts. NO edited scene wipes.`,
+    `ONE CONTINUOUS ${clipSeconds}s 2D stickman take (${takeIndex + 1}/${takeCount}). NO CUTS. NO jump cuts. NO edited scene wipes.`,
+    bridge,
     "The camera and the line-art world morph in-shot every 2–3 seconds, like a single Gemini Omni Flash clip.",
     `Look: ${lookPrompt(script.look)}.`,
     `Locked cast: ${castLock(script)}.`,

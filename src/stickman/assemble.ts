@@ -87,15 +87,79 @@ function normalizeClip(src: string, dest: string, dur: number, aspect: string): 
   ]);
 }
 
+function probeSeconds(src: string): number {
+  try {
+    const out = execFileSync(
+      "ffprobe",
+      ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", src],
+      { encoding: "utf8" },
+    );
+    const n = Number(out.trim());
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function extractLastFrame(src: string, dest: string): string {
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  ffmpeg(["-y", "-sseof", "-0.04", "-i", src, "-frames:v", "1", dest]);
+  if (!fs.existsSync(dest) || fs.statSync(dest).size < 80) {
+    throw new Error("No se pudo extraer el último frame del take");
+  }
+  return dest;
+}
+
+export function concatMotionTakes(srcs: string[], dest: string, aspect: string): void {
+  if (!srcs.length) throw new Error("No hay takes para concatenar");
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  const only = srcs[0];
+  if (srcs.length === 1 && only) {
+    fs.copyFileSync(only, dest);
+    return;
+  }
+  const { w, h } = frameSize(aspect);
+  const work = path.dirname(dest);
+  const normalized = srcs.map((src, i) => {
+    const out = path.join(work, `take-norm-${String(i + 1).padStart(2, "0")}.mp4`);
+    ffmpeg([
+      "-y",
+      "-i",
+      src,
+      "-vf",
+      `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},fps=30`,
+      "-an",
+      "-c:v",
+      "libx264",
+      "-pix_fmt",
+      "yuv420p",
+      out,
+    ]);
+    return out;
+  });
+  const list = path.join(work, "takes.txt");
+  fs.writeFileSync(
+    list,
+    normalized.map((file) => `file '${file.replace(/'/g, "'\\''")}'`).join("\n"),
+  );
+  ffmpeg(["-y", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", dest]);
+}
+
 function fitContinuousClip(src: string, dest: string, dur: number, aspect: string): void {
   const { w, h } = frameSize(aspect);
   const hold = Math.max(1, dur);
+  const srcDur = probeSeconds(src);
+  const pad = Math.max(0, hold - srcDur);
+  const vf =
+    pad > 0.08
+      ? `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},fps=30,tpad=stop_mode=clone:stop_duration=${pad.toFixed(3)}`
+      : `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},fps=30`;
   ffmpeg([
     "-y",
     "-i",
     src,
     "-vf",
-    `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},fps=30,tpad=stop_mode=clone:stop_duration=${hold}`,
+    vf,
     "-t",
     String(hold),
     "-an",

@@ -8,7 +8,7 @@ export const GFLOW_VIDEO_MODELS = [
   {
     id: "omni-flash",
     label: "Omni 1.1 Flash",
-    note: "mejor plano continuo · 4–10s",
+    note: "mejor plano continuo · 4–10s · se encadena",
     durations: [4, 6, 8, 10],
     creditPerSecond: 2,
   },

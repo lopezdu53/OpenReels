@@ -2,7 +2,8 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
-import { singleMotionClip, writeCaptions } from "./assemble.js";
+import { execFileSync } from "node:child_process";
+import { concatMotionTakes, extractLastFrame, singleMotionClip, writeCaptions } from "./assemble.js";
 import { draftScriptTemplate } from "./draft.js";
 import type { StickmanJobConfig } from "./types.js";
 
@@ -45,5 +46,45 @@ describe("stickman assemble captions", () => {
     expect(singleMotionClip([null, null, null])).toBeNull();
     expect(singleMotionClip(["/tmp/a.mp4", "/tmp/b.mp4"])).toBeNull();
     expect(singleMotionClip(["/tmp/continuous.mp4", null, null])).toBe("/tmp/continuous.mp4");
+  });
+
+  it("extracts the last frame and concatenates two takes without a freeze gap", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "stickman-takes-"));
+    const a = path.join(root, "a.mp4");
+    const b = path.join(root, "b.mp4");
+    execFileSync("ffmpeg", [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=red:s=320x180:d=1",
+      "-pix_fmt",
+      "yuv420p",
+      a,
+    ]);
+    execFileSync("ffmpeg", [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=blue:s=320x180:d=1",
+      "-pix_fmt",
+      "yuv420p",
+      b,
+    ]);
+    const frame = extractLastFrame(a, path.join(root, "last.png"));
+    expect(fs.statSync(frame).size).toBeGreaterThan(80);
+    const dest = path.join(root, "joined.mp4");
+    concatMotionTakes([a, b], dest, "16:9");
+    const dur = Number(
+      execFileSync(
+        "ffprobe",
+        ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", dest],
+        { encoding: "utf8" },
+      ).trim(),
+    );
+    expect(dur).toBeGreaterThan(1.8);
+    expect(dur).toBeLessThan(2.4);
+    fs.rmSync(root, { recursive: true, force: true });
   });
 });
