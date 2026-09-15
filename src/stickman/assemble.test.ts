@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
-import { writeCaptions } from "./assemble.js";
+import { singleMotionClip, writeCaptions } from "./assemble.js";
 import { draftScriptTemplate } from "./draft.js";
 import type { StickmanJobConfig } from "./types.js";
 
@@ -39,5 +39,11 @@ describe("stickman assemble captions", () => {
     const script = draftScriptTemplate({ ...config, captions: false }, "wifi-15s");
     script.captions = false;
     expect(writeCaptions(script, "/tmp/unused.srt")).toBeNull();
+  });
+
+  it("treats a single I2V path as one continuous take", () => {
+    expect(singleMotionClip([null, null, null])).toBeNull();
+    expect(singleMotionClip(["/tmp/a.mp4", "/tmp/b.mp4"])).toBeNull();
+    expect(singleMotionClip(["/tmp/continuous.mp4", null, null])).toBe("/tmp/continuous.mp4");
   });
 });

@@ -1132,8 +1132,15 @@ export const api = {
       aspects: string[];
       durations: number[];
       visualProviders?: { key: string; label: string }[];
-      gflowImageModels?: { id: string; label: string }[];
-      gflowVideoModels?: { id: string; label: string }[];
+      gflowImageModels?: { id: string; label: string; note?: string; credits?: number }[];
+      gflowVideoModels?: {
+        id: string;
+        label: string;
+        note?: string;
+        durations?: number[];
+        creditPerSecond?: number;
+      }[];
+      llms?: { id: string; label: string; note: string; recommended?: boolean }[];
       atlasReady?: boolean;
       gflowBridge?: boolean;
       doctor?: { ok: boolean; detail: string };

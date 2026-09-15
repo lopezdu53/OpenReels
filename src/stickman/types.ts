@@ -77,6 +77,7 @@ export interface StickmanJobConfig {
   gflowImageModel?: string;
   gflowVideoModel?: string;
   gflowVideoMode?: string;
+  llmModel?: string;
   atlasKey?: string;
 }
 

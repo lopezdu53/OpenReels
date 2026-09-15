@@ -4,6 +4,7 @@ import {
   frameSize,
   isLookId,
   recommendArc,
+  recommendStickmanGflow,
   STICKMAN_ARCS,
   STICKMAN_STYLE_LOCK,
   stickmanArcHint,
@@ -14,11 +15,21 @@ describe("stickman catalog", () => {
     expect(recommendArc("Bitcoin vs el negocio tradicional")).toBe("vs_debate");
   });
 
-  it("sizes beat counts for 15/30/60/90s", () => {
-    expect(beatCountForDuration(15)).toBe(4);
+  it("sizes beat counts for 10/15/30/60/90s", () => {
+    expect(beatCountForDuration(10)).toBe(3);
+    expect(beatCountForDuration(15)).toBe(3);
     expect(beatCountForDuration(30)).toBe(6);
     expect(beatCountForDuration(60)).toBe(8);
     expect(beatCountForDuration(90)).toBe(10);
+  });
+
+  it("picks Banana Pro + Omni 10s for a no-cut gflow take", () => {
+    expect(recommendStickmanGflow(15)).toEqual({
+      imageModel: "nano-pro",
+      videoModel: "omni-flash",
+      clipSeconds: 10,
+    });
+    expect(recommendStickmanGflow(8).clipSeconds).toBe(8);
   });
 
   it("knows stickman looks and never mentions collage or film hero", () => {

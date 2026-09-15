@@ -91,13 +91,57 @@ export const STICKMAN_VOICES = [
 ] as const;
 
 export const STICKMAN_ASPECTS = ["9:16", "16:9", "1:1"] as const;
-export const STICKMAN_DURATIONS = [15, 30, 60, 90] as const;
+export const STICKMAN_DURATIONS = [10, 15, 30, 60, 90] as const;
 
 export const DEFAULT_STICKMAN_IMAGE_MODEL = "google/nano-banana-2-lite/text-to-image";
 export const DEFAULT_STICKMAN_VIDEO_MODEL = "bytedance/seedance-2.0-mini/image-to-video";
 export const DEFAULT_STICKMAN_TTS_MODEL = "xai/tts-v1";
 export const DEFAULT_STICKMAN_LOOK = "classic";
 export const DEFAULT_STICKMAN_ARC = "joke_punchline";
+export const DEFAULT_STICKMAN_GFLOW_IMAGE = "nano-pro";
+export const DEFAULT_STICKMAN_GFLOW_VIDEO = "omni-flash";
+
+/** Atlas LLMs used only to write the stickman-video-director story. */
+export const STICKMAN_LLMS = [
+  {
+    id: "google/gemini-2.5-flash",
+    label: "Gemini 2.5 Flash",
+    note: "mejor para historia de palitos",
+    recommended: true,
+  },
+  {
+    id: "google/gemini-2.5-flash-lite",
+    label: "Gemini 2.5 Flash Lite",
+    note: "más barato",
+    recommended: false,
+  },
+  {
+    id: "deepseek-ai/deepseek-v4-flash",
+    label: "DeepSeek V4 Flash",
+    note: "barato Atlas",
+    recommended: false,
+  },
+] as const;
+
+export const DEFAULT_STICKMAN_LLM = "google/gemini-2.5-flash";
+
+export function isStickmanLlmId(id: string): boolean {
+  return STICKMAN_LLMS.some((llm) => llm.id === id);
+}
+
+/** Best gflow pair for a no-cut take: Banana Pro (0 cr) + Omni 10s when the job needs it. */
+export function recommendStickmanGflow(durationSec: number): {
+  imageModel: string;
+  videoModel: string;
+  clipSeconds: number;
+} {
+  const clipSeconds = durationSec <= 8 ? 8 : 10;
+  return {
+    imageModel: DEFAULT_STICKMAN_GFLOW_IMAGE,
+    videoModel: DEFAULT_STICKMAN_GFLOW_VIDEO,
+    clipSeconds,
+  };
+}
 
 export const STICKMAN_STYLE_LOCK = [
   "STRICT 2D STICKMAN LINE DRAWING ONLY.",
@@ -138,7 +182,7 @@ export function recommendArc(topic: string): string {
 }
 
 export function beatCountForDuration(seconds: number): number {
-  if (seconds <= 15) return 4;
+  if (seconds <= 15) return 3;
   if (seconds <= 30) return 6;
   if (seconds <= 60) return 8;
   return 10;

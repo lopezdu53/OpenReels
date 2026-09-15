@@ -3,7 +3,10 @@ import {
   gflowCliDuration,
   gflowI2vFallbackT2vEnabled,
   gflowI2vShouldFallbackT2v,
+  gflowImageCliId,
+  gflowImageCredits,
   gflowSupportsDurationFlag,
+  gflowVideoCredits,
   pickGflowDuration,
   resolveGflowImageModel,
   resolveGflowVideoMode,
@@ -12,9 +15,11 @@ import {
 } from "./catalog.js";
 
 describe("gflow catalog", () => {
-  it("defaults unknown image models to nano2", () => {
+  it("defaults unknown image models to nano2 and aliases Banana / Imagen 4", () => {
     expect(resolveGflowImageModel("nope")).toBe("nano2");
-    expect(resolveGflowImageModel("image4")).toBe("image4");
+    expect(resolveGflowImageModel("image4")).toBe("nano-lite");
+    expect(gflowImageCliId("nano-lite")).toBe("image4");
+    expect(gflowImageCredits("nano-pro")).toBe(0);
   });
 
   it("caps duration to what the Veo model accepts", () => {
@@ -63,5 +68,15 @@ describe("gflow catalog", () => {
     expect(gflowCliDuration("veo-lite", 4)).toBeUndefined();
     expect(gflowSupportsDurationFlag("omni-flash")).toBe(true);
     expect(gflowCliDuration("omni-flash", 10)).toBe(10);
+  });
+
+  it("prices Flow video credits at 720p x1 and images at 0", () => {
+    expect(gflowVideoCredits({ modelId: "omni-flash", durationSec: 10 })).toBe(20);
+    expect(gflowVideoCredits({ modelId: "veo-lite", durationSec: 8 })).toBe(40);
+    expect(gflowVideoCredits({ modelId: "veo-quality", durationSec: 8 })).toBe(160);
+    expect(gflowVideoCredits({ modelId: "omni-flash", durationSec: 10, resolution: "360p" })).toBe(
+      10,
+    );
+    expect(gflowVideoCredits({ modelId: "omni-flash", durationSec: 10, variants: 2 })).toBe(40);
   });
 });

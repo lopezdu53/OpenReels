@@ -33,6 +33,18 @@ export function castLock(script: StickmanScript): string {
     .join(". ");
 }
 
+export function totalBeatSeconds(script: StickmanScript): number {
+  return script.beats.reduce((sum, beat) => sum + Math.max(1, beat.durationSec), 0);
+}
+
+export function pickMotionDuration(supported: number[], wanted: number): number {
+  const target = Math.max(4, Math.round(wanted));
+  if (!supported.length) return Math.min(15, target);
+  if (supported.includes(target)) return target;
+  const fit = [...supported].sort((a, b) => a - b).find((d) => d >= target);
+  return fit ?? supported[supported.length - 1] ?? 8;
+}
+
 export function buildStillPrompt(script: StickmanScript, beat: StickmanBeat): string {
   return [
     `2D stickman still, look: ${lookPrompt(script.look)}.`,
@@ -41,6 +53,31 @@ export function buildStillPrompt(script: StickmanScript, beat: StickmanBeat): st
     `Beat ${beat.id} "${beat.title}": ${beat.pose}.`,
     `Backdrop: ${beat.scene}.`,
     "Same stick figures as the previous still if any. Same line weight. Same wardrobe.",
+    STICKMAN_STYLE_LOCK,
+  ].join(" ");
+}
+
+/** One Omni-Flash-style take: timed morphs inside a single clip, never jump cuts. */
+export function buildContinuousMotionPrompt(script: StickmanScript, clipSeconds: number): string {
+  const total = totalBeatSeconds(script) || clipSeconds;
+  let t = 0;
+  const timed = script.beats.map((beat) => {
+    const start = t;
+    const end = t + Math.max(1, beat.durationSec);
+    t = end;
+    const a = ((start / total) * clipSeconds).toFixed(1);
+    const b = ((end / total) * clipSeconds).toFixed(1);
+    return `[${a}–${b}s] ${beat.title}: ${beat.pose}. Environment morphs to: ${beat.scene}.`;
+  });
+  return [
+    `ONE CONTINUOUS ${clipSeconds}s 2D stickman take. NO CUTS. NO jump cuts. NO edited scene wipes.`,
+    "The camera and the line-art world morph in-shot every 2–3 seconds, like a single Gemini Omni Flash clip.",
+    `Look: ${lookPrompt(script.look)}.`,
+    `Locked cast: ${castLock(script)}.`,
+    `World: ${script.bible.world}.`,
+    ...timed,
+    "Same stick figures, line weight, and wardrobe for the whole take.",
+    "Limbs move. Oversized props and line-art architecture may grow, shatter, or morph.",
     STICKMAN_STYLE_LOCK,
   ].join(" ");
 }

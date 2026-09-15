@@ -3,6 +3,13 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { frameSize } from "./catalog.js";
 import type { StickmanScript } from "./types.js";
+import { totalBeatSeconds } from "./visuals.js";
+
+/** If I2V produced a single take, assemble that — never concat beat clips (hard cuts). */
+export function singleMotionClip(clips?: Array<string | null>): string | null {
+  const found = (clips ?? []).filter((clip): clip is string => Boolean(clip));
+  return found.length === 1 ? (found[0] ?? null) : null;
+}
 
 function ffmpeg(args: string[]): void {
   execFileSync("ffmpeg", args, { stdio: "pipe" });
@@ -80,6 +87,26 @@ function normalizeClip(src: string, dest: string, dur: number, aspect: string): 
   ]);
 }
 
+function fitContinuousClip(src: string, dest: string, dur: number, aspect: string): void {
+  const { w, h } = frameSize(aspect);
+  const hold = Math.max(1, dur);
+  ffmpeg([
+    "-y",
+    "-i",
+    src,
+    "-vf",
+    `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},fps=30,tpad=stop_mode=clone:stop_duration=${hold}`,
+    "-t",
+    String(hold),
+    "-an",
+    "-c:v",
+    "libx264",
+    "-pix_fmt",
+    "yuv420p",
+    dest,
+  ]);
+}
+
 export function assembleStickman(opts: {
   root: string;
   script: StickmanScript;
@@ -90,24 +117,35 @@ export function assembleStickman(opts: {
   const work = path.join(opts.root, "assemble");
   fs.mkdirSync(work, { recursive: true });
   const built: string[] = [];
+  const continuous = singleMotionClip(opts.clips);
+  const continuousPath = continuous && fs.existsSync(continuous) ? continuous : null;
 
-  opts.script.beats.forEach((beat, i) => {
-    const dest = path.join(work, `clip-${String(beat.id).padStart(2, "0")}.mp4`);
-    const existing = opts.clips?.[i];
-    if (existing && fs.existsSync(existing)) {
-      normalizeClip(existing, dest, beat.durationSec, opts.script.aspect);
-    } else {
-      const still = opts.stills[i];
-      if (!still || !fs.existsSync(still)) {
-        throw new Error(`Falta still del beat ${beat.id}`);
-      }
-      stillToClip(still, dest, beat.durationSec, opts.script.aspect);
-    }
+  if (continuousPath) {
+    const dest = path.join(work, "clip-continuous.mp4");
+    fitContinuousClip(continuousPath, dest, totalBeatSeconds(opts.script), opts.script.aspect);
     built.push(dest);
-  });
+  } else {
+    opts.script.beats.forEach((beat, i) => {
+      const dest = path.join(work, `clip-${String(beat.id).padStart(2, "0")}.mp4`);
+      const existing = opts.clips?.[i];
+      if (existing && fs.existsSync(existing)) {
+        normalizeClip(existing, dest, beat.durationSec, opts.script.aspect);
+      } else {
+        const still = opts.stills[i];
+        if (!still || !fs.existsSync(still)) {
+          throw new Error(`Falta still del beat ${beat.id}`);
+        }
+        stillToClip(still, dest, beat.durationSec, opts.script.aspect);
+      }
+      built.push(dest);
+    });
+  }
 
   const listPath = path.join(work, "concat.txt");
-  fs.writeFileSync(listPath, built.map((file) => `file '${file.replace(/'/g, "'\\''")}'`).join("\n"));
+  fs.writeFileSync(
+    listPath,
+    built.map((file) => `file '${file.replace(/'/g, "'\\''")}'`).join("\n"),
+  );
   const silent = path.join(work, "silent.mp4");
   ffmpeg(["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", silent]);
 
@@ -139,7 +177,16 @@ export function assembleStickman(opts: {
   const finalPath = path.join(opts.root, "final.mp4");
   if (captions && fs.existsSync(captions)) {
     try {
-      ffmpeg(["-y", "-i", voiced, "-vf", `subtitles=${captions.replace(/\\/g, "\\\\").replace(/:/g, "\\:")}`, "-c:a", "copy", finalPath]);
+      ffmpeg([
+        "-y",
+        "-i",
+        voiced,
+        "-vf",
+        `subtitles=${captions.replace(/\\/g, "\\\\").replace(/:/g, "\\:")}`,
+        "-c:a",
+        "copy",
+        finalPath,
+      ]);
     } catch {
       fs.copyFileSync(voiced, finalPath);
     }

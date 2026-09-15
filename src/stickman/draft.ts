@@ -1,12 +1,11 @@
 import {
   beatCountForDuration,
   DEFAULT_STICKMAN_IMAGE_MODEL,
+  DEFAULT_STICKMAN_LLM,
   DEFAULT_STICKMAN_VIDEO_MODEL,
-  lookPrompt,
   recommendArc,
-  STICKMAN_STYLE_LOCK,
-  stickmanArcHint,
 } from "./catalog.js";
+import { stickmanDirectorPrompt } from "./director.js";
 import type {
   StickmanBeat,
   StickmanCastMember,
@@ -142,26 +141,8 @@ export async function draftScriptWithAtlas(
 ): Promise<StickmanScript> {
   const n = beatCountForDuration(config.durationSec);
   const fallback = draftScriptTemplate(config, project);
-  const arc = config.arc || recommendArc(config.topic);
-  const prompt = `You write script.json for Stickman Studio, a 2D stick-figure explainer.
-Return ONLY JSON matching this schema (no markdown):
-project, topic, language, aspect, style="stickman", provider="atlas_cloud",
-look, castMode, arc, bible{look,cast:[{name,role,head,accessory,lineColor}],world},
-voice{voice_id,language,speed}, captions, animate, image_model, video_model,
-beats:[{id,title,pose,scene,narration,durationSec}]
-
-Hard rules:
-- ${STICKMAN_STYLE_LOCK}
-- Look: ${lookPrompt(config.look)}. Never paper collage. Never 3D hero. Never photoreal.
-- Duration ${config.durationSec}s → ${n} beats, 2–6s each, sum ≈ ${config.durationSec}.
-- Cast mode ${config.castMode}. Lock the SAME stick figures in bible.cast for every beat.
-- Language of narration: ${config.language}. Topic: ${config.topic}.
-- Arc ${arc}: ${stickmanArcHint(arc)} Shape every beat to that story. Do not flatten it into a generic hook/payoff unless that is the arc.
-- Aspect ${config.aspect}. Voice ${config.voiceId}.
-- pose describes limb positions of the stick figures only.
-- scene is a flat backdrop + at most one geometric prop. No rooms, no collage, no faces with skin.
-
-Base object to fill (keep keys): ${JSON.stringify(fallback).slice(0, 2500)}`;
+  const prompt = stickmanDirectorPrompt(config, n, JSON.stringify(fallback).slice(0, 2500));
+  const model = config.llmModel || DEFAULT_STICKMAN_LLM;
 
   const res = await fetch("https://api.atlascloud.ai/v1/chat/completions", {
     method: "POST",
@@ -171,12 +152,12 @@ Base object to fill (keep keys): ${JSON.stringify(fallback).slice(0, 2500)}`;
       "User-Agent": "stickman-studio/0.1 (+https://atlascloud.ai)",
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
+      model,
       messages: [
         {
           role: "system",
           content:
-            "You are the Stickman Studio writer. Output JSON only. Never write collage or 3D hero briefs.",
+            "You are the Stickman Video Director. Output JSON only. Never write OpenReels, collage, or 3D hero briefs.",
         },
         { role: "user", content: prompt },
       ],
