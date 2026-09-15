@@ -4,7 +4,13 @@ import type IORedis from "ioredis";
 import { resolveAtlasApiKey } from "../providers/atlas/client.js";
 import { DEFAULT_STICKMAN_TTS_MODEL } from "./catalog.js";
 import { runAssemble, runMotion, runTts, runVisuals } from "./runner.js";
-import { hydrateJobFromSnapshot, readMeta, readScript, setStatus, stickmanJobsDir } from "./store.js";
+import {
+  hydrateJobFromSnapshot,
+  readMeta,
+  readScript,
+  setStatus,
+  stickmanJobsDir,
+} from "./store.js";
 
 export const STICKMAN_QUEUE_NAME = "stickman-studio";
 export const STICKMAN_WORKER_HEARTBEAT_KEY = "stickman:worker:heartbeat";
@@ -46,7 +52,7 @@ function logTo(id: string) {
 function apiKeyOf(id: string): string {
   const meta = readMeta(id);
   const key = resolveAtlasApiKey(meta?.config.atlasKey);
-  if (!key) throw new Error("Falta ATLASCLOUD_API_KEY (Ajustes o .env)");
+  if (!key) throw new Error("Falta ATLASCLOUD_API_KEY en el servidor (video / video-worker)");
   return key;
 }
 
@@ -64,9 +70,9 @@ async function handleProduce(id: string, redis: IORedis): Promise<void> {
   setStatus(id, "producing", "tts", "Generando voz");
   await runTts(id, key, meta.config.atlasTtsModel || DEFAULT_STICKMAN_TTS_MODEL, log);
   setStatus(id, "producing", "visuals", "Dibujando palitos");
-  await runVisuals(id, key, log);
+  await runVisuals(id, meta.config, key, log);
   setStatus(id, "producing", "motion", script.animate ? "Animando flipbook" : "Hold + zoom");
-  await runMotion(id, key, log);
+  await runMotion(id, meta.config, key, log);
   setStatus(id, "producing", "assemble", "Ensamblando final.mp4");
   await runAssemble(id, log);
   setStatus(id, "completed", "done", "Listo", { completedAt: new Date().toISOString() });
@@ -74,9 +80,11 @@ async function handleProduce(id: string, redis: IORedis): Promise<void> {
 
 export function startStickmanWorker(connection: IORedis): Worker {
   const beat = () => {
-    void connection.set(STICKMAN_WORKER_HEARTBEAT_KEY, new Date().toISOString(), "EX", 90).catch((err) => {
-      console.warn("[stickman] heartbeat failed", err);
-    });
+    void connection
+      .set(STICKMAN_WORKER_HEARTBEAT_KEY, new Date().toISOString(), "EX", 90)
+      .catch((err) => {
+        console.warn("[stickman] heartbeat failed", err);
+      });
   };
   beat();
   const timer = setInterval(beat, 20_000);

@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { AtlasImage } from "../providers/image/atlas.js";
-import { STICKMAN_STYLE_LOCK, lookPrompt } from "./catalog.js";
+import type { ImageProvider } from "../schema/providers.js";
+import { lookPrompt, STICKMAN_STYLE_LOCK } from "./catalog.js";
 import type { StickmanBeat, StickmanScript } from "./types.js";
 
 function isTransient(err: unknown): boolean {
@@ -26,7 +26,8 @@ function isTransient(err: unknown): boolean {
 export function castLock(script: StickmanScript): string {
   return script.bible.cast
     .map((member) => {
-      const acc = member.accessory && member.accessory !== "none" ? `, accessory ${member.accessory}` : "";
+      const acc =
+        member.accessory && member.accessory !== "none" ? `, accessory ${member.accessory}` : "";
       return `${member.name} (${member.role}): ${member.head} head, ${member.lineColor} single-stroke limbs${acc}`;
     })
     .join(". ");
@@ -47,12 +48,11 @@ export function buildStillPrompt(script: StickmanScript, beat: StickmanBeat): st
 export async function renderStills(
   root: string,
   script: StickmanScript,
-  apiKey: string,
+  image: ImageProvider,
   log: (line: string) => void,
 ): Promise<string[]> {
   const dir = path.join(root, "stills");
   fs.mkdirSync(dir, { recursive: true });
-  const image = new AtlasImage(script.image_model, apiKey);
   const paths: string[] = [];
   let previous: Buffer | undefined;
 

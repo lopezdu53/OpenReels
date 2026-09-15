@@ -135,8 +135,20 @@ export interface ProviderOptions {
     priceLabel?: string;
     voices?: VoiceOption[];
   }[];
-  atlasLlmModels?: { id: string; label: string; inputPer1M: number; outputPer1M: number; priceLabel?: string }[];
-  atlasImageModels?: { id: string; label: string; usd: number; refs?: boolean; priceLabel?: string }[];
+  atlasLlmModels?: {
+    id: string;
+    label: string;
+    inputPer1M: number;
+    outputPer1M: number;
+    priceLabel?: string;
+  }[];
+  atlasImageModels?: {
+    id: string;
+    label: string;
+    usd: number;
+    refs?: boolean;
+    priceLabel?: string;
+  }[];
   atlasVideoModels?: {
     id: string;
     label: string;
@@ -360,11 +372,22 @@ export interface CronogramaPlan {
     videosInMonth: number;
     cpmShortsUsd: number;
     assumptions: string[];
-    month1: { conservative: CronogramaForecastBand; base: CronogramaForecastBand; optimistic: CronogramaForecastBand };
-    day90: { conservative: CronogramaForecastBand; base: CronogramaForecastBand; optimistic: CronogramaForecastBand };
+    month1: {
+      conservative: CronogramaForecastBand;
+      base: CronogramaForecastBand;
+      optimistic: CronogramaForecastBand;
+    };
+    day90: {
+      conservative: CronogramaForecastBand;
+      base: CronogramaForecastBand;
+      optimistic: CronogramaForecastBand;
+    };
     yppHint: string;
   };
-  hours: { weekday: string; slots: { hour: number; minute: number; label: string; score: number; why: string }[] }[];
+  hours: {
+    weekday: string;
+    slots: { hour: number; minute: number; label: string; score: number; why: string }[];
+  }[];
   usedLlm: boolean;
 }
 
@@ -625,10 +648,10 @@ export const api = {
     castMode?: "scene" | "hero";
     previousStory?: string;
   }) {
-    return fetchJson<{ script: { title: string; hook: string; script: string }; youtubeUrls: string[] }>(
-      "/flow/script",
-      { method: "POST", body: JSON.stringify(data) },
-    );
+    return fetchJson<{
+      script: { title: string; hook: string; script: string };
+      youtubeUrls: string[];
+    }>("/flow/script", { method: "POST", body: JSON.stringify(data) });
   },
 
   generateFilmScript(data: {
@@ -644,10 +667,10 @@ export const api = {
     castMode?: "scene" | "hero";
     previousStory?: string;
   }) {
-    return fetchJson<{ script: { title: string; hook: string; script: string }; youtubeUrls: string[] }>(
-      "/film/script",
-      { method: "POST", body: JSON.stringify(data) },
-    );
+    return fetchJson<{
+      script: { title: string; hook: string; script: string };
+      youtubeUrls: string[];
+    }>("/film/script", { method: "POST", body: JSON.stringify(data) });
   },
 
   listCharacters() {
@@ -669,7 +692,9 @@ export const api = {
     return fetchJson<{ ok: boolean }>(`/library/characters/${id}`, { method: "DELETE" });
   },
   listVisualStyles() {
-    return fetchJson<{ builtins: BuiltinVisualStyle[]; styles: LibraryVisualStyle[] }>("/library/styles");
+    return fetchJson<{ builtins: BuiltinVisualStyle[]; styles: LibraryVisualStyle[] }>(
+      "/library/styles",
+    );
   },
   saveVisualStyle(body: Record<string, unknown>) {
     return fetchJson<{ style: LibraryVisualStyle }>("/library/styles", {
@@ -922,10 +947,13 @@ export const api = {
     kind?: "thumbnail" | "avatar" | "banner";
     model?: string;
   }) {
-    return fetchJson<{ imageBase64: string; durationMs: number; aspect: string; kind: string; provider: string }>(
-      "/cronograma/image",
-      { method: "POST", body: JSON.stringify(data) },
-    );
+    return fetchJson<{
+      imageBase64: string;
+      durationMs: number;
+      aspect: string;
+      kind: string;
+      provider: string;
+    }>("/cronograma/image", { method: "POST", body: JSON.stringify(data) });
   },
 
   me() {
@@ -1041,6 +1069,12 @@ export const api = {
       aspects: string[];
       durations: number[];
       defaultThemes: string[];
+      visualProviders?: { key: string; label: string }[];
+      gflowImageModels?: { id: string; label: string }[];
+      gflowVideoModels?: { id: string; label: string }[];
+      atlasReady?: boolean;
+      gflowBridge?: boolean;
+      doctor?: { ok: boolean; detail: string };
     }>("/vox/catalog");
   },
 
@@ -1067,11 +1101,15 @@ export const api = {
   },
 
   approveVoxBeats(id: string) {
-    return fetchJson<{ ok: boolean; status: string }>(`/vox/jobs/${id}/approve-beats`, { method: "POST" });
+    return fetchJson<{ ok: boolean; status: string }>(`/vox/jobs/${id}/approve-beats`, {
+      method: "POST",
+    });
   },
 
   retryVoxBakeoff(id: string) {
-    return fetchJson<{ ok: boolean; status: string }>(`/vox/jobs/${id}/retry-bakeoff`, { method: "POST" });
+    return fetchJson<{ ok: boolean; status: string }>(`/vox/jobs/${id}/retry-bakeoff`, {
+      method: "POST",
+    });
   },
 
   pickVoxStyle(id: string, theme: string) {
@@ -1093,6 +1131,12 @@ export const api = {
       voices: { id: string; label: string; gender: string; note: string }[];
       aspects: string[];
       durations: number[];
+      visualProviders?: { key: string; label: string }[];
+      gflowImageModels?: { id: string; label: string }[];
+      gflowVideoModels?: { id: string; label: string }[];
+      atlasReady?: boolean;
+      gflowBridge?: boolean;
+      doctor?: { ok: boolean; detail: string };
     }>("/stickman/catalog");
   },
 
@@ -1119,7 +1163,9 @@ export const api = {
   },
 
   produceStickmanJob(id: string) {
-    return fetchJson<{ ok: boolean; status: string }>(`/stickman/jobs/${id}/produce`, { method: "POST" });
+    return fetchJson<{ ok: boolean; status: string }>(`/stickman/jobs/${id}/produce`, {
+      method: "POST",
+    });
   },
 
   cancelStickmanJob(id: string) {

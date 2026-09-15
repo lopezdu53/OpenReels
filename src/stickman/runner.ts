@@ -1,15 +1,24 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { AtlasTTS } from "../providers/tts/atlas.js";
-import { AtlasVideo } from "../providers/video/atlas.js";
+import { createStudioImage, createStudioVideo } from "../studio/visual-provider.js";
 import { assembleStickman } from "./assemble.js";
 import { jobDir, readScript, writeScript } from "./store.js";
+import type { StickmanJobConfig } from "./types.js";
 import { renderStills } from "./visuals.js";
 
-export async function runTts(id: string, apiKey: string, ttsModel: string, log: (line: string) => void): Promise<string> {
+export async function runTts(
+  id: string,
+  apiKey: string,
+  ttsModel: string,
+  log: (line: string) => void,
+): Promise<string> {
   const script = readScript(id);
   if (!script) throw new Error("Falta script.json");
-  const text = script.beats.map((beat) => beat.narration).filter(Boolean).join(" ");
+  const text = script.beats
+    .map((beat) => beat.narration)
+    .filter(Boolean)
+    .join(" ");
   if (!text.trim()) throw new Error("El guion no tiene narración");
   log(`TTS ${text.length} caracteres`);
   const tts = new AtlasTTS(script.voice.voice_id, apiKey, script.voice.speed, ttsModel);
@@ -19,15 +28,31 @@ export async function runTts(id: string, apiKey: string, ttsModel: string, log: 
   return dest;
 }
 
-export async function runVisuals(id: string, apiKey: string, log: (line: string) => void): Promise<string[]> {
+export async function runVisuals(
+  id: string,
+  config: StickmanJobConfig,
+  apiKey: string,
+  log: (line: string) => void,
+): Promise<string[]> {
   const script = readScript(id);
   if (!script) throw new Error("Falta script.json");
-  const paths = await renderStills(jobDir(id), script, apiKey, log);
+  const image = createStudioImage({
+    visualProvider: config.visualProvider,
+    atlasModel: script.image_model,
+    atlasKey: apiKey,
+    gflowModel: config.gflowImageModel,
+  });
+  const paths = await renderStills(jobDir(id), script, image, log);
   writeScript(id, script);
   return paths;
 }
 
-export async function runMotion(id: string, apiKey: string, log: (line: string) => void): Promise<Array<string | null>> {
+export async function runMotion(
+  id: string,
+  config: StickmanJobConfig,
+  apiKey: string,
+  log: (line: string) => void,
+): Promise<Array<string | null>> {
   const script = readScript(id);
   if (!script) throw new Error("Falta script.json");
   if (!script.animate) {
@@ -36,7 +61,16 @@ export async function runMotion(id: string, apiKey: string, log: (line: string) 
   }
   const clipsDir = path.join(jobDir(id), "clips");
   fs.mkdirSync(clipsDir, { recursive: true });
-  const video = new AtlasVideo(script.video_model, apiKey, null);
+  const video = createStudioVideo({
+    visualProvider: config.visualProvider,
+    atlasModel: script.video_model,
+    atlasKey: apiKey,
+    gflowModel: config.gflowVideoModel,
+    gflowMode: config.gflowVideoMode,
+  });
+  if (config.visualProvider === "gflow") {
+    log("motion: gflow I2V en serie (un Chrome, espera el clip de 8s)");
+  }
   const clips: Array<string | null> = [];
   for (const beat of script.beats) {
     const stillRel = beat.stillPath;
@@ -72,7 +106,9 @@ export async function runAssemble(id: string, log: (line: string) => void): Prom
   const script = readScript(id);
   if (!script) throw new Error("Falta script.json");
   const root = jobDir(id);
-  const stills = script.beats.map((beat) => (beat.stillPath ? path.join(root, beat.stillPath) : ""));
+  const stills = script.beats.map((beat) =>
+    beat.stillPath ? path.join(root, beat.stillPath) : "",
+  );
   const clips = script.beats.map((beat) => (beat.clipPath ? path.join(root, beat.clipPath) : null));
   const voice = path.join(root, "voiceover.wav");
   const finalPath = assembleStickman({

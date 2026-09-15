@@ -1,12 +1,11 @@
+import { Loader2, Newspaper, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Newspaper, Sparkles } from "lucide-react";
-import { api, type VoxJobMeta } from "@/hooks/useApi";
+import { StudioVisualFields } from "@/components/StudioVisualFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { api, type VoxJobMeta } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
-
-const ATLAS_KEY = "openreels_atlascloud_api_key";
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -28,10 +27,17 @@ export function VoxPage() {
   const [language, setLanguage] = useState("es");
   const [arc, setArc] = useState("hook_payoff");
   const [voiceId, setVoiceId] = useState("leo");
-  const [themes, setThemes] = useState<string[]>(["american-retro", "swiss-modern", "punk-zine", "newsprint-editorial"]);
+  const [themes, setThemes] = useState<string[]>([
+    "american-retro",
+    "swiss-modern",
+    "punk-zine",
+    "newsprint-editorial",
+  ]);
   const [realPeople, setRealPeople] = useState(false);
   const [captions, setCaptions] = useState(true);
-  const [atlasKey, setAtlasKey] = useState(() => localStorage.getItem(ATLAS_KEY) ?? "");
+  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("atlas");
+  const [gflowImageModel, setGflowImageModel] = useState("nano2");
+  const [gflowVideoModel, setGflowVideoModel] = useState("veo-lite");
   const [anchorPhoto, setAnchorPhoto] = useState("");
   const [arollVideo, setArollVideo] = useState("");
   const [crollSubject, setCrollSubject] = useState<"portrait" | "product">("portrait");
@@ -41,19 +47,26 @@ export function VoxPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api.voxCatalog().then(setCatalog).catch(() => {});
-    api.listVoxJobs().then((r) => setJobs(r.jobs)).catch(() => {});
+    api
+      .voxCatalog()
+      .then(setCatalog)
+      .catch(() => {});
+    api
+      .listVoxJobs()
+      .then((r) => setJobs(r.jobs))
+      .catch(() => {});
   }, []);
 
   function toggleTheme(id: string) {
-    setThemes((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id].slice(0, 4)));
+    setThemes((prev) =>
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id].slice(0, 4),
+    );
   }
 
   async function create() {
     setError("");
     setBusy(true);
     try {
-      if (atlasKey) localStorage.setItem(ATLAS_KEY, atlasKey);
       const res = await api.createVoxJob({
         mode,
         topic,
@@ -63,9 +76,12 @@ export function VoxPage() {
         arc,
         voiceId,
         themes,
-        realPeople,
+        realPeople: visualProvider === "atlas" && realPeople,
         captions,
-        atlasKey: atlasKey || undefined,
+        visualProvider: mode === "aroll" ? "atlas" : visualProvider,
+        gflowImageModel: visualProvider === "gflow" ? gflowImageModel : undefined,
+        gflowVideoModel: visualProvider === "gflow" ? gflowVideoModel : undefined,
+        gflowVideoMode: visualProvider === "gflow" ? "i2v" : undefined,
         anchorPhoto: mode === "croll" ? anchorPhoto || undefined : undefined,
         arollVideo: mode === "aroll" ? arollVideo || undefined : undefined,
         crollSubject,
@@ -84,14 +100,16 @@ export function VoxPage() {
     <div className="px-4 sm:px-6 lg:px-10 py-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <div>
-          <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.22em] text-primary">Vox Director</p>
+          <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.22em] text-primary">
+            Vox Director
+          </p>
           <h1 className="flex items-center gap-2 text-3xl sm:text-5xl font-bold uppercase tracking-tight">
             <Newspaper className="size-8 text-primary" />
             Nuevo Vox
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Collage de papel editorial (Atlas Cloud + ffmpeg). Pipeline propio: beat map → bake-off de
-            estilo → keyframes → motion → voz/música → ensamble. No usa el pipeline de Short/Film.
+            Collage de papel editorial. Visuales: Atlas Cloud del servidor o gflow (Imagen + Veo I2V
+            por el Puente). Voz y música: Atlas del entorno. No pega la API key aquí.
           </p>
         </div>
 
@@ -110,7 +128,9 @@ export function VoxPage() {
                 onClick={() => setMode(id)}
                 className={cn(
                   "rounded-full border px-3 py-1.5 text-xs font-medium",
-                  mode === id ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground",
+                  mode === id
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground",
                 )}
               >
                 {label}
@@ -162,11 +182,19 @@ export function VoxPage() {
               </label>
               <div className="flex flex-wrap gap-3 text-xs">
                 <label className="flex items-center gap-1">
-                  <input type="radio" checked={crollSubject === "portrait"} onChange={() => setCrollSubject("portrait")} />
+                  <input
+                    type="radio"
+                    checked={crollSubject === "portrait"}
+                    onChange={() => setCrollSubject("portrait")}
+                  />
                   Retrato
                 </label>
                 <label className="flex items-center gap-1">
-                  <input type="radio" checked={crollSubject === "product"} onChange={() => setCrollSubject("product")} />
+                  <input
+                    type="radio"
+                    checked={crollSubject === "product"}
+                    onChange={() => setCrollSubject("product")}
+                  />
                   Producto
                 </label>
                 {crollSubject === "portrait" && (
@@ -184,7 +212,11 @@ export function VoxPage() {
           <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
             <label className="flex items-center gap-2">
               Duración
-              <select className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground" value={durationSec} onChange={(e) => setDurationSec(Number(e.target.value))}>
+              <select
+                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+                value={durationSec}
+                onChange={(e) => setDurationSec(Number(e.target.value))}
+              >
                 <option value={15}>15s</option>
                 <option value={30}>30s</option>
                 <option value={60}>60s</option>
@@ -192,15 +224,25 @@ export function VoxPage() {
             </label>
             <label className="flex items-center gap-2">
               Aspecto
-              <select className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground" value={aspect} onChange={(e) => setAspect(e.target.value)}>
+              <select
+                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+                value={aspect}
+                onChange={(e) => setAspect(e.target.value)}
+              >
                 {(catalog?.aspects ?? ["16:9", "9:16", "1:1"]).map((a) => (
-                  <option key={a} value={a}>{a}</option>
+                  <option key={a} value={a}>
+                    {a}
+                  </option>
                 ))}
               </select>
             </label>
             <label className="flex items-center gap-2">
               Idioma
-              <select className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground" value={language} onChange={(e) => setLanguage(e.target.value)}>
+              <select
+                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+              >
                 <option value="es">Español</option>
                 <option value="en">English</option>
                 <option value="zh">中文</option>
@@ -208,26 +250,47 @@ export function VoxPage() {
             </label>
             <label className="flex items-center gap-2">
               Arco
-              <select className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground" value={arc} onChange={(e) => setArc(e.target.value)}>
+              <select
+                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+                value={arc}
+                onChange={(e) => setArc(e.target.value)}
+              >
                 {(catalog?.arcs ?? []).map((a) => (
-                  <option key={a.id} value={a.id}>{a.label}</option>
+                  <option key={a.id} value={a.id}>
+                    {a.label}
+                  </option>
                 ))}
               </select>
             </label>
             <label className="flex items-center gap-2">
               Voz
-              <select className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground" value={voiceId} onChange={(e) => setVoiceId(e.target.value)}>
+              <select
+                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+                value={voiceId}
+                onChange={(e) => setVoiceId(e.target.value)}
+              >
                 {(catalog?.voices ?? []).map((v) => (
-                  <option key={v.id} value={v.id}>{v.label} · {v.note}</option>
+                  <option key={v.id} value={v.id}>
+                    {v.label} · {v.note}
+                  </option>
                 ))}
               </select>
             </label>
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={realPeople} onChange={(e) => setRealPeople(e.target.checked)} />
-              Personas/marcas reales (Kling)
+              <input
+                type="checkbox"
+                checked={visualProvider === "atlas" && realPeople}
+                onChange={(e) => setRealPeople(e.target.checked)}
+                disabled={visualProvider === "gflow"}
+              />
+              Personas/marcas reales (Kling · Atlas)
             </label>
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={captions} onChange={(e) => setCaptions(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={captions}
+                onChange={(e) => setCaptions(e.target.checked)}
+              />
               Subtítulos quemados
             </label>
             <label className="flex items-center gap-2 text-xs">
@@ -244,7 +307,9 @@ export function VoxPage() {
           </div>
 
           <div>
-            <p className="mb-2 text-xs text-muted-foreground">Temas del bake-off (máx. 4) — tú eliges a ojo después</p>
+            <p className="mb-2 text-xs text-muted-foreground">
+              Temas del bake-off (máx. 4) — tú eliges a ojo después
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {(catalog?.themes ?? []).map((t) => (
                 <button
@@ -253,7 +318,9 @@ export function VoxPage() {
                   onClick={() => toggleTheme(t.id)}
                   className={cn(
                     "rounded-full border px-2.5 py-1 text-[11px]",
-                    themes.includes(t.id) ? "border-primary bg-primary/10 text-primary" : "border-border",
+                    themes.includes(t.id)
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border",
                   )}
                 >
                   {t.label}
@@ -262,20 +329,26 @@ export function VoxPage() {
             </div>
           </div>
 
-          <label className="block text-xs text-muted-foreground">
-            Atlas Cloud API key (solo Vox)
-            <Input
-              type="password"
-              value={atlasKey}
-              onChange={(e) => setAtlasKey(e.target.value)}
-              placeholder="sk-… o déjala en Ajustes / .env"
-              className="mt-1 h-10"
-            />
-          </label>
+          <StudioVisualFields
+            catalog={catalog}
+            visualProvider={mode === "aroll" ? "atlas" : visualProvider}
+            onVisualProvider={setVisualProvider}
+            gflowImageModel={gflowImageModel}
+            onGflowImageModel={setGflowImageModel}
+            gflowVideoModel={gflowVideoModel}
+            onGflowVideoModel={setGflowVideoModel}
+            disabled={mode === "aroll"}
+            disabledHint="A-roll restylea el talking-head con Atlas (no hay video-edit en gflow)."
+            gflowHint="Una escena a la vez por el Puente Windows. Voz: Atlas del servidor."
+          />
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <Button className="h-11" onClick={() => void create()} disabled={busy || (mode === "broll" && topic.trim().length < 4)}>
+          <Button
+            className="h-11"
+            onClick={() => void create()}
+            disabled={busy || (mode === "broll" && topic.trim().length < 4)}
+          >
             {busy ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
             Borrador del beat map
           </Button>
@@ -287,9 +360,15 @@ export function VoxPage() {
             <ul className="divide-y divide-border rounded-2xl border border-border bg-card">
               {jobs.map((j) => (
                 <li key={j.id}>
-                  <button type="button" className="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-muted/40" onClick={() => navigate(`/vox/${j.id}`)}>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-muted/40"
+                    onClick={() => navigate(`/vox/${j.id}`)}
+                  >
                     <span className="truncate font-medium">{j.topic}</span>
-                    <span className="ml-3 shrink-0 text-[11px] text-muted-foreground">{j.status}</span>
+                    <span className="ml-3 shrink-0 text-[11px] text-muted-foreground">
+                      {j.status}
+                    </span>
                   </button>
                 </li>
               ))}
