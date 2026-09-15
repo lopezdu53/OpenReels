@@ -28,6 +28,7 @@ export interface VoxShot {
   element_motion: string;
   keyframe_url?: string;
   keyframe_path?: string;
+  clip_path?: string;
 }
 
 export interface VoxBeat {
@@ -64,6 +65,7 @@ export interface VoxBeatsDoc {
   captions: boolean;
   watermark: string;
   mode?: "croll" | "aroll" | "broll";
+  anchor_freeze?: string;
   anchor_photo?: string;
   croll_subject?: "portrait" | "product";
   subject_wardrobe?: string;
@@ -92,6 +94,10 @@ export interface VoxJobConfig {
   captionStyle: string;
   watermark: string;
   realPeople: boolean;
+  visualProvider?: "atlas" | "gflow";
+  gflowImageModel?: string;
+  gflowVideoModel?: string;
+  gflowVideoMode?: string;
   atlasKey?: string;
   clonePersona?: string;
   crollSubject?: "portrait" | "product";

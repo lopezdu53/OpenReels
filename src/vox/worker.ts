@@ -2,7 +2,13 @@ import type { Job } from "bullmq";
 import { Queue, Worker } from "bullmq";
 import type IORedis from "ioredis";
 import { resolveAtlasApiKey } from "../providers/atlas/client.js";
-import { hydrateJobFromSnapshot, migrateLegacyVoxJobs, readBeats, readMeta, setStatus, voxJobsDir, writeBeats } from "./store.js";
+import { resolveStudioVisualProvider } from "../studio/visual-provider.js";
+import {
+  runGflowBakeoff,
+  runGflowClips,
+  runGflowCrollKeyframes,
+  runGflowKeyframes,
+} from "./gflow-visuals.js";
 import {
   runArollAssemble,
   runArollClips,
@@ -14,6 +20,15 @@ import {
   runCrollKeyframes,
   runKeyframes,
 } from "./runner.js";
+import {
+  hydrateJobFromSnapshot,
+  migrateLegacyVoxJobs,
+  readBeats,
+  readMeta,
+  setStatus,
+  voxJobsDir,
+  writeBeats,
+} from "./store.js";
 
 export const VOX_QUEUE_NAME = "vox-director";
 export const VOX_WORKER_HEARTBEAT_KEY = "vox:worker:heartbeat";
@@ -55,7 +70,7 @@ function logTo(id: string) {
 function apiKeyOf(id: string): string {
   const meta = readMeta(id);
   const key = resolveAtlasApiKey(meta?.config.atlasKey);
-  if (!key) throw new Error("Falta ATLASCLOUD_API_KEY (Ajustes o .env)");
+  if (!key) throw new Error("Falta ATLASCLOUD_API_KEY en el servidor (video / video-worker)");
   return key;
 }
 
@@ -69,8 +84,14 @@ async function handleBakeoff(id: string, redis: IORedis): Promise<void> {
     );
   }
   setStatus(id, "baking", "style", "Bake-off de estilos");
-  const themes = meta.config.themes?.length ? meta.config.themes : ["american-retro", "swiss-modern", "punk-zine", "newsprint-editorial"];
-  await runBakeoff(id, themes, apiKeyOf(id), logTo(id));
+  const themes = meta.config.themes?.length
+    ? meta.config.themes
+    : ["american-retro", "swiss-modern", "punk-zine", "newsprint-editorial"];
+  if (resolveStudioVisualProvider(meta.config.visualProvider) === "gflow") {
+    await runGflowBakeoff(id, themes, meta.config, logTo(id));
+  } else {
+    await runBakeoff(id, themes, apiKeyOf(id), logTo(id));
+  }
   setStatus(id, "awaiting_style", "style", "Elige un look", { bakeoffThemes: themes });
 }
 
@@ -80,16 +101,32 @@ async function handleProduce(id: string, redis: IORedis): Promise<void> {
   const meta = readMeta(id);
   const beats = readBeats(id);
   if (!meta || !beats) throw new Error("missing job/beats");
-  const key = apiKeyOf(id);
   const log = logTo(id);
   setStatus(id, "producing", "produce", "Generando collage");
 
   if (meta.config.mode === "aroll") {
+    const key = apiKeyOf(id);
     setStatus(id, "producing", "clips", "A-roll: restyle talking-head");
     await runArollClips(id, key, log);
     setStatus(id, "producing", "assemble", "A-roll assemble");
     await runArollAssemble(id, key, log);
+  } else if (resolveStudioVisualProvider(meta.config.visualProvider) === "gflow") {
+    if (meta.config.mode === "croll") {
+      setStatus(id, "producing", "keyframes", "C-roll: posters gflow");
+      await runGflowCrollKeyframes(id, meta.config, log);
+    } else {
+      setStatus(id, "producing", "keyframes", "Keyframes gflow");
+      await runGflowKeyframes(id, meta.config, log);
+    }
+    setStatus(id, "producing", "motion", "Animando posters (gflow I2V en serie)");
+    await runGflowClips(id, meta.config, log);
+    const atlas = apiKeyOf(id);
+    setStatus(id, "producing", "audio", "Voz + música");
+    await runAudio(id, atlas, log);
+    setStatus(id, "producing", "assemble", "Ensamblando final.mp4");
+    await runAssemble(id, atlas, log);
   } else {
+    const key = apiKeyOf(id);
     if (meta.config.mode === "croll") {
       setStatus(id, "producing", "keyframes", "C-roll: posters anclados");
       await runCrollKeyframes(id, key, log);
@@ -123,9 +160,11 @@ async function handleAsr(id: string, source: string, redis: IORedis): Promise<vo
 export function startVoxWorker(connection: IORedis): Worker {
   migrateLegacyVoxJobs();
   const beat = () => {
-    void connection.set(VOX_WORKER_HEARTBEAT_KEY, new Date().toISOString(), "EX", 90).catch((err) => {
-      console.warn("[vox] heartbeat failed", err);
-    });
+    void connection
+      .set(VOX_WORKER_HEARTBEAT_KEY, new Date().toISOString(), "EX", 90)
+      .catch((err) => {
+        console.warn("[vox] heartbeat failed", err);
+      });
   };
   beat();
   const timer = setInterval(beat, 20_000);

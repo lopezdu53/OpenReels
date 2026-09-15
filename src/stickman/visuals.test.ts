@@ -1,7 +1,10 @@
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import { draftScriptTemplate } from "./draft.js";
-import { buildStillPrompt, castLock } from "./visuals.js";
 import type { StickmanJobConfig } from "./types.js";
+import { buildStillPrompt, castLock, renderStills } from "./visuals.js";
 
 const config: StickmanJobConfig = {
   topic: "el wifi de la oficina",
@@ -30,5 +33,31 @@ describe("stickman visuals", () => {
     expect(prompt.toLowerCase()).toContain("no paper collage");
     expect(prompt.toLowerCase()).toContain("no sphere-head");
     expect(prompt).toContain("chalk");
+  });
+
+  it("renders stills through the injected image provider (Atlas or gflow)", async () => {
+    const script = draftScriptTemplate({ ...config, durationSec: 15 }, "wifi-15s");
+    script.beats = script.beats.slice(0, 1);
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "stickman-stills-"));
+    const calls: string[] = [];
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const fat = Buffer.concat([png, Buffer.alloc(1200)]);
+    await renderStills(
+      root,
+      script,
+      {
+        generate: async (prompt) => {
+          calls.push(prompt);
+          return fat;
+        },
+      },
+      () => {},
+    );
+    expect(calls).toHaveLength(1);
+    expect(fs.existsSync(path.join(root, "stills", "beat-01.png"))).toBe(true);
+    fs.rmSync(root, { recursive: true, force: true });
   });
 });
