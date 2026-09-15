@@ -38,7 +38,7 @@ Visual-density recipe (inside ONE continuous take when animate=${config.animate 
   }
 
 Voiceover:
-- ${config.language.startsWith("en") ? "Natural spoken English" : "Natural spoken " + config.language}.
+- ${config.language.startsWith("en") ? "Natural spoken English" : `Natural spoken ${config.language}`}.
 - ~18–25 words per beat. Do not invent facts, stats, quotes, or product claims.
 - Narration is audio-only. Never put words, letters, numbers, captions, or UI text in the picture.
 
