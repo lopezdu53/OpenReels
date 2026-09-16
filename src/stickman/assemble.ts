@@ -101,13 +101,35 @@ function probeSeconds(src: string): number {
   }
 }
 
+function framePngOk(dest: string): boolean {
+  return fs.existsSync(dest) && fs.statSync(dest).size > 80;
+}
+
+function tryFfmpeg(args: string[]): boolean {
+  try {
+    execFileSync("ffmpeg", args, { stdio: "pipe", maxBuffer: 8 * 1024 * 1024 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Last frame of a take so the next Omni I2V can continue. Flow mp4s often lack a seek index. */
 export function extractLastFrame(src: string, dest: string): string {
   fs.mkdirSync(path.dirname(dest), { recursive: true });
-  ffmpeg(["-y", "-sseof", "-0.04", "-i", src, "-frames:v", "1", dest]);
-  if (!fs.existsSync(dest) || fs.statSync(dest).size < 80) {
-    throw new Error("No se pudo extraer el último frame del take");
+  const common = ["-hide_banner", "-loglevel", "error", "-y"];
+  const out = ["-map", "0:v:0", "-frames:v", "1", "-update", "1", dest];
+  const dur = probeSeconds(src);
+  const ss = Math.max(0, dur > 0 ? dur - 0.1 : 0);
+  const attempts = [
+    [...common, "-sseof", "-0.1", "-i", src, ...out],
+    [...common, "-ss", ss.toFixed(3), "-i", src, ...out],
+    [...common, "-i", src, "-map", "0:v:0", "-update", "1", dest],
+  ];
+  for (const args of attempts) {
+    if (tryFfmpeg(args) && framePngOk(dest)) return dest;
   }
-  return dest;
+  throw new Error("No se pudo extraer el último frame del take");
 }
 
 function hasAudio(src: string): boolean {

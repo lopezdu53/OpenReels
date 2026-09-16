@@ -1,9 +1,14 @@
+import { randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { randomBytes } from "node:crypto";
 import type IORedis from "ioredis";
 import { isStickmanJobDirName } from "../jobs/isolated.js";
-import type { StickmanJobConfig, StickmanJobMeta, StickmanScript, StickmanStatus } from "./types.js";
+import type {
+  StickmanJobConfig,
+  StickmanJobMeta,
+  StickmanScript,
+  StickmanStatus,
+} from "./types.js";
 
 const SNAP_TTL_SEC = 7 * 24 * 60 * 60;
 
@@ -38,7 +43,11 @@ export function stickmanSnapshotKey(id: string): string {
 
 function extraLookupRoots(): string[] {
   const jobs = openReelsJobsDir();
-  return [path.join(jobs, "stickman"), path.join(process.cwd(), "stickman-jobs"), "/app/stickman-jobs"];
+  return [
+    path.join(jobs, "stickman"),
+    path.join(process.cwd(), "stickman-jobs"),
+    "/app/stickman-jobs",
+  ];
 }
 
 function jobDirCandidates(id: string): string[] {
@@ -125,6 +134,18 @@ export function patchMeta(id: string, patch: Partial<StickmanJobMeta>): Stickman
   return next;
 }
 
+export function appendJobLog(id: string, line: string): void {
+  try {
+    const text = line.replace(/\s+/g, " ").trim();
+    if (!text || !isStickmanJobId(id)) return;
+    const dest = path.join(jobDir(id), "log.txt");
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.appendFileSync(dest, `${new Date().toISOString()} ${text}\n`);
+  } catch (err) {
+    console.warn(`[stickman] log.txt ${id}`, err);
+  }
+}
+
 export function setStatus(
   id: string,
   status: StickmanStatus,
@@ -132,6 +153,7 @@ export function setStatus(
   detail: string,
   extra?: Partial<StickmanJobMeta>,
 ): StickmanJobMeta {
+  appendJobLog(id, `[${stage}] ${detail}`);
   return patchMeta(id, { status, stage, detail, ...extra });
 }
 
@@ -174,7 +196,10 @@ export async function hydrateJobFromSnapshot(redis: IORedis, id: string): Promis
 export function stillFiles(id: string): string[] {
   const dir = path.join(jobDir(id), "stills");
   if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir).filter((f) => /\.(jpg|jpeg|png|webp)$/i.test(f)).sort();
+  return fs
+    .readdirSync(dir)
+    .filter((f) => /\.(jpg|jpeg|png|webp)$/i.test(f))
+    .sort();
 }
 
 export function finalPath(id: string): string | null {

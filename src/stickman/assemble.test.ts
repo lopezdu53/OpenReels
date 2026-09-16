@@ -94,6 +94,35 @@ describe("stickman assemble captions", () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
+  it("extracts the last frame from a fragmented Flow-like mp4 with audio", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "stickman-frag-"));
+    const clip = path.join(root, "flow.mp4");
+    execFileSync("ffmpeg", [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=yellow:s=640x360:d=1.2",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=220:duration=1.2",
+      "-shortest",
+      "-pix_fmt",
+      "yuv420p",
+      "-c:v",
+      "libx264",
+      "-c:a",
+      "aac",
+      "-movflags",
+      "frag_keyframe+empty_moov+default_base_moof",
+      clip,
+    ]);
+    const frame = extractLastFrame(clip, path.join(root, "last.png"));
+    expect(fs.statSync(frame).size).toBeGreaterThan(80);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
   it("keeps Flow bed audio under TTS and does not cut the video to the voiceover", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "stickman-mix-"));
     const clip = path.join(root, "clip.mp4");
