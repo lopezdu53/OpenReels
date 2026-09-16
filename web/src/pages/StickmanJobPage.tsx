@@ -1,8 +1,9 @@
+import { ArrowLeft, Check, Loader2, PersonStanding } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Check, Loader2, PersonStanding } from "lucide-react";
-import { api, type StickmanJobDetail } from "@/hooks/useApi";
+import { JobVideo, mediaAspect } from "@/components/JobVideo";
 import { Button } from "@/components/ui/button";
+import { api, type StickmanJobDetail } from "@/hooks/useApi";
 
 const STAGES = [
   { id: "script", label: "Guion" },
@@ -28,6 +29,7 @@ export function StickmanJobPage() {
     if (j.script && !scriptText) setScriptText(JSON.stringify(j.script, null, 2));
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: subscribe once per job id
   useEffect(() => {
     if (!id) return;
     setScriptText("");
@@ -92,11 +94,17 @@ export function StickmanJobPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-10 py-8">
       <div className="mx-auto max-w-5xl space-y-5">
-        <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" onClick={() => navigate("/stickman")}>
+        <button
+          type="button"
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => navigate("/stickman")}
+        >
           <ArrowLeft className="size-3.5" /> Nuevo Stickman
         </button>
         <div>
-          <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-primary">Stickman · {job.status}</p>
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-primary">
+            Stickman · {job.status}
+          </p>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <PersonStanding className="size-6 text-primary" />
             {job.topic}
@@ -178,7 +186,10 @@ export function StickmanJobPage() {
         )}
 
         {job.status === "completed" && (
-          <video className="w-full rounded-2xl border border-border bg-black" controls src={`/api/v1/stickman/jobs/${job.id}/artifacts/final.mp4`} />
+          <JobVideo
+            src={`/api/v1/stickman/jobs/${job.id}/artifacts/final.mp4`}
+            aspect={mediaAspect(job.script)}
+          />
         )}
 
         {job.status === "failed" && (
