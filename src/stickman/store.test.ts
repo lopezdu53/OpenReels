@@ -11,6 +11,7 @@ import {
   listJobs,
   readScript,
   saveJobSnapshot,
+  setStatus,
   stickmanJobsDir,
   writeScript,
 } from "./store.js";
@@ -59,6 +60,15 @@ describe("stickman store", () => {
     expect(readScript(meta.id)?.style).toBe("stickman");
     expect(listJobs("user-1")).toHaveLength(1);
     expect(listJobs("other")).toHaveLength(0);
+  });
+
+  it("appends stage lines to log.txt so take errors survive the last status", () => {
+    const meta = createJob("user-1", config);
+    setStatus(meta.id, "producing", "motion", "take 1/2 ok");
+    setStatus(meta.id, "producing", "motion", "take 2/2 I2V 10s…");
+    const log = fs.readFileSync(path.join(jobDir(meta.id), "log.txt"), "utf8");
+    expect(log).toContain("take 1/2 ok");
+    expect(log).toContain("take 2/2 I2V 10s");
   });
 
   it("stores stickman jobs on JOBS_DIR, not a nestable /stickman mount", () => {
