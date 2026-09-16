@@ -4,6 +4,7 @@ import type { FastifyInstance } from "fastify";
 import type IORedis from "ioredis";
 import type { AuthedRequest } from "../auth/plugin.js";
 import { requireUser } from "../auth/plugin.js";
+import { sendArtifact } from "../http/send-artifact.js";
 import { resolveAtlasApiKey } from "../providers/atlas/client.js";
 import { gflowBridgeUrl } from "../providers/gflow/bridge.js";
 import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "../providers/gflow/catalog.js";
@@ -265,19 +266,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
         return reply.status(403).send({ error: "Access denied" });
       }
       if (!fs.existsSync(full)) return reply.status(404).send({ error: "Artifact not found" });
-      const ext = path.extname(full).toLowerCase();
-      const types: Record<string, string> = {
-        ".mp4": "video/mp4",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".webp": "image/webp",
-        ".json": "application/json",
-        ".wav": "audio/wav",
-        ".mp3": "audio/mpeg",
-      };
-      reply.header("Content-Type", types[ext] ?? "application/octet-stream");
-      return reply.send(fs.createReadStream(full));
+      return sendArtifact(request, reply, full);
     },
   );
 
