@@ -86,7 +86,7 @@ export function buildContinuousMotionPrompt(
     .filter((line): line is string => Boolean(line));
   const bridge =
     takeIndex > 0
-      ? "CONTINUE from the exact pose, camera, and line-art in the source image. The first frame IS that image. Then keep morphing. NO cut, NO new shot, NO reset."
+      ? "CONTINUE from the exact pose, camera, and line-art in the source image (last frame of the previous 10s Omni take). The first frame IS that image. Start moving immediately — do not hold a still. Then keep morphing. NO cut, NO new shot, NO reset."
       : "Start from the source still and begin moving immediately.";
   return [
     `ONE CONTINUOUS ${clipSeconds}s 2D stickman take (${takeIndex + 1}/${takeCount}). NO CUTS. NO jump cuts. NO edited scene wipes.`,

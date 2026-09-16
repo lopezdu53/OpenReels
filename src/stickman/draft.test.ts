@@ -4,7 +4,7 @@ import type { StickmanJobConfig } from "./types.js";
 
 const base: StickmanJobConfig = {
   topic: "por qué el café miente",
-  durationSec: 15,
+  durationSec: 10,
   aspect: "9:16",
   language: "es",
   look: "classic",
@@ -21,7 +21,7 @@ const base: StickmanJobConfig = {
 
 describe("stickman draftScriptTemplate", () => {
   it("writes a stickman script without Film hero or Vox collage fields", () => {
-    const doc = draftScriptTemplate(base, "cafe-15s");
+    const doc = draftScriptTemplate(base, "cafe-10s");
     expect(doc.style).toBe("stickman");
     expect(doc.provider).toBe("atlas_cloud");
     expect(doc.beats).toHaveLength(3);

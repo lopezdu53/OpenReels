@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { frameSize } from "./catalog.js";
+import { frameSize, STICKMAN_FLOW_BED_VOLUME, STICKMAN_TAKE_XFADE_SEC } from "./catalog.js";
 import type { StickmanScript } from "./types.js";
 import { totalBeatSeconds } from "./visuals.js";
 
@@ -110,39 +110,187 @@ export function extractLastFrame(src: string, dest: string): string {
   return dest;
 }
 
-export function concatMotionTakes(srcs: string[], dest: string, aspect: string): void {
-  if (!srcs.length) throw new Error("No hay takes para concatenar");
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-  const only = srcs[0];
-  if (srcs.length === 1 && only) {
-    fs.copyFileSync(only, dest);
-    return;
+function hasAudio(src: string): boolean {
+  try {
+    const out = execFileSync(
+      "ffprobe",
+      [
+        "-v",
+        "error",
+        "-select_streams",
+        "a",
+        "-show_entries",
+        "stream=codec_type",
+        "-of",
+        "csv=p=0",
+        src,
+      ],
+      { encoding: "utf8" },
+    );
+    return out.toLowerCase().includes("audio");
+  } catch {
+    return false;
   }
+}
+
+function normalizeTake(src: string, dest: string, aspect: string, trimHead: number): void {
   const { w, h } = frameSize(aspect);
-  const work = path.dirname(dest);
-  const normalized = srcs.map((src, i) => {
-    const out = path.join(work, `take-norm-${String(i + 1).padStart(2, "0")}.mp4`);
+  const vf = `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},fps=30`;
+  const ss = trimHead > 0.02 ? ["-ss", trimHead.toFixed(3)] : [];
+  if (hasAudio(src)) {
     ffmpeg([
       "-y",
+      ...ss,
       "-i",
       src,
       "-vf",
-      `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},fps=30`,
-      "-an",
+      vf,
       "-c:v",
       "libx264",
       "-pix_fmt",
       "yuv420p",
-      out,
+      "-c:a",
+      "aac",
+      "-ar",
+      "48000",
+      "-ac",
+      "2",
+      dest,
     ]);
+    return;
+  }
+  ffmpeg([
+    "-y",
+    ...ss,
+    "-i",
+    src,
+    "-f",
+    "lavfi",
+    "-i",
+    "anullsrc=r=48000:cl=stereo",
+    "-vf",
+    vf,
+    "-c:v",
+    "libx264",
+    "-pix_fmt",
+    "yuv420p",
+    "-c:a",
+    "aac",
+    "-shortest",
+    "-map",
+    "0:v:0",
+    "-map",
+    "1:a:0",
+    dest,
+  ]);
+}
+
+function xfadePair(a: string, b: string, dest: string, xfade: number): void {
+  const offset = Math.max(0.05, probeSeconds(a) - xfade);
+  ffmpeg([
+    "-y",
+    "-i",
+    a,
+    "-i",
+    b,
+    "-filter_complex",
+    `[0:v][1:v]xfade=transition=fade:duration=${xfade}:offset=${offset.toFixed(3)}[v];[0:a][1:a]acrossfade=d=${xfade}[a]`,
+    "-map",
+    "[v]",
+    "-map",
+    "[a]",
+    "-c:v",
+    "libx264",
+    "-pix_fmt",
+    "yuv420p",
+    "-c:a",
+    "aac",
+    "-ar",
+    "48000",
+    "-ac",
+    "2",
+    dest,
+  ]);
+}
+
+export function concatMotionTakes(srcs: string[], dest: string, aspect: string): void {
+  if (!srcs.length) throw new Error("No hay takes para concatenar");
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  const work = path.dirname(dest);
+  const xfade = STICKMAN_TAKE_XFADE_SEC;
+  const norms = srcs.map((src, i) => {
+    const out = path.join(work, `take-norm-${String(i + 1).padStart(2, "0")}.mp4`);
+    normalizeTake(src, out, aspect, i > 0 ? 0.08 : 0);
     return out;
   });
-  const list = path.join(work, "takes.txt");
-  fs.writeFileSync(
-    list,
-    normalized.map((file) => `file '${file.replace(/'/g, "'\\''")}'`).join("\n"),
-  );
-  ffmpeg(["-y", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", dest]);
+  const first = norms[0];
+  if (norms.length === 1 && first) {
+    fs.copyFileSync(first, dest);
+    return;
+  }
+  let acc = first ?? "";
+  for (let i = 1; i < norms.length; i++) {
+    const next = norms[i];
+    if (!acc || !next) continue;
+    const out =
+      i === norms.length - 1 ? dest : path.join(work, `xfade-${String(i).padStart(2, "0")}.mp4`);
+    xfadePair(acc, next, out, xfade);
+    acc = out;
+  }
+}
+
+export function mixStickmanAudio(
+  video: string,
+  voiceover: string | null,
+  dest: string,
+  bedVolume = STICKMAN_FLOW_BED_VOLUME,
+): void {
+  const vidDur = Math.max(0.5, probeSeconds(video));
+  if (!voiceover) {
+    fs.copyFileSync(video, dest);
+    return;
+  }
+  if (hasAudio(video)) {
+    ffmpeg([
+      "-y",
+      "-i",
+      video,
+      "-i",
+      voiceover,
+      "-filter_complex",
+      `[0:a]volume=${bedVolume},aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[bed];[1:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[vo];[bed][vo]amix=inputs=2:duration=first:dropout_transition=2[a]`,
+      "-map",
+      "0:v:0",
+      "-map",
+      "[a]",
+      "-c:v",
+      "copy",
+      "-c:a",
+      "aac",
+      "-t",
+      vidDur.toFixed(3),
+      dest,
+    ]);
+    return;
+  }
+  ffmpeg([
+    "-y",
+    "-i",
+    video,
+    "-i",
+    voiceover,
+    "-c:v",
+    "copy",
+    "-c:a",
+    "aac",
+    "-map",
+    "0:v:0",
+    "-map",
+    "1:a:0",
+    "-t",
+    vidDur.toFixed(3),
+    dest,
+  ]);
 }
 
 function fitContinuousClip(src: string, dest: string, dur: number, aspect: string): void {
@@ -151,10 +299,10 @@ function fitContinuousClip(src: string, dest: string, dur: number, aspect: strin
   const srcDur = probeSeconds(src);
   const pad = Math.max(0, hold - srcDur);
   const vf =
-    pad > 0.08
+    pad > 0.4
       ? `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},fps=30,tpad=stop_mode=clone:stop_duration=${pad.toFixed(3)}`
       : `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},fps=30`;
-  ffmpeg([
+  const args = [
     "-y",
     "-i",
     src,
@@ -162,13 +310,17 @@ function fitContinuousClip(src: string, dest: string, dur: number, aspect: strin
     vf,
     "-t",
     String(hold),
-    "-an",
     "-c:v",
     "libx264",
     "-pix_fmt",
     "yuv420p",
-    dest,
-  ]);
+  ];
+  if (hasAudio(src)) {
+    args.push("-c:a", "aac", "-ar", "48000", "-ac", "2", "-af", "apad", dest);
+  } else {
+    args.push("-an", dest);
+  }
+  ffmpeg(args);
 }
 
 export function assembleStickman(opts: {
@@ -216,27 +368,7 @@ export function assembleStickman(opts: {
   const captions = writeCaptions(opts.script, path.join(opts.root, "captions.srt"));
   const voiced = path.join(work, "voiced.mp4");
   const voice = opts.voiceover && fs.existsSync(opts.voiceover) ? opts.voiceover : null;
-  if (voice) {
-    ffmpeg([
-      "-y",
-      "-i",
-      silent,
-      "-i",
-      voice,
-      "-c:v",
-      "copy",
-      "-c:a",
-      "aac",
-      "-shortest",
-      "-map",
-      "0:v:0",
-      "-map",
-      "1:a:0",
-      voiced,
-    ]);
-  } else {
-    fs.copyFileSync(silent, voiced);
-  }
+  mixStickmanAudio(silent, voice, voiced);
 
   const finalPath = path.join(opts.root, "final.mp4");
   if (captions && fs.existsSync(captions)) {

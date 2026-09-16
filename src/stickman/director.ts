@@ -27,8 +27,8 @@ Choose ONE narrative pattern that fits the source (do not invent a different gen
 Shape those jobs through the selected arc. Never flatten into a generic OpenReels hook/payoff.
 
 Visual-density recipe (continuous I2V when animate=${config.animate === true}):
-- Flow/Atlas clips last 8–15s. Jobs longer than one clip CHAIN takes: last frame of take N is the first frame of take N+1. Morph across the join. Never cut.
-- Each beat has in-shot moments: 0–3s establish, 3–7s transform the metaphor, 7–10s climax into the next pose (repeat that pulse inside every take).
+- Omni Flash takes are 10s (Veo 8s, Atlas up to 15s). Jobs longer than one clip CHAIN 10s takes: last frame of take N is the first frame of take N+1. Morph across the join. Never cut.
+- Each 10s take has in-shot moments: 0–3s establish, 3–7s transform the metaphor, 7–10s climax into the next pose.
 - Perceptible visual change every 2–3 seconds. Camera may push/pull/pan/orbit. Environments MORPH; they do not cut.
 - At least four devices per beat: limb acting, environment transform, concrete metaphor, icon-only symbol, particles, camera move, oversized prop.
 - Beat N must inherit a visible pose/object/camera motion from beat N-1 (continuity interface).
@@ -40,7 +40,7 @@ Visual-density recipe (continuous I2V when animate=${config.animate === true}):
 
 Voiceover:
 - ${config.language.startsWith("en") ? "Natural spoken English" : `Natural spoken ${config.language}`}.
-- ~18–25 words per beat. Do not invent facts, stats, quotes, or product claims.
+- About ${Math.max(8, Math.round((config.durationSec / beatCount) * 2.3))} words per beat. Total spoken words ≈ ${Math.round(config.durationSec * 2.3)} so the voiceover FITS ${config.durationSec}s (do not overrun). Do not invent facts, stats, quotes, or product claims.
 - Narration is audio-only. Never put words, letters, numbers, captions, or UI text in the picture.
 
 Style lock: ${STICKMAN_STYLE_LOCK}

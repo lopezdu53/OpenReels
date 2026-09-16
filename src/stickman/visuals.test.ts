@@ -14,7 +14,7 @@ import {
 
 const config: StickmanJobConfig = {
   topic: "el wifi de la oficina",
-  durationSec: 15,
+  durationSec: 10,
   aspect: "9:16",
   language: "es",
   look: "chalk",
@@ -42,7 +42,7 @@ describe("stickman visuals", () => {
   });
 
   it("renders stills through the injected image provider (Atlas or gflow)", async () => {
-    const script = draftScriptTemplate({ ...config, durationSec: 15 }, "wifi-15s");
+    const script = draftScriptTemplate({ ...config, durationSec: 10 }, "wifi-10s");
     script.beats = script.beats.slice(0, 1);
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "stickman-stills-"));
     const calls: string[] = [];
@@ -68,18 +68,18 @@ describe("stickman visuals", () => {
   });
 
   it("writes a continuous I2V prompt with timed beats and no-cut language", () => {
-    const script = draftScriptTemplate({ ...config, durationSec: 15, animate: true }, "wifi-15s");
-    const prompt = buildContinuousMotionPrompt(script, 8);
+    const script = draftScriptTemplate({ ...config, durationSec: 20, animate: true }, "wifi-20s");
+    const prompt = buildContinuousMotionPrompt(script, 10);
     expect(prompt).toContain("NO CUTS");
     expect(prompt).toContain("[0.0–");
     expect(prompt.toLowerCase()).toContain("morph");
-    expect(pickMotionDuration([4, 6, 8], 15)).toBe(8);
-    expect(pickMotionDuration([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 15)).toBe(15);
+    expect(pickMotionDuration([4, 6, 8], 20)).toBe(8);
+    expect(pickMotionDuration([4, 6, 8, 10], 10)).toBe(10);
   });
 
   it("windows a later take so it continues from the last frame", () => {
-    const script = draftScriptTemplate({ ...config, durationSec: 15, animate: true }, "wifi-15s");
-    const prompt = buildContinuousMotionPrompt(script, 6, {
+    const script = draftScriptTemplate({ ...config, durationSec: 20, animate: true }, "wifi-20s");
+    const prompt = buildContinuousMotionPrompt(script, 10, {
       startSec: 10,
       takeIndex: 1,
       takeCount: 2,
