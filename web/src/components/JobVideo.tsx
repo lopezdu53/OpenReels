@@ -12,7 +12,15 @@ export function mediaAspect(raw: unknown, fallback = "9:16"): string {
   return fallback;
 }
 
-export function JobVideo({ src, aspect }: { src: string; aspect?: string }) {
+export function JobVideo({
+  src,
+  aspect,
+  poster,
+}: {
+  src: string;
+  aspect?: string;
+  poster?: string;
+}) {
   const box = RATIO[aspect ?? ""] ?? RATIO["9:16"];
   return (
     <div className="space-y-2">
@@ -21,6 +29,7 @@ export function JobVideo({ src, aspect }: { src: string; aspect?: string }) {
       >
         <video
           src={src}
+          poster={poster}
           controls
           playsInline
           preload="metadata"

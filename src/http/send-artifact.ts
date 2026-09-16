@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { ensureMp4Faststart } from "../media/mp4-faststart.js";
 
 const TYPES: Record<string, string> = {
   ".mp4": "video/mp4",
@@ -50,11 +51,15 @@ export function sendArtifact(
   reply: FastifyReply,
   filePath: string,
 ): FastifyReply {
-  const stat = fs.statSync(filePath);
   const ext = path.extname(filePath).toLowerCase();
+  const servePath = ext === ".mp4" ? ensureMp4Faststart(filePath) : filePath;
+  const stat = fs.statSync(servePath);
   reply.header("Content-Type", TYPES[ext] ?? "application/octet-stream");
   reply.header("Accept-Ranges", "bytes");
   reply.header("Cache-Control", "private, max-age=120");
+  if (ext === ".mp4") {
+    reply.header("Content-Disposition", `inline; filename="${path.basename(filePath)}"`);
+  }
   const raw = request.headers.range;
   const header = Array.isArray(raw) ? raw[0] : raw;
   const range = parseByteRange(header, stat.size);
@@ -63,7 +68,7 @@ export function sendArtifact(
     reply.code(206);
     reply.header("Content-Range", `bytes ${range.start}-${range.end}/${stat.size}`);
     reply.header("Content-Length", String(length));
-    return reply.send(fs.createReadStream(filePath, { start: range.start, end: range.end }));
+    return reply.send(fs.createReadStream(servePath, { start: range.start, end: range.end }));
   }
   if (range.unsatisfiable) {
     reply.code(416);
@@ -71,5 +76,5 @@ export function sendArtifact(
     return reply.send();
   }
   reply.header("Content-Length", String(stat.size));
-  return reply.send(fs.createReadStream(filePath));
+  return reply.send(fs.createReadStream(servePath));
 }
