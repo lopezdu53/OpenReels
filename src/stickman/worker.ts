@@ -6,6 +6,7 @@ import { DEFAULT_STICKMAN_TTS_MODEL } from "./catalog.js";
 import { runAssemble, runMotion, runTts, runVisuals } from "./runner.js";
 import {
   hydrateJobFromSnapshot,
+  isStickmanFinalReady,
   readMeta,
   readScript,
   setStatus,
@@ -14,6 +15,10 @@ import {
 
 export const STICKMAN_QUEUE_NAME = "stickman-studio";
 export const STICKMAN_WORKER_HEARTBEAT_KEY = "stickman:worker:heartbeat";
+
+/** Default BullMQ lock is 30s. Two Omni 10s I2V takes take minutes; the lock expires, the job restarts from TTS. */
+export const STICKMAN_LOCK_DURATION_MS = 60 * 60 * 1000;
+export const STICKMAN_LOCK_RENEW_MS = 15_000;
 
 export type StickmanWork = { id: string; action: "produce" };
 
@@ -65,8 +70,17 @@ async function handleProduce(id: string, redis: IORedis): Promise<void> {
       `Stickman job ${id} no está en el disco compartido (${stickmanJobsDir()}). Quita el volumen extra montado en /app/jobs/stickman y deja solo jobs_data → /app/jobs.`,
     );
   }
-  const key = apiKeyOf(id);
   const log = logTo(id);
+  if (isStickmanFinalReady(id)) {
+    log("produce: final.mp4 ya está listo; no regenero (lock de BullMQ)");
+    if (meta.status !== "completed") {
+      setStatus(id, "completed", "done", "Listo", {
+        completedAt: meta.completedAt ?? new Date().toISOString(),
+      });
+    }
+    return;
+  }
+  const key = apiKeyOf(id);
   setStatus(id, "producing", "tts", "Generando voz");
   await runTts(id, key, meta.config.atlasTtsModel || DEFAULT_STICKMAN_TTS_MODEL, log);
   setStatus(id, "producing", "visuals", "Dibujando palitos");
@@ -106,7 +120,12 @@ export function startStickmanWorker(connection: IORedis): Worker {
         throw err;
       }
     },
-    { connection, concurrency: 1 },
+    {
+      connection,
+      concurrency: 1,
+      lockDuration: STICKMAN_LOCK_DURATION_MS,
+      lockRenewTime: STICKMAN_LOCK_RENEW_MS,
+    },
   );
   worker.on("closed", () => clearInterval(timer));
   return worker;

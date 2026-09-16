@@ -4,7 +4,7 @@ import { AtlasTTS } from "../providers/tts/atlas.js";
 import { createStudioImage, createStudioVideo } from "../studio/visual-provider.js";
 import { assembleStickman, concatMotionTakes, extractLastFrame } from "./assemble.js";
 import { planMotionTakes } from "./catalog.js";
-import { jobDir, readScript, writeScript } from "./store.js";
+import { fileBigEnough, jobDir, readScript, writeScript } from "./store.js";
 import type { StickmanJobConfig, StickmanScript } from "./types.js";
 import { buildContinuousMotionPrompt, renderStills } from "./visuals.js";
 
@@ -21,10 +21,14 @@ export async function runTts(
     .filter(Boolean)
     .join(" ");
   if (!text.trim()) throw new Error("El guion no tiene narración");
+  const dest = path.join(jobDir(id), "voiceover.wav");
+  if (fileBigEnough(dest, 1000)) {
+    log(`TTS ya existe → ${path.basename(dest)}`);
+    return dest;
+  }
   log(`TTS ${text.length} caracteres`);
   const tts = new AtlasTTS(script.voice.voice_id, apiKey, script.voice.speed, ttsModel);
   const { audio } = await tts.generate(text);
-  const dest = path.join(jobDir(id), "voiceover.wav");
   fs.writeFileSync(dest, audio);
   return dest;
 }
@@ -172,19 +176,23 @@ export async function generateChainedTakes(opts: {
   const retryMs = Math.max(0, opts.retryMs ?? 4000);
   for (const [i, clipSeconds] of opts.takes.entries()) {
     const takePath = path.join(opts.clipsDir, `take-${padTake(i + 1)}.mp4`);
-    await generateOneTake({
-      script: opts.script,
-      video: opts.video,
-      sourcePath,
-      takePath,
-      clipSeconds,
-      startSec,
-      takeIndex: i,
-      takeCount: opts.takes.length,
-      log: opts.log,
-      attempts,
-      retryMs,
-    });
+    if (fileBigEnough(takePath, 20_000)) {
+      opts.log(`take ${i + 1}/${opts.takes.length} ya existe → no llamo a Flow`);
+    } else {
+      await generateOneTake({
+        script: opts.script,
+        video: opts.video,
+        sourcePath,
+        takePath,
+        clipSeconds,
+        startSec,
+        takeIndex: i,
+        takeCount: opts.takes.length,
+        log: opts.log,
+        attempts,
+        retryMs,
+      });
+    }
     generated.push(takePath);
     if (i < opts.takes.length - 1) {
       sourcePath = bridgeSource(opts, takePath, i, startSec + clipSeconds);
@@ -232,6 +240,15 @@ export async function runMotion(
     `motion: ${takes.length} toma${takes.length === 1 ? "" : "s"} ${label} ${takes.join("+")}s (sin freeze, puente por último frame)`,
   );
   const clips: Array<string | null> = script.beats.map(() => null);
+  const existingTakes = takes.map((_, i) => path.join(clipsDir, `take-${padTake(i + 1)}.mp4`));
+  if (fileBigEnough(dest, 20_000) && existingTakes.every((file) => fileBigEnough(file, 20_000))) {
+    const hero = script.beats[0];
+    if (hero) hero.clipPath = path.relative(jobDir(id), dest);
+    clips[0] = dest;
+    writeScript(id, script);
+    log(`clip continuo ya existe → ${path.basename(dest)} (no regenero I2V)`);
+    return clips;
+  }
   const generated = await generateChainedTakes({
     script,
     video,

@@ -6,6 +6,7 @@ import { draftScriptTemplate } from "./draft.js";
 import {
   createJob,
   hydrateJobFromSnapshot,
+  isStickmanFinalReady,
   isStickmanSharedVolumeEntry,
   jobDir,
   listJobs,
@@ -101,5 +102,12 @@ describe("stickman store", () => {
     expect(readScript(meta.id)).toBeNull();
     await hydrateJobFromSnapshot(redis as never, meta.id);
     expect(readScript(meta.id)?.style).toBe("stickman");
+  });
+
+  it("treats an existing final.mp4 as already produced", () => {
+    const meta = createJob("user-1", config);
+    expect(isStickmanFinalReady(meta.id)).toBe(false);
+    fs.writeFileSync(path.join(jobDir(meta.id), "final.mp4"), Buffer.alloc(25_000));
+    expect(isStickmanFinalReady(meta.id)).toBe(true);
   });
 });
