@@ -91,7 +91,10 @@ export const STICKMAN_VOICES = [
 ] as const;
 
 export const STICKMAN_ASPECTS = ["9:16", "16:9", "1:1"] as const;
-export const STICKMAN_DURATIONS = [10, 15, 30, 60, 120, 300, 480] as const;
+/** Omni Flash is 10s; jobs are multiples so we never ask Flow for 6s leftovers. */
+export const STICKMAN_DURATIONS = [10, 20, 30, 60, 120, 300, 480] as const;
+export const STICKMAN_TAKE_XFADE_SEC = 0.12;
+export const STICKMAN_FLOW_BED_VOLUME = 0.2;
 
 export const DEFAULT_STICKMAN_IMAGE_MODEL = "google/nano-banana-2-lite/text-to-image";
 export const DEFAULT_STICKMAN_VIDEO_MODEL = "bytedance/seedance-2.0-mini/image-to-video";
@@ -131,7 +134,7 @@ export function isStickmanLlmId(id: string): boolean {
 
 /**
  * Split a long job into model-legal I2V takes.
- * Omni 15s → [10, 6]; Veo 15s → [8, 8]; Seedance 15s → [15].
+ * Omni 20s → [10, 10]; Veo 20s → [8, 8, 8]; Seedance 30s → [15, 15].
  */
 export function planMotionTakes(supported: readonly number[], wanted: number): number[] {
   const clean = [...new Set(supported.filter((d) => d > 0))].sort((a, b) => a - b);
@@ -221,7 +224,8 @@ export function recommendArc(topic: string): string {
 }
 
 export function beatCountForDuration(seconds: number): number {
-  if (seconds <= 15) return 3;
+  if (seconds <= 10) return 3;
+  if (seconds <= 20) return 4;
   if (seconds <= 30) return 6;
   if (seconds <= 60) return 8;
   if (seconds <= 120) return 12;

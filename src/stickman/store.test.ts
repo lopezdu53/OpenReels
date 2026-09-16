@@ -18,7 +18,7 @@ import type { StickmanJobConfig } from "./types.js";
 
 const config: StickmanJobConfig = {
   topic: "por qué el café miente",
-  durationSec: 15,
+  durationSec: 10,
   aspect: "9:16",
   language: "es",
   look: "classic",

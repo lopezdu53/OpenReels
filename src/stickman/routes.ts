@@ -71,7 +71,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     visualProviders: [...STUDIO_VISUAL_PROVIDERS],
     gflowImageModels: GFLOW_IMAGE_MODELS,
     gflowVideoModels: GFLOW_VIDEO_MODELS.filter((m) => m.id !== "veo-lite-lp"),
-    recommendedGflow: recommendStickmanGflow(15),
+    recommendedGflow: recommendStickmanGflow(20),
     defaultGflowImage: DEFAULT_STICKMAN_GFLOW_IMAGE,
     defaultGflowVideo: DEFAULT_STICKMAN_GFLOW_VIDEO,
     atlasReady: Boolean(resolveAtlasApiKey()),
@@ -97,7 +97,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     if (!STICKMAN_DURATIONS.includes(durationSec as (typeof STICKMAN_DURATIONS)[number])) {
       return reply
         .status(400)
-        .send({ error: "Duración: 10s, 15s, 30s, 1 min, 2 min, 5 min o 8 min" });
+        .send({ error: "Duración: 10s, 20s, 30s, 1 min, 2 min, 5 min o 8 min" });
     }
     const aspect = String(body.aspect ?? "9:16");
     if (!STICKMAN_ASPECTS.includes(aspect as (typeof STICKMAN_ASPECTS)[number])) {

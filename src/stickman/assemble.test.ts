@@ -1,15 +1,21 @@
+import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
-import { execFileSync } from "node:child_process";
-import { concatMotionTakes, extractLastFrame, singleMotionClip, writeCaptions } from "./assemble.js";
+import {
+  concatMotionTakes,
+  extractLastFrame,
+  mixStickmanAudio,
+  singleMotionClip,
+  writeCaptions,
+} from "./assemble.js";
 import { draftScriptTemplate } from "./draft.js";
 import type { StickmanJobConfig } from "./types.js";
 
 const config: StickmanJobConfig = {
   topic: "el wifi",
-  durationSec: 15,
+  durationSec: 10,
   aspect: "9:16",
   language: "es",
   look: "classic",
@@ -83,8 +89,52 @@ describe("stickman assemble captions", () => {
         { encoding: "utf8" },
       ).trim(),
     );
-    expect(dur).toBeGreaterThan(1.8);
-    expect(dur).toBeLessThan(2.4);
+    expect(dur).toBeGreaterThan(1.5);
+    expect(dur).toBeLessThan(2.3);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("keeps Flow bed audio under TTS and does not cut the video to the voiceover", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "stickman-mix-"));
+    const clip = path.join(root, "clip.mp4");
+    const voice = path.join(root, "voice.wav");
+    const dest = path.join(root, "mixed.mp4");
+    execFileSync("ffmpeg", [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=green:s=320x180:d=1",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=220:duration=1",
+      "-shortest",
+      "-pix_fmt",
+      "yuv420p",
+      "-c:v",
+      "libx264",
+      "-c:a",
+      "aac",
+      clip,
+    ]);
+    execFileSync("ffmpeg", ["-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=3", voice]);
+    mixStickmanAudio(clip, voice, dest, 0.2);
+    const dur = Number(
+      execFileSync(
+        "ffprobe",
+        ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", dest],
+        { encoding: "utf8" },
+      ).trim(),
+    );
+    const codecs = execFileSync(
+      "ffprobe",
+      ["-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", dest],
+      { encoding: "utf8" },
+    );
+    expect(codecs).toContain("audio");
+    expect(dur).toBeGreaterThan(0.7);
+    expect(dur).toBeLessThan(1.6);
     fs.rmSync(root, { recursive: true, force: true });
   });
 });

@@ -4,7 +4,7 @@ import type { StickmanJobConfig } from "./types.js";
 
 const config: StickmanJobConfig = {
   topic: "un rumor no es un veredicto",
-  durationSec: 15,
+  durationSec: 10,
   aspect: "16:9",
   language: "es",
   look: "classic",
@@ -25,7 +25,7 @@ describe("stickman director prompt", () => {
     expect(prompt).toContain("Educational");
     expect(prompt).toContain("NO jump cuts");
     expect(prompt.toLowerCase()).toContain("chain");
-    expect(prompt).toContain("0–3s");
+    expect(prompt).toContain("FITS");
     expect(prompt.toLowerCase()).not.toContain("director score");
     expect(prompt.toLowerCase()).not.toContain("archetype");
     expect(prompt).toContain("un rumor no es un veredicto");
