@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { MP4_FASTSTART_ARGS, remuxMp4Faststart } from "../media/mp4-faststart.js";
 import { frameSize, STICKMAN_FLOW_BED_VOLUME, STICKMAN_TAKE_XFADE_SEC } from "./catalog.js";
 import type { StickmanScript } from "./types.js";
 import { totalBeatSeconds } from "./visuals.js";
@@ -13,6 +14,18 @@ export function singleMotionClip(clips?: Array<string | null>): string | null {
 
 function ffmpeg(args: string[]): void {
   execFileSync("ffmpeg", args, { stdio: "pipe" });
+}
+
+function writeMp4(dest: string, args: string[]): void {
+  ffmpeg([...args, ...MP4_FASTSTART_ARGS, dest]);
+}
+
+function copyMp4(src: string, dest: string): void {
+  try {
+    remuxMp4Faststart(src, dest);
+  } catch {
+    fs.copyFileSync(src, dest);
+  }
 }
 
 function escapeSrt(text: string): string {
@@ -49,7 +62,7 @@ export function stillToClip(still: string, dest: string, dur: number, aspect: st
   const { w, h } = frameSize(aspect);
   const frames = Math.max(2, Math.round(dur * 30));
   const vf = `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},zoompan=z='min(zoom+0.0008,1.08)':d=${frames}:s=${w}x${h}:fps=30`;
-  ffmpeg([
+  writeMp4(dest, [
     "-y",
     "-loop",
     "1",
@@ -64,13 +77,12 @@ export function stillToClip(still: string, dest: string, dur: number, aspect: st
     "libx264",
     "-pix_fmt",
     "yuv420p",
-    dest,
   ]);
 }
 
 function normalizeClip(src: string, dest: string, dur: number, aspect: string): void {
   const { w, h } = frameSize(aspect);
-  ffmpeg([
+  writeMp4(dest, [
     "-y",
     "-i",
     src,
@@ -83,7 +95,6 @@ function normalizeClip(src: string, dest: string, dur: number, aspect: string): 
     "libx264",
     "-pix_fmt",
     "yuv420p",
-    dest,
   ]);
 }
 
@@ -160,7 +171,7 @@ function normalizeTake(src: string, dest: string, aspect: string, trimHead: numb
   const vf = `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},fps=30`;
   const ss = trimHead > 0.02 ? ["-ss", trimHead.toFixed(3)] : [];
   if (hasAudio(src)) {
-    ffmpeg([
+    writeMp4(dest, [
       "-y",
       ...ss,
       "-i",
@@ -177,11 +188,10 @@ function normalizeTake(src: string, dest: string, aspect: string, trimHead: numb
       "48000",
       "-ac",
       "2",
-      dest,
     ]);
     return;
   }
-  ffmpeg([
+  writeMp4(dest, [
     "-y",
     ...ss,
     "-i",
@@ -203,13 +213,12 @@ function normalizeTake(src: string, dest: string, aspect: string, trimHead: numb
     "0:v:0",
     "-map",
     "1:a:0",
-    dest,
   ]);
 }
 
 function xfadePair(a: string, b: string, dest: string, xfade: number): void {
   const offset = Math.max(0.05, probeSeconds(a) - xfade);
-  ffmpeg([
+  writeMp4(dest, [
     "-y",
     "-i",
     a,
@@ -231,7 +240,6 @@ function xfadePair(a: string, b: string, dest: string, xfade: number): void {
     "48000",
     "-ac",
     "2",
-    dest,
   ]);
 }
 
@@ -247,7 +255,7 @@ export function concatMotionTakes(srcs: string[], dest: string, aspect: string):
   });
   const first = norms[0];
   if (norms.length === 1 && first) {
-    fs.copyFileSync(first, dest);
+    copyMp4(first, dest);
     return;
   }
   let acc = first ?? "";
@@ -269,11 +277,11 @@ export function mixStickmanAudio(
 ): void {
   const vidDur = Math.max(0.5, probeSeconds(video));
   if (!voiceover) {
-    fs.copyFileSync(video, dest);
+    copyMp4(video, dest);
     return;
   }
   if (hasAudio(video)) {
-    ffmpeg([
+    writeMp4(dest, [
       "-y",
       "-i",
       video,
@@ -291,11 +299,10 @@ export function mixStickmanAudio(
       "aac",
       "-t",
       vidDur.toFixed(3),
-      dest,
     ]);
     return;
   }
-  ffmpeg([
+  writeMp4(dest, [
     "-y",
     "-i",
     video,
@@ -311,7 +318,6 @@ export function mixStickmanAudio(
     "1:a:0",
     "-t",
     vidDur.toFixed(3),
-    dest,
   ]);
 }
 
@@ -338,11 +344,11 @@ function fitContinuousClip(src: string, dest: string, dur: number, aspect: strin
     "yuv420p",
   ];
   if (hasAudio(src)) {
-    args.push("-c:a", "aac", "-ar", "48000", "-ac", "2", "-af", "apad", dest);
+    args.push("-c:a", "aac", "-ar", "48000", "-ac", "2", "-af", "apad");
   } else {
-    args.push("-an", dest);
+    args.push("-an");
   }
-  ffmpeg(args);
+  writeMp4(dest, args);
 }
 
 export function assembleStickman(opts: {
@@ -385,7 +391,7 @@ export function assembleStickman(opts: {
     built.map((file) => `file '${file.replace(/'/g, "'\\''")}'`).join("\n"),
   );
   const silent = path.join(work, "silent.mp4");
-  ffmpeg(["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", silent]);
+  writeMp4(silent, ["-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy"]);
 
   const captions = writeCaptions(opts.script, path.join(opts.root, "captions.srt"));
   const voiced = path.join(work, "voiced.mp4");
@@ -395,7 +401,7 @@ export function assembleStickman(opts: {
   const finalPath = path.join(opts.root, "final.mp4");
   if (captions && fs.existsSync(captions)) {
     try {
-      ffmpeg([
+      writeMp4(finalPath, [
         "-y",
         "-i",
         voiced,
@@ -403,13 +409,12 @@ export function assembleStickman(opts: {
         `subtitles=${captions.replace(/\\/g, "\\\\").replace(/:/g, "\\:")}`,
         "-c:a",
         "copy",
-        finalPath,
       ]);
     } catch {
-      fs.copyFileSync(voiced, finalPath);
+      copyMp4(voiced, finalPath);
     }
   } else {
-    fs.copyFileSync(voiced, finalPath);
+    copyMp4(voiced, finalPath);
   }
   return finalPath;
 }

@@ -14,6 +14,11 @@ const STAGES = [
   { id: "done", label: "Listo" },
 ];
 
+function stillPoster(jobId: string, stills?: string[]): string | undefined {
+  const first = stills?.[0];
+  return first ? `/api/v1/stickman/jobs/${jobId}/artifacts/stills/${first}` : undefined;
+}
+
 export function StickmanJobPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -188,6 +193,7 @@ export function StickmanJobPage() {
         {job.status === "completed" && (
           <JobVideo
             src={`/api/v1/stickman/jobs/${job.id}/artifacts/final.mp4`}
+            poster={stillPoster(job.id, job.stills)}
             aspect={mediaAspect(job.script)}
           />
         )}

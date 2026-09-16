@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
+import { isMp4Faststart } from "../media/mp4-faststart.js";
 import {
   concatMotionTakes,
   extractLastFrame,
@@ -91,6 +92,7 @@ describe("stickman assemble captions", () => {
     );
     expect(dur).toBeGreaterThan(1.5);
     expect(dur).toBeLessThan(2.3);
+    expect(isMp4Faststart(dest)).toBe(true);
     fs.rmSync(root, { recursive: true, force: true });
   });
 
@@ -164,6 +166,7 @@ describe("stickman assemble captions", () => {
     expect(codecs).toContain("audio");
     expect(dur).toBeGreaterThan(0.7);
     expect(dur).toBeLessThan(1.6);
+    expect(isMp4Faststart(dest)).toBe(true);
     fs.rmSync(root, { recursive: true, force: true });
   });
 });
