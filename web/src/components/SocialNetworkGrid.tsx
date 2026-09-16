@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   BilibiliIcon,
   FacebookIcon,
+  InstagramIcon,
   TiktokIcon,
   XIcon,
   YoutubeIcon,
@@ -16,6 +17,7 @@ const ICONS: Record<SocialPlatformId, typeof YoutubeIcon> = {
   youtube: YoutubeIcon,
   tiktok: TiktokIcon,
   facebook: FacebookIcon,
+  instagram: InstagramIcon,
   x: XIcon,
   bilibili: BilibiliIcon,
 };
@@ -24,6 +26,7 @@ const COLORS: Record<SocialPlatformId, string> = {
   youtube: "#FF0000",
   tiktok: "#25F4EE",
   facebook: "#1877F2",
+  instagram: "#E4405F",
   x: "#E7E9EA",
   bilibili: "#00A1D6",
 };
@@ -32,6 +35,7 @@ const LABELS: Record<SocialPlatformId, string> = {
   youtube: "YouTube",
   tiktok: "TikTok",
   facebook: "Facebook",
+  instagram: "Instagram",
   x: "X",
   bilibili: "Bilibili",
 };
@@ -119,15 +123,15 @@ export function SocialNetworkGrid({
     <section>
       <h2 className="mb-2 text-sm font-semibold">Redes · toca una ficha</h2>
       <p className="mb-3 text-[12px] text-muted-foreground">
-        Conecta YouTube, TikTok, Facebook, X y Bilibili. Si auto-publicar está on, cada Short
-        terminado se sube solo y la racha del día suma 1 por red.
+        Conecta YouTube, TikTok, Facebook, Instagram, X y Bilibili. Si auto-publicar está on, cada
+        Short terminado se sube solo y la racha del día suma 1 por red.
       </p>
       {error ? (
         <p className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
           {error}
         </p>
       ) : null}
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {platforms.map((p) => {
           const Icon = ICONS[p.platform];
           const active = open === p.platform;

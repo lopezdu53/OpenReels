@@ -79,11 +79,11 @@ export async function buildAuthorizeUrl(
     const scope = encodeURIComponent("user.info.basic,video.upload,video.publish");
     return `https://www.tiktok.com/v2/auth/authorize/?client_key=${encodeURIComponent(key)}&redirect_uri=${redir}&response_type=code&scope=${scope}&state=${state}`;
   }
-  if (platform === "facebook") {
+  if (platform === "facebook" || platform === "instagram") {
     const state = await putOauthState(redis, platform, userId);
     const id = process.env["FACEBOOK_APP_ID"] ?? "";
     const scope = encodeURIComponent(
-      "pages_show_list,pages_read_engagement,pages_manage_posts,publish_video",
+      "pages_show_list,pages_read_engagement,pages_manage_posts,publish_video,instagram_basic,instagram_content_publish",
     );
     return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${encodeURIComponent(id)}&redirect_uri=${redir}&state=${state}&scope=${scope}`;
   }
@@ -174,7 +174,7 @@ export async function exchangeCode(
       handle: json["open_id"] ? String(json["open_id"]).slice(0, 12) : undefined,
     };
   }
-  if (platform === "facebook") {
+  if (platform === "facebook" || platform === "instagram") {
     const json = await tokenJson(
       "https://graph.facebook.com/v21.0/oauth/access_token",
       new URLSearchParams({
@@ -194,12 +194,37 @@ export async function exchangeCode(
     const page = pages.data?.[0];
     if (!page)
       throw new Error("No hay una Página de Facebook. Crea una Página y vuelve a conectar.");
+    const extra: Record<string, string> = { pageId: page.id };
+    const igRes = await fetch(
+      `https://graph.facebook.com/v21.0/${page.id}?fields=instagram_business_account{id,username}&access_token=${encodeURIComponent(page.access_token)}`,
+    );
+    const igJson = (await igRes.json()) as {
+      instagram_business_account?: { id?: string; username?: string };
+    };
+    if (igJson.instagram_business_account?.id) {
+      extra["igUserId"] = igJson.instagram_business_account.id;
+    }
+    if (platform === "instagram") {
+      if (!extra["igUserId"]) {
+        throw new Error(
+          "Vincula una cuenta profesional de Instagram a tu Página de Facebook y vuelve a conectar.",
+        );
+      }
+      return {
+        accessToken: page.access_token,
+        handle: igJson.instagram_business_account?.username
+          ? `@${igJson.instagram_business_account.username}`
+          : page.name,
+        extra,
+      };
+    }
     return {
       accessToken: page.access_token,
       handle: page.name,
-      extra: { pageId: page.id },
+      extra,
     };
   }
+  if (platform !== "x") throw new Error("Bilibili se conecta con SESSDATA, no OAuth");
   const basic = Buffer.from(
     `${process.env["X_CLIENT_ID"]}:${process.env["X_CLIENT_SECRET"]}`,
   ).toString("base64");

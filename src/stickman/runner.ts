@@ -4,7 +4,7 @@ import { AtlasTTS } from "../providers/tts/atlas.js";
 import { createStudioImage, createStudioVideo } from "../studio/visual-provider.js";
 import { assembleStickman, concatMotionTakes, extractLastFrame } from "./assemble.js";
 import { planMotionTakes } from "./catalog.js";
-import { fileBigEnough, jobDir, readScript, writeScript } from "./store.js";
+import { fileBigEnough, jobDir, readMeta, readScript, writeScript } from "./store.js";
 import type { StickmanJobConfig, StickmanScript } from "./types.js";
 import { buildContinuousMotionPrompt, renderStills } from "./visuals.js";
 
@@ -26,8 +26,9 @@ export async function runTts(
     log(`TTS ya existe → ${path.basename(dest)}`);
     return dest;
   }
-  log(`TTS ${text.length} caracteres`);
-  const tts = new AtlasTTS(script.voice.voice_id, apiKey, script.voice.speed, ttsModel);
+  const speed = readMeta(id)?.config.voiceSpeed ?? script.voice.speed ?? 1;
+  log(`TTS ${text.length} caracteres · velocidad ${speed}`);
+  const tts = new AtlasTTS(script.voice.voice_id, apiKey, speed, ttsModel);
   const { audio } = await tts.generate(text);
   fs.writeFileSync(dest, audio);
   return dest;

@@ -1,7 +1,8 @@
 import { ArrowLeft, Check, Loader2, Newspaper } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { JobVideo, mediaAspect } from "@/components/JobVideo";
+import { CompletedJobMedia } from "@/components/JobShareBar";
+import { mediaAspect } from "@/components/JobVideo";
 import { Button } from "@/components/ui/button";
 import { api, type VoxJobDetail } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
@@ -207,7 +208,8 @@ export function VoxJobPage() {
         )}
 
         {job.status === "completed" && (
-          <JobVideo
+          <CompletedJobMedia
+            jobId={job.id}
             src={`/api/v1/vox/jobs/${job.id}/artifacts/final.mp4`}
             aspect={mediaAspect(job.beats, mediaAspect(job.config))}
           />

@@ -201,13 +201,15 @@ export function DashboardPage() {
         platforms={
           social.length
             ? social
-            : (["youtube", "tiktok", "facebook", "x", "bilibili"] as const).map((platform) => ({
-                platform,
-                connected: false,
-                autoPublish: false,
-                publishedToday: false,
-                oauthReady: false,
-              }))
+            : (["youtube", "tiktok", "facebook", "instagram", "x", "bilibili"] as const).map(
+                (platform) => ({
+                  platform,
+                  connected: false,
+                  autoPublish: false,
+                  publishedToday: false,
+                  oauthReady: false,
+                }),
+              )
         }
         onChange={(next) => {
           setSocial(next);
@@ -246,8 +248,8 @@ export function DashboardPage() {
           to="/learning"
           className="block rounded-xl border border-status-warning/30 bg-status-warning/10 px-4 py-3 text-sm"
         >
-          Faltan <strong>{countdown.days} días</strong> para el YPP del 1 feb 2027. En Aprendizaje ves
-          cómo se paga YouTube y qué cambia.
+          Faltan <strong>{countdown.days} días</strong> para el YPP del 1 feb 2027. En Aprendizaje
+          ves cómo se paga YouTube y qué cambia.
         </Link>
       ) : null}
 

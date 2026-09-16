@@ -55,6 +55,7 @@ describe("social publish + streak", () => {
     expect(cards.find((c) => c.platform === "tiktok")?.publishedToday).toBe(true);
     expect(cards.find((c) => c.platform === "x")?.publishedToday).toBe(false);
     expect(JSON.stringify(cards)).not.toContain("accessToken");
+    expect(cards.some((c) => c.platform === "instagram")).toBe(true);
   });
 
   it("does not throw when a publication row is missing at", async () => {

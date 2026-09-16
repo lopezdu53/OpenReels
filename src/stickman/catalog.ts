@@ -95,6 +95,20 @@ export const STICKMAN_ASPECTS = ["9:16", "16:9", "1:1"] as const;
 export const STICKMAN_DURATIONS = [10, 20, 30, 60, 120, 300, 480] as const;
 export const STICKMAN_TAKE_XFADE_SEC = 0.12;
 export const STICKMAN_FLOW_BED_VOLUME = 0.2;
+/** Voice starts after the picture; last this many seconds stay bed-only. */
+export const STICKMAN_VO_HEAD_SEC = 0.3;
+export const STICKMAN_VO_TAIL_SEC = 0.5;
+export const STICKMAN_VOICE_SPEEDS = [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5] as const;
+
+export function clampStickmanVoiceSpeed(raw: unknown): number {
+  const n = Number(raw ?? 1);
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(1.5, Math.max(0.7, Math.round(n * 10) / 10));
+}
+
+export function stickmanSpokenWindow(videoSec: number): number {
+  return Math.max(0.4, videoSec - STICKMAN_VO_HEAD_SEC - STICKMAN_VO_TAIL_SEC);
+}
 
 export const DEFAULT_STICKMAN_IMAGE_MODEL = "google/nano-banana-2-lite/text-to-image";
 export const DEFAULT_STICKMAN_VIDEO_MODEL = "bytedance/seedance-2.0-mini/image-to-video";
