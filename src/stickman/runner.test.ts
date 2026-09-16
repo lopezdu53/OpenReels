@@ -172,4 +172,33 @@ describe("stickman chained I2V", () => {
     expect(fs.existsSync(path.join(clipsDir, "take-02.mp4"))).toBe(false);
     fs.rmSync(root, { recursive: true, force: true });
   });
+
+  it("does not call Flow again when both takes already exist on disk", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "stickman-skip-"));
+    const clipsDir = path.join(root, "clips");
+    fs.mkdirSync(clipsDir);
+    const script = draftScriptTemplate(config, "patos-20s");
+    const firstStill = path.join(root, "still.png");
+    fs.writeFileSync(firstStill, DOT_PNG);
+    fs.writeFileSync(path.join(clipsDir, "take-01.mp4"), Buffer.alloc(25_000));
+    fs.writeFileSync(path.join(clipsDir, "take-02.mp4"), Buffer.alloc(25_000));
+    let n = 0;
+    const generated = await generateChainedTakes({
+      script,
+      video: {
+        generate: async () => {
+          n += 1;
+          throw new Error("should not call Flow");
+        },
+        supportedDurations: [10],
+      } as never,
+      firstStill,
+      clipsDir,
+      takes: [10, 10],
+      log: () => undefined,
+    });
+    expect(n).toBe(0);
+    expect(generated).toHaveLength(2);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
 });

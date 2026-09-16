@@ -206,3 +206,17 @@ export function finalPath(id: string): string | null {
   const p = path.join(jobDir(id), "final.mp4");
   return fs.existsSync(p) ? p : null;
 }
+
+export function fileBigEnough(file: string, minBytes: number): boolean {
+  try {
+    return fs.existsSync(file) && fs.statSync(file).size >= minBytes;
+  } catch {
+    return false;
+  }
+}
+
+/** True when a previous produce already wrote final.mp4 (BullMQ lock retry must not hit Flow again). */
+export function isStickmanFinalReady(id: string): boolean {
+  const p = finalPath(id);
+  return Boolean(p && fileBigEnough(p, 20_000));
+}

@@ -67,6 +67,36 @@ describe("stickman visuals", () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
+  it("reuses stills already on disk instead of calling the image provider", async () => {
+    const script = draftScriptTemplate({ ...config, durationSec: 10 }, "wifi-10s");
+    script.beats = script.beats.slice(0, 1);
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "stickman-still-skip-"));
+    fs.mkdirSync(path.join(root, "stills"));
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    fs.writeFileSync(
+      path.join(root, "stills", "beat-01.png"),
+      Buffer.concat([png, Buffer.alloc(1200)]),
+    );
+    let calls = 0;
+    await renderStills(
+      root,
+      script,
+      {
+        generate: async () => {
+          calls += 1;
+          throw new Error("should not generate");
+        },
+      },
+      () => {},
+    );
+    expect(calls).toBe(0);
+    expect(script.beats[0]?.stillPath).toBe("stills/beat-01.png");
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
   it("writes a continuous I2V prompt with timed beats and no-cut language", () => {
     const script = draftScriptTemplate({ ...config, durationSec: 20, animate: true }, "wifi-20s");
     const prompt = buildContinuousMotionPrompt(script, 10);

@@ -115,6 +115,13 @@ export async function renderStills(
 
   for (const beat of script.beats) {
     const dest = path.join(dir, `beat-${String(beat.id).padStart(2, "0")}.png`);
+    if (fs.existsSync(dest) && fs.statSync(dest).size >= 1000) {
+      previous = fs.readFileSync(dest);
+      beat.stillPath = path.relative(root, dest);
+      paths.push(dest);
+      log(`still ${beat.id}/${script.beats.length} ya existe → ${path.basename(dest)}`);
+      continue;
+    }
     const prompt = buildStillPrompt(script, beat);
     let buf: Buffer | undefined;
     let lastError: unknown;
