@@ -26,6 +26,8 @@ describe("stickman director prompt", () => {
     expect(prompt).toContain("NO jump cuts");
     expect(prompt.toLowerCase()).toContain("chain");
     expect(prompt).toContain("FITS");
+    expect(prompt).toContain("0.3s");
+    expect(prompt).toContain("0.5s");
     expect(prompt.toLowerCase()).not.toContain("director score");
     expect(prompt.toLowerCase()).not.toContain("archetype");
     expect(prompt).toContain("un rumor no es un veredicto");

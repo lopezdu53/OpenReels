@@ -34,6 +34,14 @@ export function FacebookIcon(props: IconProps) {
   );
 }
 
+export function InstagramIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4zm0 2a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H7zm11.2 1.3a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4zM12 8.2A3.8 3.8 0 1 1 8.2 12 3.8 3.8 0 0 1 12 8.2zm0 2a1.8 1.8 0 1 0 1.8 1.8A1.8 1.8 0 0 0 12 10.2z" />
+    </Svg>
+  );
+}
+
 export function XIcon(props: IconProps) {
   return (
     <Svg {...props}>

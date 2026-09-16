@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   beatCountForDuration,
+  clampStickmanVoiceSpeed,
   formatStickmanDuration,
   frameSize,
   isLookId,
@@ -11,6 +12,7 @@ import {
   STICKMAN_DURATIONS,
   STICKMAN_STYLE_LOCK,
   stickmanArcHint,
+  stickmanSpokenWindow,
 } from "./catalog.js";
 
 describe("stickman catalog", () => {
@@ -29,6 +31,14 @@ describe("stickman catalog", () => {
     expect(STICKMAN_DURATIONS).toEqual([10, 20, 30, 60, 120, 300, 480]);
     expect(formatStickmanDuration(120)).toBe("2 min");
     expect(formatStickmanDuration(20)).toBe("20s");
+  });
+
+  it("clamps narration speed and keeps a 0.3s/0.5s spoken window", () => {
+    expect(clampStickmanVoiceSpeed(1)).toBe(1);
+    expect(clampStickmanVoiceSpeed(9)).toBe(1.5);
+    expect(clampStickmanVoiceSpeed(0.2)).toBe(0.7);
+    expect(stickmanSpokenWindow(20)).toBeCloseTo(19.2, 5);
+    expect(stickmanSpokenWindow(10)).toBeCloseTo(9.2, 5);
   });
 
   it("chains Omni in 10s takes (20s = 10+10, never a 6s leftover)", () => {

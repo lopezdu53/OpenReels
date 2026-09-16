@@ -1169,9 +1169,10 @@ export const api = {
     });
   },
 
-  produceStickmanJob(id: string) {
+  produceStickmanJob(id: string, data?: { voiceSpeed?: number }) {
     return fetchJson<{ ok: boolean; status: string }>(`/stickman/jobs/${id}/produce`, {
       method: "POST",
+      body: data ? JSON.stringify(data) : undefined,
     });
   },
 
@@ -1288,7 +1289,7 @@ export interface DashboardData {
   warning?: string;
 }
 
-export type SocialPlatformId = "youtube" | "tiktok" | "facebook" | "x" | "bilibili";
+export type SocialPlatformId = "youtube" | "tiktok" | "facebook" | "instagram" | "x" | "bilibili";
 
 export interface SocialPublic {
   platform: SocialPlatformId;

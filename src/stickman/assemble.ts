@@ -2,7 +2,13 @@ import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { MP4_FASTSTART_ARGS, remuxMp4Faststart } from "../media/mp4-faststart.js";
-import { frameSize, STICKMAN_FLOW_BED_VOLUME, STICKMAN_TAKE_XFADE_SEC } from "./catalog.js";
+import {
+  frameSize,
+  STICKMAN_FLOW_BED_VOLUME,
+  STICKMAN_TAKE_XFADE_SEC,
+  STICKMAN_VO_HEAD_SEC,
+  stickmanSpokenWindow,
+} from "./catalog.js";
 import type { StickmanScript } from "./types.js";
 import { totalBeatSeconds } from "./visuals.js";
 
@@ -269,6 +275,38 @@ export function concatMotionTakes(srcs: string[], dest: string, aspect: string):
   }
 }
 
+/** Chain atempo (each step must stay in 0.5–2.0). */
+export function atempoChain(ratio: number): string {
+  const parts: string[] = [];
+  let r = ratio;
+  while (r > 2 + 1e-4) {
+    parts.push("atempo=2.0");
+    r /= 2;
+  }
+  while (r < 0.5 - 1e-4) {
+    parts.push("atempo=0.5");
+    r /= 0.5;
+  }
+  if (Math.abs(r - 1) > 0.01) parts.push(`atempo=${r.toFixed(4)}`);
+  return parts.join(",");
+}
+
+/** Delay 0.3s, never speak in the last 0.5s (speed up if the VO overruns). */
+export function voiceoverFitFilter(voSec: number, videoSec: number): string {
+  const window = stickmanSpokenWindow(videoSec);
+  const delayMs = Math.round(STICKMAN_VO_HEAD_SEC * 1000);
+  const tempo = voSec > window + 0.04 ? voSec / window : 1;
+  const parts = [
+    "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo",
+    atempoChain(tempo),
+    `adelay=${delayMs}|${delayMs}`,
+    `apad=whole_dur=${videoSec.toFixed(3)}`,
+    `atrim=0:${videoSec.toFixed(3)}`,
+    "aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo",
+  ].filter(Boolean);
+  return parts.join(",");
+}
+
 export function mixStickmanAudio(
   video: string,
   voiceover: string | null,
@@ -280,6 +318,7 @@ export function mixStickmanAudio(
     copyMp4(video, dest);
     return;
   }
+  const voFilter = voiceoverFitFilter(probeSeconds(voiceover) || vidDur, vidDur);
   if (hasAudio(video)) {
     writeMp4(dest, [
       "-y",
@@ -288,7 +327,7 @@ export function mixStickmanAudio(
       "-i",
       voiceover,
       "-filter_complex",
-      `[0:a]volume=${bedVolume},aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[bed];[1:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[vo];[bed][vo]amix=inputs=2:duration=first:dropout_transition=2[a]`,
+      `[0:a]volume=${bedVolume},aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[bed];[1:a]${voFilter}[vo];[bed][vo]amix=inputs=2:duration=first:dropout_transition=2[a]`,
       "-map",
       "0:v:0",
       "-map",
@@ -308,14 +347,16 @@ export function mixStickmanAudio(
     video,
     "-i",
     voiceover,
+    "-filter_complex",
+    `[1:a]${voFilter}[vo]`,
+    "-map",
+    "0:v:0",
+    "-map",
+    "[vo]",
     "-c:v",
     "copy",
     "-c:a",
     "aac",
-    "-map",
-    "0:v:0",
-    "-map",
-    "1:a:0",
     "-t",
     vidDur.toFixed(3),
   ]);

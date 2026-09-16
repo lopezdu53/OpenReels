@@ -11,6 +11,7 @@ import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "../providers/gflow/catal
 import { gflowDoctor } from "../providers/gflow/client.js";
 import { resolveStudioVisualProvider, STUDIO_VISUAL_PROVIDERS } from "../studio/visual-provider.js";
 import {
+  clampStickmanVoiceSpeed,
   DEFAULT_STICKMAN_GFLOW_IMAGE,
   DEFAULT_STICKMAN_GFLOW_VIDEO,
   DEFAULT_STICKMAN_IMAGE_MODEL,
@@ -44,6 +45,7 @@ import {
   saveJobSnapshot,
   setStatus,
   stillFiles,
+  writeMeta,
   writeScript,
 } from "./store.js";
 import type { StickmanJobConfig, StickmanScript } from "./types.js";
@@ -120,7 +122,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
       castMode: castModeRaw,
       arc,
       voiceId: String(body.voiceId ?? "eve"),
-      voiceSpeed: Number(body.voiceSpeed ?? 1),
+      voiceSpeed: clampStickmanVoiceSpeed(body.voiceSpeed),
       captions: body.captions !== false,
       animate: body.animate === true,
       imageModel: String(body.imageModel ?? DEFAULT_STICKMAN_IMAGE_MODEL),
@@ -202,6 +204,11 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
         return reply.status(400).send({ error: "Nada que producir" });
       }
       if (!readScript(meta.id)) return reply.status(400).send({ error: "Falta script.json" });
+      const body = (request.body ?? {}) as { voiceSpeed?: unknown };
+      if (body.voiceSpeed != null) {
+        meta.config.voiceSpeed = clampStickmanVoiceSpeed(body.voiceSpeed);
+        writeMeta(meta);
+      }
       if (!resolveAtlasApiKey(meta.config.atlasKey)) {
         return reply
           .status(400)

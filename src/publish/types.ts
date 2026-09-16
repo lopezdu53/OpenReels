@@ -1,4 +1,11 @@
-export const SOCIAL_PLATFORMS = ["youtube", "tiktok", "facebook", "x", "bilibili"] as const;
+export const SOCIAL_PLATFORMS = [
+  "youtube",
+  "tiktok",
+  "facebook",
+  "instagram",
+  "x",
+  "bilibili",
+] as const;
 export type SocialPlatform = (typeof SOCIAL_PLATFORMS)[number];
 
 export function isSocialPlatform(v: string): v is SocialPlatform {
@@ -57,6 +64,11 @@ export const PLATFORM_META: Record<SocialPlatform, { label: string; color: strin
       color: "#1877F2",
       hint: "Reels en tu Página.",
     },
+    instagram: {
+      label: "Instagram",
+      color: "#E4405F",
+      hint: "Reels en la cuenta profesional vinculada a tu Página.",
+    },
     x: {
       label: "X",
       color: "#111111",
@@ -85,7 +97,7 @@ export function oauthReady(platform: SocialPlatform): boolean {
   if (platform === "tiktok") {
     return Boolean(process.env["TIKTOK_CLIENT_KEY"] && process.env["TIKTOK_CLIENT_SECRET"]);
   }
-  if (platform === "facebook") {
+  if (platform === "facebook" || platform === "instagram") {
     return Boolean(process.env["FACEBOOK_APP_ID"] && process.env["FACEBOOK_APP_SECRET"]);
   }
   return Boolean(process.env["X_CLIENT_ID"] && process.env["X_CLIENT_SECRET"]);

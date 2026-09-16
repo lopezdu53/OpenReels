@@ -1,7 +1,8 @@
 import { ArrowLeft, Check, Loader2, PersonStanding } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { JobVideo, mediaAspect } from "@/components/JobVideo";
+import { CompletedJobMedia } from "@/components/JobShareBar";
+import { mediaAspect } from "@/components/JobVideo";
 import { Button } from "@/components/ui/button";
 import { api, type StickmanJobDetail } from "@/hooks/useApi";
 
@@ -19,6 +20,26 @@ function stillPoster(jobId: string, stills?: string[]): string | undefined {
   return first ? `/api/v1/stickman/jobs/${jobId}/artifacts/stills/${first}` : undefined;
 }
 
+function VoiceSpeedField({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  return (
+    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+      Velocidad de narración
+      <select
+        className="rounded-md border border-input bg-transparent px-2 py-1 text-foreground"
+        value={String(value)}
+        onChange={(e) => onChange(Number(e.target.value))}
+        aria-label="Velocidad de narración"
+      >
+        {[0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5].map((n) => (
+          <option key={n} value={n}>
+            {n === 1 ? "1× normal" : n < 1 ? `${n}× lenta` : `${n}× rápida`}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function StickmanJobPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -26,11 +47,13 @@ export function StickmanJobPage() {
   const [scriptText, setScriptText] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [voiceSpeed, setVoiceSpeed] = useState(1);
 
   async function refresh() {
     if (!id) return;
     const j = await api.getStickmanJob(id);
     setJob(j);
+    if (typeof j.config?.voiceSpeed === "number") setVoiceSpeed(j.config.voiceSpeed);
     if (j.script && !scriptText) setScriptText(JSON.stringify(j.script, null, 2));
   }
 
@@ -75,7 +98,7 @@ export function StickmanJobPage() {
       if (job?.status === "awaiting_script" && scriptText) {
         await api.saveStickmanScript(id, JSON.parse(scriptText));
       }
-      await api.produceStickmanJob(id);
+      await api.produceStickmanJob(id, { voiceSpeed });
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -144,6 +167,7 @@ export function StickmanJobPage() {
               value={scriptText}
               onChange={(e) => setScriptText(e.target.value)}
             />
+            <VoiceSpeedField value={voiceSpeed} onChange={setVoiceSpeed} />
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => void saveScript()} disabled={busy}>
                 Guardar edits
@@ -191,7 +215,8 @@ export function StickmanJobPage() {
         )}
 
         {job.status === "completed" && (
-          <JobVideo
+          <CompletedJobMedia
+            jobId={job.id}
             src={`/api/v1/stickman/jobs/${job.id}/artifacts/final.mp4`}
             poster={stillPoster(job.id, job.stills)}
             aspect={mediaAspect(job.script)}

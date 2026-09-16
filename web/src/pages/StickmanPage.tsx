@@ -92,6 +92,7 @@ export function StickmanPage() {
   const [castMode, setCastMode] = useState("solo");
   const [arc, setArc] = useState("joke_punchline");
   const [voiceId, setVoiceId] = useState("eve");
+  const [voiceSpeed, setVoiceSpeed] = useState(1);
   const [llmModel, setLlmModel] = useState("google/gemini-2.5-flash");
   const [captions, setCaptions] = useState(true);
   const [animate, setAnimate] = useState(true);
@@ -125,6 +126,7 @@ export function StickmanPage() {
         castMode,
         arc,
         voiceId,
+        voiceSpeed,
         captions,
         animate,
         visualProvider,
@@ -257,6 +259,18 @@ export function StickmanPage() {
                 options={(catalog?.voices ?? FALLBACK_VOICES).map((v) => ({
                   value: v.id,
                   label: `${v.label} · ${v.note}`,
+                }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              Velocidad
+              <DarkSelect
+                aria-label="Velocidad de narración"
+                value={String(voiceSpeed)}
+                onValueChange={(value) => setVoiceSpeed(Number(value))}
+                options={[0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5].map((n) => ({
+                  value: String(n),
+                  label: n === 1 ? "1× normal" : n < 1 ? `${n}× lenta` : `${n}× rápida`,
                 }))}
               />
             </div>

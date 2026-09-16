@@ -1,4 +1,11 @@
-import { lookPrompt, STICKMAN_STYLE_LOCK, stickmanArcHint } from "./catalog.js";
+import {
+  lookPrompt,
+  STICKMAN_STYLE_LOCK,
+  STICKMAN_VO_HEAD_SEC,
+  STICKMAN_VO_TAIL_SEC,
+  stickmanArcHint,
+  stickmanSpokenWindow,
+} from "./catalog.js";
 import type { StickmanJobConfig } from "./types.js";
 
 /**
@@ -11,6 +18,8 @@ export function stickmanDirectorPrompt(
   fallbackJson: string,
 ): string {
   const arc = stickmanArcHint(config.arc);
+  const spokenSec = stickmanSpokenWindow(config.durationSec);
+  const wps = 2.3 * (config.voiceSpeed || 1);
   return `You are the Stickman Video Director. You turn a topic into a kinetic 2D stick-figure story.
 Return ONLY JSON. No markdown. No OpenReels score. No collage. No film hero.
 
@@ -19,6 +28,7 @@ Language of spoken narration: ${config.language}
 Aspect: ${config.aspect}. Look: ${lookPrompt(config.look)}.
 Cast: ${config.castMode}. Arc: ${config.arc} — ${arc}.
 Target duration ${config.durationSec}s → exactly ${beatCount} beats. Sum of durationSec ≈ ${config.durationSec}.
+Voiceover sits in a ${spokenSec.toFixed(1)}s window (${STICKMAN_VO_HEAD_SEC}s after picture-in, ${STICKMAN_VO_TAIL_SEC}s before picture-out) at speed ${config.voiceSpeed || 1}.
 
 Choose ONE narrative pattern that fits the source (do not invent a different genre):
 - Motivational: hook → recognition → escalation → reframe → action → payoff
@@ -40,7 +50,7 @@ Visual-density recipe (continuous I2V when animate=${config.animate === true}):
 
 Voiceover:
 - ${config.language.startsWith("en") ? "Natural spoken English" : `Natural spoken ${config.language}`}.
-- About ${Math.max(8, Math.round((config.durationSec / beatCount) * 2.3))} words per beat. Total spoken words ≈ ${Math.round(config.durationSec * 2.3)} so the voiceover FITS ${config.durationSec}s (do not overrun). Do not invent facts, stats, quotes, or product claims.
+- About ${Math.max(8, Math.round((spokenSec / beatCount) * wps))} words per beat. Total spoken words ≈ ${Math.round(spokenSec * wps)} so the voiceover FITS the ${spokenSec.toFixed(1)}s spoken window (do not overrun). Do not invent facts, stats, quotes, or product claims.
 - Narration is audio-only. Never put words, letters, numbers, captions, or UI text in the picture.
 
 Style lock: ${STICKMAN_STYLE_LOCK}

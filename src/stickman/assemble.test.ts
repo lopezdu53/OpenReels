@@ -1,14 +1,16 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import { isMp4Faststart } from "../media/mp4-faststart.js";
 import {
+  atempoChain,
   concatMotionTakes,
   extractLastFrame,
   mixStickmanAudio,
   singleMotionClip,
+  voiceoverFitFilter,
   writeCaptions,
 } from "./assemble.js";
 import { draftScriptTemplate } from "./draft.js";
@@ -167,6 +169,63 @@ describe("stickman assemble captions", () => {
     expect(dur).toBeGreaterThan(0.7);
     expect(dur).toBeLessThan(1.6);
     expect(isMp4Faststart(dest)).toBe(true);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("delays VO 0.3s and speeds up if it would run into the last 0.5s", () => {
+    expect(atempoChain(1)).toBe("");
+    expect(atempoChain(1.5)).toContain("atempo=1.5");
+    const filter = voiceoverFitFilter(20, 20);
+    expect(filter).toContain("adelay=300|300");
+    expect(filter).toContain("atempo=");
+  });
+
+  it("leaves the first 0.3s and last 0.5s quieter than the spoken window", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "stickman-pad-"));
+    const clip = path.join(root, "clip.mp4");
+    const voice = path.join(root, "voice.wav");
+    const dest = path.join(root, "mixed.mp4");
+    execFileSync("ffmpeg", [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=black:s=320x180:d=2",
+      "-pix_fmt",
+      "yuv420p",
+      "-an",
+      clip,
+    ]);
+    execFileSync("ffmpeg", ["-y", "-f", "lavfi", "-i", "sine=frequency=880:duration=2", voice]);
+    mixStickmanAudio(clip, voice, dest, 0.2);
+    const mean = (ss: number, t: number) => {
+      const r = spawnSync(
+        "ffmpeg",
+        [
+          "-hide_banner",
+          "-ss",
+          String(ss),
+          "-t",
+          String(t),
+          "-i",
+          dest,
+          "-af",
+          "volumedetect",
+          "-f",
+          "null",
+          "-",
+        ],
+        { encoding: "utf8" },
+      );
+      const m = /mean_volume:\s*([-.\d]+)/.exec(`${r.stdout}\n${r.stderr}`);
+      return m ? Number(m[1]) : 0;
+    };
+    const head = mean(0, 0.2);
+    const mid = mean(0.55, 0.5);
+    const tail = mean(1.55, 0.4);
+    expect(mid).toBeLessThan(-5);
+    expect(head).toBeLessThan(mid - 8);
+    expect(tail).toBeLessThan(mid - 8);
     fs.rmSync(root, { recursive: true, force: true });
   });
 });
