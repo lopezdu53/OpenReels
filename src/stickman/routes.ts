@@ -49,6 +49,7 @@ import {
   createJob,
   ensureStickmanJobsDir,
   finalPath,
+  isStickmanFinalReady,
   isStickmanJobId,
   jobDir,
   listJobs,
@@ -247,25 +248,68 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
       const meta = readMeta(request.params.id);
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
-      if (meta.status !== "awaiting_script" && meta.status !== "failed") {
+      const body = (request.body ?? {}) as {
+        voiceSpeed?: unknown;
+        muteCharacter?: unknown;
+        voiceId?: unknown;
+        audioOnly?: unknown;
+      };
+      const audioOnly = body.audioOnly === true;
+      if (audioOnly) {
+        if (meta.status !== "completed" && meta.status !== "failed") {
+          return reply
+            .status(400)
+            .send({ error: "Solo se puede mezclar voz en un video ya producido" });
+        }
+        if (!isStickmanFinalReady(meta.id)) {
+          return reply.status(400).send({ error: "Falta final.mp4 para mezclar la voz Atlas" });
+        }
+      } else if (meta.status !== "awaiting_script" && meta.status !== "failed") {
         return reply.status(400).send({ error: "Nada que producir" });
       }
       if (!readScript(meta.id)) return reply.status(400).send({ error: "Falta script.json" });
-      const body = (request.body ?? {}) as { voiceSpeed?: unknown };
       if (body.voiceSpeed != null) {
         meta.config.voiceSpeed = clampStickmanVoiceSpeed(body.voiceSpeed);
-        writeMeta(meta);
       }
+      if (body.muteCharacter === true || body.muteCharacter === false) {
+        meta.config.muteCharacter = body.muteCharacter;
+      }
+      const requestedVoice = typeof body.voiceId === "string" ? body.voiceId : "";
+      if (requestedVoice && isStickmanVoiceId(requestedVoice)) {
+        meta.config.voiceId = requestedVoice;
+        meta.config.atlasTtsModel = resolveStickmanTtsModel(
+          requestedVoice,
+          meta.config.atlasTtsModel,
+        );
+      }
+      if (audioOnly) meta.config.muteCharacter = false;
+      const script = readScript(meta.id);
+      if (script) {
+        script.voice = {
+          ...script.voice,
+          voice_id: meta.config.voiceId,
+          language: meta.config.language || script.voice.language,
+          speed: meta.config.voiceSpeed,
+        };
+        script.muteCharacter = meta.config.muteCharacter === true;
+        writeScript(meta.id, script);
+      }
+      writeMeta(meta);
       if (!resolveAtlasApiKey(meta.config.atlasKey)) {
         return reply
           .status(400)
           .send({ error: "Falta ATLASCLOUD_API_KEY en el servidor (video / video-worker)" });
       }
-      setStatus(meta.id, "producing", "produce", "En cola: palitos");
+      setStatus(
+        meta.id,
+        "producing",
+        audioOnly ? "tts" : "produce",
+        audioOnly ? "En cola: voz Atlas" : "En cola: palitos",
+      );
       await saveJobSnapshot(redis, meta.id);
       await queue.add(
-        "produce",
-        { id: meta.id, action: "produce" },
+        audioOnly ? "remix-audio" : "produce",
+        { id: meta.id, action: audioOnly ? "remix-audio" : "produce" },
         { removeOnComplete: 50, removeOnFail: 50 },
       );
       return { ok: true, status: "producing" };

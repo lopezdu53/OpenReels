@@ -98,6 +98,7 @@ export const ATLAS_GEMINI_TTS_VOICES: AtlasTtsVoice[] = [
   { id: "Kore", label: "Kore — Firm", gender: "female" },
   { id: "Aoede", label: "Aoede — Breezy", gender: "female" },
   { id: "Zephyr", label: "Zephyr — Bright", gender: "female" },
+  { id: "Leda", label: "Leda — Young", gender: "female" },
   { id: "Puck", label: "Puck — Upbeat", gender: "male" },
   { id: "Charon", label: "Charon — Informative", gender: "male" },
   { id: "Fenrir", label: "Fenrir — Excitable", gender: "male" },

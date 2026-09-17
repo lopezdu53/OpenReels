@@ -146,6 +146,20 @@ export function draftScriptTemplate(config: StickmanJobConfig, project: string):
   };
 }
 
+export function lockStickmanVoice(
+  fallback: StickmanScript["voice"],
+  parsed: Partial<StickmanScript["voice"]> | undefined,
+  config: StickmanJobConfig,
+): StickmanScript["voice"] {
+  return {
+    ...fallback,
+    ...parsed,
+    voice_id: config.voiceId || fallback.voice_id,
+    language: config.language || parsed?.language || fallback.language,
+    speed: config.voiceSpeed || parsed?.speed || fallback.speed || 1,
+  };
+}
+
 function extractJson(text: string): unknown {
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const raw = fence?.[1] ?? text;
@@ -213,7 +227,7 @@ export async function draftScriptWithAtlas(
         ...parsed.bible,
         cast: parsed.bible?.cast?.length ? parsed.bible.cast : fallback.bible.cast,
       },
-      voice: { ...fallback.voice, ...parsed.voice },
+      voice: lockStickmanVoice(fallback.voice, parsed.voice, config),
       beats: parsed.beats.map((beat, i) => ({
         ...fallback.beats[i],
         ...beat,

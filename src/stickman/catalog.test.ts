@@ -102,6 +102,8 @@ describe("stickman catalog", () => {
   it("ships more than the five xAI voices and maps Gemini voices to Flash TTS", () => {
     expect(STICKMAN_VOICES.length).toBeGreaterThan(10);
     expect(resolveStickmanTtsModel("Kore")).toBe("google/gemini-2.5-flash-tts");
+    expect(resolveStickmanTtsModel("Leda")).toBe("google/gemini-2.5-flash-tts");
+    expect(resolveStickmanTtsModel("English_expressive_narrator")).toBe("minimax/speech-2.6-turbo");
     expect(resolveStickmanTtsModel("eve")).toBe("xai/tts-v1");
     expect(clampStickmanVolume(2, 0.5)).toBe(1);
     expect(clampStickmanVolume(-1, 0.5)).toBe(0);

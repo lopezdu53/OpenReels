@@ -16,9 +16,67 @@ const STAGES = [
   { id: "done", label: "Listo" },
 ];
 
+const FALLBACK_VOICES = [
+  { id: "eve", label: "Eve", note: "enérgica" },
+  { id: "Kore", label: "Kore", note: "firme" },
+  { id: "English_expressive_narrator", label: "Narrador", note: "expresivo" },
+];
+
 function stillPoster(jobId: string, stills?: string[]): string | undefined {
   const first = stills?.[0];
   return first ? `/api/v1/stickman/jobs/${jobId}/artifacts/stills/${first}` : undefined;
+}
+
+function VoiceFields({
+  voiceId,
+  voices,
+  voiceSpeed,
+  muteCharacter,
+  hideMute,
+  onVoice,
+  onSpeed,
+  onMute,
+}: {
+  voiceId: string;
+  voices: { id: string; label: string; note?: string }[];
+  voiceSpeed: number;
+  muteCharacter: boolean;
+  hideMute?: boolean;
+  onVoice: (id: string) => void;
+  onSpeed: (n: number) => void;
+  onMute: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+      <label className="flex items-center gap-2">
+        Voz Atlas
+        <select
+          className="rounded-md border border-input bg-transparent px-2 py-1 text-foreground"
+          value={voiceId}
+          onChange={(e) => onVoice(e.target.value)}
+          aria-label="Voz Atlas"
+        >
+          {voices.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.label}
+              {v.note ? ` · ${v.note}` : ""}
+            </option>
+          ))}
+        </select>
+      </label>
+      <VoiceSpeedField value={voiceSpeed} onChange={onSpeed} />
+      {hideMute ? null : (
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={muteCharacter}
+            onChange={(e) => onMute(e.target.checked)}
+          />
+          Sin voz narrativa (solo SFX)
+        </label>
+      )}
+    </div>
+  );
 }
 
 function VoiceSpeedField({ value, onChange }: { value: number; onChange: (n: number) => void }) {
@@ -49,12 +107,17 @@ export function StickmanJobPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [voiceSpeed, setVoiceSpeed] = useState(1);
+  const [muteCharacter, setMuteCharacter] = useState(false);
+  const [voiceId, setVoiceId] = useState("eve");
+  const [voices, setVoices] = useState(FALLBACK_VOICES);
 
   async function refresh() {
     if (!id) return;
     const j = await api.getStickmanJob(id);
     setJob(j);
     if (typeof j.config?.voiceSpeed === "number") setVoiceSpeed(j.config.voiceSpeed);
+    if (typeof j.config?.muteCharacter === "boolean") setMuteCharacter(j.config.muteCharacter);
+    if (j.config?.voiceId) setVoiceId(j.config.voiceId);
     if (j.script && !scriptText) setScriptText(JSON.stringify(j.script, null, 2));
   }
 
@@ -63,6 +126,12 @@ export function StickmanJobPage() {
     if (!id) return;
     setScriptText("");
     void refresh().catch((e) => setError(e instanceof Error ? e.message : String(e)));
+    api
+      .stickmanCatalog()
+      .then((c) => {
+        if (c.voices?.length) setVoices(c.voices);
+      })
+      .catch(() => {});
     const es = new EventSource(`/api/v1/stickman/jobs/${id}/events`, { withCredentials: true });
     es.onmessage = (ev) => {
       try {
@@ -99,7 +168,26 @@ export function StickmanJobPage() {
       if (job?.status === "awaiting_script" && scriptText) {
         await api.saveStickmanScript(id, JSON.parse(scriptText));
       }
-      await api.produceStickmanJob(id, { voiceSpeed });
+      await api.produceStickmanJob(id, { voiceSpeed, muteCharacter, voiceId });
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remixVoice() {
+    if (!id) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api.produceStickmanJob(id, {
+        voiceSpeed,
+        muteCharacter: false,
+        voiceId,
+        audioOnly: true,
+      });
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -168,7 +256,18 @@ export function StickmanJobPage() {
               value={scriptText}
               onChange={(e) => setScriptText(e.target.value)}
             />
-            <VoiceSpeedField value={voiceSpeed} onChange={setVoiceSpeed} />
+            <VoiceFields
+              voiceId={voiceId}
+              voices={voices}
+              voiceSpeed={voiceSpeed}
+              muteCharacter={muteCharacter}
+              onVoice={(nextVoice) => {
+                setVoiceId(nextVoice);
+                setMuteCharacter(false);
+              }}
+              onSpeed={setVoiceSpeed}
+              onMute={setMuteCharacter}
+            />
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => void saveScript()} disabled={busy}>
                 Guardar edits
@@ -216,6 +315,31 @@ export function StickmanJobPage() {
         )}
 
         {job.status === "completed" && (
+          <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
+            <h2 className="text-sm font-medium">Voz narrativa Atlas</h2>
+            <p className="text-xs text-muted-foreground">
+              {job.config?.muteCharacter
+                ? "Este video se produjo sin TTS Atlas (solo SFX de Flow). Elige una voz y mézclala sin volver a gastar I2V."
+                : "Puedes volver a sintetizar la voz Atlas y mezclarla sobre el mismo clip."}
+            </p>
+            <VoiceFields
+              voiceId={voiceId}
+              voices={voices}
+              voiceSpeed={voiceSpeed}
+              muteCharacter={false}
+              hideMute
+              onVoice={setVoiceId}
+              onSpeed={setVoiceSpeed}
+              onMute={setMuteCharacter}
+            />
+            <Button onClick={() => void remixVoice()} disabled={busy}>
+              {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+              Mezclar voz Atlas
+            </Button>
+          </section>
+        )}
+
+        {job.status === "completed" && (
           <CompletedJobMedia
             jobId={job.id}
             src={`/api/v1/stickman/jobs/${job.id}/artifacts/final.mp4`}
@@ -248,8 +372,20 @@ export function StickmanJobPage() {
         )}
 
         {job.status === "failed" && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <p className="text-sm text-destructive">{job.error || job.detail}</p>
+            <VoiceFields
+              voiceId={voiceId}
+              voices={voices}
+              voiceSpeed={voiceSpeed}
+              muteCharacter={muteCharacter}
+              onVoice={(nextVoice) => {
+                setVoiceId(nextVoice);
+                setMuteCharacter(false);
+              }}
+              onSpeed={setVoiceSpeed}
+              onMute={setMuteCharacter}
+            />
             <Button variant="outline" onClick={() => void produce()} disabled={busy}>
               Reintentar producción
             </Button>
