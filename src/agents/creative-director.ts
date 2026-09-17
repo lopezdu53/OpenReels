@@ -10,8 +10,8 @@ import {
   isFilmJob,
   isFilmOneMinute,
   filmDurationLabel,
+  filmDurationSeconds,
   isFilmQuickTest,
-  isFilmTest15Minutes,
   normalizeFilmMinutes,
 } from "../config/film-duration.js";
 import { countLockedCharacters, countLockedLocations } from "../library/identity.js";
@@ -97,7 +97,7 @@ function loadDirectorSystemPrompt(targetDurationMinutes?: number, platform?: str
     systemPrompt += isTest
       ? `
 
-## ${isFilmTest15Minutes(minutes) ? "15" : "30"}-SECOND TEST FILM OVERRIDE
+## ${Math.round((filmDurationSeconds(minutes) ?? 30))}-SECOND TEST FILM OVERRIDE
 
 This is a FAST TEST, not a Short and not an 8-minute Film.
 
@@ -249,7 +249,7 @@ Every scene MUST have a script_line (the voiceover text).
 The first scene should be a strong hook.
 ${isLongForm
   ? isTest
-    ? `MANDATORY: This is a ${isFilmTest15Minutes(filmMinutes) ? "15-second" : "30-second"} TEST film. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total ~${wordsTarget} words. NO text_card. If ai_video is allowed, every scene is ai_video. ${
+    ? `MANDATORY: This is a ${filmDurationSeconds(filmMinutes) ?? 30}-second TEST film. Generate exactly ${sceneTarget} scenes with ~${wordsPerSceneTarget} words each. Total ~${wordsTarget} words. NO text_card. If ai_video is allowed, every scene is ai_video. ${
         options?.castMode === "hero"
           ? "FOLLOW-CAM HERO: one continuous take. The first CAST member is the optical axis of every clip. Camera tracks the body. Three beats + match-cut pose. Prefer ai_video. Never atmosphere-only."
           : castCount >= 2
@@ -363,7 +363,7 @@ export function buildPacingInstruction(archetype?: string, pacingOverride?: stri
     const sceneCount = filmSceneTarget(minutes);
     const wordsPerScene = Math.round(wordsTarget / sceneCount);
     if (isTest) {
-      const seconds = isFilmTest15Minutes(minutes) ? 15 : 30;
+      const seconds = filmDurationSeconds(minutes) ?? 30;
       console.log(`[creative-director] ${seconds}s test pacing (${formatLabel}): ${sceneCount} scenes (~${wordsTarget} words)`);
       return `This is a ${formatLabel} ${seconds}-SECOND TEST.
 Create a DirectorScore with exactly ${sceneCount} scenes.

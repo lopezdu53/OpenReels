@@ -37,6 +37,9 @@ export interface JobConfig {
   lookId?: string;
   narrativeArc?: string;
   castMode?: string;
+  muteCharacter?: boolean;
+  videoVolume?: number;
+  ttsVolume?: number;
 }
 
 export interface JobSummary {
@@ -587,6 +590,9 @@ export interface CreateJobRequest {
   locationLock?: string;
   objectLock?: string;
   locationReferenceImage?: string;
+  muteCharacter?: boolean;
+  videoVolume?: number;
+  ttsVolume?: number;
   providers?: {
     llm?: string;
     tts?: string;
