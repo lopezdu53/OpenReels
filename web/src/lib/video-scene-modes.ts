@@ -6,8 +6,16 @@ export interface VideoSceneModeOption {
 
 /** Producer-facing patterns. `auto` leaves the mix to the director (legacy "all"). */
 export const VIDEO_SCENE_MODE_OPTIONS: VideoSceneModeOption[] = [
-  { value: "every2", label: "Alternadas (1ª, 3ª, 5ª…)", hint: "Video, foto, video, foto — entre escenas IA" },
-  { value: "every2_offset", label: "Alternadas (2ª, 4ª, 6ª…)", hint: "Foto, video, foto, video — entre escenas IA" },
+  {
+    value: "every2",
+    label: "Alternadas (1ª, 3ª, 5ª…)",
+    hint: "Video, foto, video, foto — entre escenas IA",
+  },
+  {
+    value: "every2_offset",
+    label: "Alternadas (2ª, 4ª, 6ª…)",
+    hint: "Foto, video, foto, video — entre escenas IA",
+  },
   { value: "first", label: "Solo la 1ª escena IA", hint: "Un clip de movimiento al inicio" },
   { value: "first3", label: "Primeras 3 escenas IA", hint: "Apertura en movimiento, luego fotos" },
   { value: "force_all", label: "Todas las escenas IA", hint: "Cada plano IA se anima (más caro)" },
@@ -28,7 +36,11 @@ export const VIDEO_SCENE_MODE_LABELS: Record<string, string> = {
   force_first_every2: "Alternadas (1ª, 3ª, 5ª…)",
 };
 
-export function countVideoScenesForPreview(sceneCount: number, mode: string | undefined, hasVideo: boolean): number {
+export function countVideoScenesForPreview(
+  sceneCount: number,
+  mode: string | undefined,
+  hasVideo: boolean,
+): number {
   if (!hasVideo || sceneCount <= 0) return 0;
   switch (mode) {
     case "first":
@@ -54,9 +66,21 @@ export function countVideoScenesForPreview(sceneCount: number, mode: string | un
 
 /** Same scene-count heuristic the cost preview uses for Film / horizontal YouTube. */
 export function estimateFilmSceneCount(minutes: number): number {
-  if (minutes > 0 && minutes < 0.375) return 3;
-  if (minutes > 0 && minutes < 0.75) return 6;
-  return Math.max(8, Math.round((minutes * 150) / 14));
+  const sec = Math.round(minutes * 60);
+  if (sec <= 10) return 3;
+  if (sec <= 20) return 3;
+  if (sec <= 30) return 4;
+  if (sec <= 60) return 8;
+  return Math.min(60, Math.max(4, Math.round(sec / 8)));
+}
+
+export function estimateFilmWordCount(minutes: number): number {
+  const sec = Math.round(minutes * 60);
+  if (sec <= 10) return 25;
+  if (sec <= 20) return 50;
+  if (sec <= 30) return 75;
+  if (sec <= 60) return 180;
+  return Math.round((sec / 60) * 150);
 }
 
 export function previewAiSceneKinds(

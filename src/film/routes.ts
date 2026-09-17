@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { AuthedRequest } from "../auth/plugin.js";
 import { requireUser } from "../auth/plugin.js";
+import { DEFAULT_FILM_LLM_MODEL } from "../config/film-duration.js";
 import {
   DEFAULT_FILM_ARC,
   DEFAULT_FILM_LOOK,
@@ -52,8 +53,8 @@ export async function registerFilmRoutes(app: FastifyInstance): Promise<void> {
       const script = await generateFilmScript({
         idea,
         durationMinutes: body.durationMinutes ?? 8,
-        llm: body.llm,
-        llmModel: body.llmModel,
+        llm: body.llm ?? "atlas",
+        llmModel: body.llmModel ?? DEFAULT_FILM_LLM_MODEL,
         youtubeUrls,
         characters: Array.isArray(body.characters) ? body.characters.slice(0, 3) : undefined,
         locations: Array.isArray(body.locations) ? body.locations.slice(0, 3) : undefined,

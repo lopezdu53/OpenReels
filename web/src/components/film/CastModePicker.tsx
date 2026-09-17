@@ -24,7 +24,7 @@ const OPTIONS: {
     id: "hero",
     icon: User,
     title: "Modo Héroe",
-    body: "Plano continuo viral: la cámara sigue al primero; cada clip un objeto o morph nuevo, no un paseo. Todas las escenas IA se animan.",
+    body: "Plano continuo I2V (tomas encadenadas, sin freeze): el último frame de cada toma es la imagen del siguiente I2V. La cámara sigue al primero; cada clip un objeto o morph nuevo.",
   },
 ];
 
@@ -54,14 +54,18 @@ export function CastModePicker({ value, onChange }: Props) {
               <span
                 className={cn(
                   "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg",
-                  on ? "bg-primary text-primary-foreground" : "bg-surface-inset text-muted-foreground",
+                  on
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-surface-inset text-muted-foreground",
                 )}
               >
                 <Icon className="size-4" />
               </span>
               <span>
                 <span className="block text-sm font-medium">{opt.title}</span>
-                <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">{opt.body}</span>
+                <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                  {opt.body}
+                </span>
               </span>
             </button>
           );

@@ -79,18 +79,24 @@ describe("buildPacingInstruction", () => {
     expect(result).toContain("12-16");
   });
 
-  it("uses a 15-second test plan for Film", () => {
-    const result = buildPacingInstruction("cinematic_documentary", undefined, 0.25, "youtube_horizontal");
-    expect(result).toContain("15-SECOND TEST");
+  it("uses a 10-second test plan for Film", () => {
+    const result = buildPacingInstruction("cinematic_documentary", undefined, 10 / 60, "youtube_horizontal");
+    expect(result).toContain("10-SECOND TEST");
     expect(result).toContain("exactly 3 scenes");
     expect(result).toContain("NO text_card");
     expect(result).not.toContain("chapter");
   });
 
+  it("uses a 20-second test plan for Film", () => {
+    const result = buildPacingInstruction("cinematic_documentary", undefined, 20 / 60, "youtube_horizontal");
+    expect(result).toContain("20-SECOND TEST");
+    expect(result).toContain("exactly 3 scenes");
+  });
+
   it("uses a 30-second test plan for Film", () => {
     const result = buildPacingInstruction("cinematic_documentary", undefined, 0.5, "youtube_horizontal");
     expect(result).toContain("30-SECOND TEST");
-    expect(result).toContain("exactly 6 scenes");
+    expect(result).toContain("exactly 4 scenes");
     expect(result).toContain("NO text_card");
     expect(result).not.toContain("chapter");
   });
@@ -98,7 +104,7 @@ describe("buildPacingInstruction", () => {
   it("uses a 1-minute plan without title cards for Film", () => {
     const result = buildPacingInstruction("cinematic_documentary", undefined, 1, "youtube_horizontal");
     expect(result).toContain("targeting 1 minutes");
-    expect(result).toContain("exactly 10 scenes");
+    expect(result).toContain("exactly 8 scenes");
     expect(result).toContain("NO text_card");
     expect(result).toContain("cliffhanger");
   });

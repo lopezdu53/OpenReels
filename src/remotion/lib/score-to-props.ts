@@ -17,6 +17,8 @@ export interface SceneProps {
   motionIntensity?: number;
   startFrom?: number;
   sourceDurationInSeconds?: number;
+  /** When set, I2V audio plays at this gain. Omit to keep clips muted (Shorts). */
+  videoVolume?: number;
   transition: TransitionType;
   transitionDurationFrames: number;
   /** Stretch an AI clip to the scene so the last frame does not freeze at a match-cut. */
@@ -36,6 +38,7 @@ export interface CompositionProps {
   captionLingerS: number;
   // When true, CaptionWrapper is not rendered (but allWords is still used for timing)
   noSubtitles?: boolean;
+  ttsVolume?: number;
   // Actual audio file duration in seconds (from ffprobe). When set, used as the
   // authoritative minimum video length so the voiceover never gets clipped.
   voiceoverDurationSeconds?: number;
@@ -56,6 +59,7 @@ export function mapScoreToProps(
   assets: ResolvedAssets,
   fps: number = 30,
   noSubtitles?: boolean,
+  audio?: { videoVolume?: number; ttsVolume?: number; targetDurationSeconds?: number },
 ): CompositionProps {
   const archetype = getArchetype(score.archetype);
 
@@ -64,9 +68,7 @@ export function mapScoreToProps(
   // Each scene gets (its word count / total words) × total audio duration.
   // Falls back to timestamp-based only when voiceoverDurationSeconds is unavailable.
   const totalAudio = assets.voiceoverDurationSeconds ?? 0;
-  const sceneCounts = score.scenes.map((s) =>
-    s.script_line.split(/\s+/).filter(Boolean).length,
-  );
+  const sceneCounts = score.scenes.map((s) => s.script_line.split(/\s+/).filter(Boolean).length);
   const totalWords = sceneCounts.reduce((a, b) => a + b, 0);
 
   const scenes: SceneProps[] = score.scenes.map((scene, i) => {
@@ -77,6 +79,8 @@ export function mapScoreToProps(
       // Primary: proportional word count — works for any language, any TTS provider
       const proportion = (sceneCounts[i] ?? 1) / totalWords;
       durationSeconds = Math.max(proportion * totalAudio, 2);
+    } else if (audio?.targetDurationSeconds && score.scenes.length > 0) {
+      durationSeconds = Math.max(audio.targetDurationSeconds / score.scenes.length, 2);
     } else {
       // Fallback: timestamp-based (original approach, requires accurate Whisper)
       const lastWord = words[words.length - 1];
@@ -125,6 +129,7 @@ export function mapScoreToProps(
       sourceDurationInSeconds: assets.sceneSourceDurations[i] ?? undefined,
       transition: scene.transition ?? archetype.defaultTransition ?? "none",
       transitionDurationFrames: archetype.transitionDurationFrames ?? 15,
+      videoVolume: audio?.videoVolume,
     };
   });
 
@@ -161,6 +166,7 @@ export function mapScoreToProps(
     captionChunkSize: archetype.captionChunkSize ?? 5,
     captionLingerS: archetype.captionLingerS ?? 0.3,
     noSubtitles: noSubtitles === true,
+    ttsVolume: audio?.ttsVolume,
     voiceoverDurationSeconds: assets.voiceoverDurationSeconds,
   };
 }
