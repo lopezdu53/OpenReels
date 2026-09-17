@@ -29,6 +29,16 @@ Aspect: ${config.aspect}. Look: ${lookPrompt(config.look)}.
 Cast: ${config.castMode}. Arc: ${config.arc} — ${arc}.
 Target duration ${config.durationSec}s → exactly ${beatCount} beats. Sum of durationSec ≈ ${config.durationSec}.
 Voiceover sits in a ${spokenSec.toFixed(1)}s window (${STICKMAN_VO_HEAD_SEC}s after picture-in, ${STICKMAN_VO_TAIL_SEC}s before picture-out) at speed ${config.voiceSpeed || 1}.
+${
+  config.muteCharacter
+    ? "MUTE CHARACTER: the stick figures do NOT speak. Write short narration only for optional captions. Comedy and information live in the acting, props, and morphs. Sound effects still exist in the picture (impacts, whooshes) because Flow audio is kept."
+    : "The character speaks the narration as voiceover over ducked Flow SFX."
+}
+${
+  config.contentHook
+    ? "CONTENT HOOK: the FIRST 10 SECONDS are a trailer of the FULL video. Tease the best visual beats and the punchline without delivering them. Beat 1 durationSec MUST be 10. Title it GANCHO. From second 10 onward tell the complete story."
+    : ""
+}
 
 Choose ONE narrative pattern that fits the source (do not invent a different genre):
 - Motivational: hook → recognition → escalation → reframe → action → payoff

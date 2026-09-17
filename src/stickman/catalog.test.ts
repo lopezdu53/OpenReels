@@ -2,16 +2,21 @@ import { describe, expect, it } from "vitest";
 import {
   beatCountForDuration,
   clampStickmanVoiceSpeed,
+  clampStickmanVolume,
   formatStickmanDuration,
   frameSize,
   isLookId,
   planMotionTakes,
+  publishPlatformsForAspect,
   recommendArc,
   recommendStickmanGflow,
+  resolveStickmanTtsModel,
   STICKMAN_ARCS,
   STICKMAN_DURATIONS,
   STICKMAN_STYLE_LOCK,
+  STICKMAN_VOICES,
   stickmanArcHint,
+  stickmanHookAvailable,
   stickmanSpokenWindow,
 } from "./catalog.js";
 
@@ -28,8 +33,10 @@ describe("stickman catalog", () => {
     expect(beatCountForDuration(120)).toBe(12);
     expect(beatCountForDuration(300)).toBe(18);
     expect(beatCountForDuration(480)).toBe(24);
-    expect(STICKMAN_DURATIONS).toEqual([10, 20, 30, 60, 120, 300, 480]);
+    expect(beatCountForDuration(900)).toBe(36);
+    expect(STICKMAN_DURATIONS).toEqual([10, 20, 30, 60, 120, 300, 480, 900]);
     expect(formatStickmanDuration(120)).toBe("2 min");
+    expect(formatStickmanDuration(900)).toBe("15 min");
     expect(formatStickmanDuration(20)).toBe("20s");
   });
 
@@ -75,5 +82,29 @@ describe("stickman catalog", () => {
     expect(frameSize("9:16")).toEqual({ w: 1080, h: 1920 });
     expect(frameSize("16:9")).toEqual({ w: 1920, h: 1080 });
     expect(frameSize("1:1")).toEqual({ w: 1080, h: 1080 });
+  });
+
+  it("gates the 10s hook and publish networks by aspect", () => {
+    expect(stickmanHookAvailable(10)).toBe(false);
+    expect(stickmanHookAvailable(300)).toBe(true);
+    expect(stickmanHookAvailable(480)).toBe(true);
+    expect(stickmanHookAvailable(900)).toBe(true);
+    expect(publishPlatformsForAspect("16:9")).toEqual(["youtube", "facebook"]);
+    expect(publishPlatformsForAspect("9:16")).toEqual([
+      "youtube",
+      "facebook",
+      "instagram",
+      "tiktok",
+    ]);
+    expect(publishPlatformsForAspect("1:1")).toEqual(["instagram"]);
+  });
+
+  it("ships more than the five xAI voices and maps Gemini voices to Flash TTS", () => {
+    expect(STICKMAN_VOICES.length).toBeGreaterThan(10);
+    expect(resolveStickmanTtsModel("Kore")).toBe("google/gemini-2.5-flash-tts");
+    expect(resolveStickmanTtsModel("eve")).toBe("xai/tts-v1");
+    expect(clampStickmanVolume(2, 0.5)).toBe(1);
+    expect(clampStickmanVolume(-1, 0.5)).toBe(0);
+    expect(clampStickmanVolume(undefined, 0.5)).toBe(0.5);
   });
 });

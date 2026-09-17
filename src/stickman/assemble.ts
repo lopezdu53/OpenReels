@@ -3,8 +3,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { MP4_FASTSTART_ARGS, remuxMp4Faststart } from "../media/mp4-faststart.js";
 import {
+  DEFAULT_STICKMAN_TTS_VOLUME,
+  DEFAULT_STICKMAN_VIDEO_VOLUME,
   frameSize,
-  STICKMAN_FLOW_BED_VOLUME,
   STICKMAN_TAKE_XFADE_SEC,
   STICKMAN_VO_HEAD_SEC,
   stickmanSpokenWindow,
@@ -307,18 +308,42 @@ export function voiceoverFitFilter(voSec: number, videoSec: number): string {
   return parts.join(",");
 }
 
+function applyBedVolume(video: string, dest: string, bedVolume: number): void {
+  if (!hasAudio(video) || Math.abs(bedVolume - 1) < 0.01) {
+    copyMp4(video, dest);
+    return;
+  }
+  writeMp4(dest, [
+    "-y",
+    "-i",
+    video,
+    "-filter_complex",
+    `[0:a]volume=${bedVolume},aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[a]`,
+    "-map",
+    "0:v:0",
+    "-map",
+    "[a]",
+    "-c:v",
+    "copy",
+    "-c:a",
+    "aac",
+  ]);
+}
+
 export function mixStickmanAudio(
   video: string,
   voiceover: string | null,
   dest: string,
-  bedVolume = STICKMAN_FLOW_BED_VOLUME,
+  bedVolume = DEFAULT_STICKMAN_VIDEO_VOLUME,
+  ttsVolume = DEFAULT_STICKMAN_TTS_VOLUME,
 ): void {
   const vidDur = Math.max(0.5, probeSeconds(video));
   if (!voiceover) {
-    copyMp4(video, dest);
+    applyBedVolume(video, dest, bedVolume);
     return;
   }
   const voFilter = voiceoverFitFilter(probeSeconds(voiceover) || vidDur, vidDur);
+  const voGain = `${voFilter},volume=${ttsVolume}`;
   if (hasAudio(video)) {
     writeMp4(dest, [
       "-y",
@@ -327,7 +352,7 @@ export function mixStickmanAudio(
       "-i",
       voiceover,
       "-filter_complex",
-      `[0:a]volume=${bedVolume},aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[bed];[1:a]${voFilter}[vo];[bed][vo]amix=inputs=2:duration=first:dropout_transition=2[a]`,
+      `[0:a]volume=${bedVolume},aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[bed];[1:a]${voGain}[vo];[bed][vo]amix=inputs=2:duration=first:dropout_transition=2[a]`,
       "-map",
       "0:v:0",
       "-map",
@@ -348,7 +373,7 @@ export function mixStickmanAudio(
     "-i",
     voiceover,
     "-filter_complex",
-    `[1:a]${voFilter}[vo]`,
+    `[1:a]${voGain}[vo]`,
     "-map",
     "0:v:0",
     "-map",
@@ -398,6 +423,8 @@ export function assembleStickman(opts: {
   stills: string[];
   clips?: Array<string | null>;
   voiceover?: string | null;
+  videoVolume?: number;
+  ttsVolume?: number;
 }): string {
   const work = path.join(opts.root, "assemble");
   fs.mkdirSync(work, { recursive: true });
@@ -437,7 +464,13 @@ export function assembleStickman(opts: {
   const captions = writeCaptions(opts.script, path.join(opts.root, "captions.srt"));
   const voiced = path.join(work, "voiced.mp4");
   const voice = opts.voiceover && fs.existsSync(opts.voiceover) ? opts.voiceover : null;
-  mixStickmanAudio(silent, voice, voiced);
+  mixStickmanAudio(
+    silent,
+    voice,
+    voiced,
+    opts.videoVolume ?? DEFAULT_STICKMAN_VIDEO_VOLUME,
+    opts.ttsVolume ?? DEFAULT_STICKMAN_TTS_VOLUME,
+  );
 
   const finalPath = path.join(opts.root, "final.mp4");
   if (captions && fs.existsSync(captions)) {

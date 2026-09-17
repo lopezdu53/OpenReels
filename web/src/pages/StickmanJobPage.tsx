@@ -12,6 +12,7 @@ const STAGES = [
   { id: "visuals", label: "Palitos" },
   { id: "motion", label: "Motion" },
   { id: "assemble", label: "Ensamble" },
+  { id: "youtube", label: "Portada" },
   { id: "done", label: "Listo" },
 ];
 
@@ -218,9 +219,32 @@ export function StickmanJobPage() {
           <CompletedJobMedia
             jobId={job.id}
             src={`/api/v1/stickman/jobs/${job.id}/artifacts/final.mp4`}
-            poster={stillPoster(job.id, job.stills)}
-            aspect={mediaAspect(job.script)}
+            poster={
+              job.youtubePack?.thumbnailRel
+                ? `/api/v1/stickman/jobs/${job.id}/artifacts/${job.youtubePack.thumbnailRel}`
+                : stillPoster(job.id, job.stills)
+            }
+            aspect={mediaAspect(job.script, job.config?.aspect ?? "9:16")}
           />
+        )}
+
+        {job.status === "completed" && job.youtubePack && (
+          <section className="space-y-2 rounded-2xl border border-border bg-card p-4">
+            <h2 className="text-sm font-medium">YouTube · portada y SEO</h2>
+            {job.youtubePack.thumbnailRel ? (
+              <img
+                src={`/api/v1/stickman/jobs/${job.id}/artifacts/${job.youtubePack.thumbnailRel}`}
+                alt="Portada YouTube"
+                className="aspect-video w-full max-w-xl rounded-xl border border-border object-cover"
+              />
+            ) : null}
+            <p className="text-sm font-semibold">{job.youtubePack.title}</p>
+            <p className="whitespace-pre-wrap text-xs text-muted-foreground">
+              {job.youtubePack.description}
+            </p>
+            <p className="text-xs text-primary">{job.youtubePack.hashtags.join(" ")}</p>
+            <p className="text-[11px] text-muted-foreground">SEO: {job.youtubePack.seo}</p>
+          </section>
         )}
 
         {job.status === "failed" && (

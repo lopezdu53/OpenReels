@@ -83,27 +83,142 @@ export const STICKMAN_CASTS = [
 ] as const;
 
 export const STICKMAN_VOICES = [
-  { id: "eve", label: "Eve", gender: "F", note: "enérgica" },
-  { id: "ara", label: "Ara", gender: "F", note: "cálida" },
-  { id: "leo", label: "Leo", gender: "M", note: "clara" },
-  { id: "rex", label: "Rex", gender: "M", note: "segura" },
-  { id: "sal", label: "Sal", gender: "M", note: "suave" },
+  { id: "eve", label: "Eve", gender: "F", note: "enérgica", model: "xai/tts-v1" },
+  { id: "ara", label: "Ara", gender: "F", note: "cálida", model: "xai/tts-v1" },
+  { id: "leo", label: "Leo", gender: "M", note: "clara", model: "xai/tts-v1" },
+  { id: "rex", label: "Rex", gender: "M", note: "segura", model: "xai/tts-v1" },
+  { id: "sal", label: "Sal", gender: "M", note: "suave", model: "xai/tts-v1" },
+  { id: "Kore", label: "Kore", gender: "F", note: "firme", model: "google/gemini-2.5-flash-tts" },
+  {
+    id: "Aoede",
+    label: "Aoede",
+    gender: "F",
+    note: "ligera",
+    model: "google/gemini-2.5-flash-tts",
+  },
+  {
+    id: "Zephyr",
+    label: "Zephyr",
+    gender: "F",
+    note: "brillante",
+    model: "google/gemini-2.5-flash-tts",
+  },
+  { id: "Leda", label: "Leda", gender: "F", note: "joven", model: "google/gemini-2.5-flash-tts" },
+  { id: "Puck", label: "Puck", gender: "M", note: "alegre", model: "google/gemini-2.5-flash-tts" },
+  {
+    id: "Charon",
+    label: "Charon",
+    gender: "M",
+    note: "informativa",
+    model: "google/gemini-2.5-flash-tts",
+  },
+  {
+    id: "Fenrir",
+    label: "Fenrir",
+    gender: "M",
+    note: "excitable",
+    model: "google/gemini-2.5-flash-tts",
+  },
+  { id: "Orus", label: "Orus", gender: "M", note: "firme", model: "google/gemini-2.5-flash-tts" },
+  {
+    id: "English_expressive_narrator",
+    label: "Narrador",
+    gender: "M",
+    note: "expresivo",
+    model: "minimax/speech-2.6-turbo",
+  },
+  {
+    id: "English_radiant_girl",
+    label: "Radiant",
+    gender: "F",
+    note: "radiante",
+    model: "minimax/speech-2.6-turbo",
+  },
+  {
+    id: "English_magnetic_voiced_man",
+    label: "Magnetic",
+    gender: "M",
+    note: "magnética",
+    model: "minimax/speech-2.6-turbo",
+  },
+  {
+    id: "English_Upbeat_Woman",
+    label: "Upbeat",
+    gender: "F",
+    note: "animada",
+    model: "minimax/speech-2.6-turbo",
+  },
+  {
+    id: "English_CalmWoman",
+    label: "Calm",
+    gender: "F",
+    note: "serena",
+    model: "minimax/speech-2.6-turbo",
+  },
+  {
+    id: "English_Trustworth_Man",
+    label: "Trust",
+    gender: "M",
+    note: "confiable",
+    model: "minimax/speech-2.6-turbo",
+  },
 ] as const;
 
 export const STICKMAN_ASPECTS = ["9:16", "16:9", "1:1"] as const;
 /** Omni Flash is 10s; jobs are multiples so we never ask Flow for 6s leftovers. */
-export const STICKMAN_DURATIONS = [10, 20, 30, 60, 120, 300, 480] as const;
+export const STICKMAN_DURATIONS = [10, 20, 30, 60, 120, 300, 480, 900] as const;
+/** First-10s content hook is only offered on long jobs. */
+export const STICKMAN_HOOK_DURATIONS = [300, 480, 900] as const;
 export const STICKMAN_TAKE_XFADE_SEC = 0.12;
-export const STICKMAN_FLOW_BED_VOLUME = 0.2;
+/** Default Flow/video bed. User-facing default is 50%. */
+export const DEFAULT_STICKMAN_VIDEO_VOLUME = 0.5;
+export const DEFAULT_STICKMAN_TTS_VOLUME = 1;
+/** @deprecated use DEFAULT_STICKMAN_VIDEO_VOLUME */
+export const STICKMAN_FLOW_BED_VOLUME = DEFAULT_STICKMAN_VIDEO_VOLUME;
 /** Voice starts after the picture; last this many seconds stay bed-only. */
 export const STICKMAN_VO_HEAD_SEC = 0.3;
 export const STICKMAN_VO_TAIL_SEC = 0.5;
 export const STICKMAN_VOICE_SPEEDS = [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5] as const;
+export const DEFAULT_STICKMAN_MUTE_CHARACTER = true;
+export const DEFAULT_STICKMAN_CONTENT_HOOK = false;
+export const DEFAULT_STICKMAN_CAPTIONS = false;
 
 export function clampStickmanVoiceSpeed(raw: unknown): number {
   const n = Number(raw ?? 1);
   if (!Number.isFinite(n)) return 1;
   return Math.min(1.5, Math.max(0.7, Math.round(n * 10) / 10));
+}
+
+export function clampStickmanVolume(raw: unknown, fallback: number): number {
+  const n = Number(raw ?? fallback);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(1, Math.max(0, Math.round(n * 100) / 100));
+}
+
+export function stickmanHookAvailable(durationSec: number): boolean {
+  return (STICKMAN_HOOK_DURATIONS as readonly number[]).includes(durationSec);
+}
+
+export function isStickmanVoiceId(id: string): boolean {
+  return STICKMAN_VOICES.some((voice) => voice.id === id);
+}
+
+export function resolveStickmanTtsModel(voiceId: string, fallback?: string): string {
+  const voice = STICKMAN_VOICES.find((row) => row.id === voiceId);
+  return voice?.model ?? fallback ?? DEFAULT_STICKMAN_TTS_MODEL;
+}
+
+export type StickmanPublishPlatform = "youtube" | "tiktok" | "facebook" | "instagram";
+
+/** 16:9 → YT+FB; 9:16 → YT+FB+IG+TT; 1:1 → IG. */
+export function publishPlatformsForAspect(aspect?: string): StickmanPublishPlatform[] {
+  if (aspect === "16:9") return ["youtube", "facebook"];
+  if (aspect === "1:1") return ["instagram"];
+  return ["youtube", "facebook", "instagram", "tiktok"];
+}
+
+export function aspectAllowsPlatform(aspect: string | undefined, platform: string): boolean {
+  return publishPlatformsForAspect(aspect).includes(platform as StickmanPublishPlatform);
 }
 
 export function stickmanSpokenWindow(videoSec: number): number {
@@ -244,7 +359,8 @@ export function beatCountForDuration(seconds: number): number {
   if (seconds <= 60) return 8;
   if (seconds <= 120) return 12;
   if (seconds <= 300) return 18;
-  return 24;
+  if (seconds <= 480) return 24;
+  return 36;
 }
 
 export function frameSize(aspect: string): { w: number; h: number } {

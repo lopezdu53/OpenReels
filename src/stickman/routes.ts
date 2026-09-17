@@ -12,26 +12,38 @@ import { gflowDoctor } from "../providers/gflow/client.js";
 import { resolveStudioVisualProvider, STUDIO_VISUAL_PROVIDERS } from "../studio/visual-provider.js";
 import {
   clampStickmanVoiceSpeed,
+  clampStickmanVolume,
+  DEFAULT_STICKMAN_CAPTIONS,
+  DEFAULT_STICKMAN_CONTENT_HOOK,
   DEFAULT_STICKMAN_GFLOW_IMAGE,
   DEFAULT_STICKMAN_GFLOW_VIDEO,
   DEFAULT_STICKMAN_IMAGE_MODEL,
   DEFAULT_STICKMAN_LLM,
+  DEFAULT_STICKMAN_MUTE_CHARACTER,
   DEFAULT_STICKMAN_TTS_MODEL,
+  DEFAULT_STICKMAN_TTS_VOLUME,
   DEFAULT_STICKMAN_VIDEO_MODEL,
+  DEFAULT_STICKMAN_VIDEO_VOLUME,
   isArcId,
   isCastMode,
   isLookId,
   isStickmanLlmId,
+  isStickmanVoiceId,
+  publishPlatformsForAspect,
   recommendArc,
   recommendStickmanGflow,
+  resolveStickmanTtsModel,
   STICKMAN_ARCS,
   STICKMAN_ASPECTS,
   STICKMAN_CASTS,
   STICKMAN_DURATIONS,
+  STICKMAN_HOOK_DURATIONS,
   STICKMAN_LLMS,
   STICKMAN_LOOKS,
   STICKMAN_VOICES,
+  stickmanHookAvailable,
 } from "./catalog.js";
+import { llmUsd } from "./cost.js";
 import { draftScript } from "./draft.js";
 import {
   createJob,
@@ -51,6 +63,62 @@ import {
 import type { StickmanJobConfig, StickmanScript } from "./types.js";
 import { createStickmanQueue, getStickmanQueueStats } from "./worker.js";
 
+function parseStickmanCreateBody(
+  body: Record<string, unknown>,
+): { error: string } | { config: StickmanJobConfig } {
+  const topic = String(body.topic ?? "").trim();
+  if (topic.length < 4) return { error: "Escribe un tema (mín. 4 caracteres)" };
+  const durationSec = Number(body.durationSec ?? 30);
+  if (!STICKMAN_DURATIONS.includes(durationSec as (typeof STICKMAN_DURATIONS)[number])) {
+    return { error: "Duración: 10s, 20s, 30s, 1 min, 2 min, 5 min, 8 min o 15 min" };
+  }
+  const aspect = String(body.aspect ?? "9:16");
+  if (!STICKMAN_ASPECTS.includes(aspect as (typeof STICKMAN_ASPECTS)[number])) {
+    return { error: "Aspecto inválido" };
+  }
+  const look = String(body.look ?? "classic");
+  if (!isLookId(look)) return { error: "Look inválido" };
+  const castModeRaw = String(body.castMode ?? "solo");
+  if (!isCastMode(castModeRaw)) return { error: "Elenco inválido" };
+  const arc = String(body.arc ?? recommendArc(topic));
+  if (!isArcId(arc)) return { error: "Arco inválido" };
+  const voiceId = isStickmanVoiceId(String(body.voiceId ?? "eve")) ? String(body.voiceId) : "eve";
+  return {
+    config: {
+      topic,
+      durationSec,
+      aspect,
+      language: String(body.language ?? "es"),
+      look,
+      castMode: castModeRaw,
+      arc,
+      voiceId,
+      voiceSpeed: clampStickmanVoiceSpeed(body.voiceSpeed),
+      captions: body.captions === true,
+      animate: body.animate === true,
+      muteCharacter: body.muteCharacter !== false,
+      contentHook: stickmanHookAvailable(durationSec) && body.contentHook === true,
+      videoVolume: clampStickmanVolume(body.videoVolume, DEFAULT_STICKMAN_VIDEO_VOLUME),
+      ttsVolume: clampStickmanVolume(body.ttsVolume, DEFAULT_STICKMAN_TTS_VOLUME),
+      imageModel: String(body.imageModel ?? DEFAULT_STICKMAN_IMAGE_MODEL),
+      videoModel: String(body.videoModel ?? DEFAULT_STICKMAN_VIDEO_MODEL),
+      atlasTtsModel: resolveStickmanTtsModel(
+        voiceId,
+        String(body.atlasTtsModel ?? DEFAULT_STICKMAN_TTS_MODEL),
+      ),
+      visualProvider: resolveStudioVisualProvider(
+        typeof body.visualProvider === "string" ? body.visualProvider : undefined,
+      ),
+      gflowImageModel: body.gflowImageModel ? String(body.gflowImageModel) : undefined,
+      gflowVideoModel: body.gflowVideoModel ? String(body.gflowVideoModel) : undefined,
+      gflowVideoMode: body.gflowVideoMode ? String(body.gflowVideoMode) : undefined,
+      llmModel: isStickmanLlmId(String(body.llmModel ?? ""))
+        ? String(body.llmModel)
+        : DEFAULT_STICKMAN_LLM,
+    },
+  };
+}
+
 function ownerOk(meta: { userId: string }, userId: string): boolean {
   return meta.userId === userId;
 }
@@ -66,6 +134,17 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     voices: STICKMAN_VOICES,
     aspects: STICKMAN_ASPECTS,
     durations: STICKMAN_DURATIONS,
+    hookDurations: STICKMAN_HOOK_DURATIONS,
+    defaultMuteCharacter: DEFAULT_STICKMAN_MUTE_CHARACTER,
+    defaultContentHook: DEFAULT_STICKMAN_CONTENT_HOOK,
+    defaultCaptions: DEFAULT_STICKMAN_CAPTIONS,
+    defaultVideoVolume: DEFAULT_STICKMAN_VIDEO_VOLUME,
+    defaultTtsVolume: DEFAULT_STICKMAN_TTS_VOLUME,
+    publishByAspect: {
+      "9:16": publishPlatformsForAspect("9:16"),
+      "16:9": publishPlatformsForAspect("16:9"),
+      "1:1": publishPlatformsForAspect("1:1"),
+    },
     defaultImageModel: DEFAULT_STICKMAN_IMAGE_MODEL,
     defaultVideoModel: DEFAULT_STICKMAN_VIDEO_MODEL,
     defaultTtsModel: DEFAULT_STICKMAN_TTS_MODEL,
@@ -85,65 +164,33 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
   app.get("/api/v1/stickman/jobs", async (request: AuthedRequest, reply) => {
     const user = requireUser(request, reply);
     if (!user) return;
-    return { jobs: listJobs(user.id) };
+    return {
+      jobs: listJobs(user.id).map((job) => ({
+        ...job,
+        previewRel:
+          job.previewRel ?? (stillFiles(job.id)[0] ? `stills/${stillFiles(job.id)[0]}` : undefined),
+        hasFinal: Boolean(finalPath(job.id)),
+      })),
+    };
   });
 
   app.post("/api/v1/stickman/jobs", async (request: AuthedRequest, reply) => {
     const user = requireUser(request, reply);
     if (!user) return;
-    const body = (request.body ?? {}) as Record<string, unknown>;
-    const topic = String(body.topic ?? "").trim();
-    if (topic.length < 4) {
-      return reply.status(400).send({ error: "Escribe un tema (mín. 4 caracteres)" });
-    }
-    const durationSec = Number(body.durationSec ?? 30);
-    if (!STICKMAN_DURATIONS.includes(durationSec as (typeof STICKMAN_DURATIONS)[number])) {
-      return reply
-        .status(400)
-        .send({ error: "Duración: 10s, 20s, 30s, 1 min, 2 min, 5 min o 8 min" });
-    }
-    const aspect = String(body.aspect ?? "9:16");
-    if (!STICKMAN_ASPECTS.includes(aspect as (typeof STICKMAN_ASPECTS)[number])) {
-      return reply.status(400).send({ error: "Aspecto inválido" });
-    }
-    const look = String(body.look ?? "classic");
-    if (!isLookId(look)) return reply.status(400).send({ error: "Look inválido" });
-    const castModeRaw = String(body.castMode ?? "solo");
-    if (!isCastMode(castModeRaw)) return reply.status(400).send({ error: "Elenco inválido" });
-    const arc = String(body.arc ?? recommendArc(topic));
-    if (!isArcId(arc)) return reply.status(400).send({ error: "Arco inválido" });
-
-    const config: StickmanJobConfig = {
-      topic,
-      durationSec,
-      aspect,
-      language: String(body.language ?? "es"),
-      look,
-      castMode: castModeRaw,
-      arc,
-      voiceId: String(body.voiceId ?? "eve"),
-      voiceSpeed: clampStickmanVoiceSpeed(body.voiceSpeed),
-      captions: body.captions !== false,
-      animate: body.animate === true,
-      imageModel: String(body.imageModel ?? DEFAULT_STICKMAN_IMAGE_MODEL),
-      videoModel: String(body.videoModel ?? DEFAULT_STICKMAN_VIDEO_MODEL),
-      atlasTtsModel: String(body.atlasTtsModel ?? DEFAULT_STICKMAN_TTS_MODEL),
-      visualProvider: resolveStudioVisualProvider(
-        typeof body.visualProvider === "string" ? body.visualProvider : undefined,
-      ),
-      gflowImageModel: body.gflowImageModel ? String(body.gflowImageModel) : undefined,
-      gflowVideoModel: body.gflowVideoModel ? String(body.gflowVideoModel) : undefined,
-      gflowVideoMode: body.gflowVideoMode ? String(body.gflowVideoMode) : undefined,
-      llmModel: isStickmanLlmId(String(body.llmModel ?? ""))
-        ? String(body.llmModel)
-        : DEFAULT_STICKMAN_LLM,
-    };
-
+    const parsed = parseStickmanCreateBody((request.body ?? {}) as Record<string, unknown>);
+    if ("error" in parsed) return reply.status(400).send({ error: parsed.error });
+    const { config } = parsed;
     const meta = createJob(user.id, config);
     try {
-      const script = await draftScript(config, resolveAtlasApiKey());
+      const { script, usage } = await draftScript(config, resolveAtlasApiKey());
       writeScript(meta.id, script);
-      setStatus(meta.id, "awaiting_script", "script", "Revisa el guion de palitos");
+      if (usage) {
+        setStatus(meta.id, "awaiting_script", "script", "Revisa el guion de palitos", {
+          cost: { tokens: usage.totalTokens, usd: llmUsd(config.llmModel, usage), credits: 0 },
+        });
+      } else {
+        setStatus(meta.id, "awaiting_script", "script", "Revisa el guion de palitos");
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setStatus(meta.id, "failed", "script", msg, { error: msg });

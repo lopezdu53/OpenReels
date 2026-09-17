@@ -53,6 +53,8 @@ export interface StickmanScript {
   voice: StickmanVoice;
   captions: boolean;
   animate: boolean;
+  muteCharacter?: boolean;
+  contentHook?: boolean;
   image_model: string;
   video_model: string;
   beats: StickmanBeat[];
@@ -70,6 +72,12 @@ export interface StickmanJobConfig {
   voiceSpeed: number;
   captions: boolean;
   animate: boolean;
+  /** Default true: no spoken TTS; Flow SFX still mix in. */
+  muteCharacter?: boolean;
+  /** First 10s trailer of the full video. Only for 5/8/15 min. */
+  contentHook?: boolean;
+  videoVolume?: number;
+  ttsVolume?: number;
   imageModel: string;
   videoModel: string;
   atlasTtsModel: string;
@@ -79,6 +87,20 @@ export interface StickmanJobConfig {
   gflowVideoMode?: string;
   llmModel?: string;
   atlasKey?: string;
+}
+
+export interface StickmanCost {
+  tokens: number;
+  usd: number;
+  credits: number;
+}
+
+export interface StickmanYoutubePack {
+  title: string;
+  description: string;
+  hashtags: string[];
+  seo: string;
+  thumbnailRel?: string;
 }
 
 export interface StickmanJobMeta {
@@ -93,5 +115,8 @@ export interface StickmanJobMeta {
   createdAt: string;
   updatedAt: string;
   completedAt?: string;
+  previewRel?: string;
+  cost?: StickmanCost;
+  youtubePack?: StickmanYoutubePack;
   config: StickmanJobConfig;
 }
