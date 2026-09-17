@@ -38,4 +38,16 @@ describe("stickman draftScriptTemplate", () => {
     expect(doc.bible.cast).toHaveLength(2);
     expect(doc.bible.cast[1]?.name).toBe("Línea");
   });
+
+  it("only enables captions when asked and writes a 10s GANCHO beat on long hook jobs", () => {
+    expect(draftScriptTemplate({ ...base, captions: false }, "cafe-10s").captions).toBe(false);
+    const hooked = draftScriptTemplate(
+      { ...base, durationSec: 300, contentHook: true, captions: true },
+      "cafe-5m",
+    );
+    expect(hooked.beats[0]?.title).toBe("GANCHO");
+    expect(hooked.beats[0]?.durationSec).toBe(10);
+    expect(hooked.contentHook).toBe(true);
+    expect(hooked.captions).toBe(true);
+  });
 });

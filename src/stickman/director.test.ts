@@ -32,4 +32,15 @@ describe("stickman director prompt", () => {
     expect(prompt.toLowerCase()).not.toContain("archetype");
     expect(prompt).toContain("un rumor no es un veredicto");
   });
+
+  it("asks for mute acting and a 10s hook when those flags are on", () => {
+    const prompt = stickmanDirectorPrompt(
+      { ...config, muteCharacter: true, contentHook: true, durationSec: 300 },
+      18,
+      "{}",
+    );
+    expect(prompt).toContain("MUTE CHARACTER");
+    expect(prompt).toContain("CONTENT HOOK");
+    expect(prompt).toContain("GANCHO");
+  });
 });

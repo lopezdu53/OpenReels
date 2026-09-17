@@ -22,6 +22,9 @@ const FALLBACK_VOICES = [
   { id: "leo", label: "Leo", note: "clara" },
   { id: "rex", label: "Rex", note: "segura" },
   { id: "sal", label: "Sal", note: "suave" },
+  { id: "Kore", label: "Kore", note: "firme" },
+  { id: "Aoede", label: "Aoede", note: "ligera" },
+  { id: "Puck", label: "Puck", note: "alegre" },
 ];
 
 const FALLBACK_ARCS = [
@@ -68,6 +71,75 @@ function formatStickmanDuration(sec: number): string {
   return `${sec}s`;
 }
 
+function hookAvailable(sec: number): boolean {
+  return sec === 300 || sec === 480 || sec === 900;
+}
+
+function VolumeSlider({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label className={`flex items-center gap-2 ${disabled ? "opacity-50" : ""}`}>
+      {label}
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={5}
+        disabled={disabled}
+        value={Math.round(value * 100)}
+        onChange={(e) => onChange(Number(e.target.value) / 100)}
+        aria-label={label}
+        className="w-24 accent-primary"
+      />
+      <span className="w-8 tabular-nums">{Math.round(value * 100)}%</span>
+    </label>
+  );
+}
+
+function formatWhen(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("es", { dateStyle: "short", timeStyle: "short" });
+}
+
+function producedLabel(job: StickmanJobMeta): string {
+  const start = Date.parse(job.createdAt);
+  const end = job.completedAt ? Date.parse(job.completedAt) : Number.NaN;
+  const when = formatWhen(job.completedAt ?? job.createdAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return when;
+  const sec = Math.round((end - start) / 1000);
+  if (sec < 60) return `${when} · ${sec}s`;
+  const min = Math.round(sec / 60);
+  return `${when} · ${min} min`;
+}
+
+function jobChips(job: StickmanJobMeta): string[] {
+  const c = job.config ?? {};
+  const chips = [
+    c.durationSec ? formatStickmanDuration(c.durationSec) : "",
+    c.aspect,
+    c.look,
+    c.castMode === "duo" ? "Dos palitos" : "Un palito",
+    c.muteCharacter ? "Mudo + SFX" : "Con voz",
+    c.contentHook ? "Gancho 10s" : "",
+    c.captions ? "Subtítulos" : "Sin subtítulos",
+    c.animate ? "I2V" : "Stills",
+    c.voiceId,
+    c.visualProvider,
+  ];
+  return chips.filter((x): x is string => Boolean(x));
+}
+
 function withArcHints(
   arcs: { id: string; label: string; when: string; hint?: string }[] | undefined,
   fallback: { id: string; label: string; when: string; hint: string }[],
@@ -94,7 +166,11 @@ export function StickmanPage() {
   const [voiceId, setVoiceId] = useState("eve");
   const [voiceSpeed, setVoiceSpeed] = useState(1);
   const [llmModel, setLlmModel] = useState("google/gemini-2.5-flash");
-  const [captions, setCaptions] = useState(true);
+  const [captions, setCaptions] = useState(false);
+  const [muteCharacter, setMuteCharacter] = useState(true);
+  const [contentHook, setContentHook] = useState(false);
+  const [videoVolume, setVideoVolume] = useState(0.5);
+  const [ttsVolume, setTtsVolume] = useState(1);
   const [animate, setAnimate] = useState(true);
   const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("gflow");
   const [gflowImageModel, setGflowImageModel] = useState("nano-pro");
@@ -113,6 +189,10 @@ export function StickmanPage() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!hookAvailable(durationSec) && contentHook) setContentHook(false);
+  }, [durationSec, contentHook]);
+
   async function create() {
     setError("");
     setBusy(true);
@@ -129,6 +209,10 @@ export function StickmanPage() {
         voiceSpeed,
         captions,
         animate,
+        muteCharacter,
+        contentHook: hookAvailable(durationSec) ? contentHook : false,
+        videoVolume,
+        ttsVolume,
         visualProvider,
         gflowImageModel: visualProvider === "gflow" ? gflowImageModel : undefined,
         gflowVideoModel: visualProvider === "gflow" ? gflowVideoModel : undefined,
@@ -220,7 +304,7 @@ export function StickmanPage() {
                 aria-label="Duración"
                 value={String(durationSec)}
                 onValueChange={(value) => setDurationSec(Number(value))}
-                options={(catalog?.durations ?? [10, 20, 30, 60, 120, 300, 480]).map((d) => ({
+                options={(catalog?.durations ?? [10, 20, 30, 60, 120, 300, 480, 900]).map((d) => ({
                   value: String(d),
                   label: formatStickmanDuration(d),
                 }))}
@@ -299,6 +383,32 @@ export function StickmanPage() {
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
+                checked={muteCharacter}
+                onChange={(e) => setMuteCharacter(e.target.checked)}
+              />
+              Personaje mudo (sí efectos)
+            </label>
+            <label
+              className={`flex items-center gap-2 ${hookAvailable(durationSec) ? "" : "opacity-40"}`}
+            >
+              <input
+                type="checkbox"
+                checked={contentHook}
+                disabled={!hookAvailable(durationSec)}
+                onChange={(e) => setContentHook(e.target.checked)}
+              />
+              Gancho 10s (5 / 8 / 15 min)
+            </label>
+            <VolumeSlider label="Volumen video" value={videoVolume} onChange={setVideoVolume} />
+            <VolumeSlider
+              label="Volumen TTS"
+              value={ttsVolume}
+              onChange={setTtsVolume}
+              disabled={muteCharacter}
+            />
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
                 checked={captions}
                 onChange={(e) => setCaptions(e.target.checked)}
               />
@@ -361,24 +471,63 @@ export function StickmanPage() {
         </section>
 
         {jobs.length > 0 && (
-          <section className="space-y-2">
+          <section className="space-y-3">
             <h2 className="text-sm font-medium">Trabajos Stickman</h2>
-            <ul className="divide-y divide-border rounded-2xl border border-border bg-card">
-              {jobs.map((j) => (
-                <li key={j.id}>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {jobs.map((j) => {
+                const preview = j.previewRel
+                  ? `/api/v1/stickman/jobs/${j.id}/artifacts/${j.previewRel}`
+                  : undefined;
+                const usd = j.cost?.usd;
+                const tokens = j.cost?.tokens;
+                return (
                   <button
+                    key={j.id}
                     type="button"
-                    className="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-muted/40"
+                    className="overflow-hidden rounded-2xl border border-border bg-card text-left hover:bg-muted/40"
                     onClick={() => navigate(`/stickman/${j.id}`)}
                   >
-                    <span className="truncate font-medium">{j.topic}</span>
-                    <span className="ml-3 shrink-0 text-[11px] text-muted-foreground">
-                      {j.status}
-                    </span>
+                    <div
+                      className={`bg-black ${
+                        j.config?.aspect === "16:9"
+                          ? "aspect-video"
+                          : j.config?.aspect === "1:1"
+                            ? "aspect-square"
+                            : "aspect-[9/16]"
+                      }`}
+                    >
+                      {preview ? (
+                        <img src={preview} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-[11px] text-muted-foreground">
+                          {j.status}
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2 p-3">
+                      <p className="truncate text-sm font-medium">{j.topic}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {jobChips(j).map((chip) => (
+                          <span
+                            key={chip}
+                            className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground"
+                          >
+                            {chip}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">{producedLabel(j)}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {tokens != null ? `${tokens.toLocaleString("es")} tokens` : "— tokens"}
+                        {" · "}
+                        {usd != null ? `$${usd.toFixed(3)}` : "$—"}
+                        {j.cost?.credits ? ` · ${j.cost.credits} cr Flow` : ""}
+                      </p>
+                    </div>
                   </button>
-                </li>
-              ))}
-            </ul>
+                );
+              })}
+            </div>
           </section>
         )}
       </div>

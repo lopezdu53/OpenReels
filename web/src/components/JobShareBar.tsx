@@ -30,13 +30,21 @@ export function JobShareBar({
   jobId,
   src,
   downloadName,
+  aspect,
 }: {
   jobId: string;
   src: string;
   downloadName: string;
+  aspect?: string;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
+  const platforms = SHARE.filter((row) => {
+    if (!aspect) return true;
+    if (aspect === "16:9") return row.id === "youtube" || row.id === "facebook";
+    if (aspect === "1:1") return row.id === "instagram";
+    return true;
+  });
 
   async function download() {
     setBusy("download");
@@ -85,7 +93,7 @@ export function JobShareBar({
           )}
           Descargar video
         </Button>
-        {SHARE.map(({ id, label, Icon }) => (
+        {platforms.map(({ id, label, Icon }) => (
           <Button
             key={id}
             type="button"
@@ -118,7 +126,7 @@ export function CompletedJobMedia({
   return (
     <div className="space-y-3">
       <JobVideo src={src} aspect={aspect} poster={poster} />
-      <JobShareBar jobId={jobId} src={src} downloadName={`${jobId}.mp4`} />
+      <JobShareBar jobId={jobId} src={src} downloadName={`${jobId}.mp4`} aspect={aspect} />
     </div>
   );
 }

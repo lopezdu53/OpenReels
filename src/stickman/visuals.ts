@@ -87,7 +87,9 @@ export function buildContinuousMotionPrompt(
   const bridge =
     takeIndex > 0
       ? "CONTINUE from the exact pose, camera, and line-art in the source image (last frame of the previous 10s Omni take). The first frame IS that image. Start moving immediately — do not hold a still. Then keep morphing. NO cut, NO new shot, NO reset."
-      : "Start from the source still and begin moving immediately.";
+      : script.contentHook && takeIndex === 0
+        ? "CONTENT HOOK TAKE: this first 10s is a trailer of the FULL video. Rapid in-shot teases of later poses, then morph into the real opening. Do not deliver the punchline yet."
+        : "Start from the source still and begin moving immediately.";
   return [
     `ONE CONTINUOUS ${clipSeconds}s 2D stickman take (${takeIndex + 1}/${takeCount}). NO CUTS. NO jump cuts. NO edited scene wipes.`,
     bridge,

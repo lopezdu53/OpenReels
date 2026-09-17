@@ -5,6 +5,7 @@ import {
   DEFAULT_STICKMAN_VIDEO_MODEL,
   recommendArc,
 } from "./catalog.js";
+import { llmUsageFromAtlas, type StickmanLlmUsage } from "./cost.js";
 import { stickmanDirectorPrompt } from "./director.js";
 import type {
   StickmanBeat,
@@ -46,6 +47,11 @@ function defaultCast(mode: StickmanJobConfig["castMode"]): StickmanCastMember[] 
   ];
 }
 
+function hookNarration(topic: string, language: string): string {
+  if (language.startsWith("en")) return `In the next minutes: ${topic}. Stay.`;
+  return `En los próximos minutos: ${topic}. Quédate.`;
+}
+
 function beatTitle(i: number, n: number, arc: string): string {
   if (i === 0) return "HOOK";
   if (i === n - 1) return "PAYOFF";
@@ -80,23 +86,36 @@ function beatNarration(i: number, n: number, topic: string, language: string): s
   return `Siguiente palito de ${topic}.`;
 }
 
-export function draftScriptTemplate(config: StickmanJobConfig, project: string): StickmanScript {
+function templateBeats(config: StickmanJobConfig): StickmanBeat[] {
   const n = beatCountForDuration(config.durationSec);
-  const dur = Math.max(2, Math.round(config.durationSec / n));
-  const arc = config.arc || recommendArc(config.topic);
+  const hook = config.contentHook === true;
+  const remaining = hook ? Math.max(2, config.durationSec - 10) : config.durationSec;
+  const storyBeats = hook ? Math.max(1, n - 1) : n;
+  const dur = Math.max(2, Math.round(remaining / storyBeats));
   const look = config.look || "classic";
   const beats: StickmanBeat[] = [];
   for (let i = 0; i < n; i++) {
+    const isHook = hook && i === 0;
+    const storyIndex = hook ? Math.max(0, i - 1) : i;
     beats.push({
       id: i + 1,
-      title: beatTitle(i, n, arc),
-      pose: beatPose(i, n, config.castMode),
-      scene: `empty ${look} ground line, one simple geometric prop about ${config.topic}`,
-      narration: beatNarration(i, n, config.topic, config.language),
-      durationSec: dur,
+      title: isHook ? "GANCHO" : beatTitle(storyIndex, storyBeats, config.arc),
+      pose: beatPose(storyIndex, storyBeats, config.castMode),
+      scene: isHook
+        ? `rapid tease of the full ${look} story about ${config.topic}, then morph into the opening`
+        : `empty ${look} ground line, one simple geometric prop about ${config.topic}`,
+      narration: isHook
+        ? hookNarration(config.topic, config.language)
+        : beatNarration(storyIndex, storyBeats, config.topic, config.language),
+      durationSec: isHook ? 10 : dur,
     });
   }
+  return beats;
+}
 
+export function draftScriptTemplate(config: StickmanJobConfig, project: string): StickmanScript {
+  const arc = config.arc || recommendArc(config.topic);
+  const look = config.look || "classic";
   return {
     project,
     topic: config.topic,
@@ -117,11 +136,13 @@ export function draftScriptTemplate(config: StickmanJobConfig, project: string):
       language: config.language,
       speed: config.voiceSpeed || 1,
     },
-    captions: config.captions !== false,
+    captions: config.captions === true,
     animate: config.animate === true,
+    muteCharacter: config.muteCharacter === true,
+    contentHook: config.contentHook === true,
     image_model: config.imageModel || DEFAULT_STICKMAN_IMAGE_MODEL,
     video_model: config.videoModel || DEFAULT_STICKMAN_VIDEO_MODEL,
-    beats,
+    beats: templateBeats({ ...config, arc, look }),
   };
 }
 
@@ -138,7 +159,7 @@ export async function draftScriptWithAtlas(
   apiKey: string,
   config: StickmanJobConfig,
   project: string,
-): Promise<StickmanScript> {
+): Promise<{ script: StickmanScript; usage?: StickmanLlmUsage }> {
   const n = beatCountForDuration(config.durationSec);
   const fallback = draftScriptTemplate(config, project);
   const prompt = stickmanDirectorPrompt(config, n, JSON.stringify(fallback).slice(0, 2500));
@@ -167,37 +188,46 @@ export async function draftScriptWithAtlas(
   if (!res.ok) {
     throw new Error(`Atlas LLM ${res.status}: ${(await res.text()).slice(0, 240)}`);
   }
-  const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+    usage?: unknown;
+  };
   const content = data.choices?.[0]?.message?.content ?? "";
   const parsed = extractJson(content) as StickmanScript;
   if (!Array.isArray(parsed.beats) || parsed.beats.length < 2) {
     throw new Error("Atlas stickman script missing beats");
   }
   return {
-    ...fallback,
-    ...parsed,
-    project,
-    style: "stickman",
-    provider: "atlas_cloud",
-    bible: {
-      ...fallback.bible,
-      ...parsed.bible,
-      cast: parsed.bible?.cast?.length ? parsed.bible.cast : fallback.bible.cast,
+    usage: llmUsageFromAtlas(data.usage),
+    script: {
+      ...fallback,
+      ...parsed,
+      project,
+      style: "stickman",
+      provider: "atlas_cloud",
+      muteCharacter: config.muteCharacter === true,
+      contentHook: config.contentHook === true,
+      captions: config.captions === true,
+      bible: {
+        ...fallback.bible,
+        ...parsed.bible,
+        cast: parsed.bible?.cast?.length ? parsed.bible.cast : fallback.bible.cast,
+      },
+      voice: { ...fallback.voice, ...parsed.voice },
+      beats: parsed.beats.map((beat, i) => ({
+        ...fallback.beats[i],
+        ...beat,
+        id: i + 1,
+        durationSec: Math.max(2, Number(beat.durationSec) || fallback.beats[i]?.durationSec || 3),
+      })),
     },
-    voice: { ...fallback.voice, ...parsed.voice },
-    beats: parsed.beats.map((beat, i) => ({
-      ...fallback.beats[i],
-      ...beat,
-      id: i + 1,
-      durationSec: Math.max(2, Number(beat.durationSec) || fallback.beats[i]?.durationSec || 3),
-    })),
   };
 }
 
 export async function draftScript(
   config: StickmanJobConfig,
   apiKey?: string,
-): Promise<StickmanScript> {
+): Promise<{ script: StickmanScript; usage?: StickmanLlmUsage }> {
   const project = `${slug(config.topic)}-${config.durationSec}s`;
   if (apiKey) {
     try {
@@ -206,5 +236,5 @@ export async function draftScript(
       console.warn(`[stickman] Atlas script draft failed, using template: ${err}`);
     }
   }
-  return draftScriptTemplate(config, project);
+  return { script: draftScriptTemplate(config, project) };
 }

@@ -118,4 +118,17 @@ describe("stickman visuals", () => {
     expect(prompt).toContain("2/2");
     expect(prompt).toContain("[0.0–");
   });
+
+  it("marks the first take as a content hook trailer", () => {
+    const script = draftScriptTemplate(
+      { ...config, durationSec: 300, animate: true, contentHook: true },
+      "wifi-5m",
+    );
+    const prompt = buildContinuousMotionPrompt(script, 10, {
+      startSec: 0,
+      takeIndex: 0,
+      takeCount: 30,
+    });
+    expect(prompt).toContain("CONTENT HOOK");
+  });
 });

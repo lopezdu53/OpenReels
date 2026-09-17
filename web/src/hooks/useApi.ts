@@ -1128,9 +1128,15 @@ export const api = {
       looks: { id: string; label: string; mood: string }[];
       arcs: { id: string; label: string; when: string; hint?: string }[];
       casts: { id: string; label: string }[];
-      voices: { id: string; label: string; gender: string; note: string }[];
+      voices: { id: string; label: string; gender: string; note: string; model?: string }[];
       aspects: string[];
       durations: number[];
+      hookDurations?: number[];
+      defaultMuteCharacter?: boolean;
+      defaultContentHook?: boolean;
+      defaultCaptions?: boolean;
+      defaultVideoVolume?: number;
+      defaultTtsVolume?: number;
       visualProviders?: { key: string; label: string }[];
       gflowImageModels?: { id: string; label: string; note?: string; credits?: number }[];
       gflowVideoModels?: {
@@ -1223,13 +1229,40 @@ export interface StickmanJobMeta {
   detail: string;
   error?: string;
   createdAt: string;
+  completedAt?: string;
+  previewRel?: string;
   hasFinal?: boolean;
+  cost?: { tokens: number; usd: number; credits: number };
+  youtubePack?: {
+    title: string;
+    description: string;
+    hashtags: string[];
+    seo: string;
+    thumbnailRel?: string;
+  };
+  config?: {
+    durationSec?: number;
+    aspect?: string;
+    language?: string;
+    look?: string;
+    castMode?: string;
+    arc?: string;
+    voiceId?: string;
+    voiceSpeed?: number;
+    captions?: boolean;
+    animate?: boolean;
+    muteCharacter?: boolean;
+    contentHook?: boolean;
+    videoVolume?: number;
+    ttsVolume?: number;
+    visualProvider?: string;
+    llmModel?: string;
+  };
 }
 
 export interface StickmanJobDetail extends StickmanJobMeta {
   script?: unknown;
   stills?: string[];
-  config?: Record<string, unknown>;
   queue?: {
     waiting: number;
     active: number;

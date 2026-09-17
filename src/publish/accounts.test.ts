@@ -72,6 +72,18 @@ describe("social publish + streak", () => {
 
   it("builds captions from topic and finds the mp4", () => {
     expect(captionFromMeta({ topic: "Roma en 60s" }).title).toContain("Roma");
+    const packed = captionFromMeta({
+      topic: "Roma",
+      youtubePack: {
+        title: "Roma en 8 minutos",
+        description: "El foro no era un mall.",
+        hashtags: ["historia", "#viral"],
+        seo: "roma, foro, imperio",
+      },
+    });
+    expect(packed.title).toBe("Roma en 8 minutos");
+    expect(packed.description).toContain("#historia");
+    expect(packed.description).toContain("imperio");
     const jobDir = mkdtempSync(path.join(tmpdir(), "or-job-"));
     writeFileSync(path.join(jobDir, "final.mp4"), "x");
     expect(resolveVideoFile(jobDir)).toContain("final.mp4");

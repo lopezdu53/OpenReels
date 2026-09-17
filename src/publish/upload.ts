@@ -6,6 +6,7 @@ export interface UploadInput {
   title: string;
   description: string;
   account: SocialAccount;
+  thumbnailPath?: string;
 }
 
 export interface UploadResult {
@@ -73,6 +74,25 @@ async function publishYoutube(input: UploadInput): Promise<UploadResult> {
   });
   const json = (await put.json()) as { id?: string; error?: { message?: string } };
   if (!put.ok || !json.id) throw new Error(json.error?.message ?? "Fallo al subir a YouTube");
+  if (input.thumbnailPath && fs.existsSync(input.thumbnailPath)) {
+    try {
+      const thumb = fs.readFileSync(input.thumbnailPath);
+      await fetch(
+        `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(json.id)}&uploadType=media`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "image/png",
+            "Content-Length": String(thumb.byteLength),
+          },
+          body: thumb,
+        },
+      );
+    } catch {
+      /* thumbnail is optional */
+    }
+  }
   return { url: `https://youtu.be/${json.id}` };
 }
 

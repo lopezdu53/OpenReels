@@ -3,6 +3,7 @@ import { Queue, Worker } from "bullmq";
 import type IORedis from "ioredis";
 import { resolveAtlasApiKey } from "../providers/atlas/client.js";
 import { DEFAULT_STICKMAN_TTS_MODEL } from "./catalog.js";
+import { estimateStickmanCost, type StickmanLlmUsage } from "./cost.js";
 import { runAssemble, runMotion, runTts, runVisuals } from "./runner.js";
 import {
   hydrateJobFromSnapshot,
@@ -11,7 +12,10 @@ import {
   readScript,
   setStatus,
   stickmanJobsDir,
+  stillFiles,
+  writeMeta,
 } from "./store.js";
+import { runYoutubePack } from "./youtube-pack.js";
 
 export const STICKMAN_QUEUE_NAME = "stickman-studio";
 export const STICKMAN_WORKER_HEARTBEAT_KEY = "stickman:worker:heartbeat";
@@ -54,6 +58,34 @@ function logTo(id: string) {
   };
 }
 
+function markPreview(id: string): void {
+  const still = stillFiles(id)[0];
+  if (!still) return;
+  const cur = readMeta(id);
+  if (cur && !cur.previewRel) {
+    cur.previewRel = `stills/${still}`;
+    writeMeta(cur);
+  }
+}
+
+function finishProduce(id: string, extraUsage: StickmanLlmUsage | undefined): void {
+  const latest = readMeta(id);
+  if (!latest) return;
+  const produce = estimateStickmanCost({
+    config: latest.config,
+    script: readScript(id),
+    extraLlmUsage: extraUsage,
+  });
+  setStatus(id, "completed", "done", "Listo", {
+    completedAt: new Date().toISOString(),
+    cost: {
+      tokens: (latest.cost?.tokens ?? 0) + (extraUsage?.totalTokens ?? 0),
+      usd: Math.round(((latest.cost?.usd ?? 0) + produce.usd) * 10_000) / 10_000,
+      credits: produce.credits,
+    },
+  });
+}
+
 function apiKeyOf(id: string): string {
   const meta = readMeta(id);
   const key = resolveAtlasApiKey(meta?.config.atlasKey);
@@ -81,15 +113,25 @@ async function handleProduce(id: string, redis: IORedis): Promise<void> {
     return;
   }
   const key = apiKeyOf(id);
-  setStatus(id, "producing", "tts", "Generando voz");
-  await runTts(id, key, meta.config.atlasTtsModel || DEFAULT_STICKMAN_TTS_MODEL, log);
+  if (meta.config.muteCharacter) {
+    log("personaje mudo: sin TTS, sí efectos de Flow");
+  } else {
+    setStatus(id, "producing", "tts", "Generando voz");
+    await runTts(id, key, meta.config.atlasTtsModel || DEFAULT_STICKMAN_TTS_MODEL, log);
+  }
   setStatus(id, "producing", "visuals", "Dibujando palitos");
   await runVisuals(id, meta.config, key, log);
+  markPreview(id);
   setStatus(id, "producing", "motion", script.animate ? "Animando flipbook" : "Hold + zoom");
   await runMotion(id, meta.config, key, log);
   setStatus(id, "producing", "assemble", "Ensamblando final.mp4");
   await runAssemble(id, log);
-  setStatus(id, "completed", "done", "Listo", { completedAt: new Date().toISOString() });
+  let extraUsage: StickmanLlmUsage | undefined;
+  if (meta.config.aspect === "16:9") {
+    setStatus(id, "producing", "youtube", "Portada y SEO YouTube");
+    extraUsage = await runYoutubePack(id, key, log);
+  }
+  finishProduce(id, extraUsage);
 }
 
 export function startStickmanWorker(connection: IORedis): Worker {
