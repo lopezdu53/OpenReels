@@ -59,6 +59,8 @@ interface JobData {
   characterReferenceImage?: string; // base64 character model sheet
   atelierMode?: boolean;
   artStyleOverride?: string;
+  lookId?: string;
+  narrativeArc?: string;
   characterLock?: string;
   castMode?: string;
   locationLock?: string;
@@ -130,6 +132,8 @@ interface JobMeta {
     locationReference?: boolean;
     atelierMode?: boolean;
     artStyleOverride?: string;
+    lookId?: string;
+    narrativeArc?: string;
     castMode?: string;
   };
   costEstimate?: unknown;
@@ -161,7 +165,7 @@ function writeMeta(jobDir: string, meta: JobMeta) {
 const worker = new Worker<JobData>(
   "openreels",
   async (job: Job<JobData>) => {
-    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, characterReferenceImage, locationReferenceImage, atelierMode, artStyleOverride, characterLock, castMode, locationLock, objectLock, providers, keys, userId } =
+    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, characterReferenceImage, locationReferenceImage, atelierMode, artStyleOverride, lookId, narrativeArc, characterLock, castMode, locationLock, objectLock, providers, keys, userId } =
       job.data;
     const jobDir = path.join(JOBS_DIR, job.id!);
     fs.mkdirSync(jobDir, { recursive: true });
@@ -191,6 +195,8 @@ const worker = new Worker<JobData>(
         locationReference: locationReferenceImage ? true : undefined,
         atelierMode: atelierMode !== false,
         artStyleOverride: artStyleOverride ?? undefined,
+        lookId: lookId ?? undefined,
+        narrativeArc: narrativeArc ?? undefined,
         castMode: castMode === "hero" ? "hero" : "scene",
       },
     };
@@ -418,6 +424,8 @@ const worker = new Worker<JobData>(
         locationReferenceImage: locationReferenceImage ? Buffer.from(locationReferenceImage, "base64") : undefined,
         atelierMode: atelierMode !== false,
         artStyleOverride: artStyleOverride ?? undefined,
+        lookId: lookId ?? undefined,
+        narrativeArc: narrativeArc ?? undefined,
         characterLock: characterLock ?? undefined,
         castMode: castMode ?? undefined,
         locationLock: locationLock ?? undefined,

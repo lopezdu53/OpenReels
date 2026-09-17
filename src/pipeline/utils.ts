@@ -85,6 +85,10 @@ export interface PipelineOptions {
   artStyleOverride?: string;
   /** Locked character appearance injected into every AI visual prompt. */
   characterLock?: string;
+  /** Nuevo Film look catalog id (clay, anime, 3d-toon…). Ignored on Shorts. */
+  lookId?: string;
+  /** Nuevo Film narrative arc id (joke_punchline, origin…). Ignored on Shorts. */
+  narrativeArc?: string;
   /** scene = only who the VO names; hero = follow-cam: first CAST member is the optical axis of one continuous take. */
   castMode?: string;
   /** Locked location roster; each scene uses exactly one named place. */

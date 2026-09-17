@@ -15,6 +15,7 @@ import {
   normalizeFilmMinutes,
 } from "../config/film-duration.js";
 import { countLockedCharacters, countLockedLocations } from "../library/identity.js";
+import { filmDirectorKitSection } from "../film/director-kit.js";
 import { videoSceneModeGuidance } from "../pipeline/video-scene-mode.js";
 import { DirectorScore, DirectorScoreBase, Motion, MusicMood, TransitionType, VisualType } from "../schema/director-score.js";
 import type { LLMProvider, LLMUsage } from "../schema/providers.js";
@@ -155,12 +156,12 @@ function characterSection(lock?: string, castMode?: string): string {
   if (lock?.trim()) {
     const named = lock.match(/\bName:\s*/gi)?.length ?? 0;
   if (hero) {
-    return `\n## CHARACTER IDENTITY LOCK — FOLLOW-CAM HERO\n${lock.trim()}\nThe FIRST named CAST member is the optical axis of ONE continuous take split into clips. Every visual_prompt is the NEXT BEAT of the same shot — not a new portrait, not a location plate.\nCamera TRACKS the body (camera_move: track, pan, or push_in). The world and props attach to or scroll around the hero.\nEach visual_prompt has THREE beats (start / mid / end): action, a NEW named object/logo/country from THIS script_line (do not repeat the previous beat's prop), match-cut end pose (facing, hands, stride) that the next scene inherits.\nVIRAL DENSITY: the hero PHYSICALLY handles that new object (holds, stamps, unfolds, crushes, hurls) or the world EXPLODES/MORPHS around the body. Ban idle walks, standing, and looking-at-camera as the only action. Scene 0 is a visual WTF in two seconds.\nKeep the SAME body style and wardrobe (if they are a 2D stickman they stay 2D; never morph to 3D).\nOther CAST members join ONLY when that script_line names them; they enter the same take and never replace the hero.\nPrefer ai_video. Still images are a last resort.\n`;
+    return `\n## CHARACTER IDENTITY LOCK — FOLLOW-CAM HERO\n${lock.trim()}\nThe FIRST named CAST member is the optical axis of ONE continuous take split into clips. Every visual_prompt is the NEXT BEAT of the same shot — not a new portrait, not a location plate.\nCamera TRACKS the body (camera_move: track, pan, or push_in). The world and props attach to or scroll around the hero.\nEach visual_prompt has THREE beats (start / mid / end): action, a NEW named object/logo/country from THIS script_line (do not repeat the previous beat's prop), match-cut end pose (facing, hands, stride) that the next scene inherits.\nVIRAL DENSITY: the hero PHYSICALLY handles that new object (holds, stamps, unfolds, crushes, hurls) or the world EXPLODES/MORPHS around the body. Ban idle walks, standing, and looking-at-camera as the only action. Scene 0 is a visual WTF in two seconds.\nKeep the SAME face, body, wardrobe and locked LOOK. Morph the ENVIRONMENT and PROPS, never the hero's identity. Photoreal stays photoreal; clay stays clay; never become a stick figure.\nOther CAST members join ONLY when that script_line names them; they enter the same take and never replace the hero.\nPrefer ai_video. Still images are a last resort.\n`;
   }
     if (named >= 2) {
       return `\n## CHARACTER IDENTITY LOCK\n${lock.trim()}\nNamed CAST of ${named}. Each named individual keeps their own species, race, markings, age, and face. Do not merge, swap, or replace anyone.\nON SCREEN RULE: a visual_prompt may show ONLY the character(s) named in THAT scene's script_line. If the line is about one person, the others must be absent — not even in the background. Show two or more together only when the line names them together. Do NOT paste the full CAST bible into every visual_prompt; copy only the on-screen person's appearance.\n`;
     }
-    return `\n## CHARACTER IDENTITY LOCK\n${lock.trim()}\nThe SAME individual in every visual_prompt. Never change species, race, markings, age, face, wardrobe, or body style (2D stickman stays 2D; never become a 3D sphere-head). Do not swap an ocelot for a Bengal tiger, a coatí for a fox/raccoon, or a cub for an adult. Contrast via camera, props named in the line, and emotion only.\n`;
+    return `\n## CHARACTER IDENTITY LOCK\n${lock.trim()}\nThe SAME individual in every visual_prompt. Never change species, race, markings, age, face, wardrobe, or locked LOOK (photoreal stays photoreal; never become a stick figure). Do not swap an ocelot for a Bengal tiger, a coatí for a fox/raccoon, or a cub for an adult. Contrast via camera, props named in the line, and emotion only.\n`;
   }
   if (hero) {
     return `\n## FOLLOW-CAM HERO\nA single protagonist is the optical axis of ONE continuous take. Camera tracks the body; the world scrolls or transforms around them. Never atmosphere-only or a jump-cut portrait. Three beats per clip; close with a match-cut pose the next inherits. Prefer ai_video.\nVIRAL: each clip a new spectacle (object the hero handles, scale gag, environment morph). No idle walking loops.\n`;
@@ -199,7 +200,7 @@ export async function generateDirectorScore(
   llm: LLMProvider,
   topic: string,
   researchContext: ResearchResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; objectLock?: string; artStyleOverride?: string; videoSceneMode?: string; castMode?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; objectLock?: string; artStyleOverride?: string; videoSceneMode?: string; castMode?: string; lookId?: string; narrativeArc?: string },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes, options?.platform);
 
@@ -241,7 +242,7 @@ ${archetypeInstruction}
 
 ${pacingInstruction}
 Use ${visualTypes}.${videoGuidance}
-${directionSection}${characterSection(options?.characterLock, options?.castMode)}${locationSection(options?.locationLock)}${objectSection(options?.objectLock)}${options?.artStyleOverride?.trim() ? `\n## ART STYLE LOCK\n${options.artStyleOverride.trim()}\nEvery visual_prompt stays in this look. Do not switch photoreal ↔ cartoon/watercolor.\n` : ""}${options?.castMode === "hero" && hasVideo
+${directionSection}${characterSection(options?.characterLock, options?.castMode)}${locationSection(options?.locationLock)}${objectSection(options?.objectLock)}${filmDirectorKitSection({ lookId: options?.lookId, narrativeArc: options?.narrativeArc, castMode: options?.castMode })}${options?.artStyleOverride?.trim() ? `\n## ART STYLE LOCK\n${options.artStyleOverride.trim()}\nEvery visual_prompt stays in this look. Do not switch photoreal ↔ cartoon/watercolor.\n` : ""}${options?.castMode === "hero" && hasVideo
   ? "FOLLOW-CAM OVERRIDE: every AI scene is ai_video (motion static). Ignore the usual 'do not repeat visual_type' rule — repetition here is the continuous take."
   : "CRITICAL RULE: Never use the same visual_type more than 2 times in a row. With more scenes, plan your visual_type sequence BEFORE writing scenes to ensure variety."}
 Every scene MUST have a script_line (the voiceover text).
@@ -485,7 +486,7 @@ export async function reviseDirectorScore(
   researchContext: ResearchResult,
   originalScore: DirectorScore,
   critique: CritiqueResult,
-  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; objectLock?: string; artStyleOverride?: string; videoSceneMode?: string; castMode?: string },
+  options?: { archetype?: string; pacing?: string; videoEnabled?: boolean; allowedVisualTypes?: string[]; direction?: string; targetDurationMinutes?: number; platform?: string; characterLock?: string; locationLock?: string; objectLock?: string; artStyleOverride?: string; videoSceneMode?: string; castMode?: string; lookId?: string; narrativeArc?: string },
 ): Promise<DirectorScoreOutput> {
   const systemPrompt = loadDirectorSystemPrompt(options?.targetDurationMinutes, options?.platform);
 
@@ -514,7 +515,7 @@ Mood: ${researchContext.mood}
 
 ${pacingInstruction}
 Use ${visualTypes}.${videoGuidance}
-${directionSection}${characterSection(options?.characterLock, options?.castMode)}${locationSection(options?.locationLock)}${objectSection(options?.objectLock)}
+${directionSection}${characterSection(options?.characterLock, options?.castMode)}${locationSection(options?.locationLock)}${objectSection(options?.objectLock)}${filmDirectorKitSection({ lookId: options?.lookId, narrativeArc: options?.narrativeArc, castMode: options?.castMode })}
 ## Current Plan (score: ${critique.score}/10)
 
 ${JSON.stringify(originalScore, null, 2)}

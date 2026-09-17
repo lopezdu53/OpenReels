@@ -35,7 +35,7 @@ const DEFAULT_VIDEO_NEGATIVES =
   "blur, low resolution, flickering, compression artifacts, frame drops, jitter, stutter, warping, morphing, unnatural physics, deformed hands, extra fingers, morphing faces, sliding motion";
 
 const HERO_IDENTITY_NEGATIVES =
-  "different person, new face, face swap, wardrobe change, new clothes, new glasses, new hairstyle, new room, new location, identity morph, clothing morph";
+  "different person, new face, face swap, wardrobe change, new clothes, new glasses, new hairstyle, new room, new location, identity morph, clothing morph, stick figure, stickman, paper collage, on-screen typography, text overlay";
 
 /** Flow Veo I2V is an 8s clip. Use the full generation; Remotion holds the last frame if VO is shorter. */
 export const HERO_I2V_MAX_SECONDS = 8;
@@ -58,15 +58,15 @@ export function buildHeroMotionPrompt(opts: {
   continuation: boolean;
 }): string {
   const hold = opts.continuation
-    ? "SOURCE IMAGE LOCK: this still IS the last frame of the previous clip. Keep the same face, glasses, hair, body, clothes, jewelry, and room. Do not redesign anything. Continue the motion immediately — do not freeze or hold the first frames."
-    : "SOURCE IMAGE LOCK: animate this exact still. Keep the same face, glasses, hair, body, clothes, jewelry, and room. Do not invent a new wardrobe or location.";
+    ? "SOURCE IMAGE LOCK: this still IS the last frame of the previous clip. Keep the same face, glasses, hair, body, clothes, jewelry, and locked LOOK. Morph the environment and a named prop around the body, never the face. Do not redesign anything. Continue the motion immediately — do not freeze or hold the first frames."
+    : "SOURCE IMAGE LOCK: animate this exact still. Keep the same face, glasses, hair, body, clothes, jewelry, and locked LOOK. Morph the environment or a named prop; never the face or wardrobe. Do not invent a new wardrobe or location.";
   const cam =
     opts.cameraMove && opts.cameraMove !== "static"
       ? ` Camera: ${opts.cameraMove} following the body.`
       : "";
   const action = opts.visualPrompt ? actionFromVisualPrompt(opts.visualPrompt) : "";
   const actionBit = action ? ` ACTION: ${action}.` : "";
-  return `${hold}${actionBit} VO beat: ${opts.scriptLine.trim()}.${cam} Spectacle this clip: a named object or the world morphs around the body. One take. End on a stable pose the next clip can inherit.`;
+  return `${hold}${actionBit} VO beat: ${opts.scriptLine.trim()}.${cam} Spectacle this clip: a named object or the world morphs around the body. One take. Never a stick figure. End on a stable pose the next clip can inherit.`;
 }
 
 /**

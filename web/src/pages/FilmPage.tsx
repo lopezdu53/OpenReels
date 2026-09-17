@@ -29,6 +29,7 @@ import { PipelineOverview } from "@/components/new-short/PipelineOverview";
 import { PipelineStep } from "@/components/new-short/PipelineStep";
 import { SceneMixPreview } from "@/components/new-short/SceneMixPreview";
 import { CastModePicker, type FilmCastMode } from "@/components/film/CastModePicker";
+import { DirectorKitPicker } from "@/components/film/DirectorKitPicker";
 import { CharacterStudio } from "@/components/film/CharacterStudio";
 import { LocationStudio } from "@/components/film/LocationStudio";
 import { ObjectStudio } from "@/components/film/ObjectStudio";
@@ -291,6 +292,10 @@ export function FilmPage() {
   const [stockAvailable, setStockAvailable] = useState(true);
   const [artStyleOverride, setArtStyleOverride] = useState("");
   const [styleId, setStyleId] = useState("");
+  const [lookId, setLookId] = useState("3d-toon");
+  const [narrativeArc, setNarrativeArc] = useState("joke_punchline");
+  const [filmLooks, setFilmLooks] = useState<{ id: string; label: string; mood: string }[]>([]);
+  const [filmArcs, setFilmArcs] = useState<{ id: string; label: string; when: string; hint: string }[]>([]);
   const [castMode, setCastMode] = useState<FilmCastMode>("scene");
   const [characterIds, setCharacterIds] = useState<string[]>([]);
   const [locationIds, setLocationIds] = useState<string[]>([]);
@@ -326,6 +331,12 @@ export function FilmPage() {
     api.listVisualStyles().then((r) => {
       setBuiltinStyles(r.builtins ?? []);
       setUserStyles(r.styles ?? []);
+    }).catch(() => {});
+    api.listFilmCatalog().then((c) => {
+      setFilmLooks(c.looks ?? []);
+      setFilmArcs(c.arcs ?? []);
+      if (c.defaultLook) setLookId((prev) => prev || c.defaultLook);
+      if (c.defaultArc) setNarrativeArc((prev) => prev || c.defaultArc);
     }).catch(() => {});
     api.listJobs(50, 0).then(({ jobs: listed }) => {
       const films = listed.filter(isFilmJob);
@@ -538,6 +549,8 @@ export function FilmPage() {
           .map((o) => ({ name: o.name, prompt: o.prompt })),
         castMode,
         previousStory: sequelJob ? sequelBriefFromJob(sequelJob) : undefined,
+        lookId,
+        narrativeArc,
       });
       setScripts((prev) => {
         const empty = prev.find((s) => !s.body.trim());
@@ -640,6 +653,8 @@ export function FilmPage() {
           noVideo: !videoProvider,
           allowedVisualTypes: visualTypes,
           atelierMode: true,
+          lookId,
+          narrativeArc,
           ...(artStyleOverride ? { artStyleOverride } : {}),
           ...(characterLock ? { characterLock } : {}),
           ...(castMode === "hero" ? { castMode: "hero" as const } : {}),
@@ -1005,7 +1020,7 @@ export function FilmPage() {
           ) : null}
         </PipelineStep>
 
-        <PipelineStep id="film-elenco" step={4} icon={Users} title="Elenco y referencias" subtitle="Personajes, locaciones, objetos y estilo">
+        <PipelineStep id="film-elenco" step={4} icon={Users} title="Elenco y referencias" subtitle="Cámara, look, arco, personajes, locaciones, objetos y estilo">
         <CastModePicker
           value={castMode}
           onChange={(mode) => {
@@ -1013,6 +1028,15 @@ export function FilmPage() {
             if (mode === "hero") setVideoSceneMode("force_all");
             else if (videoSceneMode === "force_all") setVideoSceneMode("every2");
           }}
+        />
+
+        <DirectorKitPicker
+          looks={filmLooks}
+          arcs={filmArcs}
+          lookId={lookId}
+          arcId={narrativeArc}
+          onLook={setLookId}
+          onArc={setNarrativeArc}
         />
 
         <CharacterStudio
@@ -1154,6 +1178,9 @@ export function FilmPage() {
             }
           }}
         />
+        <p className="text-xs text-muted-foreground">
+          Opcional. Un estilo Atelier o ficha propia reemplaza el look del director solo en las imágenes; el arco y la densidad cinética se mantienen. El look por defecto (3D toon, clay, anime…) no es Stickman.
+        </p>
         </PipelineStep>
 
         <PipelineStep id="film-visuales" step={5} icon={ImageIcon} title="Visuales" subtitle="Stills, I2V, lips aparte y mezcla de escenas">

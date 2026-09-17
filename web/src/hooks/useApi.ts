@@ -34,6 +34,9 @@ export interface JobConfig {
   characterReference?: boolean;
   atelierMode?: boolean;
   artStyleOverride?: string;
+  lookId?: string;
+  narrativeArc?: string;
+  castMode?: string;
 }
 
 export interface JobSummary {
@@ -577,6 +580,8 @@ export interface CreateJobRequest {
   characterReferenceImage?: string; // base64 character model sheet
   atelierMode?: boolean;
   artStyleOverride?: string;
+  lookId?: string;
+  narrativeArc?: string;
   characterLock?: string;
   castMode?: "scene" | "hero";
   locationLock?: string;
@@ -666,11 +671,22 @@ export const api = {
     objects?: Array<{ name: string; prompt?: string }>;
     castMode?: "scene" | "hero";
     previousStory?: string;
+    lookId?: string;
+    narrativeArc?: string;
   }) {
     return fetchJson<{
       script: { title: string; hook: string; script: string };
       youtubeUrls: string[];
     }>("/film/script", { method: "POST", body: JSON.stringify(data) });
+  },
+
+  listFilmCatalog() {
+    return fetchJson<{
+      looks: { id: string; label: string; mood: string; archetype: string; prompt: string }[];
+      arcs: { id: string; label: string; when: string; hint: string }[];
+      defaultLook: string;
+      defaultArc: string;
+    }>("/film/catalog");
   },
 
   listCharacters() {
