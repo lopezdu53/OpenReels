@@ -592,6 +592,9 @@ function ConfigBadges({ config }: { config: JobConfig }) {
   if (config.styleReference) items.push({ label: "Estilo", value: "Imagen propia", color: "lime" });
   if (config.atelierMode) items.push({ label: "Modo", value: "Atelier", color: "lime" });
   if (config.artStyleOverride) items.push({ label: "Art", value: config.artStyleOverride.split(",")[0]?.trim() ?? "Atelier", color: "emerald" });
+  if (config.lookId) items.push({ label: "Look", value: config.lookId, color: "emerald" });
+  if (config.narrativeArc) items.push({ label: "Arco", value: config.narrativeArc.replace(/_/g, " ") });
+  if (config.castMode === "hero") items.push({ label: "Cámara", value: "Héroe", color: "orange" });
 
   if (items.length === 0) return null;
 

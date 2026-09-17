@@ -34,6 +34,7 @@ import { resolveMusic, type MusicResolution } from "./music-resolver.js";
 import { applyVideoSceneMode, resolveVideoSceneMode } from "./video-scene-mode.js";
 import { extractLastFrame } from "./last-frame.js";
 import { isFilmOneMinute, isFilmQuickTest, normalizeFilmMinutes } from "../config/film-duration.js";
+import { filmLookArchetype, filmLookPrompt } from "../film/director-kit.js";
 import { resolveAllowedVisualTypes } from "./visual-types.js";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
@@ -627,7 +628,10 @@ function buildPipelineWorkflow(
         videoAllowed: videoEnabled && allowedVisualTypes.includes("ai_video"),
       });
       const directorOpts = {
-        archetype: opts.archetype ?? (opts.artStyleOverride ? "cinematic_documentary" : undefined),
+        archetype:
+          opts.archetype ??
+          filmLookArchetype(opts.lookId) ??
+          (opts.artStyleOverride ? "cinematic_documentary" : undefined),
         pacing: opts.pacing,
         videoEnabled,
         allowedVisualTypes,
@@ -637,9 +641,11 @@ function buildPipelineWorkflow(
         characterLock: opts.characterLock,
         locationLock: opts.locationLock,
         objectLock: opts.objectLock,
-        artStyleOverride: opts.artStyleOverride,
+        artStyleOverride: opts.artStyleOverride?.trim() || filmLookPrompt(opts.lookId) || undefined,
         videoSceneMode: resolvedVideoMode,
         castMode: opts.castMode,
+        lookId: opts.lookId,
+        narrativeArc: opts.narrativeArc,
       };
 
       // ── Replay mode: use provided score, skip generation + revision ──

@@ -204,6 +204,19 @@ describe("reviseDirectorScore", () => {
     expect(llm.lastUserMessage).toContain("Weakest scene: Scene 3");
   });
 
+  it("injects the Film kinetic kit on revise when look and arc are set", async () => {
+    const llm = mockRevisionLLM();
+    await reviseDirectorScore(llm, "test topic", baseResearch, baseScore, baseCritique, {
+      lookId: "clay",
+      narrativeArc: "origin",
+      castMode: "hero",
+    });
+    expect(llm.lastUserMessage).toContain("KINETIC DIRECTOR KIT");
+    expect(llm.lastUserMessage).toContain("claymation");
+    expect(llm.lastUserMessage).toContain("FOLLOW-CAM");
+    expect(llm.lastUserMessage).not.toMatch(/stick-figure short of palitos/i);
+  });
+
   it("falls back to weaknesses when revision_instructions is null", async () => {
     const llm = mockRevisionLLM();
     const critique: CritiqueResult = {

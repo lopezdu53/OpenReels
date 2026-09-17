@@ -9,6 +9,7 @@ import { OpenRouterLLM } from "../providers/llm/openrouter.js";
 import { ViviLLM } from "../providers/llm/vivi.js";
 import type { LLMProvider } from "../schema/providers.js";
 import { filmDurationLabel, filmWordsTarget, isFilmQuickTest, normalizeFilmMinutes } from "../config/film-duration.js";
+import { filmScriptKitBrief } from "./director-kit.js";
 import { MAX_FILM_CHARACTERS, MAX_FILM_LOCATIONS, MAX_FILM_OBJECTS, normalizeCastMode, type CastMode } from "../library/identity.js";
 
 export const filmScriptSchema = z.object({
@@ -180,6 +181,8 @@ export async function generateFilmScript(opts: {
   objects?: Array<{ name: string; prompt?: string }>;
   castMode?: string;
   previousStory?: string;
+  lookId?: string;
+  narrativeArc?: string;
 }): Promise<FilmScript> {
   const minutes = normalizeFilmMinutes(opts.durationMinutes) ?? 8;
   const words = filmWordsTarget(minutes);
@@ -203,6 +206,7 @@ export async function generateFilmScript(opts: {
       places,
       props,
       sequel,
+      filmScriptKitBrief(opts.lookId, opts.narrativeArc),
       refs.length ? `Referencias de formato (no copies identidad):\n${refs.map((u) => `- ${u}`).join("\n")}` : "",
       "title = título propio de YouTube, ≤ 70 caracteres." + (sequel ? " Distinto al episodio anterior." : ""),
       "hook = primera frase hablada, ≤ 160 caracteres.",

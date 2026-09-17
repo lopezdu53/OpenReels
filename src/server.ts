@@ -14,6 +14,7 @@ import { type AuthedRequest, registerAuth, requireUser } from "./auth/plugin.js"
 import { getArchetype, listArchetypes } from "./config/archetype-registry.js";
 import { ATELIER_STYLES } from "./config/atelier-styles.js";
 import { PLATFORMS } from "./config/platforms.js";
+import { filmLookPrompt, isFilmArcId, isFilmLookId } from "./film/director-kit.js";
 import { registerFilmRoutes } from "./film/routes.js";
 import { registerFlowRoutes } from "./flow/routes.js";
 import { registerGflowBridgeRoutes } from "./gflow/relay-routes.js";
@@ -583,6 +584,8 @@ interface CreateJobBody {
   characterReferenceImage?: string; // base64 character model sheet
   atelierMode?: boolean;
   artStyleOverride?: string;
+  lookId?: string;
+  narrativeArc?: string;
   characterLock?: string;
   castMode?: string;
   locationLock?: string;
@@ -649,6 +652,8 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     characterReferenceImage,
     atelierMode,
     artStyleOverride,
+    lookId,
+    narrativeArc,
     characterLock,
     castMode,
     locationLock,
@@ -732,6 +737,13 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     return reply.status(400).send({ error: "castMode must be scene or hero" });
   }
 
+  if (lookId != null && (typeof lookId !== "string" || !isFilmLookId(lookId))) {
+    return reply.status(400).send({ error: "Unknown lookId" });
+  }
+  if (narrativeArc != null && (typeof narrativeArc !== "string" || !isFilmArcId(narrativeArc))) {
+    return reply.status(400).send({ error: "Unknown narrativeArc" });
+  }
+
   if (locationLock != null) {
     if (typeof locationLock !== "string") {
       return reply.status(400).send({ error: "locationLock must be a string" });
@@ -797,7 +809,13 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     ...(styleReferenceImage ? { styleReferenceImage } : {}),
     ...(characterReferenceImage ? { characterReferenceImage } : {}),
     atelierMode: atelierMode !== false,
-    ...(artStyleOverride?.trim() ? { artStyleOverride: artStyleOverride.trim() } : {}),
+    ...(artStyleOverride?.trim()
+      ? { artStyleOverride: artStyleOverride.trim() }
+      : lookId && isFilmLookId(lookId) && filmLookPrompt(lookId)
+        ? { artStyleOverride: filmLookPrompt(lookId) }
+        : {}),
+    ...(lookId && isFilmLookId(lookId) ? { lookId } : {}),
+    ...(narrativeArc && isFilmArcId(narrativeArc) ? { narrativeArc } : {}),
     ...(characterLock?.trim() ? { characterLock: characterLock.trim() } : {}),
     castMode: castMode === "hero" ? "hero" : "scene",
     ...(locationLock?.trim() ? { locationLock: locationLock.trim() } : {}),
@@ -875,7 +893,11 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       styleReference: styleReferenceImage ? true : undefined,
       characterReference: characterReferenceImage ? true : undefined,
       atelierMode: atelierMode !== false,
-      artStyleOverride: artStyleOverride?.trim() || undefined,
+      artStyleOverride:
+        artStyleOverride?.trim() ||
+        (lookId && isFilmLookId(lookId) ? filmLookPrompt(lookId) || undefined : undefined),
+      lookId: lookId && isFilmLookId(lookId) ? lookId : undefined,
+      narrativeArc: narrativeArc && isFilmArcId(narrativeArc) ? narrativeArc : undefined,
       castMode: castMode === "hero" ? "hero" : "scene",
     },
   };
