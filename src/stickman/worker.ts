@@ -3,7 +3,7 @@ import { Queue, Worker } from "bullmq";
 import type IORedis from "ioredis";
 import { resolveAtlasApiKey } from "../providers/atlas/client.js";
 import { DEFAULT_STICKMAN_TTS_MODEL } from "./catalog.js";
-import { estimateStickmanCost, type StickmanLlmUsage } from "./cost.js";
+import { estimateStickmanCost, type StickmanLlmUsage, ttsUsd } from "./cost.js";
 import { runAssemble, runMotion, runTts, runVisuals } from "./runner.js";
 import {
   hydrateJobFromSnapshot,
@@ -24,7 +24,7 @@ export const STICKMAN_WORKER_HEARTBEAT_KEY = "stickman:worker:heartbeat";
 export const STICKMAN_LOCK_DURATION_MS = 60 * 60 * 1000;
 export const STICKMAN_LOCK_RENEW_MS = 15_000;
 
-export type StickmanWork = { id: string; action: "produce" };
+export type StickmanWork = { id: string; action: "produce" | "remix-audio" };
 
 export async function getStickmanQueueStats(connection: IORedis): Promise<{
   waiting: number;
@@ -68,6 +68,22 @@ function markPreview(id: string): void {
   }
 }
 
+function finishRemixAudio(id: string): void {
+  const latest = readMeta(id);
+  if (!latest) return;
+  const script = readScript(id);
+  const narration = (script?.beats ?? []).map((beat) => beat.narration).join(" ").length;
+  const usd = Math.round(ttsUsd(latest.config.atlasTtsModel, narration) * 10_000) / 10_000;
+  setStatus(id, "completed", "done", "Listo · voz Atlas mezclada", {
+    completedAt: new Date().toISOString(),
+    cost: {
+      tokens: latest.cost?.tokens ?? 0,
+      usd: Math.round(((latest.cost?.usd ?? 0) + usd) * 10_000) / 10_000,
+      credits: latest.cost?.credits ?? 0,
+    },
+  });
+}
+
 function finishProduce(id: string, extraUsage: StickmanLlmUsage | undefined): void {
   const latest = readMeta(id);
   if (!latest) return;
@@ -93,6 +109,28 @@ function apiKeyOf(id: string): string {
   return key;
 }
 
+async function handleRemixAudio(id: string, redis: IORedis): Promise<void> {
+  await hydrateJobFromSnapshot(redis, id);
+  const meta = readMeta(id);
+  const script = readScript(id);
+  if (!meta || !script) {
+    throw new Error(
+      `Stickman job ${id} no está en el disco compartido (${stickmanJobsDir()}). Quita el volumen extra montado en /app/jobs/stickman y deja solo jobs_data → /app/jobs.`,
+    );
+  }
+  const log = logTo(id);
+  const key = apiKeyOf(id);
+  meta.config.muteCharacter = false;
+  writeMeta(meta);
+  setStatus(id, "producing", "tts", "Generando voz Atlas");
+  await runTts(id, key, meta.config.atlasTtsModel || DEFAULT_STICKMAN_TTS_MODEL, log, {
+    force: true,
+  });
+  setStatus(id, "producing", "assemble", "Mezclando voz Atlas en final.mp4");
+  await runAssemble(id, log);
+  finishRemixAudio(id);
+}
+
 async function handleProduce(id: string, redis: IORedis): Promise<void> {
   await hydrateJobFromSnapshot(redis, id);
   const meta = readMeta(id);
@@ -113,10 +151,10 @@ async function handleProduce(id: string, redis: IORedis): Promise<void> {
     return;
   }
   const key = apiKeyOf(id);
-  if (meta.config.muteCharacter) {
-    log("personaje mudo: sin TTS, sí efectos de Flow");
+  if (meta.config.muteCharacter === true) {
+    log("personaje mudo: sin TTS Atlas, sí efectos de Flow");
   } else {
-    setStatus(id, "producing", "tts", "Generando voz");
+    setStatus(id, "producing", "tts", "Generando voz Atlas");
     await runTts(id, key, meta.config.atlasTtsModel || DEFAULT_STICKMAN_TTS_MODEL, log);
   }
   setStatus(id, "producing", "visuals", "Dibujando palitos");
@@ -147,10 +185,11 @@ export function startStickmanWorker(connection: IORedis): Worker {
   const worker = new Worker(
     STICKMAN_QUEUE_NAME,
     async (job: Job<StickmanWork>) => {
-      const { id } = job.data;
-      console.log(`[stickman] produce ${id} dir=${stickmanJobsDir()}`);
+      const { id, action } = job.data;
+      console.log(`[stickman] ${action ?? "produce"} ${id} dir=${stickmanJobsDir()}`);
       try {
-        await handleProduce(id, connection);
+        if (action === "remix-audio") await handleRemixAudio(id, connection);
+        else await handleProduce(id, connection);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[stickman] produce ${id} failed: ${msg}`);

@@ -262,4 +262,51 @@ describe("stickman assemble captions", () => {
     expect(isMp4Faststart(dest)).toBe(true);
     fs.rmSync(root, { recursive: true, force: true });
   });
+
+  it("mixes MiniMax-style mp3 voiceover onto the Flow bed", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "stickman-mp3vo-"));
+    const clip = path.join(root, "clip.mp4");
+    const voice = path.join(root, "voiceover.wav");
+    const mp3 = path.join(root, "voice.mp3");
+    const dest = path.join(root, "mixed.mp4");
+    execFileSync("ffmpeg", [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=green:s=320x180:d=1",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=220:duration=1",
+      "-shortest",
+      "-pix_fmt",
+      "yuv420p",
+      "-c:v",
+      "libx264",
+      "-c:a",
+      "aac",
+      clip,
+    ]);
+    execFileSync("ffmpeg", [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=880:duration=0.8",
+      "-codec:a",
+      "libmp3lame",
+      mp3,
+    ]);
+    fs.copyFileSync(mp3, voice);
+    mixStickmanAudio(clip, voice, dest, 0.3, 1);
+    const codecs = execFileSync(
+      "ffprobe",
+      ["-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", dest],
+      { encoding: "utf8" },
+    );
+    expect(codecs).toContain("audio");
+    expect(isMp4Faststart(dest)).toBe(true);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
 });

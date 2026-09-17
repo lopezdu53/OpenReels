@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { draftScriptTemplate } from "./draft.js";
+import { draftScriptTemplate, lockStickmanVoice } from "./draft.js";
 import type { StickmanJobConfig } from "./types.js";
 
 const base: StickmanJobConfig = {
@@ -49,5 +49,16 @@ describe("stickman draftScriptTemplate", () => {
     expect(hooked.beats[0]?.durationSec).toBe(10);
     expect(hooked.contentHook).toBe(true);
     expect(hooked.captions).toBe(true);
+  });
+
+  it("keeps the Atlas voice the user picked even if the director changes voice_id", () => {
+    const locked = lockStickmanVoice(
+      { voice_id: "eve", language: "es", speed: 1 },
+      { voice_id: "Palo", language: "en", speed: 1.4 },
+      { ...base, voiceId: "Kore", language: "es", voiceSpeed: 1.1 },
+    );
+    expect(locked.voice_id).toBe("Kore");
+    expect(locked.language).toBe("es");
+    expect(locked.speed).toBe(1.1);
   });
 });

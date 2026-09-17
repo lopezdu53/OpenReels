@@ -335,11 +335,14 @@ export function StickmanPage() {
               />
             </div>
             <div className="flex items-center gap-2">
-              Voz
+              Voz Atlas
               <DarkSelect
                 aria-label="Voz"
                 value={voiceId}
-                onValueChange={setVoiceId}
+                onValueChange={(value) => {
+                  setVoiceId(value);
+                  setMuteCharacter(false);
+                }}
                 options={(catalog?.voices ?? FALLBACK_VOICES).map((v) => ({
                   value: v.id,
                   label: `${v.label} · ${v.note}`,
@@ -386,8 +389,17 @@ export function StickmanPage() {
                 checked={muteCharacter}
                 onChange={(e) => setMuteCharacter(e.target.checked)}
               />
-              Personaje mudo (sí efectos)
+              Sin voz narrativa (solo SFX de Flow)
             </label>
+            {muteCharacter ? (
+              <p className="text-[11px] text-amber-400">
+                El video no llevará narración Atlas. Elige una voz para activarla.
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                TTS Atlas Cloud (xAI, Gemini Flash o MiniMax según la voz).
+              </p>
+            )}
             <label
               className={`flex items-center gap-2 ${hookAvailable(durationSec) ? "" : "opacity-40"}`}
             >

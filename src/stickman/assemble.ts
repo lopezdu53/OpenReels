@@ -352,7 +352,7 @@ export function mixStickmanAudio(
       "-i",
       voiceover,
       "-filter_complex",
-      `[0:a]volume=${bedVolume},aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[bed];[1:a]${voGain}[vo];[bed][vo]amix=inputs=2:duration=first:dropout_transition=2[a]`,
+      `[0:a]volume=${bedVolume},aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[bed];[1:a]${voGain}[vo];[bed][vo]amix=inputs=2:duration=first:dropout_transition=2:normalize=0[a]`,
       "-map",
       "0:v:0",
       "-map",

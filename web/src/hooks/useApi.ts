@@ -1175,7 +1175,10 @@ export const api = {
     });
   },
 
-  produceStickmanJob(id: string, data?: { voiceSpeed?: number }) {
+  produceStickmanJob(
+    id: string,
+    data?: { voiceSpeed?: number; muteCharacter?: boolean; voiceId?: string; audioOnly?: boolean },
+  ) {
     return fetchJson<{ ok: boolean; status: string }>(`/stickman/jobs/${id}/produce`, {
       method: "POST",
       body: data ? JSON.stringify(data) : undefined,

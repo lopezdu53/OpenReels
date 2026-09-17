@@ -7,6 +7,7 @@ import {
   DEFAULT_STICKMAN_TTS_VOLUME,
   DEFAULT_STICKMAN_VIDEO_VOLUME,
   planMotionTakes,
+  resolveStickmanTtsModel,
 } from "./catalog.js";
 import { fileBigEnough, jobDir, readMeta, readScript, writeScript } from "./store.js";
 import type { StickmanJobConfig, StickmanScript } from "./types.js";
@@ -17,6 +18,7 @@ export async function runTts(
   apiKey: string,
   ttsModel: string,
   log: (line: string) => void,
+  opts?: { force?: boolean },
 ): Promise<string> {
   const script = readScript(id);
   if (!script) throw new Error("Falta script.json");
@@ -26,15 +28,20 @@ export async function runTts(
     .join(" ");
   if (!text.trim()) throw new Error("El guion no tiene narración");
   const dest = path.join(jobDir(id), "voiceover.wav");
-  if (fileBigEnough(dest, 1000)) {
+  if (!opts?.force && fileBigEnough(dest, 1000)) {
     log(`TTS ya existe → ${path.basename(dest)}`);
     return dest;
   }
-  const speed = readMeta(id)?.config.voiceSpeed ?? script.voice.speed ?? 1;
-  log(`TTS ${text.length} caracteres · velocidad ${speed}`);
-  const tts = new AtlasTTS(script.voice.voice_id, apiKey, speed, ttsModel);
+  const meta = readMeta(id);
+  const voiceId = meta?.config.voiceId || script.voice.voice_id;
+  const model = resolveStickmanTtsModel(voiceId, ttsModel);
+  const speed = meta?.config.voiceSpeed ?? script.voice.speed ?? 1;
+  const language = meta?.config.language || script.language || script.voice.language || "es";
+  log(`TTS Atlas ${model} · voz ${voiceId} · ${text.length} caracteres · velocidad ${speed}`);
+  const tts = new AtlasTTS(voiceId, apiKey, speed, model, language);
   const { audio } = await tts.generate(text);
   fs.writeFileSync(dest, audio);
+  if (!fileBigEnough(dest, 1000)) throw new Error("Atlas TTS escribió un voiceover vacío");
   return dest;
 }
 
