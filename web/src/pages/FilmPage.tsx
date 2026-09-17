@@ -324,6 +324,43 @@ function testCutLabel(minutes: number): string {
   return sec < 60 ? `${sec}s` : formatFilmDuration(sec);
 }
 
+function filmCastDirection(opts: {
+  characterLock: string;
+  castMode: FilmCastMode;
+  names: string[];
+}): string {
+  const { characterLock, castMode, names } = opts;
+  if (!characterLock) {
+    if (castMode === "hero") {
+      return "\n## FOLLOW-CAM héroe\nUn protagonista es el eje óptico de un plano continuo. La cámara lo sigue; el mundo se pega a su cuerpo. Nunca atmósfera sola ni un retrato nuevo.";
+    }
+    return "";
+  }
+  if (castMode === "hero") {
+    if (names.length > 1) {
+      return `\n## Personajes (FOLLOW-CAM héroe, ${names.length})\nHÉROE (eje óptico, siempre en cuadro): ${names[0]}\n${characterLock}\nUn plano continuo: la cámara sigue al héroe; el mundo se pega o se desplaza a su cuerpo. Hereda pose y viaje de cámara. Los demás solo cuando la locución los nombra. El último frame de cada toma I2V es la imagen del siguiente clip (sin freeze).`;
+    }
+    return `\n## Personaje (FOLLOW-CAM héroe — plano continuo I2V)\n${characterLock}\nLa cámara lo sigue en TODOS los planos. El último frame de cada toma I2V es la imagen del siguiente clip (sin freeze). Tres beats por clip; cierra con una pose que el siguiente herede. Misma cara, misma ropa, mismos lentes. Nunca un retrato nuevo ni un plano de solo locación.`;
+  }
+  if (names.length > 1) {
+    return `\n## Personajes (identidad bloqueada, ${names.length})\n${characterLock}\nSolo en cuadro quien nombra esa frase. Si la locución es de uno, los demás no aparecen ni de fondo. Juntos solo cuando la frase nombra a más de uno.`;
+  }
+  return `\n## Personaje (identidad bloqueada)\n${characterLock}`;
+}
+
+function filmTestCutDirection(minutes: number, names: string[]): string {
+  if (isFilmQuickCut(minutes)) {
+    if (names.length > 1) {
+      return `\n## Prueba ${testCutLabel(minutes)}\nElenco bloqueado (${names.join(", ")}): cada uno conserva especie, marcas y cara. En cada plano solo quien nombra la locución. Cero text_card. Todas las escenas ai_video.`;
+    }
+    return `\n## Prueba ${testCutLabel(minutes)}\nMismo individuo en TODOS los planos: mismo rostro, misma ropa, mismos lentes, misma habitación. Cero text_card. Todas las escenas ai_video.`;
+  }
+  if (minutes >= 0.75 && minutes < 1.5) {
+    return "\n## Corte 1 min\nUn episodio corto. Cero text_card. Gancho, avance, cliffhanger.";
+  }
+  return "";
+}
+
 export function FilmPage() {
   const [idea, setIdea] = useState("");
   const [youtubeDraft, setYoutubeDraft] = useState("");
@@ -735,17 +772,11 @@ export function FilmPage() {
         const direction = [
           "## Guion (locución — honrar estas líneas; no reescribir el texto hablado)",
           slot.body.trim(),
-          characterLock
-            ? castMode === "hero"
-              ? cast.length > 1
-                ? `\n## Personajes (FOLLOW-CAM héroe, ${cast.length})\nHÉROE (eje óptico, siempre en cuadro): ${cast[0]!.name}\n${characterLock}\nUn plano continuo: la cámara sigue al héroe; el mundo se pega o se desplaza a su cuerpo. Hereda pose y viaje de cámara. Los demás solo cuando la locución los nombra.`
-                ? `\n## Personaje (FOLLOW-CAM héroe — plano continuo I2V)\n${characterLock}\nLa cámara lo sigue en TODOS los planos. El último frame de cada toma I2V es la imagen del siguiente clip (sin freeze). Tres beats por clip; cierra con una pose que el siguiente herede. Misma cara, misma ropa, mismos lentes. Nunca un retrato nuevo ni un plano de solo locación.`
-              : cast.length > 1
-                ? `\n## Personajes (identidad bloqueada, ${cast.length})\n${characterLock}\nSolo en cuadro quien nombra esa frase. Si la locución es de uno, los demás no aparecen ni de fondo. Juntos solo cuando la frase nombra a más de uno.`
-                : `\n## Personaje (identidad bloqueada)\n${characterLock}`
-            : castMode === "hero"
-              ? "\n## FOLLOW-CAM héroe\nUn protagonista es el eje óptico de un plano continuo. La cámara lo sigue; el mundo se pega a su cuerpo. Nunca atmósfera sola ni un retrato nuevo."
-              : "",
+          filmCastDirection({
+            characterLock,
+            castMode,
+            names: cast.map((c) => c.name),
+          }),
           locationLock
             ? places.length > 1
               ? `\n## Locaciones (una por plano, ${places.length})\n${locationLock}\nCada escena ocurre en UNA sola locación. Nunca combines dos lugares en el mismo plano.`
@@ -761,13 +792,10 @@ export function FilmPage() {
             : "",
           "\n## Formato\nVideo horizontal 16:9 para YouTube (1920x1080). No es un Short vertical. Cero text_card: toda la información va en locución e imagen, nunca en tarjetas de título. Subtítulos desactivados.",
           sequelJob ? `\n## Continuación\n${sequelBriefFromJob(sequelJob)}` : "",
-          durationMinutes > 0 && isFilmQuickCut(durationMinutes)
-            ? cast.length > 1
-              ? `\n## Prueba ${testCutLabel(durationMinutes)}\nElenco bloqueado (${cast.map((c) => c.name).join(", ")}): cada uno conserva especie, marcas y cara. En cada plano solo quien nombra la locución. Cero text_card. Todas las escenas ai_video.`
-              : `\n## Prueba ${testCutLabel(durationMinutes)}\nMismo individuo en TODOS los planos: mismo rostro, misma ropa, mismos lentes, misma habitación. Cero text_card. Todas las escenas ai_video.`
-            : durationMinutes >= 0.75 && durationMinutes < 1.5
-              ? "\n## Corte 1 min\nUn episodio corto. Cero text_card. Gancho, avance, cliffhanger."
-              : "",
+          filmTestCutDirection(
+            durationMinutes,
+            cast.map((c) => c.name),
+          ),
         ].join("\n");
         if (new TextEncoder().encode(direction).length > 65536) {
           throw new Error(`El guion de “${title}” supera 64KB. Acórtalo.`);
