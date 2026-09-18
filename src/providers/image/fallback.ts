@@ -13,12 +13,18 @@ export class FallbackImageProvider implements ImageProvider {
     private secondaryName: string = "secondary",
   ) {}
 
-  async generate(prompt: string, style?: string, referenceImage?: Buffer, aspectRatio?: string): Promise<Buffer> {
+  async generate(
+    prompt: string,
+    style?: string,
+    referenceImage?: Buffer,
+    aspectRatio?: string,
+    referenceImageUrl?: string,
+  ): Promise<Buffer> {
     try {
-      return await this.primary.generate(prompt, style, referenceImage, aspectRatio);
+      return await this.primary.generate(prompt, style, referenceImage, aspectRatio, referenceImageUrl);
     } catch (err) {
       console.warn(`[image/fallback] ${this.primaryName} failed (${err}), switching to ${this.secondaryName}`);
-      return await this.secondary.generate(prompt, style, referenceImage, aspectRatio);
+      return await this.secondary.generate(prompt, style, referenceImage, aspectRatio, referenceImageUrl);
     }
   }
 }

@@ -46,9 +46,10 @@ describe("KokoroTTS", () => {
     const config = JSON.parse(call[1] as string);
     expect(config.voice).toBe("bf_emma");
     expect(config.text).toBe("Hello world");
+    expect(config.speed).toBe(1);
   });
 
-  it("uses default voice af_heart", async () => {
+  it("uses default voice ef_dora", async () => {
     mockExecFile.mockImplementation(
       (_cmd: string, _args: string[], _opts: object, cb: Function) => cb(null, "", ""),
     );
@@ -59,7 +60,7 @@ describe("KokoroTTS", () => {
     const { writeFile } = await import("node:fs/promises");
     const call = vi.mocked(writeFile).mock.calls[0]!;
     const config = JSON.parse(call[1] as string);
-    expect(config.voice).toBe("af_heart");
+    expect(config.voice).toBe("ef_dora");
   });
 
   it("wraps subprocess errors with descriptive message", async () => {

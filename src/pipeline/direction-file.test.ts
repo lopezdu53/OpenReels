@@ -73,8 +73,10 @@ describe("direction injection into creative director", () => {
     // Type check: direction is a valid option key
     const opts: Parameters<typeof generateDirectorScore>[3] = {
       direction: "Use noir style",
+      castMode: "hero",
     };
     expect(opts.direction).toBe("Use noir style");
+    expect(opts.castMode).toBe("hero");
   });
 
   it("appends direction section to reviseDirectorScore prompt", async () => {
