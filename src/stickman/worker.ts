@@ -157,7 +157,12 @@ async function handleProduce(id: string, redis: IORedis): Promise<void> {
     setStatus(id, "producing", "tts", "Generando voz Atlas");
     await runTts(id, key, meta.config.atlasTtsModel || DEFAULT_STICKMAN_TTS_MODEL, log);
   }
-  setStatus(id, "producing", "visuals", "Dibujando palitos");
+  setStatus(
+    id,
+    "producing",
+    "visuals",
+    meta.kind === "historia" ? "Generando stills del Casting" : "Dibujando palitos",
+  );
   await runVisuals(id, meta.config, key, log);
   markPreview(id);
   setStatus(id, "producing", "motion", script.animate ? "Animando flipbook" : "Hold + zoom");

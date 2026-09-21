@@ -166,7 +166,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     const user = requireUser(request, reply);
     if (!user) return;
     return {
-      jobs: listJobs(user.id).map((job) => ({
+      jobs: listJobs(user.id, 30, "stickman").map((job) => ({
         ...job,
         previewRel:
           job.previewRel ?? (stillFiles(job.id)[0] ? `stills/${stillFiles(job.id)[0]}` : undefined),
@@ -234,7 +234,11 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
       const body = (request.body ?? {}) as { script?: StickmanScript };
       if (!body.script?.beats?.length)
         return reply.status(400).send({ error: "script.json inválido" });
-      writeScript(meta.id, { ...body.script, style: "stickman", provider: "atlas_cloud" });
+      writeScript(meta.id, {
+        ...body.script,
+        style: meta.kind === "historia" ? "historia" : "stickman",
+        provider: "atlas_cloud",
+      });
       await saveJobSnapshot(redis, meta.id);
       return { ok: true };
     },
@@ -304,7 +308,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
         meta.id,
         "producing",
         audioOnly ? "tts" : "produce",
-        audioOnly ? "En cola: voz Atlas" : "En cola: palitos",
+        audioOnly ? "En cola: voz Atlas" : meta.kind === "historia" ? "En cola: historia" : "En cola: palitos",
       );
       await saveJobSnapshot(redis, meta.id);
       await queue.add(

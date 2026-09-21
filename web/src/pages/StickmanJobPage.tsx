@@ -1,6 +1,6 @@
-import { ArrowLeft, Check, Loader2, PersonStanding } from "lucide-react";
+import { ArrowLeft, Check, Clapperboard, Loader2, PersonStanding } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { CompletedJobMedia } from "@/components/JobShareBar";
 import { mediaAspect } from "@/components/JobVideo";
 import { Button } from "@/components/ui/button";
@@ -9,12 +9,17 @@ import { api, type StickmanJobDetail } from "@/hooks/useApi";
 const STAGES = [
   { id: "script", label: "Guion" },
   { id: "tts", label: "Voz" },
-  { id: "visuals", label: "Palitos" },
+  { id: "visuals", label: "Stills" },
   { id: "motion", label: "Motion" },
   { id: "assemble", label: "Ensamble" },
   { id: "youtube", label: "Portada" },
   { id: "done", label: "Listo" },
 ];
+
+function stageLabel(id: string, historia: boolean): string {
+  if (id === "visuals") return historia ? "Casting" : "Palitos";
+  return STAGES.find((s) => s.id === id)?.label ?? id;
+}
 
 const FALLBACK_VOICES = [
   { id: "eve", label: "Eve", note: "enérgica" },
@@ -102,6 +107,7 @@ function VoiceSpeedField({ value, onChange }: { value: number; onChange: (n: num
 export function StickmanJobPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [job, setJob] = useState<StickmanJobDetail | null>(null);
   const [scriptText, setScriptText] = useState("");
   const [error, setError] = useState("");
@@ -204,6 +210,7 @@ export function StickmanJobPage() {
     );
   }
 
+  const historia = pathname.startsWith("/historia") || job.kind === "historia";
   const queued = job.status === "producing" && /en cola/i.test(job.detail);
   const workerDown = job.queue ? !job.queue.workerLive : false;
   const stageIndex = STAGES.findIndex((s) => s.id === job.stage);
@@ -214,16 +221,20 @@ export function StickmanJobPage() {
         <button
           type="button"
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => navigate("/stickman")}
+          onClick={() => navigate(historia ? "/historia" : "/stickman")}
         >
-          <ArrowLeft className="size-3.5" /> Nuevo Stickman
+          <ArrowLeft className="size-3.5" /> {historia ? "Nueva Historia" : "Nuevo Stickman"}
         </button>
         <div>
           <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-primary">
-            Stickman · {job.status}
+            {historia ? "Historia" : "Stickman"} · {job.status}
           </p>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-            <PersonStanding className="size-6 text-primary" />
+            {historia ? (
+              <Clapperboard className="size-6 text-primary" />
+            ) : (
+              <PersonStanding className="size-6 text-primary" />
+            )}
             {job.topic}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">{job.detail}</p>
@@ -241,7 +252,7 @@ export function StickmanJobPage() {
                     : "rounded-full border border-border px-2.5 py-1 text-muted-foreground"
               }
             >
-              {stage.label}
+              {stageLabel(stage.id, historia)}
             </li>
           ))}
         </ol>
@@ -250,7 +261,9 @@ export function StickmanJobPage() {
 
         {job.status === "awaiting_script" && (
           <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
-            <h2 className="text-sm font-medium">Aprueba el guion de palitos</h2>
+            <h2 className="text-sm font-medium">
+              {historia ? "Aprueba el guion de la historia" : "Aprueba el guion de palitos"}
+            </h2>
             <textarea
               className="min-h-[320px] w-full rounded-xl border border-input bg-transparent p-3 font-mono text-xs"
               value={scriptText}
@@ -274,7 +287,7 @@ export function StickmanJobPage() {
               </Button>
               <Button onClick={() => void produce()} disabled={busy}>
                 {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-                Producir palitos
+                {historia ? "Producir historia" : "Producir palitos"}
               </Button>
             </div>
           </section>

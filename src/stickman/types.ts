@@ -1,4 +1,41 @@
 export type StickmanCastMode = "solo" | "duo";
+export type StickmanProductKind = "stickman" | "historia";
+
+export interface HistoriaCastSnapshot {
+  id: string;
+  name: string;
+  kind?: string;
+  species?: string;
+  age?: string;
+  sex?: string;
+  appearance?: string;
+  personality?: string;
+  wardrobe?: string;
+  mustKeep?: string;
+  mustAvoid?: string;
+  notes?: string;
+  aliases?: string;
+}
+
+export interface HistoriaObjectSnapshot {
+  id: string;
+  name: string;
+  prompt: string;
+  notes?: string;
+  aliases?: string;
+}
+
+export interface HistoriaLocationSnapshot {
+  id: string;
+  name: string;
+  place: string;
+  timeOfDay?: string;
+  weather?: string;
+  mustKeep?: string;
+  mustAvoid?: string;
+  notes?: string;
+  aliases?: string;
+}
 
 export type StickmanStatus =
   | "drafting"
@@ -26,6 +63,9 @@ export interface StickmanBible {
   look: string;
   cast: StickmanCastMember[];
   world: string;
+  characterLock?: string;
+  objectLock?: string;
+  locationLock?: string;
 }
 
 export interface StickmanBeat {
@@ -44,7 +84,7 @@ export interface StickmanScript {
   topic: string;
   language: string;
   aspect: string;
-  style: "stickman";
+  style: "stickman" | "historia";
   provider: "atlas_cloud";
   look: string;
   castMode: StickmanCastMode;
@@ -61,12 +101,19 @@ export interface StickmanScript {
 }
 
 export interface StickmanJobConfig {
+  kind?: StickmanProductKind;
   topic: string;
   durationSec: number;
   aspect: string;
   language: string;
   look: string;
   castMode: StickmanCastMode;
+  characterIds?: string[];
+  objectIds?: string[];
+  locationIds?: string[];
+  castRoster?: HistoriaCastSnapshot[];
+  objectRoster?: HistoriaObjectSnapshot[];
+  locationRoster?: HistoriaLocationSnapshot[];
   arc: string;
   voiceId: string;
   voiceSpeed: number;
@@ -105,7 +152,7 @@ export interface StickmanYoutubePack {
 
 export interface StickmanJobMeta {
   id: string;
-  kind: "stickman";
+  kind: StickmanProductKind;
   userId: string;
   topic: string;
   status: StickmanStatus;

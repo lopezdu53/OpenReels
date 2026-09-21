@@ -41,6 +41,31 @@ describe("stickman visuals", () => {
     expect(prompt).toContain("chalk");
   });
 
+  it("builds historia stills from the casting lock, not stickman style", () => {
+    const script = draftScriptTemplate(
+      {
+        ...config,
+        kind: "historia",
+        look: "casting",
+        castRoster: [
+          {
+            id: "c1",
+            name: "Rayitas",
+            kind: "animal",
+            species: "tigrillo",
+            appearance: "ocelos pálidos",
+          },
+        ],
+      },
+      "rayitas-10s",
+    );
+    const prompt = buildStillPrompt(script, script.beats[0]!);
+    expect(prompt).toContain("Rayitas");
+    expect(prompt).toContain("Casting");
+    expect(prompt.toLowerCase()).toContain("no stick figures");
+    expect(prompt).not.toContain("STICKMAN");
+  });
+
   it("renders stills through the injected image provider (Atlas or gflow)", async () => {
     const script = draftScriptTemplate({ ...config, durationSec: 10 }, "wifi-10s");
     script.beats = script.beats.slice(0, 1);

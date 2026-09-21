@@ -71,6 +71,7 @@ import { registerSocial } from "./publish/plugin.js";
 import { publishCompletedJob } from "./publish/run.js";
 import { DirectorScore } from "./schema/director-score.js";
 import type { SearchProviderKey } from "./schema/providers.js";
+import { registerHistoriaRoutes } from "./historia/routes.js";
 import { registerStickmanRoutes } from "./stickman/routes.js";
 import { ensureStickmanJobsDir, stickmanJobsDir } from "./stickman/store.js";
 import { getStickmanQueueStats } from "./stickman/worker.js";
@@ -408,6 +409,7 @@ await registerFlowRoutes(app);
 await registerLibraryRoutes(app);
 await registerVoxRoutes(app, redis);
 await registerStickmanRoutes(app, redis);
+await registerHistoriaRoutes(app, redis);
 
 // --- API Test endpoints ---
 

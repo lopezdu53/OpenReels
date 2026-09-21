@@ -13,6 +13,7 @@ const KIND_OPTIONS: { key: CharacterKind; label: string }[] = [
 ];
 
 const DEFAULT_PROVIDERS: ProviderOption[] = [
+  { key: "gflow", label: "gflow (Nano Banana)" },
   { key: "vivi", label: "VIVI" },
   { key: "gemini", label: "Google Gemini" },
   { key: "openai", label: "OpenAI" },
@@ -80,6 +81,9 @@ interface Props {
   selectedIds: string[];
   maxSelect?: number;
   imageProviders?: ProviderOption[];
+  defaultSheetProvider?: string;
+  title?: string;
+  subtitle?: string;
   onToggle: (id: string) => void;
   onSave: (body: Record<string, unknown>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -90,6 +94,9 @@ export function CharacterStudio({
   selectedIds,
   maxSelect = 3,
   imageProviders,
+  defaultSheetProvider = "vivi",
+  title,
+  subtitle,
   onToggle,
   onSave,
   onDelete,
@@ -98,7 +105,7 @@ export function CharacterStudio({
   const [busy, setBusy] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [sheetError, setSheetError] = useState("");
-  const [sheetProvider, setSheetProvider] = useState("vivi");
+  const [sheetProvider, setSheetProvider] = useState(defaultSheetProvider);
   const importRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
   const [peekId, setPeekId] = useState("");
@@ -130,6 +137,7 @@ export function CharacterStudio({
       const { imageBase64 } = await api.generateLibrarySheet({
         type: "character",
         provider: sheetProvider,
+        fallback: defaultSheetProvider,
         character: {
           name: editing.name,
           kind: editing.kind ?? "animal",
@@ -157,9 +165,11 @@ export function CharacterStudio({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
-            Personajes ({selectedIds.length}/{maxSelect})
+            {title ?? `Personajes (${selectedIds.length}/${maxSelect})`}
           </p>
-          <p className="text-sm font-medium">Elige de 1 a {maxSelect} fichas 16:9 — frente, retrato, perfil y espalda</p>
+          <p className="text-sm font-medium">
+            {subtitle ?? `Elige de 1 a ${maxSelect} fichas 16:9 — frente, retrato, perfil y espalda`}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" size="sm" onClick={() => { setSheetError(""); setEditing(emptyForm()); }}>
@@ -357,7 +367,7 @@ export function CharacterStudio({
           </div>
           <div className="sm:col-span-2 space-y-2 rounded-xl border border-border bg-surface-inset p-3">
             <p className="text-[11px] text-muted-foreground">
-              Genera un model sheet 16:9: cuerpo de frente a la izquierda, retrato arriba a la derecha, perfil y espalda abajo. VIVI por defecto.
+              Genera un model sheet 16:9: cuerpo de frente a la izquierda, retrato arriba a la derecha, perfil y espalda abajo. {defaultSheetProvider === "gflow" ? "gflow por defecto." : "VIVI por defecto."}
             </p>
             <div className="flex flex-wrap items-end gap-2">
               <label className="min-w-[160px] space-y-1">

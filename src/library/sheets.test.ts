@@ -34,6 +34,8 @@ describe("concept sheets", () => {
     expect(normalizeCharacterKind("nope")).toBe("fictional");
     expect(normalizeSheetProvider(undefined)).toBe("vivi");
     expect(normalizeSheetProvider("gemini")).toBe("gemini");
+    expect(normalizeSheetProvider("gflow")).toBe("gflow");
+    expect(normalizeSheetProvider(undefined, "gflow")).toBe("gflow");
   });
 
   it("builds an environment style board", () => {

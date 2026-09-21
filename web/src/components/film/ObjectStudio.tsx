@@ -7,6 +7,7 @@ import { api, type LibraryObject, type ProviderOption } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PROVIDERS: ProviderOption[] = [
+  { key: "gflow", label: "gflow (Nano Banana)" },
   { key: "vivi", label: "VIVI" },
   { key: "gemini", label: "Google Gemini" },
   { key: "openai", label: "OpenAI" },
@@ -62,6 +63,9 @@ interface Props {
   selectedIds: string[];
   maxSelect?: number;
   imageProviders?: ProviderOption[];
+  defaultSheetProvider?: string;
+  title?: string;
+  subtitle?: string;
   onToggle: (id: string) => void;
   onSave: (body: Record<string, unknown>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -72,6 +76,9 @@ export function ObjectStudio({
   selectedIds,
   maxSelect = 10,
   imageProviders,
+  defaultSheetProvider = "vivi",
+  title,
+  subtitle,
   onToggle,
   onSave,
   onDelete,
@@ -80,7 +87,7 @@ export function ObjectStudio({
   const [busy, setBusy] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [sheetError, setSheetError] = useState("");
-  const [sheetProvider, setSheetProvider] = useState("vivi");
+  const [sheetProvider, setSheetProvider] = useState(defaultSheetProvider);
   const importRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
   const [peekId, setPeekId] = useState("");
@@ -111,6 +118,7 @@ export function ObjectStudio({
       const { imageBase64 } = await api.generateLibrarySheet({
         type: "object",
         provider: sheetProvider,
+        fallback: defaultSheetProvider,
         object: {
           name: editing.name,
           prompt: editing.prompt,
@@ -130,9 +138,11 @@ export function ObjectStudio({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
-            Objetos ({selectedIds.length}/{maxSelect})
+            {title ?? `Objetos (${selectedIds.length}/${maxSelect})`}
           </p>
-          <p className="text-sm font-medium">Elige hasta {maxSelect} props — pueden coincidir en el mismo plano</p>
+          <p className="text-sm font-medium">
+            {subtitle ?? `Elige hasta ${maxSelect} props — pueden coincidir en el mismo plano`}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" size="sm" onClick={() => { setSheetError(""); setEditing(emptyForm()); }}>
@@ -294,7 +304,7 @@ export function ObjectStudio({
           </div>
           <div className="sm:col-span-2 space-y-2 rounded-xl border border-border bg-surface-inset p-3">
             <p className="text-[11px] text-muted-foreground">
-              Genera un tablero 16:9 de un solo objeto: hero, frente, perfil y detalle. Sin caras. VIVI por defecto.
+              Genera un tablero 16:9 de un solo objeto: hero, frente, perfil y detalle. Sin caras. {defaultSheetProvider === "gflow" ? "gflow por defecto." : "VIVI por defecto."}
             </p>
             <div className="flex flex-wrap items-end gap-2">
               <label className="min-w-[160px] space-y-1">
