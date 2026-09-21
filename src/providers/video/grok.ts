@@ -4,9 +4,12 @@ import * as path from "node:path";
 import type { VideoProvider, VideoResult } from "../../schema/providers.js";
 
 const XAI_BASE_URL = "https://api.x.ai/v1";
-const MODEL = "grok-imagine-video";
+const MODEL = "grok-imagine-video-1.5";
 const POLL_INTERVAL_MS = 5_000;
-const TIMEOUT_MS = 300_000; // 5 min
+const TIMEOUT_MS = 360_000; // 6 min — 1.5 at 1080p can exceed 5 min
+const SUBMIT_TIMEOUT_MS = 60_000;
+const POLL_TIMEOUT_MS = 30_000;
+const DOWNLOAD_TIMEOUT_MS = 120_000;
 
 interface GenerateResponse {
   request_id?: string;
@@ -34,7 +37,9 @@ function isRetryable(err: unknown): boolean {
     msg.includes("503") ||
     msg.includes("429") ||
     msg.includes("fetch failed") ||
-    msg.includes("ECONNRESET")
+    msg.includes("ECONNRESET") ||
+    msg.includes("timed out") ||
+    msg.includes("TimeoutError")
   );
 }
 
@@ -67,7 +72,9 @@ export class GrokVideo implements VideoProvider {
         lastError = err;
         if (!isRetryable(err) || attempt === 2) break;
         const delay = 5000 * Math.pow(2, attempt);
-        console.warn(`[video/grok] Attempt ${attempt + 1} failed (${err}), retrying in ${delay / 1000}s...`);
+        console.warn(
+          `[video/grok] Attempt ${attempt + 1} failed (${err}), retrying in ${delay / 1000}s...`,
+        );
         await new Promise((r) => setTimeout(r, delay));
       }
     }
@@ -96,6 +103,7 @@ export class GrokVideo implements VideoProvider {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(SUBMIT_TIMEOUT_MS),
     });
 
     if (!submitRes.ok) {
@@ -118,6 +126,7 @@ export class GrokVideo implements VideoProvider {
 
       const pollRes = await fetch(`${XAI_BASE_URL}/videos/${requestId}`, {
         headers: { Authorization: `Bearer ${this.apiKey}` },
+        signal: AbortSignal.timeout(POLL_TIMEOUT_MS),
       });
 
       if (!pollRes.ok) {
@@ -126,16 +135,20 @@ export class GrokVideo implements VideoProvider {
       }
 
       const poll = (await pollRes.json()) as PollResponse;
-      console.log(`[video/grok] Request ${requestId} — status=${poll.status} progress=${poll.progress ?? 0}%`);
+      console.log(
+        `[video/grok] Request ${requestId} — status=${poll.status} progress=${poll.progress ?? 0}%`,
+      );
 
       if (poll.status === "done") {
         const videoUrl = poll.video?.url;
         if (!videoUrl) {
-          throw new Error(`Grok video: done but no video URL (moderation=${poll.video?.respect_moderation})`);
+          throw new Error(
+            `Grok video: done but no video URL (moderation=${poll.video?.respect_moderation})`,
+          );
         }
 
         const tmpPath = path.join(os.tmpdir(), `openreels-grok-${Date.now()}.mp4`);
-        const dlRes = await fetch(videoUrl);
+        const dlRes = await fetch(videoUrl, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
         if (!dlRes.ok) throw new Error(`Grok video download failed: ${dlRes.status}`);
 
         const buffer = Buffer.from(await dlRes.arrayBuffer());
@@ -145,12 +158,16 @@ export class GrokVideo implements VideoProvider {
         await fsp.writeFile(tmpPath, buffer);
 
         const actualDuration = poll.video?.duration ?? duration;
-        console.log(`[video/grok] Request ${requestId} complete — ${(buffer.length / 1024 / 1024).toFixed(1)}MB, ${actualDuration}s`);
+        console.log(
+          `[video/grok] Request ${requestId} complete — ${(buffer.length / 1024 / 1024).toFixed(1)}MB, ${actualDuration}s`,
+        );
         return { filePath: tmpPath, durationSeconds: actualDuration };
       }
 
-      if (poll.status === "failed") {
-        throw new Error(`Grok video failed: ${poll.error?.message ?? poll.error?.code ?? "unknown error"}`);
+      if (poll.status === "failed" || poll.status === "expired") {
+        throw new Error(
+          `Grok video ${poll.status}: ${poll.error?.message ?? poll.error?.code ?? "unknown error"}`,
+        );
       }
 
       // "pending" — keep polling

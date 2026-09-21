@@ -1,0 +1,548 @@
+import { Loader2, PersonStanding, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { DarkSelect } from "@/components/DarkSelect";
+import { StudioVisualFields } from "@/components/StudioVisualFields";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { api, type StickmanJobMeta } from "@/hooks/useApi";
+import { cn } from "@/lib/utils";
+
+const FALLBACK_LOOKS = [
+  { id: "classic", label: "Clásico" },
+  { id: "chalk", label: "Tiza" },
+  { id: "neon", label: "Neón" },
+  { id: "marker", label: "Rotulador" },
+  { id: "doodle", label: "Garabato" },
+];
+
+const FALLBACK_VOICES = [
+  { id: "eve", label: "Eve", note: "enérgica" },
+  { id: "ara", label: "Ara", note: "cálida" },
+  { id: "leo", label: "Leo", note: "clara" },
+  { id: "rex", label: "Rex", note: "segura" },
+  { id: "sal", label: "Sal", note: "suave" },
+  { id: "Kore", label: "Kore", note: "firme" },
+  { id: "Aoede", label: "Aoede", note: "ligera" },
+  { id: "Puck", label: "Puck", note: "alegre" },
+];
+
+const FALLBACK_ARCS = [
+  {
+    id: "joke_punchline",
+    label: "Chiste → punchline",
+    when: "humor rápido",
+    hint: "Abre con un gancho y cierra con el chiste. Para temas cortos, memes o un solo gag.",
+  },
+  {
+    id: "how_it_works",
+    label: "Cómo funciona",
+    when: "explicar un proceso",
+    hint: "Explica un proceso paso a paso: qué es, cómo va y el resultado.",
+  },
+  {
+    id: "vs_debate",
+    label: "Cara a cara",
+    when: "dos palitos discuten",
+    hint: "Dos palitos se contradicen (mejor con elenco Dos palitos): uno dice A, el otro B.",
+  },
+  {
+    id: "listicle",
+    label: "Lista",
+    when: "N puntos",
+    hint: "Promete N puntos y los recorre uno a uno (tips, ranking, errores).",
+  },
+  {
+    id: "origin",
+    label: "Origen",
+    when: "de dónde sale algo",
+    hint: "Cuenta de dónde nace algo: el antes, el salto y cómo quedó hoy.",
+  },
+  {
+    id: "warning",
+    label: "Advertencia",
+    when: "un error común",
+    hint: "Señala un error común, por qué duele y cómo no caer.",
+  },
+];
+
+function formatStickmanDuration(sec: number): string {
+  if (sec >= 60 && sec % 60 === 0) return `${sec / 60} min`;
+  return `${sec}s`;
+}
+
+function hookAvailable(sec: number): boolean {
+  return sec === 300 || sec === 480 || sec === 900;
+}
+
+function VolumeSlider({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label className={`flex items-center gap-2 ${disabled ? "opacity-50" : ""}`}>
+      {label}
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={5}
+        disabled={disabled}
+        value={Math.round(value * 100)}
+        onChange={(e) => onChange(Number(e.target.value) / 100)}
+        aria-label={label}
+        className="w-24 accent-primary"
+      />
+      <span className="w-8 tabular-nums">{Math.round(value * 100)}%</span>
+    </label>
+  );
+}
+
+function formatWhen(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("es", { dateStyle: "short", timeStyle: "short" });
+}
+
+function producedLabel(job: StickmanJobMeta): string {
+  const start = Date.parse(job.createdAt);
+  const end = job.completedAt ? Date.parse(job.completedAt) : Number.NaN;
+  const when = formatWhen(job.completedAt ?? job.createdAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return when;
+  const sec = Math.round((end - start) / 1000);
+  if (sec < 60) return `${when} · ${sec}s`;
+  const min = Math.round(sec / 60);
+  return `${when} · ${min} min`;
+}
+
+function jobChips(job: StickmanJobMeta): string[] {
+  const c = job.config ?? {};
+  const chips = [
+    c.durationSec ? formatStickmanDuration(c.durationSec) : "",
+    c.aspect,
+    c.look,
+    c.castMode === "duo" ? "Dos palitos" : "Un palito",
+    c.muteCharacter ? "Mudo + SFX" : "Con voz",
+    c.contentHook ? "Gancho 10s" : "",
+    c.captions ? "Subtítulos" : "Sin subtítulos",
+    c.animate ? "I2V" : "Stills",
+    c.voiceId,
+    c.visualProvider,
+  ];
+  return chips.filter((x): x is string => Boolean(x));
+}
+
+function withArcHints(
+  arcs: { id: string; label: string; when: string; hint?: string }[] | undefined,
+  fallback: { id: string; label: string; when: string; hint: string }[],
+) {
+  return (arcs?.length ? arcs : fallback).map((item) => ({
+    ...item,
+    hint: item.hint ?? fallback.find((row) => row.id === item.id)?.hint ?? item.when,
+  }));
+}
+
+export function StickmanPage() {
+  const navigate = useNavigate();
+  const [catalog, setCatalog] = useState<Awaited<ReturnType<typeof api.stickmanCatalog>> | null>(
+    null,
+  );
+  const [jobs, setJobs] = useState<StickmanJobMeta[]>([]);
+  const [topic, setTopic] = useState("");
+  const [durationSec, setDurationSec] = useState(10);
+  const [aspect, setAspect] = useState("9:16");
+  const [language, setLanguage] = useState("es");
+  const [look, setLook] = useState("classic");
+  const [castMode, setCastMode] = useState("solo");
+  const [arc, setArc] = useState("joke_punchline");
+  const [voiceId, setVoiceId] = useState("eve");
+  const [voiceSpeed, setVoiceSpeed] = useState(1);
+  const [llmModel, setLlmModel] = useState("google/gemini-2.5-flash");
+  const [captions, setCaptions] = useState(false);
+  const [muteCharacter, setMuteCharacter] = useState(true);
+  const [contentHook, setContentHook] = useState(false);
+  const [videoVolume, setVideoVolume] = useState(0.5);
+  const [ttsVolume, setTtsVolume] = useState(1);
+  const [animate, setAnimate] = useState(true);
+  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("gflow");
+  const [gflowImageModel, setGflowImageModel] = useState("nano-pro");
+  const [gflowVideoModel, setGflowVideoModel] = useState("omni-flash");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api
+      .stickmanCatalog()
+      .then(setCatalog)
+      .catch(() => {});
+    api
+      .listStickmanJobs()
+      .then((r) => setJobs(r.jobs))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!hookAvailable(durationSec) && contentHook) setContentHook(false);
+  }, [durationSec, contentHook]);
+
+  async function create() {
+    setError("");
+    setBusy(true);
+    try {
+      const res = await api.createStickmanJob({
+        topic,
+        durationSec,
+        aspect,
+        language,
+        look,
+        castMode,
+        arc,
+        voiceId,
+        voiceSpeed,
+        captions,
+        animate,
+        muteCharacter,
+        contentHook: hookAvailable(durationSec) ? contentHook : false,
+        videoVolume,
+        ttsVolume,
+        visualProvider,
+        gflowImageModel: visualProvider === "gflow" ? gflowImageModel : undefined,
+        gflowVideoModel: visualProvider === "gflow" ? gflowVideoModel : undefined,
+        gflowVideoMode: visualProvider === "gflow" ? "i2v" : undefined,
+        llmModel,
+      });
+      navigate(`/stickman/${res.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="px-4 sm:px-6 lg:px-10 py-8">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div>
+          <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.22em] text-primary">
+            Stickman Studio
+          </p>
+          <h1 className="flex items-center gap-2 text-3xl sm:text-5xl font-bold uppercase tracking-tight">
+            <PersonStanding className="size-8 text-primary" />
+            Nuevo Stickman
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+            Videos de palitos 2D. Historia: director de stickman (no OpenReels). Visuales baratos:
+            gflow Nano Banana (0 créditos) + Omni 1.1 Flash en tomas de 10s (20s = 2 tomas). Audio
+            de Flow agachado + TTS Atlas encima. Atlas visual sigue disponible.
+          </p>
+        </div>
+
+        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5 space-y-4">
+          <Input
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder="Ej. por qué el wifi de la oficina miente"
+            className="h-11"
+          />
+
+          <div>
+            <p className="mb-2 text-xs text-muted-foreground">Look de palito</p>
+            <div className="flex flex-wrap gap-1.5">
+              {(catalog?.looks ?? FALLBACK_LOOKS).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setLook(item.id)}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-[11px]",
+                    look === item.id
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border",
+                  )}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {(
+              catalog?.casts ?? [
+                { id: "solo", label: "Un palito" },
+                { id: "duo", label: "Dos palitos" },
+              ]
+            ).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setCastMode(item.id)}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-medium",
+                  castMode === item.id
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground",
+                )}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              Duración
+              <DarkSelect
+                aria-label="Duración"
+                value={String(durationSec)}
+                onValueChange={(value) => setDurationSec(Number(value))}
+                options={(catalog?.durations ?? [10, 20, 30, 60, 120, 300, 480, 900]).map((d) => ({
+                  value: String(d),
+                  label: formatStickmanDuration(d),
+                }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              Aspecto
+              <DarkSelect
+                aria-label="Aspecto"
+                value={aspect}
+                onValueChange={setAspect}
+                options={(catalog?.aspects ?? ["9:16", "16:9", "1:1"]).map((a) => ({
+                  value: a,
+                  label: a,
+                }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              Idioma
+              <DarkSelect
+                aria-label="Idioma"
+                value={language}
+                onValueChange={setLanguage}
+                options={[
+                  { value: "es", label: "Español" },
+                  { value: "en", label: "English" },
+                ]}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              Voz Atlas
+              <DarkSelect
+                aria-label="Voz"
+                value={voiceId}
+                onValueChange={(value) => {
+                  setVoiceId(value);
+                  setMuteCharacter(false);
+                }}
+                options={(catalog?.voices ?? FALLBACK_VOICES).map((v) => ({
+                  value: v.id,
+                  label: `${v.label} · ${v.note}`,
+                }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              Velocidad
+              <DarkSelect
+                aria-label="Velocidad de narración"
+                value={String(voiceSpeed)}
+                onValueChange={(value) => setVoiceSpeed(Number(value))}
+                options={[0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5].map((n) => ({
+                  value: String(n),
+                  label: n === 1 ? "1× normal" : n < 1 ? `${n}× lenta` : `${n}× rápida`,
+                }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              LLM historia
+              <DarkSelect
+                aria-label="LLM de la historia"
+                className="min-w-[14rem]"
+                value={llmModel}
+                onValueChange={setLlmModel}
+                options={(
+                  catalog?.llms ?? [
+                    {
+                      id: "google/gemini-2.5-flash",
+                      label: "Gemini 2.5 Flash",
+                      note: "mejor para historia de palitos",
+                    },
+                  ]
+                ).map((llm) => ({
+                  value: llm.id,
+                  label: llm.label,
+                  hint: llm.note,
+                }))}
+              />
+            </div>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={muteCharacter}
+                onChange={(e) => setMuteCharacter(e.target.checked)}
+              />
+              Sin voz narrativa (solo SFX de Flow)
+            </label>
+            {muteCharacter ? (
+              <p className="text-[11px] text-amber-400">
+                El video no llevará narración Atlas. Elige una voz para activarla.
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                TTS Atlas Cloud (xAI, Gemini Flash o MiniMax según la voz).
+              </p>
+            )}
+            <label
+              className={`flex items-center gap-2 ${hookAvailable(durationSec) ? "" : "opacity-40"}`}
+            >
+              <input
+                type="checkbox"
+                checked={contentHook}
+                disabled={!hookAvailable(durationSec)}
+                onChange={(e) => setContentHook(e.target.checked)}
+              />
+              Gancho 10s (5 / 8 / 15 min)
+            </label>
+            <VolumeSlider label="Volumen video" value={videoVolume} onChange={setVideoVolume} />
+            <VolumeSlider
+              label="Volumen TTS"
+              value={ttsVolume}
+              onChange={setTtsVolume}
+              disabled={muteCharacter}
+            />
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={captions}
+                onChange={(e) => setCaptions(e.target.checked)}
+              />
+              Subtítulos
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={animate}
+                onChange={(e) => setAnimate(e.target.checked)}
+              />
+              Plano continuo I2V (tomas encadenadas, sin freeze)
+            </label>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              Arco narrativo
+              <DarkSelect
+                aria-label="Arco narrativo"
+                className="min-w-[14rem]"
+                value={arc}
+                onValueChange={setArc}
+                options={withArcHints(catalog?.arcs, FALLBACK_ARCS).map((item) => ({
+                  value: item.id,
+                  label: item.label,
+                  hint: item.hint,
+                }))}
+              />
+            </div>
+            <p className="max-w-2xl text-[12px] leading-snug text-muted-foreground">
+              {withArcHints(catalog?.arcs, FALLBACK_ARCS).find((item) => item.id === arc)?.hint ??
+                "El arco marca cómo se ordena el guion: gancho, desarrollo y cierre."}
+            </p>
+          </div>
+
+          <StudioVisualFields
+            catalog={catalog}
+            visualProvider={visualProvider}
+            onVisualProvider={setVisualProvider}
+            gflowImageModel={gflowImageModel}
+            onGflowImageModel={setGflowImageModel}
+            gflowVideoModel={gflowVideoModel}
+            onGflowVideoModel={setGflowVideoModel}
+            showVideo={animate}
+            durationSec={durationSec}
+            gflowHint="Omni 10s. 20s/30s/… son tomas de 10s con cruce suave (último frame). Audio Flow agachado + TTS. Voz: Atlas."
+          />
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+
+          <Button
+            className="h-11"
+            onClick={() => void create()}
+            disabled={busy || topic.trim().length < 4}
+          >
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+            Borrador del guion
+          </Button>
+        </section>
+
+        {jobs.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-medium">Trabajos Stickman</h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {jobs.map((j) => {
+                const preview = j.previewRel
+                  ? `/api/v1/stickman/jobs/${j.id}/artifacts/${j.previewRel}`
+                  : undefined;
+                const usd = j.cost?.usd;
+                const tokens = j.cost?.tokens;
+                return (
+                  <button
+                    key={j.id}
+                    type="button"
+                    className="overflow-hidden rounded-2xl border border-border bg-card text-left hover:bg-muted/40"
+                    onClick={() => navigate(`/stickman/${j.id}`)}
+                  >
+                    <div
+                      className={`bg-black ${
+                        j.config?.aspect === "16:9"
+                          ? "aspect-video"
+                          : j.config?.aspect === "1:1"
+                            ? "aspect-square"
+                            : "aspect-[9/16]"
+                      }`}
+                    >
+                      {preview ? (
+                        <img src={preview} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-[11px] text-muted-foreground">
+                          {j.status}
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2 p-3">
+                      <p className="truncate text-sm font-medium">{j.topic}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {jobChips(j).map((chip) => (
+                          <span
+                            key={chip}
+                            className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground"
+                          >
+                            {chip}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">{producedLabel(j)}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {tokens != null ? `${tokens.toLocaleString("es")} tokens` : "— tokens"}
+                        {" · "}
+                        {usd != null ? `$${usd.toFixed(3)}` : "$—"}
+                        {j.cost?.credits ? ` · ${j.cost.credits} cr Flow` : ""}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+      </div>
+    </div>
+  );
+}

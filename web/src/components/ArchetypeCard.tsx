@@ -45,8 +45,8 @@ export function ArchetypeCard({ archetype, selected, onClick }: ArchetypeCardPro
       {/* Auto style shimmer */}
       {isAuto ? (
         <>
-          <div className="mb-3 flex size-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary via-status-info to-primary/70">
-            <Sparkles className="size-5 text-white" />
+          <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <Sparkles className="size-5" />
           </div>
           <span className="text-sm font-semibold text-foreground">Auto Style</span>
           <span className="mt-1 text-[10px] text-text-subtle">AI picks the best</span>

@@ -2,6 +2,7 @@ import { getArchetype } from "../../config/archetype-registry.js";
 import type { ArchetypeConfig } from "../../schema/archetype";
 import type { DirectorScore, TransitionType } from "../../schema/director-score";
 import type { WordTimestamp } from "../../schema/providers";
+import { MATCH_CUT_BLEND_FRAMES, MATCH_CUT_SKIP_FRAMES } from "./motion.js";
 
 export interface SceneProps {
   visualType: string;
@@ -16,8 +17,12 @@ export interface SceneProps {
   motionIntensity?: number;
   startFrom?: number;
   sourceDurationInSeconds?: number;
+  /** When set, I2V audio plays at this gain. Omit to keep clips muted (Shorts). */
+  videoVolume?: number;
   transition: TransitionType;
   transitionDurationFrames: number;
+  /** Stretch an AI clip to the scene so the last frame does not freeze at a match-cut. */
+  fillScene?: boolean;
 }
 
 export interface CompositionProps {
@@ -33,6 +38,7 @@ export interface CompositionProps {
   captionLingerS: number;
   // When true, CaptionWrapper is not rendered (but allWords is still used for timing)
   noSubtitles?: boolean;
+  ttsVolume?: number;
   // Actual audio file duration in seconds (from ffprobe). When set, used as the
   // authoritative minimum video length so the voiceover never gets clipped.
   voiceoverDurationSeconds?: number;
@@ -53,6 +59,7 @@ export function mapScoreToProps(
   assets: ResolvedAssets,
   fps: number = 30,
   noSubtitles?: boolean,
+  audio?: { videoVolume?: number; ttsVolume?: number; targetDurationSeconds?: number },
 ): CompositionProps {
   const archetype = getArchetype(score.archetype);
 
@@ -61,9 +68,7 @@ export function mapScoreToProps(
   // Each scene gets (its word count / total words) × total audio duration.
   // Falls back to timestamp-based only when voiceoverDurationSeconds is unavailable.
   const totalAudio = assets.voiceoverDurationSeconds ?? 0;
-  const sceneCounts = score.scenes.map((s) =>
-    s.script_line.split(/\s+/).filter(Boolean).length,
-  );
+  const sceneCounts = score.scenes.map((s) => s.script_line.split(/\s+/).filter(Boolean).length);
   const totalWords = sceneCounts.reduce((a, b) => a + b, 0);
 
   const scenes: SceneProps[] = score.scenes.map((scene, i) => {
@@ -74,6 +79,8 @@ export function mapScoreToProps(
       // Primary: proportional word count — works for any language, any TTS provider
       const proportion = (sceneCounts[i] ?? 1) / totalWords;
       durationSeconds = Math.max(proportion * totalAudio, 2);
+    } else if (audio?.targetDurationSeconds && score.scenes.length > 0) {
+      durationSeconds = Math.max(audio.targetDurationSeconds / score.scenes.length, 2);
     } else {
       // Fallback: timestamp-based (original approach, requires accurate Whisper)
       const lastWord = words[words.length - 1];
@@ -122,8 +129,32 @@ export function mapScoreToProps(
       sourceDurationInSeconds: assets.sceneSourceDurations[i] ?? undefined,
       transition: scene.transition ?? archetype.defaultTransition ?? "none",
       transitionDurationFrames: archetype.transitionDurationFrames ?? 15,
+      videoVolume: audio?.videoVolume,
     };
   });
+
+  const STILL = new Set(["ai_image", "stock_image", "text_card"]);
+  const MOTION = new Set(["ai_video", "stock_video"]);
+  for (let i = 0; i < scenes.length - 1; i++) {
+    const cur = scenes[i]!;
+    const nxt = scenes[i + 1]!;
+    const stillToMotion = STILL.has(cur.visualType) && MOTION.has(nxt.visualType);
+    const motionToStill = MOTION.has(cur.visualType) && STILL.has(nxt.visualType);
+    if (stillToMotion || motionToStill) {
+      cur.transition = "crossfade";
+      cur.transitionDurationFrames = Math.max(cur.transitionDurationFrames, 18);
+      continue;
+    }
+    // Hero video→video is a hard cut on the same last/first frame. A 100ms
+    // dissolve + skipping the incoming still-echo hides the pause without a fade.
+    if (MOTION.has(cur.visualType) && MOTION.has(nxt.visualType) && cur.transition === "none") {
+      cur.transition = "crossfade";
+      cur.transitionDurationFrames = MATCH_CUT_BLEND_FRAMES;
+      cur.fillScene = true;
+      nxt.startFrom = MATCH_CUT_SKIP_FRAMES;
+      nxt.fillScene = true;
+    }
+  }
 
   return {
     scenes,
@@ -135,11 +166,16 @@ export function mapScoreToProps(
     captionChunkSize: archetype.captionChunkSize ?? 5,
     captionLingerS: archetype.captionLingerS ?? 0.3,
     noSubtitles: noSubtitles === true,
+    ttsVolume: audio?.ttsVolume,
     voiceoverDurationSeconds: assets.voiceoverDurationSeconds,
   };
 }
 
-export function getTotalDurationInFrames(props: CompositionProps, fps: number = 30): number {
+export function getTotalDurationInFrames(
+  props: CompositionProps,
+  fps: number = 30,
+  opts?: { minDurationSeconds?: number },
+): number {
   const sceneDuration = props.scenes.reduce((sum, s) => sum + s.durationInFrames, 0);
   const transitionOverlap = props.scenes.reduce((sum, s, i) => {
     if (i < props.scenes.length - 1 && s.transition !== "none") {
@@ -155,25 +191,22 @@ export function getTotalDurationInFrames(props: CompositionProps, fps: number = 
   // not account for trailing silence added by TTS providers.
   const wordBasedEnd = props.allWords[props.allWords.length - 1]?.end ?? 0;
   const voiceoverEnd = Math.max(wordBasedEnd, props.voiceoverDurationSeconds ?? 0);
-  const minFrames = Math.ceil(voiceoverEnd * fps);
+  const floorSeconds = Math.max(voiceoverEnd, opts?.minDurationSeconds ?? 0);
+  const minFrames = Math.ceil(floorSeconds * fps);
 
-  // WARNING: This mutates props.scenes[last].durationInFrames to prevent black frames.
-  // Only call once per render pass. Calling twice on the same props will grow the last scene unboundedly.
-  const lastScene = props.scenes[props.scenes.length - 1];
-  if (adjusted < minFrames && lastScene) {
-    const deficit = minFrames - adjusted;
-    // Guard: don't extend ai_video scenes past their source duration to prevent looping.
-    // AI-generated video clips create visible seams when looped, unlike stock footage.
-    if (lastScene.visualType === "ai_video" && lastScene.sourceDurationInSeconds) {
-      const maxFrames = Math.ceil(lastScene.sourceDurationInSeconds * fps);
-      const originalDuration = lastScene.durationInFrames;
-      const cappedDuration = Math.min(originalDuration + deficit, maxFrames);
-      lastScene.durationInFrames = cappedDuration;
-      return sceneDuration - transitionOverlap + (cappedDuration - originalDuration);
+  if (minFrames <= 0 || adjusted >= minFrames) return adjusted;
+
+  const deficit = minFrames - adjusted;
+  // Prefer a still so I2V clips do not have to loop. Never cap short of the voiceover —
+  // that was clipping the last words on 1-minute Films that ended on ai_video.
+  const still = new Set(["ai_image", "stock_image", "text_card"]);
+  let target = props.scenes[props.scenes.length - 1];
+  for (let i = props.scenes.length - 1; i >= 0; i--) {
+    if (still.has(props.scenes[i]!.visualType)) {
+      target = props.scenes[i];
+      break;
     }
-    lastScene.durationInFrames += deficit;
-    return minFrames;
   }
-
-  return adjusted;
+  if (target) target.durationInFrames += deficit;
+  return minFrames;
 }

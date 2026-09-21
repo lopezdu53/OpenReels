@@ -5,6 +5,7 @@
   "bin": {
     "openreels": "./dist/index.js"
   },
+  "packageManager": "pnpm@10.33.3",
   "engines": {
     "node": ">=22.0.0"
   },
@@ -37,13 +38,6 @@
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "onnxruntime-node",
-      "sharp"
-    ]
-  },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.66",
     "@ai-sdk/google": "^3.0.58",
@@ -66,6 +60,7 @@
     "fastify": "^5.8.4",
     "ioredis": "^5.10.1",
     "kokoro-js": "^1.2.1",
+    "phonemizer": "^1.2.1",
     "openai": "^6.33.0",
     "p-limit": "^7.3.0",
     "wavefile": "^11.0.0",

@@ -1,0 +1,26 @@
+name: Windows bridge exe
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "gflow-bridge/**"
+      - ".github/workflows/gflow-bridge-exe.yml"
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: PyInstaller
+        working-directory: gflow-bridge
+        run: |
+          python -m pip install --upgrade pip pyinstaller
+          pyinstaller --noconfirm openreels-puente.spec
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenReelsPuente
+          path: gflow-bridge/dist/OpenReelsPuente.exe
