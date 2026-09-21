@@ -63,6 +63,14 @@ describe("stickman store", () => {
     expect(listJobs("other")).toHaveLength(0);
   });
 
+  it("keeps historia jobs off the stickman list", () => {
+    createJob("user-1", { ...config, kind: "historia", look: "casting" });
+    createJob("user-1", config);
+    expect(listJobs("user-1", 30, "stickman")).toHaveLength(1);
+    expect(listJobs("user-1", 30, "historia")).toHaveLength(1);
+    expect(listJobs("user-1", 30, "historia")[0]?.kind).toBe("historia");
+  });
+
   it("appends stage lines to log.txt so take errors survive the last status", () => {
     const meta = createJob("user-1", config);
     setStatus(meta.id, "producing", "motion", "take 1/2 ok");

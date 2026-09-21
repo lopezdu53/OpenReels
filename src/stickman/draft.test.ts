@@ -61,4 +61,30 @@ describe("stickman draftScriptTemplate", () => {
     expect(locked.language).toBe("es");
     expect(locked.speed).toBe(1.1);
   });
+
+  it("loads casting names instead of Palo when kind is historia", () => {
+    const doc = draftScriptTemplate(
+      {
+        ...base,
+        kind: "historia",
+        look: "casting",
+        castRoster: [
+          {
+            id: "c1",
+            name: "Rayitas",
+            kind: "animal",
+            species: "tigrillo",
+            appearance: "ocelos",
+          },
+        ],
+        objectRoster: [{ id: "o1", name: "Pelota", prompt: "pelota roja" }],
+      },
+      "rayitas-10s",
+    );
+    expect(doc.style).toBe("historia");
+    expect(doc.look).toBe("casting");
+    expect(doc.bible.cast[0]?.name).toBe("Rayitas");
+    expect(doc.bible.characterLock).toContain("Rayitas");
+    expect(JSON.stringify(doc)).not.toContain("Palo");
+  });
 });

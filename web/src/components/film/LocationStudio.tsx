@@ -7,6 +7,7 @@ import { api, type LibraryLocation, type ProviderOption } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PROVIDERS: ProviderOption[] = [
+  { key: "gflow", label: "gflow (Nano Banana)" },
   { key: "vivi", label: "VIVI" },
   { key: "gemini", label: "Google Gemini" },
   { key: "openai", label: "OpenAI" },
@@ -66,6 +67,9 @@ interface Props {
   selectedIds: string[];
   maxSelect?: number;
   imageProviders?: ProviderOption[];
+  defaultSheetProvider?: string;
+  title?: string;
+  subtitle?: string;
   onToggle: (id: string) => void;
   onSave: (body: Record<string, unknown>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -76,6 +80,9 @@ export function LocationStudio({
   selectedIds,
   maxSelect = 3,
   imageProviders,
+  defaultSheetProvider = "vivi",
+  title,
+  subtitle,
   onToggle,
   onSave,
   onDelete,
@@ -84,7 +91,7 @@ export function LocationStudio({
   const [busy, setBusy] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [sheetError, setSheetError] = useState("");
-  const [sheetProvider, setSheetProvider] = useState("vivi");
+  const [sheetProvider, setSheetProvider] = useState(defaultSheetProvider);
   const importRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
   const [peekId, setPeekId] = useState("");
@@ -115,6 +122,7 @@ export function LocationStudio({
       const { imageBase64 } = await api.generateLibrarySheet({
         type: "location",
         provider: sheetProvider,
+        fallback: defaultSheetProvider,
         location: {
           name: editing.name,
           place: editing.place,
@@ -138,9 +146,11 @@ export function LocationStudio({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
-            Entornos ({selectedIds.length}/{maxSelect})
+            {title ?? `Entornos (${selectedIds.length}/${maxSelect})`}
           </p>
-          <p className="text-sm font-medium">Elige hasta {maxSelect} locaciones — una sola por plano, nunca se combinan</p>
+          <p className="text-sm font-medium">
+            {subtitle ?? `Elige hasta ${maxSelect} locaciones — una sola por plano, nunca se combinan`}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" size="sm" onClick={() => { setSheetError(""); setEditing(emptyForm()); }}>
@@ -315,7 +325,7 @@ export function LocationStudio({
           </div>
           <div className="sm:col-span-2 space-y-2 rounded-xl border border-border bg-surface-inset p-3">
             <p className="text-[11px] text-muted-foreground">
-              Genera un tablero 16:9 de un solo lugar: plano general, luz, detalle y texturas. Sin caras únicas. VIVI por defecto.
+              Genera un tablero 16:9 de un solo lugar: plano general, luz, detalle y texturas. Sin caras únicas. {defaultSheetProvider === "gflow" ? "gflow por defecto." : "VIVI por defecto."}
             </p>
             <div className="flex flex-wrap items-end gap-2">
               <label className="min-w-[160px] space-y-1">

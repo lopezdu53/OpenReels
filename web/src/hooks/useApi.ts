@@ -772,6 +772,8 @@ export const api = {
   generateLibrarySheet(data: {
     type: "character" | "style" | "location" | "object";
     provider?: string;
+    model?: string;
+    fallback?: string;
     character?: Record<string, unknown>;
     style?: Record<string, unknown>;
     location?: Record<string, unknown>;
@@ -1211,6 +1213,45 @@ export const api = {
     return fetchJson<{ ok: boolean }>(`/stickman/jobs/${id}/cancel`, { method: "POST" });
   },
 
+  historiaCatalog() {
+    return fetchJson<{
+      arcs: { id: string; label: string; when: string; hint?: string }[];
+      voices: { id: string; label: string; gender: string; note: string; model?: string }[];
+      aspects: string[];
+      durations: number[];
+      hookDurations?: number[];
+      defaultMuteCharacter?: boolean;
+      defaultContentHook?: boolean;
+      defaultCaptions?: boolean;
+      defaultVideoVolume?: number;
+      defaultTtsVolume?: number;
+      visualProviders?: { key: string; label: string }[];
+      gflowImageModels?: { id: string; label: string; note?: string; credits?: number }[];
+      gflowVideoModels?: {
+        id: string;
+        label: string;
+        note?: string;
+        durations?: number[];
+        creditPerSecond?: number;
+      }[];
+      llms?: { id: string; label: string; note: string; recommended?: boolean }[];
+      atlasReady?: boolean;
+      gflowBridge?: boolean;
+      doctor?: { ok: boolean; detail: string };
+    }>("/historia/catalog");
+  },
+
+  listHistoriaJobs() {
+    return fetchJson<{ jobs: StickmanJobMeta[] }>("/historia/jobs");
+  },
+
+  createHistoriaJob(data: Record<string, unknown>) {
+    return fetchJson<{ id: string; status: string }>("/historia/jobs", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
   publishJob(id: string, platforms?: SocialPlatformId[]) {
     return fetchJson<{
       results: { platform: SocialPlatformId; ok: boolean; url?: string; error?: string }[];
@@ -1247,7 +1288,7 @@ export interface VoxJobDetail extends VoxJobMeta {
 
 export interface StickmanJobMeta {
   id: string;
-  kind: "stickman";
+  kind: "stickman" | "historia";
   topic: string;
   status: string;
   stage: string;
@@ -1271,6 +1312,10 @@ export interface StickmanJobMeta {
     language?: string;
     look?: string;
     castMode?: string;
+    characterIds?: string[];
+    objectIds?: string[];
+    locationIds?: string[];
+    castRoster?: { id: string; name: string }[];
     arc?: string;
     voiceId?: string;
     voiceSpeed?: number;

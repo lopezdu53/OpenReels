@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stickmanDirectorPrompt } from "./director.js";
+import { historiaDirectorPrompt, stickmanDirectorPrompt } from "./director.js";
 import type { StickmanJobConfig } from "./types.js";
 
 const config: StickmanJobConfig = {
@@ -42,5 +42,37 @@ describe("stickman director prompt", () => {
     expect(prompt).toContain("MUTE CHARACTER");
     expect(prompt).toContain("CONTENT HOOK");
     expect(prompt).toContain("GANCHO");
+  });
+});
+
+describe("historia director prompt", () => {
+  it("locks casting names and forbids stick figures", () => {
+    const prompt = historiaDirectorPrompt(
+      {
+        ...config,
+        kind: "historia",
+        look: "casting",
+        castRoster: [
+          {
+            id: "c1",
+            name: "Rayitas",
+            kind: "animal",
+            species: "tigrillo",
+            appearance: "ocelos pálidos",
+          },
+        ],
+        objectRoster: [{ id: "o1", name: "Mustang", prompt: "fastback rojo 1967" }],
+        locationRoster: [{ id: "l1", name: "Selva", place: "selva húmeda al amanecer" }],
+      },
+      3,
+      "{}",
+    );
+    expect(prompt).toContain("Historia Video Director");
+    expect(prompt).toContain("Rayitas");
+    expect(prompt).toContain("Mustang");
+    expect(prompt).toContain("Selva");
+    expect(prompt.toLowerCase()).toContain("no stick figures");
+    expect(prompt).toContain("FITS");
+    expect(prompt).not.toContain("STICKMAN_STYLE");
   });
 });

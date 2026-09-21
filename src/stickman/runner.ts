@@ -9,9 +9,9 @@ import {
   planMotionTakes,
   resolveStickmanTtsModel,
 } from "./catalog.js";
-import { fileBigEnough, jobDir, readMeta, readScript, writeScript } from "./store.js";
+import { fileBigEnough, jobDir, readCastRef, readMeta, readScript, writeScript } from "./store.js";
 import type { StickmanJobConfig, StickmanScript } from "./types.js";
-import { buildContinuousMotionPrompt, renderStills } from "./visuals.js";
+import { buildContinuousMotionPrompt, motionNegativePrompt, renderStills } from "./visuals.js";
 
 export async function runTts(
   id: string,
@@ -59,7 +59,7 @@ export async function runVisuals(
     atlasKey: apiKey,
     gflowModel: config.gflowImageModel,
   });
-  const paths = await renderStills(jobDir(id), script, image, log);
+  const paths = await renderStills(jobDir(id), script, image, log, readCastRef(id));
   writeScript(id, script);
   return paths;
 }
@@ -152,8 +152,7 @@ async function generateOneTake(opts: {
         }),
         durationSeconds: opts.clipSeconds,
         aspectRatio: opts.script.aspect,
-        negativePrompt:
-          "photoreal, collage, torn paper, 3D, detailed face, sphere head, jump cut, hard cut",
+        negativePrompt: motionNegativePrompt(opts.script),
       });
       fs.copyFileSync(result.filePath, opts.takePath);
       opts.log(

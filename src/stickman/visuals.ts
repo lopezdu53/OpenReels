@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ImageProvider } from "../schema/providers.js";
 import { lookPrompt, STICKMAN_STYLE_LOCK } from "./catalog.js";
+import { HISTORIA_STYLE_LOCK } from "./director.js";
 
 export { planMotionTakes } from "./catalog.js";
 
@@ -26,7 +27,26 @@ function isTransient(err: unknown): boolean {
   );
 }
 
+export function isHistoriaScript(script: StickmanScript): boolean {
+  return script.style === "historia" || script.look === "casting";
+}
+
+export function historiaI2vNegative(): string {
+  return "stick figure, stickman, line art, collage, torn paper, jump cut, hard cut, different face, identity swap";
+}
+
+export function stickmanI2vNegative(): string {
+  return "photoreal, collage, torn paper, 3D, detailed face, sphere head, jump cut, hard cut";
+}
+
+export function motionNegativePrompt(script: StickmanScript): string {
+  return isHistoriaScript(script) ? historiaI2vNegative() : stickmanI2vNegative();
+}
+
 export function castLock(script: StickmanScript): string {
+  if (isHistoriaScript(script) && script.bible.characterLock) {
+    return script.bible.characterLock;
+  }
   return script.bible.cast
     .map((member) => {
       const acc =
@@ -49,6 +69,21 @@ export function pickMotionDuration(supported: number[], wanted: number): number 
 }
 
 export function buildStillPrompt(script: StickmanScript, beat: StickmanBeat): string {
+  if (isHistoriaScript(script)) {
+    return [
+      "Cinematic still of the locked Casting roster.",
+      `Locked cast: ${castLock(script)}.`,
+      script.bible.objectLock ? `Locked objects: ${script.bible.objectLock}.` : "",
+      script.bible.locationLock ? `Locked location: ${script.bible.locationLock}.` : "",
+      `World: ${script.bible.world}.`,
+      `Beat ${beat.id} "${beat.title}": ${beat.pose}.`,
+      `Backdrop: ${beat.scene}.`,
+      "Same faces, wardrobe, and props as the previous still if any.",
+      HISTORIA_STYLE_LOCK,
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
   return [
     `2D stickman still, look: ${lookPrompt(script.look)}.`,
     `Locked cast: ${castLock(script)}.`,
@@ -90,6 +125,22 @@ export function buildContinuousMotionPrompt(
       : script.contentHook && takeIndex === 0
         ? "CONTENT HOOK TAKE: this first 10s is a trailer of the FULL video. Rapid in-shot teases of later poses, then morph into the real opening. Do not deliver the punchline yet."
         : "Start from the source still and begin moving immediately.";
+  if (isHistoriaScript(script)) {
+    return [
+      `ONE CONTINUOUS ${clipSeconds}s cinematic take (${takeIndex + 1}/${takeCount}). NO CUTS. NO jump cuts. NO edited scene wipes.`,
+      bridge.replace("line-art", "locked faces and wardrobe"),
+      "The camera and the world morph in-shot every 2–3 seconds, like a single Gemini Omni Flash clip.",
+      `Locked cast: ${castLock(script)}.`,
+      script.bible.objectLock ? `Locked objects: ${script.bible.objectLock}.` : "",
+      script.bible.locationLock ? `Locked location: ${script.bible.locationLock}.` : "",
+      `World: ${script.bible.world}.`,
+      ...timed,
+      "Same faces, wardrobe, and props for the whole take.",
+      HISTORIA_STYLE_LOCK,
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
   return [
     `ONE CONTINUOUS ${clipSeconds}s 2D stickman take (${takeIndex + 1}/${takeCount}). NO CUTS. NO jump cuts. NO edited scene wipes.`,
     bridge,
@@ -109,11 +160,12 @@ export async function renderStills(
   script: StickmanScript,
   image: ImageProvider,
   log: (line: string) => void,
+  seedRef?: Buffer,
 ): Promise<string[]> {
   const dir = path.join(root, "stills");
   fs.mkdirSync(dir, { recursive: true });
   const paths: string[] = [];
-  let previous: Buffer | undefined;
+  let previous: Buffer | undefined = seedRef && seedRef.length >= 80 ? seedRef : undefined;
 
   for (const beat of script.beats) {
     const dest = path.join(dir, `beat-${String(beat.id).padStart(2, "0")}.png`);
@@ -129,7 +181,12 @@ export async function renderStills(
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        buf = await image.generate(prompt, STICKMAN_STYLE_LOCK, previous, script.aspect);
+        buf = await image.generate(
+          prompt,
+          isHistoriaScript(script) ? HISTORIA_STYLE_LOCK : STICKMAN_STYLE_LOCK,
+          previous,
+          script.aspect,
+        );
         if (buf.length < 1000) throw new Error(`still too small (${buf.length})`);
         break;
       } catch (err) {

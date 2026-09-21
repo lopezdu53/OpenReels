@@ -5,6 +5,7 @@ import { requireUser } from "../auth/plugin.js";
 import { AliCloudImage } from "../providers/image/alicloud.js";
 import { FalImage } from "../providers/image/fal.js";
 import { GeminiImage } from "../providers/image/gemini.js";
+import { GflowImage } from "../providers/image/gflow.js";
 import { GrokImage } from "../providers/image/grok.js";
 import { OpenAIImage } from "../providers/image/openai.js";
 import { generateOrientedImage } from "../providers/image/dimensions.js";
@@ -15,6 +16,8 @@ import {
   buildLocationSheetPrompt,
   buildObjectSheetPrompt,
   buildStyleSheetPrompt,
+  DEFAULT_CASTING_GFLOW_IMAGE,
+  DEFAULT_CASTING_SHEET_PROVIDER,
   normalizeCharacterKind,
   normalizeSheetProvider,
 } from "./sheets.js";
@@ -189,17 +192,23 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
 
   app.post("/api/v1/library/sheets", async (request: AuthedRequest, reply) => {
     if (!requireUser(request, reply)) return;
-    request.raw.setTimeout(180_000);
-    reply.raw.setTimeout(180_000);
+    request.raw.setTimeout(240_000);
+    reply.raw.setTimeout(240_000);
     const body = (request.body ?? {}) as {
       type?: string;
       provider?: string;
+      model?: string;
+      fallback?: string;
       character?: Record<string, unknown>;
       style?: Record<string, unknown>;
       location?: Record<string, unknown>;
       object?: Record<string, unknown>;
     };
-    const provider = normalizeSheetProvider(body.provider);
+    const fallback =
+      body.fallback === "gflow" || body.fallback === DEFAULT_CASTING_SHEET_PROVIDER
+        ? DEFAULT_CASTING_SHEET_PROVIDER
+        : "vivi";
+    const provider = normalizeSheetProvider(body.provider, fallback);
     let prompt = "";
     try {
       if (body.type === "style") {
@@ -269,7 +278,10 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
         });
       }
 
-      const imageGen = createSheetImageGen(provider);
+      const imageGen = createSheetImageGen(
+        provider,
+        typeof body.model === "string" ? body.model : undefined,
+      );
       const start = Date.now();
       const buffer = await generateOrientedImage(
         (p, s, r, a) => imageGen.generate(p, s, r, a),
@@ -288,8 +300,10 @@ export async function registerLibraryRoutes(app: FastifyInstance): Promise<void>
   });
 }
 
-function createSheetImageGen(provider: string) {
+function createSheetImageGen(provider: string, model?: string) {
   switch (provider) {
+    case "gflow":
+      return new GflowImage(model || DEFAULT_CASTING_GFLOW_IMAGE);
     case "openai":
       return new OpenAIImage();
     case "grok":
