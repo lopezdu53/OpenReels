@@ -20,6 +20,13 @@ export const GFLOW_VIDEO_MODELS = [
     creditPerSecond: 5,
   },
   {
+    id: "veo-lite-lp",
+    label: "Veo 3.1 Lite (Lower Priority)",
+    note: "Ultra · 0 créditos · cola más lenta · 4–8s",
+    durations: [4, 6, 8],
+    creditPerSecond: 0,
+  },
+  {
     id: "veo-fast",
     label: "Veo 3.1 Fast",
     note: "más rápido · 4–8s",
@@ -33,13 +40,6 @@ export const GFLOW_VIDEO_MODELS = [
     durations: [4, 6, 8],
     creditPerSecond: 20,
   },
-  {
-    id: "veo-lite-lp",
-    label: "Veo 3.1 Lite LP",
-    note: "low-power · 4–8s",
-    durations: [4, 6, 8],
-    creditPerSecond: 3,
-  },
 ] as const;
 
 export const DEFAULT_GFLOW_IMAGE_MODEL = "nano2";
@@ -52,6 +52,12 @@ const IMAGE_ALIASES: Record<string, string> = {
   "banana-pro": "nano-pro",
   "nano-banana-2": "nano2",
   "nano-banana-2-lite": "nano-lite",
+};
+
+const VIDEO_ALIASES: Record<string, string> = {
+  "veo-3.1-lite-low-priority": "veo-lite-lp",
+  "veo-lite-low-priority": "veo-lite-lp",
+  "veo-lp": "veo-lite-lp",
 };
 
 export type GflowVideoMode = "t2v" | "i2v";
@@ -73,8 +79,9 @@ export function gflowImageCliId(id?: string): string {
 }
 
 export function resolveGflowVideoModel(id?: string): (typeof GFLOW_VIDEO_MODELS)[number] {
+  const aliased = id ? (VIDEO_ALIASES[id] ?? id) : id;
   return (
-    GFLOW_VIDEO_MODELS.find((m) => m.id === id) ??
+    GFLOW_VIDEO_MODELS.find((m) => m.id === aliased) ??
     GFLOW_VIDEO_MODELS.find((m) => m.id === DEFAULT_GFLOW_VIDEO_MODEL) ??
     GFLOW_VIDEO_MODELS[0]
   );

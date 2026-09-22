@@ -772,7 +772,12 @@ export function LabPage() {
                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {(providers?.gflowVideoModels ?? [
-                        { id: "veo-lite", label: "Veo Lite", durations: [4, 6, 8] },
+                        { id: "veo-lite", label: "Veo 3.1 Lite", durations: [4, 6, 8] },
+                        {
+                          id: "veo-lite-lp",
+                          label: "Veo 3.1 Lite (Lower Priority)",
+                          durations: [4, 6, 8],
+                        },
                       ]).map((m) => (
                         <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
                       ))}

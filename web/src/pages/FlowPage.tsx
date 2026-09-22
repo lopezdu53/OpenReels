@@ -170,10 +170,11 @@ const FALLBACK_GFLOW_IMAGE = [
 ];
 
 const FALLBACK_GFLOW_VIDEO = [
-  { id: "veo-lite", label: "Veo Lite" },
-  { id: "veo-fast", label: "Veo Fast" },
-  { id: "veo-quality", label: "Veo Quality" },
-  { id: "omni-flash", label: "Omni Flash" },
+  { id: "veo-lite", label: "Veo 3.1 Lite" },
+  { id: "veo-lite-lp", label: "Veo 3.1 Lite (Lower Priority)" },
+  { id: "veo-fast", label: "Veo 3.1 Fast" },
+  { id: "veo-quality", label: "Veo 3.1 Quality" },
+  { id: "omni-flash", label: "Omni 1.1 Flash" },
 ];
 
 const FALLBACK_KOKORO = [
