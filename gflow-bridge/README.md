@@ -40,7 +40,7 @@ Desde la oficina elige **Fuera de casa**. Chrome + Flow van **en ese PC**. Cloud
 
 ## I2V (Nuevo Flow)
 
-gflow Imagen (0.73+) + Veo I2V en serie. El puente pulsa **Add to prompt**, nombra stills `or-i2v-*.png`, y **espera el mp4 de 8s** (hasta ~4 min; Lower Priority hasta 20 min extra). Si gflow cierra Chrome a mitad (~26%), lista el catálogo de Flow y descarga ese clip (`gflow data download`, 0 créditos). En Veo no pases `--duration` (Flow genera 8s).
+gflow Imagen (0.73+) + Veo I2V en serie. El puente pulsa **Add to prompt**, nombra stills `or-i2v-*.png`, y **espera el mp4 de 8s**. gflow 0.79 corta el ACK de submit a **60s** y cierra Chrome: Flow **cancela** el clip (~26%). El Puente parchea ese tope a 60 min (Lower Priority) para que la ventana no se cierre a mitad. En Veo no pases `--duration` (Flow genera 8s).
 
 Si no estás en casa y el puente está apagado, el job cae a fotos (Ken Burns) en vez de colgar 15 veces el I2V.
 

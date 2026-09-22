@@ -82,6 +82,9 @@ def classify_log(line: str) -> str:
             "catálogo",
             "catalogo",
             "descargo",
+            "ack de submit",
+            "flow canceló",
+            "flow cancelo",
         )
     ):
         return "i2v"

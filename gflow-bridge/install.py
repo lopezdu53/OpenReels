@@ -348,4 +348,10 @@ def install_gflow_stack(log: LogFn, *, upgrade: bool = False) -> str:
     version = gflow_version(path) or "?"
     colorama = tool_package_version("colorama") or "?"
     log(f"Listo: gflow-cli {version} · colorama {colorama} → {path}")
+    try:
+        from gflow_patch import ensure_gflow_wait_patch
+
+        ensure_gflow_wait_patch(log=log)
+    except Exception as err:
+        log(f"parche espera gflow: {err}")
     return path

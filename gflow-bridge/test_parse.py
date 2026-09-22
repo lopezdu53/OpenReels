@@ -451,11 +451,15 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("Lower Priority Veo: Chrome se queda abierto hasta 3600s"), "i2v")
         self.assertEqual(classify_log("dejo el picker; no cierro la ventana mientras Flow genera"), "i2v")
         self.assertEqual(
-            classify_log("gflow cerró Chrome; Flow sigue generando. Espero/descargo el mp4 hasta 1200s"),
+            classify_log("gflow: ACK de submit 3600s y gracia URL 1200s (antes 60s/20s)"),
+            "i2v",
+        )
+        self.assertEqual(
+            classify_log("Si Chrome ya cerró, Flow canceló el clip (no sigue en el servidor)."),
             "i2v",
         )
         self.assertEqual(classify_log("catálogo: 3 videos, 1 de este job; aún no hay mp4, sigo 800s"), "i2v")
-        self.assertEqual(APP_VERSION, "1.6.4")
+        self.assertEqual(APP_VERSION, "1.6.5")
         self.assertEqual(classify_log("gflow fail: crash"), "err")
         self.assertEqual(classify_log("LAN: escuchando listo"), "ok")
         self.assertEqual(classify_log("Cloudflare 404 aviso"), "warn")
@@ -466,6 +470,25 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertTrue(cfg["keepAwake"])
         self.assertIn("bridgeId", cfg)
         self.assertIn("bridgeName", cfg)
+
+
+class GflowPatchTests(unittest.TestCase):
+    def test_rewrites_sixty_second_submit_cap(self):
+        from gflow_patch import patch_labs_video_source, patch_migrated_composer_source
+
+        src = (
+            "SUBMIT_REPLY_BUDGET_S = 60.0\n"
+            "RESULT_URL_GRACE_S = 20.0\n"
+            "IMAGE_REPLY_BUDGET_S = 180.0\n"
+        )
+        out = patch_migrated_composer_source(src, submit_s=3600.0, grace_s=1200.0)
+        self.assertIn("SUBMIT_REPLY_BUDGET_S = 3600.0", out)
+        self.assertIn("RESULT_URL_GRACE_S = 1200.0", out)
+        self.assertIn("IMAGE_REPLY_BUDGET_S = 180.0", out)
+        same = patch_migrated_composer_source(out, submit_s=3600.0, grace_s=1200.0)
+        self.assertEqual(same, out)
+        labs = patch_labs_video_source("SUBMIT_STAGE_TIMEOUT_S = 90.0\n", submit_s=3600.0)
+        self.assertIn("SUBMIT_STAGE_TIMEOUT_S = 3600.0", labs)
 
 
 if __name__ == "__main__":

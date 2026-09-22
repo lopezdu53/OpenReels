@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from gflow_patch import ensure_gflow_wait_patch
 from profiles import find_gflow, missing_gflow_message
 
 HOST = os.environ.get("GFLOW_BRIDGE_HOST", "0.0.0.0")
@@ -720,11 +721,12 @@ def _download_catalog_video(media_id: str, dest_dir: Path) -> Path | None:
 def _recover_generated_mp4(dest: Path, since: float, seconds: int | None = None) -> Path | None:
     wait = RECOVER_SECONDS if seconds is None else max(0, int(seconds))
     print(
-        f"[gflow-bridge] gflow cerró Chrome; Flow sigue generando. "
-        f"Espero/descargo el mp4 hasta {wait}s (no subo la siguiente still)",
+        f"[gflow-bridge] gflow salió sin mp4. Si Chrome se cerró, Flow ya canceló. "
+        f"Miro el catálogo local hasta {wait}s (vacío = no hay clip)",
         flush=True,
     )
     deadline = time.time() + wait
+    empty_rounds = 0
     while True:
         if ABORT_REQUESTED:
             print("[gflow-bridge] abort: dejo de esperar el clip", flush=True)
@@ -755,12 +757,28 @@ def _recover_generated_mp4(dest: Path, since: float, seconds: int | None = None)
                 got = _download_catalog_video(mid, dest.parent)
                 if got is not None:
                     return got
-            left = max(0, int(deadline - time.time()))
-            print(
-                f"[gflow-bridge] catálogo: {len(rows)} videos, {pending} de este job; "
-                f"aún no hay mp4, sigo {left}s",
-                flush=True,
-            )
+            if pending == 0:
+                empty_rounds += 1
+                print(
+                    f"[gflow-bridge] catálogo local: {len(rows)} videos, 0 de este job. "
+                    "Si Chrome ya cerró, Flow canceló el clip (no sigue en el servidor).",
+                    flush=True,
+                )
+                if empty_rounds >= 2:
+                    print(
+                        "[gflow-bridge] no hay clip que descargar. gflow cerró Chrome "
+                        "antes de guardar el video en Flow.",
+                        flush=True,
+                    )
+                    return None
+            else:
+                empty_rounds = 0
+                left = max(0, int(deadline - time.time()))
+                print(
+                    f"[gflow-bridge] catálogo: {len(rows)} videos, {pending} de este job; "
+                    f"aún no hay mp4, sigo {left}s",
+                    flush=True,
+                )
         except Exception as err:
             print(f"[gflow-bridge] catálogo: {err}", flush=True)
         if time.time() >= deadline:
@@ -853,10 +871,11 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
             still_path=str(still_path) if mode == "i2v" else None,
         )
         started = time.time()
+        ensure_gflow_wait_patch(submit_s=float(video_timeout), grace_s=float(recover_s))
         if _is_lower_priority(model):
             print(
                 f"[gflow-bridge] Lower Priority Veo: Chrome se queda abierto hasta {video_timeout}s "
-                f"(+{recover_s}s si Flow sigue en cola)",
+                f"(gflow no corta el ACK a 60s; si cierra, Flow cancela el clip)",
                 flush=True,
             )
         if mode == "i2v":
