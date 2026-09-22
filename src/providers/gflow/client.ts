@@ -63,13 +63,53 @@ export async function runGflow(args: string[], timeoutMs = 240_000): Promise<Gfl
   });
 }
 
+function isGflowLogEvent(obj: Record<string, unknown>): boolean {
+  return Boolean(obj["event"]) && obj["status"] == null && obj["local_path"] == null && obj["images"] == null;
+}
+
+function iterJsonObjects(text: string): Record<string, unknown>[] {
+  const blobs: Record<string, unknown>[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("{")) continue;
+    try {
+      const obj = JSON.parse(trimmed) as unknown;
+      if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+        blobs.push(obj as Record<string, unknown>);
+      }
+    } catch {
+      /* pretty-printed objects span lines */
+    }
+  }
+  if (blobs.length) return blobs;
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return [];
+  try {
+    const obj = JSON.parse(text.slice(start, end + 1)) as unknown;
+    if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+      return [obj as Record<string, unknown>];
+    }
+  } catch {
+    /* not a single object */
+  }
+  return [];
+}
+
 export function parseGflowJson(stdout: string): Record<string, unknown> {
-  const start = stdout.indexOf("{");
-  const end = stdout.lastIndexOf("}");
-  if (start < 0 || end <= start) {
+  const objs = iterJsonObjects(stdout);
+  if (!objs.length) {
     throw new GflowCliError(`gflow no devolvió JSON: ${stdout.slice(0, 240) || "(vacío)"}`);
   }
-  return JSON.parse(stdout.slice(start, end + 1)) as Record<string, unknown>;
+  const results = objs.filter((obj) => !isGflowLogEvent(obj));
+  const pool = results.length ? results : objs;
+  for (let i = pool.length - 1; i >= 0; i--) {
+    const obj = pool[i];
+    if (obj["status"] === "ok" || obj["status"] === "fail" || obj["local_path"] || obj["images"]) {
+      return obj;
+    }
+  }
+  return pool[pool.length - 1] ?? objs[0];
 }
 
 export async function runGflowJson(args: string[], timeoutMs?: number): Promise<Record<string, unknown>> {
