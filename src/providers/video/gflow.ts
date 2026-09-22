@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import type { VideoProvider, VideoResult } from "../../schema/providers.js";
 import { bridgeGenerateVideo, gflowBridgeUrl } from "../gflow/bridge.js";
+import { gflowRelayEnabled } from "../gflow/relay.js";
 import {
   GFLOW_DEFAULT_CLIP_SECONDS,
   gflowCliDuration,
@@ -17,12 +18,14 @@ import { GflowCliError, runGflowJson } from "../gflow/client.js";
 export class GflowVideo implements VideoProvider {
   private modelId: string;
   private mode: GflowVideoMode;
+  private bridgeId?: string;
   readonly supportedDurations: number[];
 
-  constructor(modelId?: string, mode?: string) {
+  constructor(modelId?: string, mode?: string, bridgeId?: string) {
     const spec = resolveGflowVideoModel(modelId);
     this.modelId = spec.id;
     this.mode = resolveGflowVideoMode(mode);
+    this.bridgeId = bridgeId;
     this.supportedDurations = [...spec.durations];
   }
 
@@ -36,7 +39,7 @@ export class GflowVideo implements VideoProvider {
     const cliDuration = gflowCliDuration(this.modelId, opts.durationSeconds);
     const reported = cliDuration ?? GFLOW_DEFAULT_CLIP_SECONDS;
     const useStill = this.mode === "i2v";
-    if (gflowBridgeUrl()) {
+    if (gflowBridgeUrl() || gflowRelayEnabled()) {
       return bridgeGenerateVideo({
         prompt: opts.prompt,
         aspect,
@@ -44,6 +47,7 @@ export class GflowVideo implements VideoProvider {
         durationSeconds: cliDuration,
         mode: this.mode,
         imagePng: useStill ? opts.sourceImage : undefined,
+        bridgeId: this.bridgeId,
       });
     }
 

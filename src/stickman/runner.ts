@@ -58,6 +58,7 @@ export async function runVisuals(
     atlasModel: script.image_model,
     atlasKey: apiKey,
     gflowModel: config.gflowImageModel,
+    gflowBridgeId: config.gflowBridgeId,
   });
   const paths = await renderStills(jobDir(id), script, image, log, readCastRef(id));
   writeScript(id, script);
@@ -233,6 +234,7 @@ export async function runMotion(
     atlasKey: apiKey,
     gflowModel: config.gflowVideoModel,
     gflowMode: config.gflowVideoMode,
+    gflowBridgeId: config.gflowBridgeId,
   });
   const firstStillRel = script.beats.find((beat) => beat.stillPath)?.stillPath;
   const firstStill = firstStillRel ? path.join(jobDir(id), firstStillRel) : "";

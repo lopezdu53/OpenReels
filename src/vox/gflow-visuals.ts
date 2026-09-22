@@ -49,13 +49,14 @@ export function collageMotionPrompt(shot: VoxShot, beat: VoxBeat, freeze?: strin
 }
 
 function imageOf(config: VoxJobConfig): GflowImage {
-  return new GflowImage(config.gflowImageModel || DEFAULT_GFLOW_IMAGE_MODEL);
+  return new GflowImage(config.gflowImageModel || DEFAULT_GFLOW_IMAGE_MODEL, config.gflowBridgeId);
 }
 
 function videoOf(config: VoxJobConfig): GflowVideo {
   return new GflowVideo(
     config.gflowVideoModel || DEFAULT_GFLOW_VIDEO_MODEL,
     config.gflowVideoMode || DEFAULT_GFLOW_VIDEO_MODE,
+    config.gflowBridgeId,
   );
 }
 

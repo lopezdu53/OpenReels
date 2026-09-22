@@ -6,6 +6,7 @@ from __future__ import annotations
 import base64
 import os
 import re
+import socket
 import subprocess
 import sys
 import threading
@@ -118,6 +119,7 @@ class App(tk.Tk):
 
         self.mode = tk.StringVar(value=self.cfg.get("mode") or "both")
         self.token = tk.StringVar(value=self.cfg.get("token") or "")
+        self.bridge_name = tk.StringVar(value=self.cfg.get("bridgeName") or socket.gethostname())
         self.xeon = tk.StringVar(value=self.cfg.get("xeonIp") or "192.168.1.71")
         self.port = tk.StringVar(value=str(self.cfg.get("port") or 8787))
         self.studio = tk.StringVar(value=self.cfg.get("studioUrl") or "https://contenido.alfonsolopezd.com")
@@ -348,9 +350,10 @@ class App(tk.Tk):
         form.columnconfigure(0, weight=3)
         form.columnconfigure(1, weight=1)
         self._grid_field(form, 0, "Token (EasyPanel)", self.token, show="•", span=2)
-        self._grid_field(form, 1, "IP del Xeon", self.xeon, col=0)
-        self._grid_field(form, 1, "Puerto", self.port, col=1)
-        self._grid_field(form, 2, "URL del estudio", self.studio, span=2)
+        self._grid_field(form, 1, "Nombre de este PC", self.bridge_name, span=2)
+        self._grid_field(form, 2, "IP del Xeon", self.xeon, col=0)
+        self._grid_field(form, 2, "Puerto", self.port, col=1)
+        self._grid_field(form, 3, "URL del estudio", self.studio, span=2)
         return card
 
     def _tab_flow(self, parent: tk.Frame) -> tk.Frame:
@@ -774,6 +777,8 @@ class App(tk.Tk):
             {
                 "mode": self.mode.get(),
                 "token": self.token.get().strip(),
+                "bridgeId": str(self.cfg.get("bridgeId") or ""),
+                "bridgeName": self.bridge_name.get().strip() or socket.gethostname(),
                 "xeonIp": self.xeon.get().strip(),
                 "port": int(self.port.get() or 8787),
                 "studioUrl": self.studio.get().strip(),
@@ -841,12 +846,20 @@ class App(tk.Tk):
                 return
             self.http_thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
             self.http_thread.start()
-            self._log(f"LAN: escuchando 0.0.0.0:{port} (Xeon {allow or '*'})", "ok")
+            self._log(
+                f"LAN: escuchando 0.0.0.0:{port} (Xeon {allow or '*'}) · {self.bridge_name.get().strip() or socket.gethostname()}",
+                "ok",
+            )
         if mode in {"remote", "both"}:
             studio = self.studio.get().strip()
+            identity = {
+                "bridgeId": str(self.cfg.get("bridgeId") or ""),
+                "name": self.bridge_name.get().strip() or socket.gethostname(),
+                "hostname": socket.gethostname(),
+            }
             self.relay_thread = threading.Thread(
                 target=run_poll_loop,
-                args=(studio, token, self.stop_relay.is_set, self._log),
+                args=(studio, token, self.stop_relay.is_set, self._log, identity),
                 daemon=True,
             )
             self.relay_thread.start()

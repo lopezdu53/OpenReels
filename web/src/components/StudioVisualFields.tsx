@@ -1,5 +1,25 @@
+import { useEffect, useState } from "react";
 import { DarkSelect } from "@/components/DarkSelect";
+import { api, type GflowBridgeChoice } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
+
+const BRIDGE_KEY = "openreels_gflow_bridge";
+
+export function loadGflowBridgeId(): string {
+  try {
+    return localStorage.getItem(BRIDGE_KEY) || "auto";
+  } catch {
+    return "auto";
+  }
+}
+
+export function saveGflowBridgeId(id: string): void {
+  try {
+    localStorage.setItem(BRIDGE_KEY, id);
+  } catch {
+    /* ignore */
+  }
+}
 
 type GflowImage = { id: string; label: string; note?: string; credits?: number };
 type GflowVideo = {
@@ -16,6 +36,7 @@ type Catalog = {
   gflowVideoModels?: GflowVideo[];
   atlasReady?: boolean;
   gflowBridge?: boolean;
+  gflowBridges?: GflowBridgeChoice[];
   doctor?: { ok: boolean; detail: string };
 } | null;
 
@@ -67,6 +88,8 @@ export function StudioVisualFields(props: {
   disabledHint?: string;
   gflowHint: string;
   durationSec?: number;
+  gflowBridgeId?: string;
+  onGflowBridgeId?: (value: string) => void;
 }) {
   const {
     catalog,
@@ -81,7 +104,43 @@ export function StudioVisualFields(props: {
     disabledHint,
     gflowHint,
     durationSec,
+    gflowBridgeId = "auto",
+    onGflowBridgeId,
   } = props;
+  const [liveBridges, setLiveBridges] = useState<GflowBridgeChoice[]>(catalog?.gflowBridges ?? []);
+
+  useEffect(() => {
+    if (visualProvider !== "gflow") return;
+    let live = true;
+    const load = () => {
+      api
+        .gflowBridges()
+        .then((r) => {
+          if (live && r.bridges?.length) setLiveBridges(r.bridges);
+        })
+        .catch(() => {});
+    };
+    load();
+    const timer = setInterval(load, 15_000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [visualProvider]);
+
+  const bridges =
+    liveBridges.length > 0
+      ? liveBridges
+      : (catalog?.gflowBridges ?? [
+          {
+            id: "auto",
+            label: "Automático",
+            note: "LAN si responde; si no, cualquier remoto",
+            kind: "auto" as const,
+            online: true,
+          },
+        ]);
+  const bridgeValue = bridges.some((b) => b.id === gflowBridgeId) ? gflowBridgeId : "auto";
 
   const images = catalog?.gflowImageModels ?? [
     { id: "nano-pro", label: "Nano Banana Pro", credits: 0 },
@@ -142,6 +201,22 @@ export function StudioVisualFields(props: {
                 value: m.id,
                 label: m.label,
                 hint: `${m.note ?? "Flow"} · 0 créditos`,
+              }))}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            Puente
+            <DarkSelect
+              aria-label="Puente Windows"
+              value={bridgeValue}
+              onValueChange={(value) => {
+                saveGflowBridgeId(value);
+                onGflowBridgeId?.(value);
+              }}
+              options={bridges.map((b) => ({
+                value: b.id,
+                label: b.online || b.kind === "auto" ? b.label : `${b.label} · offline`,
+                hint: b.note,
               }))}
             />
           </div>

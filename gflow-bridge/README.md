@@ -13,6 +13,7 @@ App de **un clic** en Windows. El worker de EasyPanel llama aquí: en casa por L
    - **Fuera de casa** — URL del estudio (`https://contenido.alfonsolopezd.com`) y el mismo token.
    - **Ambos** — LAN + remoto (recomendado si EasyPanel está en la nube y a veces estás en casa).
 6. Pega el **token** (el mismo `GFLOW_BRIDGE_TOKEN` que en EasyPanel).
+7. Pon un **nombre de este PC** (ej. Sala, Oficina). En el estudio eliges qué puente genera.
 7. Pestaña **Flow**: project id de `gflow project list` y **Conectar**.
 8. Chrome: proyecto Flow abierto, chip **Agent en OFF**.
 

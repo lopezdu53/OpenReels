@@ -44,6 +44,7 @@ import {
   sortedAtlasLlmModels,
   sortedAtlasVideoModels,
 } from "./providers/atlas/catalog.js";
+import { gflowBridgeCatalog } from "./providers/gflow/bridge.js";
 import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "./providers/gflow/catalog.js";
 import { AliCloudLLM } from "./providers/llm/alicloud.js";
 import { AnthropicLLM } from "./providers/llm/anthropic.js";
@@ -375,6 +376,7 @@ app.get("/api/v1/providers", async () => ({
   })),
   gflowImageModels: GFLOW_IMAGE_MODELS,
   gflowVideoModels: GFLOW_VIDEO_MODELS,
+  gflowBridges: await gflowBridgeCatalog(),
   atelierStyles: ATELIER_STYLES,
   image: [
     { key: "gflow", label: "gflow-cli (Imagen / Flow)" },
@@ -400,6 +402,10 @@ app.get("/api/v1/providers", async () => ({
     { key: "vidu-q3-fast", label: "VIDU Q3 Fast" },
     { key: "runpod", label: "RunPod (Wan / Kling / Seedance)" },
   ],
+}));
+
+app.get("/api/v1/gflow/bridges", async () => ({
+  bridges: await gflowBridgeCatalog(),
 }));
 
 await registerAnalyticsRoutes(app);
@@ -513,6 +519,7 @@ app.post("/api/v1/test/image", async (request, reply) => {
     model,
     steps,
     guidance,
+    gflowBridgeId,
   } = request.body as {
     provider?: string;
     prompt: string;
@@ -521,11 +528,12 @@ app.post("/api/v1/test/image", async (request, reply) => {
     model?: string;
     steps?: number;
     guidance?: number;
+    gflowBridgeId?: string;
   };
   if (!prompt?.trim()) return reply.status(400).send({ error: "prompt is required" });
   const start = Date.now();
   try {
-    const imageGen = createLabImageProvider({ provider, model, steps, guidance });
+    const imageGen = createLabImageProvider({ provider, model, steps, guidance, gflowBridgeId });
     const buffer = await imageGen.generate(prompt, style, undefined, aspectRatio);
     return { imageBase64: buffer.toString("base64"), durationMs: Date.now() - start };
   } catch (err) {
@@ -545,6 +553,7 @@ app.post("/api/v1/test/video", async (request, reply) => {
     resolution,
     lipSyncModel,
     mode,
+    gflowBridgeId,
   } = request.body as {
     provider?: string;
     imageBase64?: string;
@@ -555,6 +564,7 @@ app.post("/api/v1/test/video", async (request, reply) => {
     resolution?: string;
     lipSyncModel?: string | null;
     mode?: string;
+    gflowBridgeId?: string;
   };
   if (!prompt?.trim()) return reply.status(400).send({ error: "prompt is required" });
   if (labVideoRequiresStill(provider, mode) && !imageBase64) {
@@ -568,6 +578,7 @@ app.post("/api/v1/test/video", async (request, reply) => {
       mode,
       resolution,
       lipSyncModel,
+      gflowBridgeId,
     });
     const sourceImage = imageBase64 ? Buffer.from(imageBase64, "base64") : Buffer.alloc(0);
     const result = await videoProvider.generate({
@@ -653,6 +664,7 @@ interface CreateJobBody {
     gflowImageModel?: string;
     gflowVideoModel?: string;
     gflowVideoMode?: string;
+    gflowBridgeId?: string;
   };
   keys?: Record<string, string>;
 }
@@ -900,6 +912,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       gflowImageModel: providers?.gflowImageModel,
       gflowVideoModel: providers?.gflowVideoModel,
       gflowVideoMode: providers?.gflowVideoMode,
+      gflowBridgeId: providers?.gflowBridgeId,
     },
     keys: keys ?? {},
     jobsDir: JOBS_DIR,

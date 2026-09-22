@@ -3,7 +3,7 @@ import type { AuthedRequest } from "../auth/plugin.js";
 import { requireUser } from "../auth/plugin.js";
 import { generateFilmScript, parseYoutubeUrls } from "../film/script.js";
 import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "../providers/gflow/catalog.js";
-import { gflowBridgeUrl } from "../providers/gflow/bridge.js";
+import { gflowBridgeCatalog, gflowBridgeUrl } from "../providers/gflow/bridge.js";
 import { gflowDoctor } from "../providers/gflow/client.js";
 import { FLOW_IMAGE_PROVIDERS, FLOW_TTS_PROVIDERS, FLOW_VIDEO_PROVIDERS } from "./providers.js";
 
@@ -22,6 +22,7 @@ export async function registerFlowRoutes(app: FastifyInstance): Promise<void> {
     video: [...FLOW_VIDEO_PROVIDERS],
     doctor: await gflowDoctor(),
     bridge: Boolean(gflowBridgeUrl()),
+    gflowBridges: await gflowBridgeCatalog(),
   }));
 
   app.post("/api/v1/flow/script", async (request: AuthedRequest, reply) => {

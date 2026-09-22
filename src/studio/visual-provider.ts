@@ -25,9 +25,10 @@ export function createStudioImage(opts: {
   atlasModel?: string;
   atlasKey?: string;
   gflowModel?: string;
+  gflowBridgeId?: string;
 }): ImageProvider {
   if (resolveStudioVisualProvider(opts.visualProvider) === "gflow") {
-    return new GflowImage(opts.gflowModel || DEFAULT_GFLOW_IMAGE_MODEL);
+    return new GflowImage(opts.gflowModel || DEFAULT_GFLOW_IMAGE_MODEL, opts.gflowBridgeId);
   }
   return new AtlasImage(opts.atlasModel, opts.atlasKey);
 }
@@ -38,11 +39,13 @@ export function createStudioVideo(opts: {
   atlasKey?: string;
   gflowModel?: string;
   gflowMode?: string;
+  gflowBridgeId?: string;
 }): VideoProvider {
   if (resolveStudioVisualProvider(opts.visualProvider) === "gflow") {
     return new GflowVideo(
       opts.gflowModel || DEFAULT_GFLOW_VIDEO_MODEL,
       opts.gflowMode || DEFAULT_GFLOW_VIDEO_MODE,
+      opts.gflowBridgeId,
     );
   }
   return new AtlasVideo(opts.atlasModel, opts.atlasKey, null);

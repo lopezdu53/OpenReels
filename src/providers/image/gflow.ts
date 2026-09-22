@@ -5,6 +5,7 @@ import type { ImageProvider } from "../../schema/providers.js";
 import { bridgeGenerateImage, gflowBridgeUrl } from "../gflow/bridge.js";
 import { gflowImageCliId } from "../gflow/catalog.js";
 import { GflowCliError, runGflowJson } from "../gflow/client.js";
+import { gflowRelayEnabled } from "../gflow/relay.js";
 
 function readLocalPath(payload: Record<string, unknown>): string {
   const images = payload["images"];
@@ -17,9 +18,11 @@ function readLocalPath(payload: Record<string, unknown>): string {
 
 export class GflowImage implements ImageProvider {
   private modelId: string;
+  private bridgeId?: string;
 
-  constructor(modelId?: string) {
+  constructor(modelId?: string, bridgeId?: string) {
     this.modelId = gflowImageCliId(modelId);
+    this.bridgeId = bridgeId;
   }
 
   async generate(
@@ -30,12 +33,13 @@ export class GflowImage implements ImageProvider {
   ): Promise<Buffer> {
     const aspect = aspectRatio === "9:16" || aspectRatio === "1:1" ? aspectRatio : "16:9";
     const full = style ? `${prompt}. Style: ${style}` : prompt;
-    if (gflowBridgeUrl()) {
+    if (gflowBridgeUrl() || gflowRelayEnabled()) {
       return bridgeGenerateImage({
         prompt: full,
         aspect,
         model: this.modelId,
         referencePng: referenceImage,
+        bridgeId: this.bridgeId,
       });
     }
 

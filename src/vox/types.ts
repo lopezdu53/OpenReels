@@ -98,6 +98,7 @@ export interface VoxJobConfig {
   gflowImageModel?: string;
   gflowVideoModel?: string;
   gflowVideoMode?: string;
+  gflowBridgeId?: string;
   atlasKey?: string;
   clonePersona?: string;
   crollSubject?: "portrait" | "product";
