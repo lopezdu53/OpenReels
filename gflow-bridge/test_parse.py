@@ -11,6 +11,8 @@ from server import (
     VIDEO_TIMEOUT_LP,
     abort_current_gflow,
     _catalog_paths_from_list,
+    _catalog_video_rows,
+    _clear_abort,
     _flow_picker_script,
     _is_gflow_log_event,
     _is_lower_priority,
@@ -21,6 +23,9 @@ from server import (
     _is_add_to_prompt_label,
     _is_submit_miss,
     _parse_gflow_json,
+    _parse_iso_ts,
+    _recover_generated_mp4,
+    _row_is_recent,
     _should_wait_for_clip,
     _recover_seconds_for,
     _resolve_video_mode,
@@ -179,7 +184,13 @@ class VideoModeTests(unittest.TestCase):
         self.assertLess(_lock_wait_for("image", {}), VIDEO_TIMEOUT_LP)
         self.assertGreaterEqual(PICKER_SCAN_SECONDS, 12)
         self.assertLessEqual(PICKER_SCAN_SECONDS, 20)
+        _clear_abort()
         self.assertFalse(abort_current_gflow())
+        import server
+
+        self.assertTrue(server.ABORT_REQUESTED)
+        _clear_abort()
+        self.assertFalse(server.ABORT_REQUESTED)
 
     def test_submit_miss_is_not_picker_retry(self):
         miss = (
@@ -196,6 +207,11 @@ class VideoModeTests(unittest.TestCase):
                 "UiSelectorDriftError — migrated host: the frame picker stayed open 15s"
             )
         )
+        self.assertTrue(
+            _is_submit_miss("WireFormatError — signed media URL not seen in the grace window")
+        )
+        self.assertTrue(_is_submit_miss("copy_count stayed 0 after credits were spent"))
+        self.assertTrue(_should_wait_for_clip("WireFormatError grace window", "veo-lite-lp", "i2v"))
 
     def test_catalog_paths_from_list(self):
         import os
@@ -210,6 +226,40 @@ class VideoModeTests(unittest.TestCase):
             self.assertEqual(found, [mp4])
             self.assertEqual(_mp4_search_roots(mp4), [mp4.parent])
             os.unlink(mp4)
+
+    def test_catalog_rows_skip_info_logs_and_filter_recent(self):
+        import time
+        from pathlib import Path
+
+        info = (
+            '{"engine":"playwright","event":"browser_engine_selected","cli_version":"0.79.1",'
+            '"level":"info","command":"data list"}'
+        )
+        listing = (
+            '{"status":"ok","videos":['
+            '{"media_id":"vid_new","created_at":"2023-11-14T22:13:40Z","copy_count":0},'
+            '{"media_id":"vid_old","created_at":"2023-11-14T22:00:00Z","copy_count":2}'
+            "]}"
+        )
+        rows = _catalog_video_rows(f"{info}\n{listing}\n")
+        self.assertEqual([row["media_id"] for row in rows], ["vid_new", "vid_old"])
+        array = _catalog_video_rows('[{"media_id":"vid_arr","local_path":"/tmp/a.mp4"}]')
+        self.assertEqual(array[0]["media_id"], "vid_arr")
+        now = 1_700_000_000.0
+        self.assertAlmostEqual(_parse_iso_ts("2023-11-14T22:13:20Z"), now)
+        self.assertAlmostEqual(_parse_iso_ts(1_700_000_000), now)
+        self.assertAlmostEqual(_parse_iso_ts(1_700_000_000_000), now)
+        self.assertTrue(_row_is_recent({"created_at": "2023-11-14T22:13:40Z"}, now))
+        self.assertFalse(_row_is_recent({"created_at": "2023-11-14T22:12:00Z"}, now))
+        self.assertTrue(_row_is_recent({"copy_count": 0}, now))
+        self.assertFalse(_row_is_recent({"copy_count": 2}, now))
+        import server
+
+        server.ABORT_REQUESTED = True
+        try:
+            self.assertIsNone(_recover_generated_mp4(Path("/tmp/or-no-clip.mp4"), time.time(), 30))
+        finally:
+            _clear_abort()
 
 
 class DrainTests(unittest.TestCase):
@@ -400,6 +450,12 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("gflow volvió sin mp4; espero el clip (Lower Priority no corta a 1 min)."), "i2v")
         self.assertEqual(classify_log("Lower Priority Veo: Chrome se queda abierto hasta 3600s"), "i2v")
         self.assertEqual(classify_log("dejo el picker; no cierro la ventana mientras Flow genera"), "i2v")
+        self.assertEqual(
+            classify_log("gflow cerró Chrome; Flow sigue generando. Espero/descargo el mp4 hasta 1200s"),
+            "i2v",
+        )
+        self.assertEqual(classify_log("catálogo: 3 videos, 1 de este job; aún no hay mp4, sigo 800s"), "i2v")
+        self.assertEqual(APP_VERSION, "1.6.4")
         self.assertEqual(classify_log("gflow fail: crash"), "err")
         self.assertEqual(classify_log("LAN: escuchando listo"), "ok")
         self.assertEqual(classify_log("Cloudflare 404 aviso"), "warn")
