@@ -454,12 +454,13 @@ class BrandingAndDesktopTests(unittest.TestCase):
             classify_log("gflow: ACK de submit 3600s y gracia URL 1200s (antes 60s/20s)"),
             "i2v",
         )
+        self.assertEqual(classify_log("runtime ACK=3600s grace=1200s (gflow stock is 60s/20s)"), "i2v")
         self.assertEqual(
             classify_log("Si Chrome ya cerró, Flow canceló el clip (no sigue en el servidor)."),
             "i2v",
         )
         self.assertEqual(classify_log("catálogo: 3 videos, 1 de este job; aún no hay mp4, sigo 800s"), "i2v")
-        self.assertEqual(APP_VERSION, "1.6.5")
+        self.assertEqual(APP_VERSION, "1.6.6")
         self.assertEqual(classify_log("gflow fail: crash"), "err")
         self.assertEqual(classify_log("LAN: escuchando listo"), "ok")
         self.assertEqual(classify_log("Cloudflare 404 aviso"), "warn")
@@ -489,6 +490,15 @@ class GflowPatchTests(unittest.TestCase):
         self.assertEqual(same, out)
         labs = patch_labs_video_source("SUBMIT_STAGE_TIMEOUT_S = 90.0\n", submit_s=3600.0)
         self.assertIn("SUBMIT_STAGE_TIMEOUT_S = 3600.0", labs)
+
+    def test_prefers_venv_python_runner_over_raw_gflow_exe(self):
+        from gflow_patch import RUNNER_SOURCE, gflow_exec_command
+
+        self.assertIn("SUBMIT_REPLY_BUDGET_S", RUNNER_SOURCE)
+        self.assertIn("gflow_cli.cli", RUNNER_SOURCE)
+        cmd = gflow_exec_command("/no/such/gflow.exe", ["video", "i2v", "prompt"])
+        self.assertEqual(cmd[0], "/no/such/gflow.exe")
+        self.assertIn("--json", cmd)
 
 
 if __name__ == "__main__":

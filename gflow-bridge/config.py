@@ -83,6 +83,7 @@ def classify_log(line: str) -> str:
             "catalogo",
             "descargo",
             "ack de submit",
+            "runtime ack",
             "flow canceló",
             "flow cancelo",
         )

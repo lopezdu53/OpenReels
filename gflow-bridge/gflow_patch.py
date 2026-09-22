@@ -5,7 +5,9 @@ misses YhhmEf — or Lower Priority has not ACKed yet — gflow exits, Playwrigh
 closes Chrome, and Flow aborts the clip that was still at ~26%. The local
 `gflow data list` catalog stays empty because nothing was recorded.
 
-We rewrite those constants in the installed package (re-applied after upgrades).
+Rewriting the .py on disk is not enough: the Puente still launched `gflow.exe`,
+which kept the 60s cap (1.6.5 died at ~56s). We now run the venv Python with an
+in-memory patch before `gflow_cli.cli.main()`.
 """
 
 from __future__ import annotations
@@ -22,6 +24,45 @@ LABS_SUBMIT_STAGE_S = float(os.environ.get("GFLOW_BRIDGE_LABS_SUBMIT_S", "3600")
 
 _COMPOSER = "gflow_cli/api/transports/migrated_composer.py"
 _LABS_VIDEO = "gflow_cli/api/transports/ui_automation_video.py"
+
+RUNNER_SOURCE = r'''#!/usr/bin/env python3
+"""In-memory gflow ACK patch. Chrome must stay open past the stock 60s cap."""
+from __future__ import annotations
+
+import os
+import sys
+
+
+def _patch() -> None:
+    submit = float(os.environ.get("GFLOW_BRIDGE_SUBMIT_REPLY_S", "3600"))
+    grace = float(os.environ.get("GFLOW_BRIDGE_RESULT_URL_GRACE_S", "1200"))
+    try:
+        import gflow_cli.api.transports.migrated_composer as mc
+
+        mc.SUBMIT_REPLY_BUDGET_S = submit
+        mc.RESULT_URL_GRACE_S = grace
+        print(
+            f"[gflow-bridge] runtime ACK={mc.SUBMIT_REPLY_BUDGET_S:.0f}s "
+            f"grace={mc.RESULT_URL_GRACE_S:.0f}s (gflow stock is 60s/20s)",
+            flush=True,
+        )
+    except Exception as err:
+        print(f"[gflow-bridge] runtime patch composer: {err}", flush=True)
+    try:
+        import gflow_cli.api.transports.ui_automation_video as labs
+
+        labs.SUBMIT_STAGE_TIMEOUT_S = submit
+    except Exception:
+        pass
+
+
+if __name__ == "__main__":
+    _patch()
+    sys.argv = ["gflow", *sys.argv[1:]]
+    from gflow_cli.cli import main
+
+    main()
+'''
 
 
 def _rewrite_assignment(text: str, name: str, value: float) -> tuple[str, bool]:
@@ -108,6 +149,100 @@ def _site_package_roots() -> list[Path]:
         seen.add(key)
         unique.append(root)
     return unique
+
+
+def find_gflow_python(gflow_bin: str = "") -> Path | None:
+    """Python of the uv tool venv that actually imports gflow_cli."""
+    guesses: list[Path] = []
+    try:
+        from install import app_home, gflow_venv_python
+    except Exception:
+        app_home = None  # type: ignore[assignment]
+        gflow_venv_python = None  # type: ignore[assignment]
+    if gflow_venv_python is not None:
+        py = gflow_venv_python()
+        if py is not None:
+            guesses.append(py)
+    homes: list[Path] = []
+    if app_home is not None:
+        homes.append(app_home())
+    local = os.environ.get("LOCALAPPDATA") or ""
+    roaming = os.environ.get("APPDATA") or ""
+    if local:
+        homes.append(Path(local) / "OpenReelsPuente")
+        homes.append(Path(local) / "uv" / "tools")
+    if roaming:
+        homes.append(Path(roaming) / "uv" / "tools")
+    bin_path = Path(gflow_bin or os.environ.get("GFLOW_CLI_BIN") or "")
+    if str(bin_path):
+        guesses.append(bin_path.with_name("python.exe"))
+        guesses.append(bin_path.with_name("python"))
+        parent = bin_path.parent
+        homes.append(parent.parent)
+        homes.append(parent.parent / "uv-tools")
+        homes.append(parent.parent / "uv-tools" / "gflow-cli")
+        if parent.name.lower() == "scripts":
+            homes.append(parent.parent)
+    for home in homes:
+        guesses.extend(
+            [
+                home / "uv-tools" / "gflow-cli" / "Scripts" / "python.exe",
+                home / "uv-tools" / "gflow-cli" / "Scripts" / "python",
+                home / "uv-tools" / "gflow-cli" / "bin" / "python.exe",
+                home / "uv-tools" / "gflow-cli" / "bin" / "python",
+                home / "gflow-cli" / "Scripts" / "python.exe",
+                home / "Scripts" / "python.exe",
+            ]
+        )
+        cfg = home / "uv-tools" / "gflow-cli" / "pyvenv.cfg"
+        if not cfg.is_file() and (home / "pyvenv.cfg").is_file():
+            cfg = home / "pyvenv.cfg"
+        if cfg.is_file():
+            root = cfg.parent
+            guesses.extend(
+                [
+                    root / "Scripts" / "python.exe",
+                    root / "Scripts" / "python",
+                    root / "bin" / "python.exe",
+                    root / "bin" / "python",
+                ]
+            )
+    seen: set[str] = set()
+    for guess in guesses:
+        key = str(guess)
+        if key in seen:
+            continue
+        seen.add(key)
+        if guess.is_file():
+            return guess
+    if app_home is not None:
+        venv = app_home() / "uv-tools" / "gflow-cli"
+        if venv.is_dir():
+            for name in ("python.exe", "python"):
+                hits = list(venv.rglob(name))
+                for hit in hits:
+                    if hit.is_file() and ("Scripts" in hit.parts or "bin" in hit.parts):
+                        return hit
+    return None
+
+
+def write_runtime_runner() -> Path:
+    try:
+        from install import app_home
+
+        dest = app_home() / "gflow_runtime_patch.py"
+    except Exception:
+        dest = Path(os.environ.get("TEMP") or "/tmp") / "gflow_runtime_patch.py"
+    dest.write_text(RUNNER_SOURCE, encoding="utf-8")
+    return dest
+
+
+def gflow_exec_command(gflow_bin: str, args: list[str]) -> list[str]:
+    """Prefer venv python + in-memory ACK patch over raw gflow.exe."""
+    py = find_gflow_python(gflow_bin)
+    if py is None:
+        return [gflow_bin, *args, "--json"]
+    return [str(py), str(write_runtime_runner()), *args, "--json"]
 
 
 def find_gflow_module(relative: str) -> Path | None:

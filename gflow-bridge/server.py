@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from gflow_patch import ensure_gflow_wait_patch
+from gflow_patch import ensure_gflow_wait_patch, gflow_exec_command
 from profiles import find_gflow, missing_gflow_message
 
 HOST = os.environ.get("GFLOW_BRIDGE_HOST", "0.0.0.0")
@@ -442,7 +442,7 @@ def _spawn_gflow(
     output_dir: str | None = None,
     timeout: int | None = None,
 ) -> subprocess.Popen[str]:
-    cmd = [GFLOW_BIN, *args, "--json"]
+    cmd = gflow_exec_command(GFLOW_BIN, args)
     if PROFILE and "--profile" not in args:
         cmd.extend(["--profile", PROFILE])
     if PROJECT and "--project" not in args:
@@ -456,12 +456,23 @@ def _spawn_gflow(
     env.setdefault("GFLOW_CLI_FLOW_HOST", "auto")
     if timeout:
         env["GFLOW_CLI_TIMEOUT_SECONDS"] = str(max(int(timeout), 600))
+        env["GFLOW_BRIDGE_SUBMIT_REPLY_S"] = str(max(int(timeout), 600))
+        env["GFLOW_BRIDGE_RESULT_URL_GRACE_S"] = str(max(int(os.environ.get("GFLOW_BRIDGE_RECOVER_SECONDS_LP", "1200")), 240))
     if output_dir:
         env["GFLOW_CLI_OUTPUT_DIR"] = output_dir
     bin_path = Path(GFLOW_BIN)
     if bin_path.is_file():
         env["PATH"] = str(bin_path.parent) + os.pathsep + env.get("PATH", "")
-    print(f"[gflow-bridge] exec {' '.join(cmd[:6])} … project={PROJECT or '-'} name={PROJECT_NAME or '-'}", flush=True)
+    via = "python+ACK" if len(cmd) > 2 and cmd[1].endswith(".py") else "gflow.exe"
+    if via != "python+ACK":
+        print(
+            "[gflow-bridge] no hallé el Python de gflow; Chrome se cerrará a los 60s",
+            flush=True,
+        )
+    print(
+        f"[gflow-bridge] exec {via} {' '.join(cmd[:6])} … project={PROJECT or '-'} name={PROJECT_NAME or '-'}",
+        flush=True,
+    )
     return subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
