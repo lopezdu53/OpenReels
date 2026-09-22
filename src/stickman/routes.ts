@@ -6,7 +6,7 @@ import type { AuthedRequest } from "../auth/plugin.js";
 import { requireUser } from "../auth/plugin.js";
 import { sendArtifact } from "../http/send-artifact.js";
 import { resolveAtlasApiKey } from "../providers/atlas/client.js";
-import { gflowBridgeCatalog, gflowBridgeUrl } from "../providers/gflow/bridge.js";
+import { abortGflowBridge, gflowBridgeCatalog, gflowBridgeUrl } from "../providers/gflow/bridge.js";
 import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "../providers/gflow/catalog.js";
 import { gflowDoctor } from "../providers/gflow/client.js";
 import { resolveStudioVisualProvider, STUDIO_VISUAL_PROVIDERS } from "../studio/visual-provider.js";
@@ -52,6 +52,7 @@ import { llmUsd } from "./cost.js";
 import { draftScript } from "./draft.js";
 import {
   createJob,
+  deleteStickmanJobFiles,
   ensureStickmanJobsDir,
   finalPath,
   isStickmanFinalReady,
@@ -134,6 +135,34 @@ function parseStickmanCreateBody(
 
 function ownerOk(meta: { userId: string }, userId: string): boolean {
   return meta.userId === userId;
+}
+
+async function abortStickmanBridge(meta: { config: { gflowBridgeId?: string } }): Promise<void> {
+  try {
+    await abortGflowBridge(meta.config.gflowBridgeId);
+  } catch (err) {
+    console.warn("[stickman] abort gflow", err);
+  }
+}
+
+async function dropStickmanQueueJobs(
+  queue: ReturnType<typeof createStickmanQueue>,
+  id: string,
+): Promise<void> {
+  const jobs = await queue.getJobs(["wait", "delayed", "paused", "active"]);
+  for (const job of jobs) {
+    if (job.data?.id !== id) continue;
+    try {
+      await job.moveToFailed(new Error("stopped by user"), "0", true);
+    } catch {
+      /* lock may not match */
+    }
+    try {
+      await job.remove();
+    } catch {
+      /* still active */
+    }
+  }
 }
 
 export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedis): Promise<void> {
@@ -285,7 +314,11 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
         if (!isStickmanFinalReady(meta.id)) {
           return reply.status(400).send({ error: "Falta final.mp4 para mezclar la voz Atlas" });
         }
-      } else if (meta.status !== "awaiting_script" && meta.status !== "failed") {
+      } else if (
+        meta.status !== "awaiting_script" &&
+        meta.status !== "failed" &&
+        meta.status !== "cancelled"
+      ) {
         return reply.status(400).send({ error: "Nada que producir" });
       }
       if (!readScript(meta.id)) return reply.status(400).send({ error: "Falta script.json" });
@@ -315,6 +348,8 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
         script.muteCharacter = meta.config.muteCharacter === true;
         writeScript(meta.id, script);
       }
+      meta.stopRequested = false;
+      meta.cancelRequested = false;
       writeMeta(meta);
       if (!resolveAtlasApiKey(meta.config.atlasKey)) {
         return reply
@@ -390,6 +425,21 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
   );
 
   app.post<{ Params: { id: string } }>(
+    "/api/v1/stickman/jobs/:id/stop",
+    async (request: AuthedRequest, reply) => {
+      const user = requireUser(request, reply);
+      if (!user) return;
+      const meta = readMeta(request.params.id);
+      if (!meta || !ownerOk(meta, user.id))
+        return reply.status(404).send({ error: "No encontrado" });
+      writeMeta({ ...meta, stopRequested: true });
+      setStatus(meta.id, "producing", meta.stage, "Deteniendo gflow / Chrome…");
+      await abortStickmanBridge(meta);
+      return { ok: true, action: "stop" };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
     "/api/v1/stickman/jobs/:id/cancel",
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
@@ -397,8 +447,33 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
       const meta = readMeta(request.params.id);
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
-      setStatus(meta.id, "cancelled", "cancelled", "Cancelado");
-      return { ok: true };
+      writeMeta({ ...meta, cancelRequested: true, stopRequested: true });
+      setStatus(meta.id, "cancelled", "cancelled", "Cancelado", { error: "Cancelado" });
+      await abortStickmanBridge(meta);
+      await dropStickmanQueueJobs(queue, meta.id);
+      await saveJobSnapshot(redis, meta.id);
+      return { ok: true, action: "cancel" };
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>(
+    "/api/v1/stickman/jobs/:id",
+    async (request: AuthedRequest, reply) => {
+      const user = requireUser(request, reply);
+      if (!user) return;
+      const meta = readMeta(request.params.id);
+      if (!meta || !ownerOk(meta, user.id))
+        return reply.status(404).send({ error: "No encontrado" });
+      writeMeta({ ...meta, cancelRequested: true, stopRequested: true });
+      await abortStickmanBridge(meta);
+      await dropStickmanQueueJobs(queue, meta.id);
+      deleteStickmanJobFiles(meta.id);
+      try {
+        await redis.del(`stickman:snap:${meta.id}`);
+      } catch {
+        /* ignore */
+      }
+      return { ok: true, action: "delete" };
     },
   );
 }

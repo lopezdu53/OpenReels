@@ -1234,6 +1234,14 @@ export const api = {
     return fetchJson<{ ok: boolean }>(`/stickman/jobs/${id}/cancel`, { method: "POST" });
   },
 
+  stopStickmanJob(id: string) {
+    return fetchJson<{ ok: boolean }>(`/stickman/jobs/${id}/stop`, { method: "POST" });
+  },
+
+  deleteStickmanJob(id: string) {
+    return fetchJson<{ ok: boolean }>(`/stickman/jobs/${id}`, { method: "DELETE" });
+  },
+
   historiaCatalog() {
     return fetchJson<{
       arcs: { id: string; label: string; when: string; hint?: string }[];

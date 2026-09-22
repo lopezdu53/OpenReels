@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import {
   completeBridgeJob,
+  consumeBridgeAbort,
   isBridgeOnline,
   listOnlinePeers,
   parseBridgeIdentity,
@@ -28,6 +29,15 @@ export async function registerGflowBridgeRoutes(app: FastifyInstance): Promise<v
     const queued = await queuedBridgeJobs();
     const peers = await listOnlinePeers();
     return { ok: true, online, queued, peers };
+  });
+
+  app.post("/api/v1/gflow/bridge/abort-check", async (request, reply) => {
+    const expected = token();
+    if (!expected || !bearerOk(request.headers.authorization, expected)) {
+      return reply.status(401).send({ ok: false, error: "Token inválido" });
+    }
+    const abort = await consumeBridgeAbort(parseBridgeIdentity(request.body));
+    return { ok: true, abort };
   });
 
   app.post("/api/v1/gflow/bridge/poll", async (request, reply) => {

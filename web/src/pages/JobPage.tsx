@@ -37,6 +37,7 @@ export function JobPage() {
   const [job, setJob] = useState<JobSummary | null>(null);
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Rich SSE state
   const [score, setScore] = useState<DirectorScore | null>(null);
@@ -206,6 +207,19 @@ export function JobPage() {
     setCancelling(false);
   };
 
+  const handleDelete = async () => {
+    if (!id || deleting) return;
+    if (!window.confirm("¿Eliminar este trabajo y todos sus archivos?")) return;
+    setDeleting(true);
+    try {
+      await api.deleteJob(id);
+      navigate("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar");
+      setDeleting(false);
+    }
+  };
+
   if (error && !job) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center text-center">
@@ -344,16 +358,36 @@ export function JobPage() {
           )}
 
           {isRunning && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-lg border-border px-3.5 py-1.5 text-xs font-medium text-secondary-foreground"
-              onClick={handleCancel}
-              disabled={cancelling}
-            >
-              {cancelling ? "Cancelando…" : "Cancelar"}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-lg border-border px-3.5 py-1.5 text-xs font-medium text-secondary-foreground"
+                onClick={handleCancel}
+                disabled={cancelling}
+              >
+                {cancelling ? "Deteniendo…" : "Detener proceso"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-lg border-border px-3.5 py-1.5 text-xs font-medium text-secondary-foreground"
+                onClick={handleCancel}
+                disabled={cancelling}
+              >
+                {cancelling ? "Cancelando…" : "Cancelar trabajo"}
+              </Button>
+            </>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-lg border-border px-3.5 py-1.5 text-xs font-medium text-destructive"
+            onClick={() => void handleDelete()}
+            disabled={deleting}
+          >
+            {deleting ? "Eliminando…" : "Eliminar trabajo"}
+          </Button>
           {isCompleted && videoUrl && (
             <a href={videoUrl} download>
               <Button size="sm" className="gap-2 rounded-lg px-4 py-2">

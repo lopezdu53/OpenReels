@@ -242,3 +242,23 @@ export function isStickmanFinalReady(id: string): boolean {
   const p = finalPath(id);
   return Boolean(p && fileBigEnough(p, 20_000));
 }
+
+export class StickmanControlError extends Error {
+  constructor(public readonly action: "stop" | "cancel") {
+    super(action === "cancel" ? "STICKMAN_CANCELLED" : "STICKMAN_STOPPED");
+    this.name = "StickmanControlError";
+  }
+}
+
+export function throwIfStickmanStopped(id: string): void {
+  const meta = readMeta(id);
+  if (!meta) return;
+  if (meta.cancelRequested) throw new StickmanControlError("cancel");
+  if (meta.stopRequested) throw new StickmanControlError("stop");
+}
+
+export function deleteStickmanJobFiles(id: string): void {
+  if (!isStickmanJobId(id)) throw new Error("id inválido");
+  const dir = jobDir(id);
+  fs.rmSync(dir, { recursive: true, force: true });
+}

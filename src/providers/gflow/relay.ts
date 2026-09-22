@@ -27,7 +27,7 @@ const ONLINE_TTL_SEC = 45;
 
 export interface GflowRelayJob {
   id: string;
-  kind: "image" | "video";
+  kind: "image" | "video" | "abort";
   body: Record<string, unknown>;
 }
 
@@ -135,8 +135,32 @@ export async function queuedBridgeJobs(): Promise<number> {
   return getGflowRelayRedis().llen(GFLOW_SHARED_JOBS_KEY);
 }
 
+function abortKey(bridgeId?: string): string {
+  const id = sanitizeBridgePeerId(bridgeId);
+  return id ? `gflow:bridge:abort:${id}` : "gflow:bridge:abort";
+}
+
+export async function signalBridgeAbort(targetId?: string): Promise<void> {
+  const r = getGflowRelayRedis();
+  await r.set("gflow:bridge:abort", "1", "EX", 90);
+  const pinned = sanitizeBridgePeerId(targetId);
+  if (pinned) await r.set(abortKey(pinned), "1", "EX", 90);
+}
+
+export async function consumeBridgeAbort(identity?: GflowBridgeIdentity): Promise<boolean> {
+  const r = getGflowRelayRedis();
+  const keys = ["gflow:bridge:abort"];
+  const pinned = sanitizeBridgePeerId(identity?.id);
+  if (pinned) keys.unshift(abortKey(pinned));
+  let hit = false;
+  for (const key of keys) {
+    if (await r.del(key)) hit = true;
+  }
+  return hit;
+}
+
 export async function enqueueBridgeJob(
-  kind: "image" | "video",
+  kind: "image" | "video" | "abort",
   body: Record<string, unknown>,
   targetId?: string,
 ): Promise<string> {
