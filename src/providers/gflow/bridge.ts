@@ -12,6 +12,7 @@ import {
   isBridgeOnline,
   isPeerOnline,
   listOnlinePeers,
+  signalBridgeAbort,
   waitForBridgeResult,
   type GflowRelayResult,
 } from "./relay.js";
@@ -133,7 +134,7 @@ export async function bridgeHealth(): Promise<{ ok: boolean; detail: string }> {
 }
 
 async function viaRelay(
-  kind: "image" | "video",
+  kind: "image" | "video" | "abort",
   body: Record<string, unknown>,
   timeoutSec: number,
   target = "auto",
@@ -193,6 +194,34 @@ export async function gflowBridgeCatalog(): Promise<GflowBridgeChoice[]> {
     });
   }
   return choices;
+}
+
+export async function abortGflowBridge(bridgeId?: string): Promise<boolean> {
+  if (gflowRelayEnabled()) {
+    await signalBridgeAbort(isPinnedRemoteBridge(normalizeGflowBridgeId(bridgeId)) ? bridgeId : undefined).catch(
+      () => undefined,
+    );
+  }
+  const target = normalizeGflowBridgeId(bridgeId);
+  const tryLan = target === "auto" || target === "lan";
+  if (tryLan && (await preferLan())) {
+    try {
+      const res = await bridgeFetch("/v1/abort", { method: "POST", body: "{}" }, 20_000);
+      const payload = await readBridgeJson(res);
+      return payload["killed"] === true;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!gflowRelayEnabled() || !isGflowBridgeUnreachable(msg)) throw err;
+      rememberLanDown();
+    }
+  }
+  if (target === "lan" || !gflowRelayEnabled()) return false;
+  try {
+    const payload = await viaRelay("abort", {}, 45, target);
+    return payload.ok !== false;
+  } catch {
+    return false;
+  }
 }
 
 export async function bridgeGenerateImage(opts: {

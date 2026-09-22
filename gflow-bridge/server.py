@@ -46,6 +46,9 @@ I2V_FALLBACK_T2V = os.environ.get("GFLOW_I2V_FALLBACK_T2V", "") == "1"
 # gflow 0.71 picks the library tile then waits for the picker to close. Migrated
 # Flow keeps it open until "Add to prompt" — the CLI never clicks that button.
 CLICK_ADD_TO_PROMPT = os.environ.get("GFLOW_BRIDGE_CLICK_ADD_TO_PROMPT", "1") != "0"
+# gflow waits ~15s for the picker. UIA after that steals Playwright events and
+# gflow exits (~30–40s) while Flow is still around 26%.
+PICKER_SCAN_SECONDS = int(os.environ.get("GFLOW_BRIDGE_PICKER_SCAN_SECONDS", "18"))
 RECOVER_SECONDS = int(os.environ.get("GFLOW_BRIDGE_RECOVER_SECONDS", "240"))
 RECOVER_SECONDS_LP = int(os.environ.get("GFLOW_BRIDGE_RECOVER_SECONDS_LP", "1200"))
 _LP_MODELS = {
@@ -66,6 +69,8 @@ ADD_TO_PROMPT_NEEDLES = (
 )
 
 LOCK = threading.Lock()
+PROC_LOCK = threading.Lock()
+CURRENT_PROC: subprocess.Popen[str] | None = None
 
 
 def _is_lower_priority(model: str) -> bool:
@@ -364,7 +369,7 @@ def _dismiss_stale_frame_picker() -> None:
 
 
 class PickerConfirmWatch:
-    """While gflow waits 15s for the picker to close, click Add to prompt."""
+    """Click Add to prompt only while gflow still waits for the picker (~15s)."""
 
     def __init__(self, still_name: str, enabled: bool) -> None:
         self.still_name = still_name
@@ -386,7 +391,19 @@ class PickerConfirmWatch:
 
     def _loop(self) -> None:
         needle = Path(self.still_name).name if self.still_name else STILL_PREFIX
+        deadline = time.time() + max(0, PICKER_SCAN_SECONDS)
+        print(
+            f"[gflow-bridge] picker UIA máximo {PICKER_SCAN_SECONDS}s; después no toco Chrome "
+            "(Flow puede generar en cola)",
+            flush=True,
+        )
         while not self._stop.wait(1.1):
+            if time.time() >= deadline:
+                print(
+                    "[gflow-bridge] dejo el picker; no cierro la ventana mientras Flow genera",
+                    flush=True,
+                )
+                return
             try:
                 out = _run_powershell(_flow_picker_script("click", needle), timeout=10)
             except Exception as err:
@@ -413,7 +430,28 @@ def _gflow_fail_message(payload: dict[str, Any] | None, stdout: str, stderr: str
     return (stderr or stdout or f"gflow exit {code}")[:400]
 
 
+def abort_current_gflow() -> bool:
+    """User hit Detener: kill the headed gflow so Chrome is free."""
+    global CURRENT_PROC
+    with PROC_LOCK:
+        proc = CURRENT_PROC
+    if proc is None or proc.poll() is not None:
+        return False
+    print("[gflow-bridge] abort: detengo gflow (no espero el clip)", flush=True)
+    proc.terminate()
+    try:
+        proc.wait(timeout=8)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        try:
+            proc.wait(timeout=4)
+        except subprocess.TimeoutExpired:
+            pass
+    return True
+
+
 def _run_gflow(args: list[str], timeout: int, output_dir: str | None = None) -> dict[str, Any]:
+    global CURRENT_PROC
     cmd = [GFLOW_BIN, *args, "--json"]
     if PROFILE and "--profile" not in args:
         cmd.extend(["--profile", PROFILE])
@@ -434,22 +472,32 @@ def _run_gflow(args: list[str], timeout: int, output_dir: str | None = None) -> 
         env["PATH"] = str(bin_path.parent) + os.pathsep + env.get("PATH", "")
     print(f"[gflow-bridge] exec {' '.join(cmd[:6])} … project={PROJECT or '-'} name={PROJECT_NAME or '-'}", flush=True)
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
             env=env,
-            check=False,
         )
     except FileNotFoundError as err:
         raise RuntimeError(missing_gflow_message()) from err
-    except subprocess.TimeoutExpired as err:
-        raise RuntimeError(
-            f"TransportTimeoutError — gflow timeout {timeout}s (not terminal within). "
-            "Flow puede seguir renderizando el clip de 8s."
-        ) from err
-    combined = f"{proc.stdout or ''}\n{proc.stderr or ''}"
+    with PROC_LOCK:
+        CURRENT_PROC = proc
+    try:
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired as err:
+            proc.kill()
+            proc.communicate()
+            raise RuntimeError(
+                f"TransportTimeoutError — gflow timeout {timeout}s (not terminal within). "
+                "Flow puede seguir renderizando el clip de 8s."
+            ) from err
+    finally:
+        with PROC_LOCK:
+            if CURRENT_PROC is proc:
+                CURRENT_PROC = None
+    combined = f"{stdout or ''}\n{stderr or ''}"
     payload: dict[str, Any] | None = None
     try:
         payload = _parse_gflow_json(combined)
@@ -458,7 +506,7 @@ def _run_gflow(args: list[str], timeout: int, output_dir: str | None = None) -> 
     if payload and _is_gflow_log_event(payload):
         payload = None
     if (payload and payload.get("status") == "fail") or proc.returncode != 0:
-        msg = _gflow_fail_message(payload, proc.stdout or "", proc.stderr or "", proc.returncode)
+        msg = _gflow_fail_message(payload, stdout or "", stderr or "", proc.returncode or 1)
         if not msg.strip() or _is_progress_noise(msg):
             msg = (
                 f"gflow exit {proc.returncode} after progress log (no result JSON). "
@@ -467,7 +515,7 @@ def _run_gflow(args: list[str], timeout: int, output_dir: str | None = None) -> 
         print(f"[gflow-bridge] gflow fail: {msg}", flush=True)
         raise RuntimeError(msg)
     if not payload:
-        raise RuntimeError(f"gflow no devolvió JSON: {(proc.stdout or '')[:240]}")
+        raise RuntimeError(f"gflow no devolvió JSON: {(stdout or '')[:240]}")
     return payload
 
 
@@ -795,6 +843,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
         raw = self._read_body()
+        if path == "/v1/abort":
+            if not self._auth():
+                return
+            killed = abort_current_gflow()
+            self._json(200, {"ok": True, "kind": "abort", "killed": killed})
+            return
         if path not in {"/v1/image", "/v1/video"}:
             self._json(404, {"ok": False, "error": "not found"})
             return
@@ -864,6 +918,8 @@ def apply_settings(
 
 
 def run_kind(kind: str, body: dict[str, Any]) -> dict[str, Any]:
+    if kind == "abort":
+        return {"ok": True, "kind": "abort", "killed": abort_current_gflow()}
     if kind not in {"image", "video"}:
         raise ValueError(f"kind inválido: {kind}")
     if not LOCK.acquire(timeout=_lock_wait_for(kind, body)):

@@ -130,7 +130,7 @@ export function gflowVideoBudgetSeconds(modelId?: string): number {
   return gflowVideoWaitSeconds(modelId) + gflowVideoRecoverSeconds(modelId) + 60;
 }
 
-export function gflowRelayPayloadTtlSeconds(kind: "image" | "video"): number {
+export function gflowRelayPayloadTtlSeconds(kind: "image" | "video" | "abort"): number {
   return kind === "video" ? GFLOW_VIDEO_WAIT_LP_SEC + GFLOW_VIDEO_RECOVER_LP_SEC + 600 : 900;
 }
 

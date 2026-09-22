@@ -9,7 +9,15 @@ import {
   planMotionTakes,
   resolveStickmanTtsModel,
 } from "./catalog.js";
-import { fileBigEnough, jobDir, readCastRef, readMeta, readScript, writeScript } from "./store.js";
+import {
+  fileBigEnough,
+  jobDir,
+  readCastRef,
+  readMeta,
+  readScript,
+  throwIfStickmanStopped,
+  writeScript,
+} from "./store.js";
 import type { StickmanJobConfig, StickmanScript } from "./types.js";
 import { buildContinuousMotionPrompt, motionNegativePrompt, renderStills } from "./visuals.js";
 
@@ -178,6 +186,7 @@ export async function generateChainedTakes(opts: {
   clipsDir: string;
   takes: number[];
   log: (line: string) => void;
+  jobId?: string;
   retryMs?: number;
   attempts?: number;
 }): Promise<string[]> {
@@ -187,6 +196,7 @@ export async function generateChainedTakes(opts: {
   const attempts = Math.max(1, opts.attempts ?? TAKE_ATTEMPTS);
   const retryMs = Math.max(0, opts.retryMs ?? 4000);
   for (const [i, clipSeconds] of opts.takes.entries()) {
+    if (opts.jobId) throwIfStickmanStopped(opts.jobId);
     const takePath = path.join(opts.clipsDir, `take-${padTake(i + 1)}.mp4`);
     if (fileBigEnough(takePath, 20_000)) {
       opts.log(`take ${i + 1}/${opts.takes.length} ya existe → no llamo a Flow`);
@@ -262,6 +272,7 @@ export async function runMotion(
     log(`clip continuo ya existe → ${path.basename(dest)} (no regenero I2V)`);
     return clips;
   }
+  throwIfStickmanStopped(id);
   const generated = await generateChainedTakes({
     script,
     video,
@@ -269,6 +280,7 @@ export async function runMotion(
     clipsDir,
     takes,
     log,
+    jobId: id,
   });
   if (generated.length) {
     concatMotionTakes(generated, dest, script.aspect);

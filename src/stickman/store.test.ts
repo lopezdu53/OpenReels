@@ -10,10 +10,13 @@ import {
   isStickmanSharedVolumeEntry,
   jobDir,
   listJobs,
+  readMeta,
   readScript,
   saveJobSnapshot,
   setStatus,
   stickmanJobsDir,
+  throwIfStickmanStopped,
+  writeMeta,
   writeScript,
 } from "./store.js";
 import type { StickmanJobConfig } from "./types.js";
@@ -117,5 +120,14 @@ describe("stickman store", () => {
     expect(isStickmanFinalReady(meta.id)).toBe(false);
     fs.writeFileSync(path.join(jobDir(meta.id), "final.mp4"), Buffer.alloc(25_000));
     expect(isStickmanFinalReady(meta.id)).toBe(true);
+  });
+
+  it("throws when the user stops or cancels a producing job", () => {
+    const meta = createJob("user-1", config);
+    throwIfStickmanStopped(meta.id);
+    writeMeta({ ...readMeta(meta.id)!, stopRequested: true });
+    expect(() => throwIfStickmanStopped(meta.id)).toThrow("STICKMAN_STOPPED");
+    writeMeta({ ...readMeta(meta.id)!, stopRequested: false, cancelRequested: true });
+    expect(() => throwIfStickmanStopped(meta.id)).toThrow("STICKMAN_CANCELLED");
   });
 });

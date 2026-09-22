@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Clapperboard, Loader2, PersonStanding } from "lucide-react";
+import { ArrowLeft, Check, Clapperboard, Loader2, PersonStanding, Square, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { CompletedJobMedia } from "@/components/JobShareBar";
@@ -183,6 +183,48 @@ export function StickmanJobPage() {
     }
   }
 
+  async function stopJob() {
+    if (!id) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api.stopStickmanJob(id);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelJob() {
+    if (!id) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api.cancelStickmanJob(id);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteJob() {
+    if (!id) return;
+    if (!window.confirm("¿Eliminar este trabajo y todos sus archivos?")) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api.deleteStickmanJob(id);
+      navigate(pathname.startsWith("/historia") ? "/historia" : "/stickman");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setBusy(false);
+    }
+  }
+
   async function remixVoice() {
     if (!id) return;
     setBusy(true);
@@ -238,6 +280,30 @@ export function StickmanJobPage() {
             {job.topic}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">{job.detail}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {job.status === "producing" && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => void stopJob()} disabled={busy}>
+                  <Square className="size-3.5" />
+                  Detener proceso
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => void cancelJob()} disabled={busy}>
+                  <X className="size-3.5" />
+                  Cancelar trabajo
+                </Button>
+              </>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-destructive"
+              onClick={() => void deleteJob()}
+              disabled={busy}
+            >
+              <Trash2 className="size-3.5" />
+              Eliminar trabajo
+            </Button>
+          </div>
         </div>
 
         <ol className="flex flex-wrap gap-2 text-[11px]">

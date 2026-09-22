@@ -6,8 +6,10 @@ from server import (
     RECOVER_SECONDS,
     RECOVER_SECONDS_LP,
     STILL_PREFIX,
+    PICKER_SCAN_SECONDS,
     VIDEO_TIMEOUT,
     VIDEO_TIMEOUT_LP,
+    abort_current_gflow,
     _catalog_paths_from_list,
     _flow_picker_script,
     _is_gflow_log_event,
@@ -175,6 +177,9 @@ class VideoModeTests(unittest.TestCase):
         self.assertEqual(_recover_seconds_for("veo-lite-lp"), RECOVER_SECONDS_LP)
         self.assertGreaterEqual(_lock_wait_for("video", {"model": "veo-lite-lp"}), VIDEO_TIMEOUT_LP)
         self.assertLess(_lock_wait_for("image", {}), VIDEO_TIMEOUT_LP)
+        self.assertGreaterEqual(PICKER_SCAN_SECONDS, 12)
+        self.assertLessEqual(PICKER_SCAN_SECONDS, 20)
+        self.assertFalse(abort_current_gflow())
 
     def test_submit_miss_is_not_picker_retry(self):
         miss = (
@@ -247,6 +252,11 @@ class RelayClientTests(unittest.TestCase):
         self.assertEqual(headers["User-Agent"], BROWSER_UA)
         self.assertTrue(headers["Authorization"].startswith("Bearer secret"))
         self.assertEqual(headers["Origin"], "https://contenido.alfonsolopezd.com")
+
+    def test_abort_check_returns_false_when_studio_is_down(self):
+        from relay_client import check_remote_abort
+
+        self.assertFalse(check_remote_abort("https://example.invalid", "x"))
 
     def test_cloudflare_1010_message(self):
         from relay_client import format_remote_http_error
@@ -389,6 +399,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
 
         self.assertEqual(classify_log("gflow volvió sin mp4; espero el clip (Lower Priority no corta a 1 min)."), "i2v")
         self.assertEqual(classify_log("Lower Priority Veo: Chrome se queda abierto hasta 3600s"), "i2v")
+        self.assertEqual(classify_log("dejo el picker; no cierro la ventana mientras Flow genera"), "i2v")
         self.assertEqual(classify_log("gflow fail: crash"), "err")
         self.assertEqual(classify_log("LAN: escuchando listo"), "ok")
         self.assertEqual(classify_log("Cloudflare 404 aviso"), "warn")

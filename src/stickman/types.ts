@@ -164,6 +164,8 @@ export interface StickmanJobMeta {
   updatedAt: string;
   completedAt?: string;
   previewRel?: string;
+  stopRequested?: boolean;
+  cancelRequested?: boolean;
   cost?: StickmanCost;
   youtubePack?: StickmanYoutubePack;
   config: StickmanJobConfig;

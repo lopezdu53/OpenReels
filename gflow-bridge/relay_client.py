@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import ssl
+import threading
 import time
 import urllib.error
 import urllib.request
 from typing import Any, Callable
 
-from server import run_kind
+from server import abort_current_gflow, run_kind
 
 LogFn = Callable[[str], None]
 
@@ -103,6 +104,27 @@ def probe_remote(studio_url: str, token: str) -> str:
     return f"Remoto OK. El estudio responde. Cola: {queued}."
 
 
+def check_remote_abort(
+    studio_url: str,
+    token: str,
+    identity: dict[str, str] | None = None,
+) -> bool:
+    body: dict[str, Any] = {}
+    if identity:
+        body.update({k: v for k, v in identity.items() if v})
+    try:
+        payload = _req(
+            _url(studio_url, "/api/v1/gflow/bridge/abort-check"),
+            token,
+            studio_url,
+            body or {},
+            timeout=20,
+        )
+    except Exception:
+        return False
+    return payload.get("abort") is True
+
+
 def run_poll_loop(
     studio_url: str,
     token: str,
@@ -123,6 +145,19 @@ def run_poll_loop(
         log(format_remote_http_error(err.code, body))
     except Exception as err:
         log(f"Remoto: {err}")
+
+    def _watch_abort() -> None:
+        while not should_stop():
+            try:
+                if check_remote_abort(studio_url, token, identity):
+                    if abort_current_gflow():
+                        log("Detener: corté gflow para liberar Chrome.")
+            except Exception as err:
+                log(f"Remoto abort: {err}")
+            time.sleep(2)
+
+    threading.Thread(target=_watch_abort, name="gflow-abort-watch", daemon=True).start()
+
     while not should_stop():
         try:
             job = poll_once(studio_url, token, 20, identity)

@@ -11,8 +11,10 @@ import {
   readMeta,
   readScript,
   setStatus,
+  StickmanControlError,
   stickmanJobsDir,
   stillFiles,
+  throwIfStickmanStopped,
   writeMeta,
 } from "./store.js";
 import { runYoutubePack } from "./youtube-pack.js";
@@ -141,6 +143,7 @@ async function handleProduce(id: string, redis: IORedis): Promise<void> {
     );
   }
   const log = logTo(id);
+  throwIfStickmanStopped(id);
   if (isStickmanFinalReady(id)) {
     log("produce: final.mp4 ya está listo; no regenero (lock de BullMQ)");
     if (meta.status !== "completed") {
@@ -151,6 +154,7 @@ async function handleProduce(id: string, redis: IORedis): Promise<void> {
     return;
   }
   const key = apiKeyOf(id);
+  throwIfStickmanStopped(id);
   if (meta.config.muteCharacter === true) {
     log("personaje mudo: sin TTS Atlas, sí efectos de Flow");
   } else {
@@ -163,10 +167,13 @@ async function handleProduce(id: string, redis: IORedis): Promise<void> {
     "visuals",
     meta.kind === "historia" ? "Generando stills del Casting" : "Dibujando palitos",
   );
+  throwIfStickmanStopped(id);
   await runVisuals(id, meta.config, key, log);
   markPreview(id);
+  throwIfStickmanStopped(id);
   setStatus(id, "producing", "motion", script.animate ? "Animando flipbook" : "Hold + zoom");
   await runMotion(id, meta.config, key, log);
+  throwIfStickmanStopped(id);
   setStatus(id, "producing", "assemble", "Ensamblando final.mp4");
   await runAssemble(id, log);
   let extraUsage: StickmanLlmUsage | undefined;
@@ -196,7 +203,23 @@ export function startStickmanWorker(connection: IORedis): Worker {
         if (action === "remix-audio") await handleRemixAudio(id, connection);
         else await handleProduce(id, connection);
       } catch (err) {
+        if (err instanceof StickmanControlError && err.action === "cancel") {
+          setStatus(id, "cancelled", "cancelled", "Cancelado", { error: "Cancelado" });
+          return;
+        }
+        if (err instanceof StickmanControlError && err.action === "stop") {
+          setStatus(id, "failed", "error", "Detenido", { error: "Detenido" });
+          return;
+        }
         const msg = err instanceof Error ? err.message : String(err);
+        if (msg === "STICKMAN_CANCELLED") {
+          setStatus(id, "cancelled", "cancelled", "Cancelado", { error: "Cancelado" });
+          return;
+        }
+        if (msg === "STICKMAN_STOPPED") {
+          setStatus(id, "failed", "error", "Detenido", { error: "Detenido" });
+          return;
+        }
         console.error(`[stickman] produce ${id} failed: ${msg}`);
         try {
           setStatus(id, "failed", "error", msg, { error: msg });
