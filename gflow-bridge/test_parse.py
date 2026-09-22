@@ -22,6 +22,7 @@ from server import (
     _gflow_fail_message,
     _is_add_to_prompt_label,
     _is_submit_miss,
+    _media_ids_from_text,
     _parse_gflow_json,
     _parse_iso_ts,
     _recover_generated_mp4,
@@ -456,12 +457,13 @@ class BrandingAndDesktopTests(unittest.TestCase):
         )
         self.assertEqual(classify_log("runtime ACK=3600s grace=1200s (gflow stock is 60s/20s)"), "i2v")
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
+        self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
         self.assertEqual(
             classify_log("Si Chrome ya cerró, Flow canceló el clip (no sigue en el servidor)."),
             "i2v",
         )
         self.assertEqual(classify_log("catálogo: 3 videos, 1 de este job; aún no hay mp4, sigo 800s"), "i2v")
-        self.assertEqual(APP_VERSION, "1.6.7")
+        self.assertEqual(APP_VERSION, "1.6.8")
         self.assertEqual(classify_log("gflow fail: crash"), "err")
         self.assertEqual(classify_log("LAN: escuchando listo"), "ok")
         self.assertEqual(classify_log("Cloudflare 404 aviso"), "warn")
@@ -500,6 +502,16 @@ class GflowPatchTests(unittest.TestCase):
         self.assertIn("KEEP_CHROME", RUNNER_SOURCE)
         self.assertIn("poll_timeout_s", RUNNER_SOURCE)
         self.assertIn("no cierro Playwright", RUNNER_SOURCE)
+        self.assertIn("status 4", RUNNER_SOURCE)
+        self.assertIn("is_failed", RUNNER_SOURCE)
+        garbled = (
+            '{"event":"migrated.frame_uploaded","media_id":"a7e6cf36-1035-41ad-83f6-a9d5af9e04c3"}\n'
+            'noise Exception\n"media_id": "d132711e-4501-48a5-859f-bc2fd8f5d341"\n'
+        )
+        self.assertEqual(
+            _media_ids_from_text(garbled)[-1],
+            "d132711e-4501-48a5-859f-bc2fd8f5d341",
+        )
         cmd = gflow_exec_command("/no/such/gflow.exe", ["video", "i2v", "prompt"])
         self.assertEqual(cmd[0], "/no/such/gflow.exe")
         self.assertIn("--json", cmd)

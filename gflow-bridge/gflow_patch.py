@@ -46,6 +46,32 @@ def _patch() -> None:
     grace = float(os.environ.get("GFLOW_BRIDGE_RESULT_URL_GRACE_S", "1200"))
     keep = os.environ.get("GFLOW_BRIDGE_KEEP_CHROME", "1") == "1"
     try:
+        from gflow_cli.api.transports import batchexecute as be
+
+        # gflow only knows 6=submitted, 2=running, 3=done. Lower Priority
+        # reports 4 (and sometimes 1/5) while still queued; treating 4 as
+        # fail kills the clip at ~24% / ~35s.
+        pending = {1, 4, 5, be.STATUS_RUNNING, be.STATUS_SUBMITTED}
+
+        def _is_running(self) -> bool:
+            return self.status in pending
+
+        def _is_failed(self) -> bool:
+            return (
+                self.status is not None
+                and self.status != be.STATUS_DONE
+                and self.status not in pending
+            )
+
+        be.GenerationRecord.is_running = property(_is_running)
+        be.GenerationRecord.is_failed = property(_is_failed)
+        print(
+            f"[gflow-bridge] status 4/1/5 = en cola (sigo esperando). running={sorted(pending)}",
+            flush=True,
+        )
+    except Exception as err:
+        print(f"[gflow-bridge] runtime patch status: {err}", flush=True)
+    try:
         import gflow_cli.api.transports.migrated_composer as mc
 
         mc.SUBMIT_REPLY_BUDGET_S = submit

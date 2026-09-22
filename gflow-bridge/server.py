@@ -426,6 +426,22 @@ class PickerConfirmWatch:
                 return
 
 
+_MEDIA_ID_RE = re.compile(r'"media_id"\s*:\s*"([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})"', re.I)
+
+
+def _media_ids_from_text(*blobs: str) -> list[str]:
+    found: list[str] = []
+    seen: set[str] = set()
+    for blob in blobs:
+        for mid in _MEDIA_ID_RE.findall(blob or ""):
+            key = mid.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append(mid)
+    return found
+
+
 def _gflow_fail_message(payload: dict[str, Any] | None, stdout: str, stderr: str, code: int) -> str:
     err = payload.get("error") if payload else None
     if isinstance(err, dict):
@@ -446,18 +462,22 @@ def _spawn_gflow(
     cmd = gflow_exec_command(GFLOW_BIN, args)
     if PROFILE and "--profile" not in args:
         cmd.extend(["--profile", PROFILE])
-    if PROJECT and "--project" not in args:
-        cmd.extend(["--project", PROJECT])
-    if PROJECT_NAME and "--project-name" not in args:
-        cmd.extend(["--project-name", PROJECT_NAME])
+    kind = args[0] if args else ""
+    # `gflow data *` has no --project / --project-name (1.6.7 recover died on that).
+    if kind != "data":
+        if PROJECT and "--project" not in args:
+            cmd.extend(["--project", PROJECT])
+        if PROJECT_NAME and "--project-name" not in args:
+            cmd.extend(["--project-name", PROJECT_NAME])
     env = os.environ.copy()
     env["GFLOW_CLI_LOG_FORMAT"] = "json"
     env["NO_COLOR"] = "1"
     env["FORCE_COLOR"] = "0"
     env.setdefault("GFLOW_CLI_FLOW_HOST", "auto")
     global KEPT_CHROME
-    keep = bool(args) and args[0] == "video"
-    KEPT_CHROME = keep
+    keep = kind == "video"
+    if keep:
+        KEPT_CHROME = True
     env["GFLOW_BRIDGE_KEEP_CHROME"] = "1" if keep else "0"
     if timeout:
         env["GFLOW_CLI_TIMEOUT_SECONDS"] = str(max(int(timeout), 600))
@@ -592,6 +612,11 @@ def _run_gflow(args: list[str], timeout: int, output_dir: str | None = None) -> 
                 "Flow puede seguir en cola Lower Priority."
                 + (f" {hint}" if hint else "")
             )
+        mids = _media_ids_from_text(stdout, stderr, msg)
+        if payload and isinstance(payload.get("media_id"), str):
+            mids.append(str(payload["media_id"]))
+        if mids:
+            msg = f"{msg} media_id={mids[-1]}"
         print(f"[gflow-bridge] gflow fail: {msg}", flush=True)
         raise RuntimeError(msg)
     if not payload:
@@ -766,11 +791,18 @@ def _download_catalog_video(media_id: str, dest_dir: Path) -> Path | None:
     return max(found, key=lambda p: p.stat().st_mtime) if found else None
 
 
-def _recover_generated_mp4(dest: Path, since: float, seconds: int | None = None) -> Path | None:
+def _recover_generated_mp4(
+    dest: Path,
+    since: float,
+    seconds: int | None = None,
+    prefer_ids: list[str] | None = None,
+) -> Path | None:
     wait = RECOVER_SECONDS if seconds is None else max(0, int(seconds))
+    ids = [m for m in (prefer_ids or []) if m]
     print(
-        f"[gflow-bridge] gflow salió sin mp4. Si Chrome se cerró, Flow ya canceló. "
-        f"Miro el catálogo local hasta {wait}s (vacío = no hay clip)",
+        f"[gflow-bridge] gflow salió sin mp4. Espero el clip "
+        f"{('media_id=' + ids[-1]) if ids else 'en catálogo'} hasta {wait}s. "
+        f"{'Chrome debe seguir abierto.' if KEPT_CHROME else ''}",
         flush=True,
     )
     deadline = time.time() + wait
@@ -783,6 +815,13 @@ def _recover_generated_mp4(dest: Path, since: float, seconds: int | None = None)
         if found is not None:
             print(f"[gflow-bridge] I2V mp4 listo {found} ({found.stat().st_size} bytes)", flush=True)
             return found
+        for mid in ids[-2:]:
+            try:
+                got = _download_catalog_video(mid, dest.parent)
+                if got is not None:
+                    return got
+            except Exception as err:
+                print(f"[gflow-bridge] download {mid}: {err}", flush=True)
         try:
             rows = _list_catalog_videos()
             pending = 0
@@ -942,7 +981,9 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
             except Exception as err:
                 msg = str(err)
                 recovered = (
-                    _recover_generated_mp4(dest, started, recover_s)
+                    _recover_generated_mp4(
+                        dest, started, recover_s, prefer_ids=_media_ids_from_text(msg)
+                    )
                     if _should_wait_for_clip(msg, model, mode)
                     else None
                 )
@@ -962,7 +1003,9 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                     except Exception as err2:
                         miss2 = str(err2)
                         recovered2 = (
-                            _recover_generated_mp4(dest, started, recover_s)
+                            _recover_generated_mp4(
+                                dest, started, recover_s, prefer_ids=_media_ids_from_text(miss2)
+                            )
                             if _should_wait_for_clip(miss2, model, mode)
                             else None
                         )
@@ -998,7 +1041,12 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                 "Listo el catálogo y descargo el clip (0 créditos). No subo la siguiente still.",
                 flush=True,
             )
-            waited = _recover_generated_mp4(dest, started, recover_s)
+            waited = _recover_generated_mp4(
+                dest,
+                started,
+                recover_s,
+                prefer_ids=_media_ids_from_text(str(payload)),
+            )
             if waited is not None:
                 local = waited
             elif ABORT_REQUESTED:

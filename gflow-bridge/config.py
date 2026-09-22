@@ -86,6 +86,8 @@ def classify_log(line: str) -> str:
             "runtime ack",
             "keep chrome",
             "submit_and_observe",
+            "status 4",
+            "en cola",
             "flow canceló",
             "flow cancelo",
         )
