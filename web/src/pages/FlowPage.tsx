@@ -11,6 +11,7 @@ import {
   type LibraryVisualStyle,
   type ProviderOptions,
 } from "@/hooks/useApi";
+import { loadGflowBridgeId, saveGflowBridgeId } from "@/components/StudioVisualFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -267,6 +268,7 @@ export function FlowPage() {
   const [gflowImageModel, setGflowImageModel] = useState("nano2");
   const [gflowVideoModel, setGflowVideoModel] = useState("veo-lite");
   const [gflowVideoMode, setGflowVideoMode] = useState("i2v");
+  const [gflowBridgeId, setGflowBridgeId] = useState(loadGflowBridgeId);
   const [atlasTtsModel, setAtlasTtsModel] = useState("xai/tts-v1");
   const [atlasTtsVoice, setAtlasTtsVoice] = useState("eve");
   const [atlasImageModel, setAtlasImageModel] = useState("google/nano-banana-2-lite/text-to-image");
@@ -470,6 +472,7 @@ export function FlowPage() {
         : {}),
       ...(imageProvider === "gflow" ? { gflowImageModel } : {}),
       ...(videoProvider === "gflow" ? { gflowVideoModel, gflowVideoMode } : {}),
+      ...(imageProvider === "gflow" || videoProvider === "gflow" ? { gflowBridgeId } : {}),
     };
   }
 
@@ -1195,6 +1198,31 @@ export function FlowPage() {
                       <SelectContent>
                         {(providers?.gflowImageModels?.length ? providers.gflowImageModels : FALLBACK_GFLOW_IMAGE).map((m) => (
                           <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                ) : null}
+                {imageProvider === "gflow" || videoProvider === "gflow" ? (
+                  <Field label="Puente Windows">
+                    <Select
+                      value={gflowBridgeId}
+                      onValueChange={(v) => {
+                        if (!v) return;
+                        setGflowBridgeId(v);
+                        saveGflowBridgeId(v);
+                      }}
+                    >
+                      <SelectTrigger className={FIELD}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {(providers?.gflowBridges?.length
+                          ? providers.gflowBridges
+                          : [{ id: "auto", label: "Automático", kind: "auto", online: true }]
+                        ).map((b) => (
+                          <SelectItem key={b.id} value={b.id}>
+                            {b.label}
+                            {b.online || b.kind === "auto" ? "" : " · offline"}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

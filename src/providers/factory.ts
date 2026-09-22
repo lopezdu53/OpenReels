@@ -121,6 +121,7 @@ export interface ProviderConfig {
   gflowImageModel?: string;
   gflowVideoModel?: string;
   gflowVideoMode?: string;
+  gflowBridgeId?: string;
 }
 
 export interface Providers {
@@ -312,7 +313,7 @@ export function createProviders(config: ProviderConfig): Providers {
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "atlas", "gemini")
       : primary;
   } else if (config.image === "gflow") {
-    imageGen = new GflowImage(config.gflowImageModel);
+    imageGen = new GflowImage(config.gflowImageModel, config.gflowBridgeId);
   } else if (config.image === "alicloud") {
     const primary = new AliCloudImage(undefined, alicloudKey);
     // Fallback chain: alicloud → vivi → gemini
@@ -412,7 +413,9 @@ export function createProviders(config: ProviderConfig): Providers {
   } else if (videoPrimary === "sharpii") {
     videoProviders.push(new SharpiiVideo(config.sharpiiVideoModel ?? DEFAULT_SHARPII_VIDEO_MODEL, sharpiiKey));
   } else if (videoPrimary === "gflow") {
-    videoProviders.push(new GflowVideo(config.gflowVideoModel, config.gflowVideoMode));
+    videoProviders.push(
+      new GflowVideo(config.gflowVideoModel, config.gflowVideoMode, config.gflowBridgeId),
+    );
   } else if (videoPrimary === "atlas") {
     if (atlasKey) {
       videoProviders.push(new AtlasVideo(config.atlasVideoModel, atlasKey, config.atlasLipSyncModel));

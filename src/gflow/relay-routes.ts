@@ -3,6 +3,8 @@ import type { FastifyInstance } from "fastify";
 import {
   completeBridgeJob,
   isBridgeOnline,
+  listOnlinePeers,
+  parseBridgeIdentity,
   pollBridgeJob,
   queuedBridgeJobs,
   type GflowRelayResult,
@@ -24,7 +26,8 @@ export async function registerGflowBridgeRoutes(app: FastifyInstance): Promise<v
     }
     const online = await isBridgeOnline();
     const queued = await queuedBridgeJobs();
-    return { ok: true, online, queued };
+    const peers = await listOnlinePeers();
+    return { ok: true, online, queued, peers };
   });
 
   app.post("/api/v1/gflow/bridge/poll", async (request, reply) => {
@@ -38,11 +41,9 @@ export async function registerGflowBridgeRoutes(app: FastifyInstance): Promise<v
     if (!bearerOk(request.headers.authorization, expected)) {
       return reply.status(401).send({ ok: false, error: "Token inválido" });
     }
-    const waitSec = Math.min(
-      25,
-      Math.max(5, Number((request.body as { waitSec?: number } | null)?.waitSec) || 20),
-    );
-    const job = await pollBridgeJob(waitSec);
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const waitSec = Math.min(25, Math.max(5, Number(body.waitSec) || 20));
+    const job = await pollBridgeJob(waitSec, parseBridgeIdentity(body));
     return { ok: true, job };
   });
 

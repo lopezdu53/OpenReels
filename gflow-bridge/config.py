@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import socket
+import uuid
 from pathlib import Path
 
 APP_DIR = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming") / "OpenReelsPuente"
@@ -26,6 +28,8 @@ def default_config() -> dict:
         "gflowProfile": "",
         "gflowBin": "",
         "geometry": DEFAULT_SIZE,
+        "bridgeId": "",
+        "bridgeName": "",
     }
 
 
@@ -37,6 +41,18 @@ def load_config() -> dict:
             stored = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
             if isinstance(stored, dict):
                 cfg.update(stored)
+        except Exception:
+            pass
+    dirty = False
+    if not str(cfg.get("bridgeId") or "").strip():
+        cfg["bridgeId"] = str(uuid.uuid4())
+        dirty = True
+    if not str(cfg.get("bridgeName") or "").strip():
+        cfg["bridgeName"] = socket.gethostname() or "Windows"
+        dirty = True
+    if dirty:
+        try:
+            save_config(cfg)
         except Exception:
             pass
     return cfg

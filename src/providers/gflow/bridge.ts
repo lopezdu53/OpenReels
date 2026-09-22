@@ -3,13 +3,20 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { GflowCliError, isGflowBridgeUnreachable } from "./errors.js";
 import { enqueueGflow } from "./queue.js";
+import type { GflowBridgeChoice } from "./bridge-id.js";
+import { isPinnedRemoteBridge, normalizeGflowBridgeId } from "./bridge-id.js";
 import {
   enqueueBridgeJob,
   gflowRelayEnabled,
   isBridgeOnline,
+  isPeerOnline,
+  listOnlinePeers,
   waitForBridgeResult,
   type GflowRelayResult,
 } from "./relay.js";
+
+export type { GflowBridgeChoice } from "./bridge-id.js";
+export { normalizeGflowBridgeId } from "./bridge-id.js";
 
 export function gflowBridgeUrl(): string | undefined {
   const raw = process.env["GFLOW_BRIDGE_URL"]?.trim();
@@ -128,7 +135,20 @@ async function viaRelay(
   kind: "image" | "video",
   body: Record<string, unknown>,
   timeoutSec: number,
+  target = "auto",
 ): Promise<GflowRelayResult> {
+  const id = normalizeGflowBridgeId(target);
+  if (isPinnedRemoteBridge(id)) {
+    if (!(await isPeerOnline(id))) {
+      throw new GflowCliError(
+        `El puente «${id}» no está conectado. Ábrelo en OpenReels Puente → modo Remoto.`,
+        1,
+        true,
+      );
+    }
+    const jobId = await enqueueBridgeJob(kind, body, id);
+    return waitForBridgeResult(jobId, timeoutSec);
+  }
   if (!(await isBridgeOnline())) {
     throw new GflowCliError(
       "Ningún Windows remoto conectado. En el PC con Chrome abre OpenReels Puente → modo Remoto, pega la URL del estudio y el mismo token.",
@@ -136,8 +156,42 @@ async function viaRelay(
       true,
     );
   }
-  const id = await enqueueBridgeJob(kind, body);
-  return waitForBridgeResult(id, timeoutSec);
+  const jobId = await enqueueBridgeJob(kind, body);
+  return waitForBridgeResult(jobId, timeoutSec);
+}
+
+export async function gflowBridgeCatalog(): Promise<GflowBridgeChoice[]> {
+  const lan = gflowBridgeUrl();
+  const peers = gflowRelayEnabled() ? await listOnlinePeers().catch(() => []) : [];
+  const choices: GflowBridgeChoice[] = [
+    {
+      id: "auto",
+      label: "Automático",
+      note: "LAN si responde; si no, el primer remoto que pida trabajo",
+      kind: "auto",
+      online: true,
+    },
+  ];
+  if (lan) {
+    const host = lan.replace(/^https?:\/\//, "");
+    choices.push({
+      id: "lan",
+      label: `LAN · ${host}`,
+      note: "GFLOW_BRIDGE_URL",
+      kind: "lan",
+      online: !lanIsCachedDown(),
+    });
+  }
+  for (const peer of peers) {
+    choices.push({
+      id: peer.id,
+      label: peer.name,
+      note: peer.hostname,
+      kind: "remote",
+      online: true,
+    });
+  }
+  return choices;
 }
 
 export async function bridgeGenerateImage(opts: {
@@ -146,6 +200,7 @@ export async function bridgeGenerateImage(opts: {
   aspect: string;
   model: string;
   referencePng?: Buffer;
+  bridgeId?: string;
 }): Promise<Buffer> {
   return enqueueGflow(() => bridgeGenerateImageNow(opts));
 }
@@ -156,7 +211,10 @@ async function bridgeGenerateImageNow(opts: {
   aspect: string;
   model: string;
   referencePng?: Buffer;
+  bridgeId?: string;
 }): Promise<Buffer> {
+  const target = normalizeGflowBridgeId(opts.bridgeId);
+  const tryLan = target === "auto" || target === "lan";
   const body = {
     prompt: opts.prompt,
     style: opts.style,
@@ -166,7 +224,7 @@ async function bridgeGenerateImageNow(opts: {
       ? { referencePng: opts.referencePng.toString("base64") }
       : {}),
   };
-  if (await preferLan()) {
+  if (tryLan && (await preferLan())) {
     try {
       const res = await bridgeFetch(
         "/v1/image",
@@ -187,10 +245,17 @@ async function bridgeGenerateImageNow(opts: {
       true,
     );
   }
+  if (target === "lan") {
+    throw new GflowCliError(
+      `No se alcanzó el puente LAN (${gflowBridgeUrl()}). ¿Está OpenReels Puente abierto en ese PC?`,
+      1,
+      true,
+    );
+  }
   if (!gflowRelayEnabled()) {
     throw new GflowCliError("Falta GFLOW_BRIDGE_URL o GFLOW_BRIDGE_TOKEN para el puente remoto", 1, true);
   }
-  const payload = await viaRelay("image", body, 270);
+  const payload = await viaRelay("image", body, 270, target);
   return decodePng(payload.png);
 }
 
@@ -208,6 +273,7 @@ export async function bridgeGenerateVideo(opts: {
   durationSeconds?: number;
   mode?: "t2v" | "i2v";
   imagePng?: Buffer;
+  bridgeId?: string;
 }): Promise<{ filePath: string; durationSeconds: number }> {
   return enqueueGflow(() => bridgeGenerateVideoNow(opts));
 }
@@ -219,7 +285,10 @@ async function bridgeGenerateVideoNow(opts: {
   durationSeconds?: number;
   mode?: "t2v" | "i2v";
   imagePng?: Buffer;
+  bridgeId?: string;
 }): Promise<{ filePath: string; durationSeconds: number }> {
+  const target = normalizeGflowBridgeId(opts.bridgeId);
+  const tryLan = target === "auto" || target === "lan";
   const mode = opts.mode === "i2v" ? "i2v" : "t2v";
   const body = {
     prompt: opts.prompt,
@@ -243,7 +312,7 @@ async function bridgeGenerateVideoNow(opts: {
     return { filePath: dest, durationSeconds };
   };
 
-  if (await preferLan()) {
+  if (tryLan && (await preferLan())) {
     try {
       const res = await bridgeFetch(
         "/v1/video",
@@ -264,9 +333,16 @@ async function bridgeGenerateVideoNow(opts: {
       true,
     );
   }
+  if (target === "lan") {
+    throw new GflowCliError(
+      `No se alcanzó el puente LAN (${gflowBridgeUrl()}). ¿Está OpenReels Puente abierto en ese PC?`,
+      1,
+      true,
+    );
+  }
   if (!gflowRelayEnabled()) {
     throw new GflowCliError("Falta GFLOW_BRIDGE_URL o GFLOW_BRIDGE_TOKEN para el puente remoto", 1, true);
   }
-  const payload = await viaRelay("video", body, 960);
+  const payload = await viaRelay("video", body, 960, target);
   return writeMp4(payload.mp4, payload.durationSeconds);
 }

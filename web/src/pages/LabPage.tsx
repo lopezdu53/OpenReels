@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { loadGflowBridgeId, saveGflowBridgeId } from "@/components/StudioVisualFields";
 import { api, type ProviderOptions } from "@/hooks/useApi";
 import { Loader2, FlaskConical, Cpu, Mic, Image, Video } from "lucide-react";
 import { KokoroVoiceMixer } from "@/components/new-short/KokoroVoiceMixer";
@@ -162,6 +163,7 @@ export function LabPage() {
   const [gflowImgModel, setGflowImgModel] = useState("nano2");
   const [gflowVidModel, setGflowVidModel] = useState("veo-lite");
   const [gflowVidMode, setGflowVidMode] = useState("t2v");
+  const [gflowBridgeId, setGflowBridgeId] = useState(loadGflowBridgeId);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Image
@@ -244,7 +246,7 @@ export function LabPage() {
         ...(imgProvider === "runpod" ? { model: imgModel, steps: imgSteps } : {}),
         ...(imgProvider === "sharpii" ? { model: sharpiiImgModel } : {}),
         ...(imgProvider === "atlas" ? { model: atlasImgModel } : {}),
-        ...(imgProvider === "gflow" ? { model: gflowImgModel } : {}),
+        ...(imgProvider === "gflow" ? { model: gflowImgModel, gflowBridgeId } : {}),
       });
       setImgResult(r);
     } catch (e) {
@@ -284,6 +286,7 @@ export function LabPage() {
           ? {
               model: gflowVidModel,
               mode: gflowVidMode,
+              gflowBridgeId,
               ...(gflowVidModel === "omni-flash" ? { durationSeconds: vidDuration } : {}),
             }
           : { durationSeconds: vidDuration }),
@@ -570,6 +573,24 @@ export function LabPage() {
             <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-2">
               <p className="text-[11px] text-muted-foreground">gflow Imagen · puente Windows · Agent OFF</p>
               <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Puente Windows</label>
+                <Select
+                  value={gflowBridgeId}
+                  onValueChange={(v) => {
+                    if (!v) return;
+                    setGflowBridgeId(v);
+                    saveGflowBridgeId(v);
+                  }}
+                >
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.gflowBridges ?? [{ id: "auto", label: "Automático", kind: "auto", online: true }]).map((b) => (
+                      <SelectItem key={b.id} value={b.id}>{b.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo Imagen</label>
                 <Select value={gflowImgModel} onValueChange={(v) => v && setGflowImgModel(v)}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
@@ -756,6 +777,24 @@ export function LabPage() {
                 4/6/8/10s.
               </p>
               <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-[12px] text-muted-foreground">Puente Windows</label>
+                  <Select
+                    value={gflowBridgeId}
+                    onValueChange={(v) => {
+                      if (!v) return;
+                      setGflowBridgeId(v);
+                      saveGflowBridgeId(v);
+                    }}
+                  >
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(providers?.gflowBridges ?? [{ id: "auto", label: "Automático", kind: "auto", online: true }]).map((b) => (
+                        <SelectItem key={b.id} value={b.id}>{b.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div>
                   <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo Veo</label>
                   <Select

@@ -355,6 +355,8 @@ class BrandingAndDesktopTests(unittest.TestCase):
         cfg = default_config()
         self.assertIn("keepAwake", cfg)
         self.assertTrue(cfg["keepAwake"])
+        self.assertIn("bridgeId", cfg)
+        self.assertIn("bridgeName", cfg)
 
 
 if __name__ == "__main__":

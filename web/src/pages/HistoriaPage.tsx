@@ -5,7 +5,7 @@ import { DarkSelect } from "@/components/DarkSelect";
 import { CharacterStudio } from "@/components/film/CharacterStudio";
 import { LocationStudio } from "@/components/film/LocationStudio";
 import { ObjectStudio } from "@/components/film/ObjectStudio";
-import { StudioVisualFields } from "@/components/StudioVisualFields";
+import { loadGflowBridgeId, StudioVisualFields } from "@/components/StudioVisualFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -229,6 +229,7 @@ export function HistoriaPage() {
   const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("gflow");
   const [gflowImageModel, setGflowImageModel] = useState("nano-pro");
   const [gflowVideoModel, setGflowVideoModel] = useState("omni-flash");
+  const [gflowBridgeId, setGflowBridgeId] = useState(loadGflowBridgeId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const durationOptions = durationsFor(visualProvider, gflowVideoModel, catalog);
@@ -293,6 +294,7 @@ export function HistoriaPage() {
         gflowImageModel: visualProvider === "gflow" ? gflowImageModel : undefined,
         gflowVideoModel: visualProvider === "gflow" ? gflowVideoModel : undefined,
         gflowVideoMode: visualProvider === "gflow" ? "i2v" : undefined,
+        gflowBridgeId: visualProvider === "gflow" ? gflowBridgeId : undefined,
         llmModel,
       });
       navigate(`/historia/${res.id}`);
@@ -601,6 +603,8 @@ export function HistoriaPage() {
             onGflowImageModel={setGflowImageModel}
             gflowVideoModel={gflowVideoModel}
             onGflowVideoModel={setGflowVideoModel}
+            gflowBridgeId={gflowBridgeId}
+            onGflowBridgeId={setGflowBridgeId}
             showVideo={animate}
             durationSec={durationSec}
             gflowHint={

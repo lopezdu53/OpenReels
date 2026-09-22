@@ -6,7 +6,7 @@ import type { AuthedRequest } from "../auth/plugin.js";
 import { requireUser } from "../auth/plugin.js";
 import { sendArtifact } from "../http/send-artifact.js";
 import { resolveAtlasApiKey } from "../providers/atlas/client.js";
-import { gflowBridgeUrl } from "../providers/gflow/bridge.js";
+import { gflowBridgeCatalog, gflowBridgeUrl } from "../providers/gflow/bridge.js";
 import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "../providers/gflow/catalog.js";
 import { gflowDoctor } from "../providers/gflow/client.js";
 import { resolveStudioVisualProvider, STUDIO_VISUAL_PROVIDERS } from "../studio/visual-provider.js";
@@ -65,6 +65,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
     gflowVideoModels: GFLOW_VIDEO_MODELS,
     atlasReady: Boolean(resolveAtlasApiKey()),
     gflowBridge: Boolean(gflowBridgeUrl()),
+    gflowBridges: await gflowBridgeCatalog(),
     doctor: await gflowDoctor(),
   }));
 
@@ -132,6 +133,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
       gflowImageModel: body.gflowImageModel ? String(body.gflowImageModel) : undefined,
       gflowVideoModel: body.gflowVideoModel ? String(body.gflowVideoModel) : undefined,
       gflowVideoMode: body.gflowVideoMode ? String(body.gflowVideoMode) : undefined,
+      gflowBridgeId: body.gflowBridgeId ? String(body.gflowBridgeId) : undefined,
       clonePersona: body.clonePersona ? String(body.clonePersona) : undefined,
       crollSubject: body.crollSubject === "product" ? "product" : "portrait",
       subjectWardrobe: body.subjectWardrobe ? String(body.subjectWardrobe) : undefined,

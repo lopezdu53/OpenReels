@@ -182,6 +182,15 @@ export interface ProviderOptions {
   }[];
   gflowImageModels?: { id: string; label: string; note?: string }[];
   gflowVideoModels?: { id: string; label: string; note?: string; durations?: number[] }[];
+  gflowBridges?: GflowBridgeChoice[];
+}
+
+export interface GflowBridgeChoice {
+  id: string;
+  label: string;
+  note?: string;
+  kind: "auto" | "lan" | "remote";
+  online: boolean;
 }
 
 export interface StatsResponse {
@@ -805,6 +814,10 @@ export const api = {
     return fetchJson<ProviderOptions>("/providers");
   },
 
+  gflowBridges() {
+    return fetchJson<{ bridges: GflowBridgeChoice[] }>("/gflow/bridges");
+  },
+
   getArtifact(jobId: string, artifactPath: string) {
     return fetchJson<unknown>(`/jobs/${jobId}/artifacts/${artifactPath}`);
   },
@@ -846,6 +859,7 @@ export const api = {
     model?: string;
     steps?: number;
     guidance?: number;
+    gflowBridgeId?: string;
   }) {
     return fetchJson<{ imageBase64: string; durationMs: number }>("/test/image", {
       method: "POST",
@@ -863,6 +877,7 @@ export const api = {
     resolution?: string;
     lipSyncModel?: string | null;
     mode?: string;
+    gflowBridgeId?: string;
   }) {
     return fetchJson<{ videoBase64: string; durationMs: number; videoSeconds: number }>(
       "/test/video",
@@ -1098,6 +1113,7 @@ export const api = {
       gflowVideoModels?: { id: string; label: string }[];
       atlasReady?: boolean;
       gflowBridge?: boolean;
+      gflowBridges?: GflowBridgeChoice[];
       doctor?: { ok: boolean; detail: string };
     }>("/vox/catalog");
   },
@@ -1177,6 +1193,7 @@ export const api = {
       llms?: { id: string; label: string; note: string; recommended?: boolean }[];
       atlasReady?: boolean;
       gflowBridge?: boolean;
+      gflowBridges?: GflowBridgeChoice[];
       doctor?: { ok: boolean; detail: string };
     }>("/stickman/catalog");
   },
@@ -1245,6 +1262,7 @@ export const api = {
       llms?: { id: string; label: string; note: string; recommended?: boolean }[];
       atlasReady?: boolean;
       gflowBridge?: boolean;
+      gflowBridges?: GflowBridgeChoice[];
       doctor?: { ok: boolean; detail: string };
     }>("/historia/catalog");
   },

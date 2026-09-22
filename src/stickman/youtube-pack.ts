@@ -144,6 +144,7 @@ async function writeYoutubeThumb(
     const image = createStudioImage({
       visualProvider: "gflow",
       gflowModel: config.gflowImageModel || "nano-pro",
+      gflowBridgeId: config.gflowBridgeId,
       atlasKey: apiKey,
     });
     const still = stillFiles(id)[0];

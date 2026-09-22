@@ -104,6 +104,7 @@ interface JobData {
     gflowImageModel?: string;
     gflowVideoModel?: string;
     gflowVideoMode?: string;
+    gflowBridgeId?: string;
   };
   userId?: string;
   keys: Record<string, string>;
@@ -292,6 +293,7 @@ const worker = new Worker<JobData>(
       gflowImageModel: providers.gflowImageModel,
       gflowVideoModel: providers.gflowVideoModel,
       gflowVideoMode: providers.gflowVideoMode,
+      gflowBridgeId: providers.gflowBridgeId,
     });
 
     // Build callbacks that emit BullMQ progress events and update meta.json

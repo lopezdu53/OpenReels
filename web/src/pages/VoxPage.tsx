@@ -2,7 +2,7 @@ import { Loader2, Newspaper, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DarkSelect } from "@/components/DarkSelect";
-import { StudioVisualFields } from "@/components/StudioVisualFields";
+import { loadGflowBridgeId, StudioVisualFields } from "@/components/StudioVisualFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, type VoxJobMeta } from "@/hooks/useApi";
@@ -124,6 +124,7 @@ export function VoxPage() {
   const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("atlas");
   const [gflowImageModel, setGflowImageModel] = useState("nano2");
   const [gflowVideoModel, setGflowVideoModel] = useState("veo-lite");
+  const [gflowBridgeId, setGflowBridgeId] = useState(loadGflowBridgeId);
   const [anchorPhoto, setAnchorPhoto] = useState("");
   const [arollVideo, setArollVideo] = useState("");
   const [crollSubject, setCrollSubject] = useState<"portrait" | "product">("portrait");
@@ -168,6 +169,7 @@ export function VoxPage() {
         gflowImageModel: visualProvider === "gflow" ? gflowImageModel : undefined,
         gflowVideoModel: visualProvider === "gflow" ? gflowVideoModel : undefined,
         gflowVideoMode: visualProvider === "gflow" ? "i2v" : undefined,
+        gflowBridgeId: visualProvider === "gflow" ? gflowBridgeId : undefined,
         anchorPhoto: mode === "croll" ? anchorPhoto || undefined : undefined,
         arollVideo: mode === "aroll" ? arollVideo || undefined : undefined,
         crollSubject,
@@ -428,6 +430,8 @@ export function VoxPage() {
             onGflowImageModel={setGflowImageModel}
             gflowVideoModel={gflowVideoModel}
             onGflowVideoModel={setGflowVideoModel}
+            gflowBridgeId={gflowBridgeId}
+            onGflowBridgeId={setGflowBridgeId}
             disabled={mode === "aroll"}
             disabledHint="A-roll restylea el talking-head con Atlas (no hay video-edit en gflow)."
             gflowHint="Una escena a la vez por el Puente Windows. Voz: Atlas del servidor."

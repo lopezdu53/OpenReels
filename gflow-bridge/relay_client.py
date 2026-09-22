@@ -72,12 +72,20 @@ def _req(url: str, token: str, studio_url: str, payload: dict[str, Any] | None =
     return json.loads(raw) if raw else {}
 
 
-def poll_once(studio_url: str, token: str, wait_sec: int = 20) -> dict[str, Any] | None:
+def poll_once(
+    studio_url: str,
+    token: str,
+    wait_sec: int = 20,
+    identity: dict[str, str] | None = None,
+) -> dict[str, Any] | None:
+    body: dict[str, Any] = {"waitSec": wait_sec}
+    if identity:
+        body.update({k: v for k, v in identity.items() if v})
     payload = _req(
         _url(studio_url, "/api/v1/gflow/bridge/poll"),
         token,
         studio_url,
-        {"waitSec": wait_sec},
+        body,
         timeout=wait_sec + 15,
     )
     job = payload.get("job")
@@ -100,6 +108,7 @@ def run_poll_loop(
     token: str,
     should_stop: Callable[[], bool],
     log: LogFn,
+    identity: dict[str, str] | None = None,
 ) -> None:
     studio_url = studio_url.strip()
     token = token.strip()
@@ -116,7 +125,7 @@ def run_poll_loop(
         log(f"Remoto: {err}")
     while not should_stop():
         try:
-            job = poll_once(studio_url, token, 20)
+            job = poll_once(studio_url, token, 20, identity)
         except urllib.error.HTTPError as err:
             if should_stop():
                 return

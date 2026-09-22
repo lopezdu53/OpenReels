@@ -24,10 +24,11 @@ export function createLabImageProvider(opts: {
   model?: string;
   steps?: number;
   guidance?: number;
+  gflowBridgeId?: string;
 }): ImageProvider {
   switch (opts.provider) {
     case "gflow":
-      return new GflowImage(opts.model);
+      return new GflowImage(opts.model, opts.gflowBridgeId);
     case "openai":
       return new OpenAIImage();
     case "grok":
@@ -55,10 +56,11 @@ export function createLabVideoProvider(opts: {
   mode?: string;
   resolution?: string;
   lipSyncModel?: string | null;
+  gflowBridgeId?: string;
 }): VideoProvider {
   switch (opts.provider) {
     case "gflow":
-      return new GflowVideo(opts.model, resolveGflowVideoMode(opts.mode));
+      return new GflowVideo(opts.model, resolveGflowVideoMode(opts.mode), opts.gflowBridgeId);
     case "grok":
       return new GrokVideo();
     case "vivi":

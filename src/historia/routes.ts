@@ -4,7 +4,7 @@ import type { AuthedRequest } from "../auth/plugin.js";
 import { requireUser } from "../auth/plugin.js";
 import { listCharacters, listLocations, listObjects } from "../library/store.js";
 import { resolveAtlasApiKey } from "../providers/atlas/client.js";
-import { gflowBridgeUrl } from "../providers/gflow/bridge.js";
+import { gflowBridgeCatalog, gflowBridgeUrl } from "../providers/gflow/bridge.js";
 import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "../providers/gflow/catalog.js";
 import { gflowDoctor } from "../providers/gflow/client.js";
 import { resolveStudioVisualProvider, STUDIO_VISUAL_PROVIDERS } from "../studio/visual-provider.js";
@@ -180,6 +180,7 @@ function parseHistoriaCreateBody(
       visualProvider,
       gflowImageModel: body.gflowImageModel ? String(body.gflowImageModel) : undefined,
       gflowVideoModel,
+      gflowBridgeId: body.gflowBridgeId ? String(body.gflowBridgeId) : undefined,
       gflowVideoMode: body.gflowVideoMode ? String(body.gflowVideoMode) : undefined,
       llmModel: isStickmanLlmId(String(body.llmModel ?? ""))
         ? String(body.llmModel)
@@ -217,6 +218,7 @@ export async function registerHistoriaRoutes(app: FastifyInstance, redis: IORedi
     defaultGflowVideo: DEFAULT_STICKMAN_GFLOW_VIDEO,
     atlasReady: Boolean(resolveAtlasApiKey()),
     gflowBridge: Boolean(gflowBridgeUrl()),
+    gflowBridges: await gflowBridgeCatalog(),
     doctor: await gflowDoctor(),
   }));
 
