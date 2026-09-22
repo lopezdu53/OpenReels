@@ -31,6 +31,9 @@ describe("stickman director prompt", () => {
     expect(prompt.toLowerCase()).not.toContain("director score");
     expect(prompt.toLowerCase()).not.toContain("archetype");
     expect(prompt).toContain("un rumor no es un veredicto");
+    expect(prompt.toLowerCase()).toContain("never push-in");
+    expect(prompt.toLowerCase()).toContain("shallow depth of field");
+    expect(prompt.toLowerCase()).not.toContain("camera may push/pull");
   });
 
   it("asks for mute acting and a 10s hook when those flags are on", () => {
@@ -74,5 +77,6 @@ describe("historia director prompt", () => {
     expect(prompt.toLowerCase()).toContain("no stick figures");
     expect(prompt).toContain("FITS");
     expect(prompt).not.toContain("STICKMAN_STYLE");
+    expect(prompt).toContain("Camera may push/pull/pan/orbit");
   });
 });

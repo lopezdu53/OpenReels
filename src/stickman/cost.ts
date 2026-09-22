@@ -5,7 +5,7 @@ import {
   resolveAtlasVideoModel,
 } from "../providers/atlas/catalog.js";
 import { gflowVideoCredits } from "../providers/gflow/catalog.js";
-import { planMotionTakes } from "./catalog.js";
+import { isVeoGflowModel, planMotionTakes } from "./catalog.js";
 import type { StickmanCost, StickmanJobConfig, StickmanJobMeta, StickmanScript } from "./types.js";
 
 export interface StickmanLlmUsage {
@@ -63,8 +63,11 @@ export function estimateStickmanCost(opts: {
 
   let credits = 0;
   if (config.animate && config.visualProvider === "gflow") {
-    const takes = planMotionTakes([4, 6, 8, 10], config.durationSec);
     const model = config.gflowVideoModel || "omni-flash";
+    const takes = planMotionTakes(
+      isVeoGflowModel(model) ? [4, 6, 8] : [4, 6, 8, 10],
+      config.durationSec,
+    );
     credits = takes.reduce(
       (sum, sec) => sum + gflowVideoCredits({ modelId: model, durationSec: sec }),
       0,

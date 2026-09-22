@@ -79,13 +79,49 @@ const FALLBACK_ARCS = [
   },
 ];
 
+const OMNI_DURATIONS = [10, 20, 30, 60, 120, 300, 480, 900];
+const VEO_DURATIONS = [8, 16, 24, 960, 1560];
+const OMNI_HOOK_DURATIONS = [300, 480, 900];
+const VEO_HOOK_DURATIONS = [960, 1560];
+
 function formatDuration(sec: number): string {
   if (sec >= 60 && sec % 60 === 0) return `${sec / 60} min`;
   return `${sec}s`;
 }
 
-function hookAvailable(sec: number): boolean {
-  return sec === 300 || sec === 480 || sec === 900;
+function isVeoVideo(visualProvider: string, gflowVideoModel: string): boolean {
+  return visualProvider === "gflow" && gflowVideoModel.toLowerCase().startsWith("veo");
+}
+
+function durationsFor(
+  visualProvider: string,
+  gflowVideoModel: string,
+  catalog: { omniDurations?: number[]; veoDurations?: number[]; durations?: number[] } | null,
+): number[] {
+  if (isVeoVideo(visualProvider, gflowVideoModel)) {
+    return catalog?.veoDurations ?? VEO_DURATIONS;
+  }
+  return catalog?.omniDurations ?? catalog?.durations ?? OMNI_DURATIONS;
+}
+
+function hookDurationsFor(
+  visualProvider: string,
+  gflowVideoModel: string,
+  catalog: { omniHookDurations?: number[]; veoHookDurations?: number[]; hookDurations?: number[] } | null,
+): number[] {
+  if (isVeoVideo(visualProvider, gflowVideoModel)) {
+    return catalog?.veoHookDurations ?? VEO_HOOK_DURATIONS;
+  }
+  return catalog?.omniHookDurations ?? catalog?.hookDurations ?? OMNI_HOOK_DURATIONS;
+}
+
+function snapDuration(sec: number, allowed: number[]): number {
+  if (allowed.includes(sec)) return sec;
+  if (!allowed.length) return sec;
+  const short = allowed.filter((d) => d < 60);
+  const long = allowed.filter((d) => d >= 60);
+  const pool = sec < 60 ? (short.length ? short : allowed) : long.length ? long : allowed;
+  return pool.reduce((best, d) => (Math.abs(d - sec) < Math.abs(best - sec) ? d : best));
 }
 
 function VolumeSlider({
@@ -195,6 +231,10 @@ export function HistoriaPage() {
   const [gflowVideoModel, setGflowVideoModel] = useState("omni-flash");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const durationOptions = durationsFor(visualProvider, gflowVideoModel, catalog);
+  const hookOptions = hookDurationsFor(visualProvider, gflowVideoModel, catalog);
+  const hookOn = hookOptions.includes(durationSec);
+  const veoOn = isVeoVideo(visualProvider, gflowVideoModel);
 
   useEffect(() => {
     api
@@ -215,8 +255,14 @@ export function HistoriaPage() {
   }, []);
 
   useEffect(() => {
-    if (!hookAvailable(durationSec) && contentHook) setContentHook(false);
-  }, [durationSec, contentHook]);
+    if (!durationOptions.includes(durationSec)) {
+      setDurationSec(snapDuration(durationSec, durationOptions));
+    }
+  }, [durationOptions, durationSec]);
+
+  useEffect(() => {
+    if (!hookOn && contentHook) setContentHook(false);
+  }, [hookOn, contentHook]);
 
   async function create() {
     setError("");
@@ -240,7 +286,7 @@ export function HistoriaPage() {
         captions,
         animate,
         muteCharacter,
-        contentHook: hookAvailable(durationSec) ? contentHook : false,
+        contentHook: hookOn ? contentHook : false,
         videoVolume,
         ttsVolume,
         visualProvider,
@@ -394,7 +440,7 @@ export function HistoriaPage() {
                 aria-label="Duración"
                 value={String(durationSec)}
                 onValueChange={(value) => setDurationSec(Number(value))}
-                options={(catalog?.durations ?? [10, 20, 30, 60, 120, 300, 480, 900]).map((d) => ({
+                options={durationOptions.map((d) => ({
                   value: String(d),
                   label: formatDuration(d),
                 }))}
@@ -491,15 +537,15 @@ export function HistoriaPage() {
               </p>
             )}
             <label
-              className={`flex items-center gap-2 ${hookAvailable(durationSec) ? "" : "opacity-40"}`}
+              className={`flex items-center gap-2 ${hookOn ? "" : "opacity-40"}`}
             >
               <input
                 type="checkbox"
                 checked={contentHook}
-                disabled={!hookAvailable(durationSec)}
+                disabled={!hookOn}
                 onChange={(e) => setContentHook(e.target.checked)}
               />
-              Gancho 10s (5 / 8 / 15 min)
+              {veoOn ? "Gancho 10s (16 / 26 min)" : "Gancho 10s (5 / 8 / 15 min)"}
             </label>
             <VolumeSlider label="Volumen video" value={videoVolume} onChange={setVideoVolume} />
             <VolumeSlider
@@ -557,7 +603,11 @@ export function HistoriaPage() {
             onGflowVideoModel={setGflowVideoModel}
             showVideo={animate}
             durationSec={durationSec}
-            gflowHint="Omni 10s. El primer still usa la ficha gflow del Casting. Audio Flow agachado + TTS Atlas."
+            gflowHint={
+              veoOn
+                ? "Veo 3.1: 8s, 16s, 24s, 16 min o 26 min (tomas de 8s encadenadas). El primer still usa la ficha gflow del Casting."
+                : "Omni: 10s a 15 min. El primer still usa la ficha gflow del Casting. Audio Flow agachado + TTS Atlas."
+            }
           />
 
           {error && <p className="text-sm text-destructive">{error}</p>}

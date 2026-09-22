@@ -8,8 +8,10 @@ import {
   buildContinuousMotionPrompt,
   buildStillPrompt,
   castLock,
+  motionNegativePrompt,
   pickMotionDuration,
   renderStills,
+  stickmanI2vNegative,
 } from "./visuals.js";
 
 const config: StickmanJobConfig = {
@@ -38,6 +40,8 @@ describe("stickman visuals", () => {
     expect(prompt).toContain("STICKMAN");
     expect(prompt.toLowerCase()).toContain("no paper collage");
     expect(prompt.toLowerCase()).toContain("no sphere-head");
+    expect(prompt.toLowerCase()).toContain("no blur");
+    expect(prompt.toLowerCase()).toContain("no push-in");
     expect(prompt).toContain("chalk");
   });
 
@@ -128,6 +132,8 @@ describe("stickman visuals", () => {
     expect(prompt).toContain("NO CUTS");
     expect(prompt).toContain("[0.0–");
     expect(prompt.toLowerCase()).toContain("morph");
+    expect(prompt.toLowerCase()).toContain("no push-in");
+    expect(prompt.toLowerCase()).toContain("no blur");
     expect(pickMotionDuration([4, 6, 8], 20)).toBe(8);
     expect(pickMotionDuration([4, 6, 8, 10], 10)).toBe(10);
   });
@@ -142,6 +148,28 @@ describe("stickman visuals", () => {
     expect(prompt).toContain("CONTINUE");
     expect(prompt).toContain("2/2");
     expect(prompt).toContain("[0.0–");
+  });
+
+  it("bans blur, DOF and push-in only on palito I2V, not historia", () => {
+    expect(stickmanI2vNegative().toLowerCase()).toContain("blur");
+    expect(stickmanI2vNegative().toLowerCase()).toContain("push-in");
+    expect(stickmanI2vNegative().toLowerCase()).toContain("shallow depth of field");
+    const palito = draftScriptTemplate({ ...config, durationSec: 20, animate: true }, "wifi-20s");
+    expect(motionNegativePrompt(palito)).toBe(stickmanI2vNegative());
+    const historia = draftScriptTemplate(
+      {
+        ...config,
+        kind: "historia",
+        look: "casting",
+        durationSec: 20,
+        animate: true,
+        castRoster: [{ id: "c1", name: "Rayitas", kind: "animal", appearance: "ocelos" }],
+      },
+      "rayitas-20s",
+    );
+    const historiaMotion = buildContinuousMotionPrompt(historia, 10);
+    expect(historiaMotion.toLowerCase()).not.toContain("no push-in");
+    expect(motionNegativePrompt(historia).toLowerCase()).not.toContain("push-in");
   });
 
   it("marks the first take as a content hook trailer", () => {

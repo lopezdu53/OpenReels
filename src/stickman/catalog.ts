@@ -165,10 +165,76 @@ export const STICKMAN_VOICES = [
 ] as const;
 
 export const STICKMAN_ASPECTS = ["9:16", "16:9", "1:1"] as const;
-/** Omni Flash is 10s; jobs are multiples so we never ask Flow for 6s leftovers. */
-export const STICKMAN_DURATIONS = [10, 20, 30, 60, 120, 300, 480, 900] as const;
-/** First-10s content hook is only offered on long jobs. */
-export const STICKMAN_HOOK_DURATIONS = [300, 480, 900] as const;
+/** Omni Flash / Atlas: 10s clips; jobs are multiples so we never ask Flow for 6s leftovers. */
+export const STICKMAN_OMNI_DURATIONS = [10, 20, 30, 60, 120, 300, 480, 900] as const;
+/** Veo 3.1: 8s clips; jobs stay multiples of 8 (Flow ignores --duration). */
+export const STICKMAN_VEO_DURATIONS = [8, 16, 24, 960, 1560] as const;
+/** @deprecated use stickmanDurationsForVideo — kept as Omni list for Atlas/default. */
+export const STICKMAN_DURATIONS = STICKMAN_OMNI_DURATIONS;
+/** First-10s content hook is only offered on long Omni jobs. */
+export const STICKMAN_OMNI_HOOK_DURATIONS = [300, 480, 900] as const;
+/** First-10s content hook is only offered on long Veo jobs. */
+export const STICKMAN_VEO_HOOK_DURATIONS = [960, 1560] as const;
+/** Union so existing callers still recognize every hook length. */
+export const STICKMAN_HOOK_DURATIONS = [
+  ...STICKMAN_OMNI_HOOK_DURATIONS,
+  ...STICKMAN_VEO_HOOK_DURATIONS,
+] as const;
+
+export function isVeoGflowModel(id?: string): boolean {
+  return Boolean(id && id.toLowerCase().startsWith("veo"));
+}
+
+export function isVeoGflowJob(visualProvider?: string, gflowVideoModel?: string): boolean {
+  return visualProvider === "gflow" && isVeoGflowModel(gflowVideoModel);
+}
+
+export function stickmanDurationsForVideo(
+  visualProvider?: string,
+  gflowVideoModel?: string,
+): readonly number[] {
+  return isVeoGflowJob(visualProvider, gflowVideoModel)
+    ? STICKMAN_VEO_DURATIONS
+    : STICKMAN_OMNI_DURATIONS;
+}
+
+export function stickmanHookDurationsForVideo(
+  visualProvider?: string,
+  gflowVideoModel?: string,
+): readonly number[] {
+  return isVeoGflowJob(visualProvider, gflowVideoModel)
+    ? STICKMAN_VEO_HOOK_DURATIONS
+    : STICKMAN_OMNI_HOOK_DURATIONS;
+}
+
+export function isStickmanDuration(
+  sec: number,
+  visualProvider?: string,
+  gflowVideoModel?: string,
+): boolean {
+  return stickmanDurationsForVideo(visualProvider, gflowVideoModel).includes(sec);
+}
+
+export function stickmanDurationHint(visualProvider?: string, gflowVideoModel?: string): string {
+  return isVeoGflowJob(visualProvider, gflowVideoModel)
+    ? "Duración Veo 3.1: 8s, 16s, 24s, 16 min o 26 min"
+    : "Duración: 10s, 20s, 30s, 1 min, 2 min, 5 min, 8 min o 15 min";
+}
+
+/** Prefer the same band (short vs long) when swapping Omni ↔ Veo. */
+export function snapStickmanDuration(sec: number, allowed: readonly number[]): number {
+  if (allowed.includes(sec)) return sec;
+  if (!allowed.length) return sec;
+  const short = allowed.filter((d) => d < 60);
+  const long = allowed.filter((d) => d >= 60);
+  const pool = sec < 60 ? (short.length ? short : allowed) : long.length ? long : allowed;
+  return pool.reduce((best, d) => (Math.abs(d - sec) < Math.abs(best - sec) ? d : best));
+}
+
+/** Clip sizes the I2V planner may request for this Flow model. */
+export function stickmanMotionClipSizes(gflowVideoModel?: string): readonly number[] {
+  return isVeoGflowModel(gflowVideoModel) ? [4, 6, 8] : [4, 6, 8, 10];
+}
 export const STICKMAN_TAKE_XFADE_SEC = 0.12;
 /** Default Flow/video bed. User-facing default is 50%. */
 export const DEFAULT_STICKMAN_VIDEO_VOLUME = 0.5;
@@ -195,8 +261,12 @@ export function clampStickmanVolume(raw: unknown, fallback: number): number {
   return Math.min(1, Math.max(0, Math.round(n * 100) / 100));
 }
 
-export function stickmanHookAvailable(durationSec: number): boolean {
-  return (STICKMAN_HOOK_DURATIONS as readonly number[]).includes(durationSec);
+export function stickmanHookAvailable(
+  durationSec: number,
+  visualProvider?: string,
+  gflowVideoModel?: string,
+): boolean {
+  return stickmanHookDurationsForVideo(visualProvider, gflowVideoModel).includes(durationSec);
 }
 
 export function isStickmanVoiceId(id: string): boolean {
@@ -319,6 +389,8 @@ export const STICKMAN_STYLE_LOCK = [
   "Circle or oval head. Two dot eyes. One-line mouth. Single-stroke limbs. Optional one tiny accessory.",
   "No photorealism. No 3D. No cinematic lighting. No sphere-head 3D character. No detailed faces or skin.",
   "No paper collage. No torn paper. No tape. No halftone. No editorial posters. No newsprint cut-outs.",
+  "No blur. No bokeh. No shallow depth of field. No rack focus. No defocus.",
+  "No push-in. No dolly-in. No crash zoom. Camera may pan or hold only. Everything stays razor-sharp.",
   "Flat solid background. Same stick figures in every frame. No text, no watermarks, no logos.",
 ].join(" ");
 
@@ -360,7 +432,8 @@ export function beatCountForDuration(seconds: number): number {
   if (seconds <= 120) return 12;
   if (seconds <= 300) return 18;
   if (seconds <= 480) return 24;
-  return 36;
+  if (seconds <= 960) return 36;
+  return 48;
 }
 
 export function frameSize(aspect: string): { w: number; h: number } {

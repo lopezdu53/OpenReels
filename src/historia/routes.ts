@@ -23,6 +23,7 @@ import {
   DEFAULT_STICKMAN_VIDEO_MODEL,
   DEFAULT_STICKMAN_VIDEO_VOLUME,
   isArcId,
+  isStickmanDuration,
   isStickmanLlmId,
   isStickmanVoiceId,
   recommendArc,
@@ -30,10 +31,13 @@ import {
   resolveStickmanTtsModel,
   STICKMAN_ARCS,
   STICKMAN_ASPECTS,
-  STICKMAN_DURATIONS,
-  STICKMAN_HOOK_DURATIONS,
   STICKMAN_LLMS,
+  STICKMAN_OMNI_DURATIONS,
+  STICKMAN_OMNI_HOOK_DURATIONS,
+  STICKMAN_VEO_DURATIONS,
+  STICKMAN_VEO_HOOK_DURATIONS,
   STICKMAN_VOICES,
+  stickmanDurationHint,
   stickmanHookAvailable,
 } from "../stickman/catalog.js";
 import { llmUsd } from "../stickman/cost.js";
@@ -70,9 +74,13 @@ function parseHistoriaCreateBody(
 ): { error: string } | { config: StickmanJobConfig } {
   const topic = String(body.topic ?? "").trim();
   if (topic.length < 4) return { error: "Escribe un tema (mín. 4 caracteres)" };
+  const visualProvider = resolveStudioVisualProvider(
+    typeof body.visualProvider === "string" ? body.visualProvider : undefined,
+  );
+  const gflowVideoModel = body.gflowVideoModel ? String(body.gflowVideoModel) : undefined;
   const durationSec = Number(body.durationSec ?? 30);
-  if (!STICKMAN_DURATIONS.includes(durationSec as (typeof STICKMAN_DURATIONS)[number])) {
-    return { error: "Duración: 10s, 20s, 30s, 1 min, 2 min, 5 min, 8 min o 15 min" };
+  if (!isStickmanDuration(durationSec, visualProvider, gflowVideoModel)) {
+    return { error: stickmanDurationHint(visualProvider, gflowVideoModel) };
   }
   const aspect = String(body.aspect ?? "9:16");
   if (!STICKMAN_ASPECTS.includes(aspect as (typeof STICKMAN_ASPECTS)[number])) {
@@ -155,7 +163,9 @@ function parseHistoriaCreateBody(
       captions: body.captions === true,
       animate: body.animate === true,
       muteCharacter: body.muteCharacter !== false,
-      contentHook: stickmanHookAvailable(durationSec) && body.contentHook === true,
+      contentHook:
+        stickmanHookAvailable(durationSec, visualProvider, gflowVideoModel) &&
+        body.contentHook === true,
       videoVolume: clampStickmanVolume(body.videoVolume, DEFAULT_STICKMAN_VIDEO_VOLUME),
       ttsVolume: clampStickmanVolume(body.ttsVolume, DEFAULT_STICKMAN_TTS_VOLUME),
       imageModel: String(body.imageModel ?? DEFAULT_STICKMAN_IMAGE_MODEL),
@@ -164,11 +174,9 @@ function parseHistoriaCreateBody(
         voiceId,
         String(body.atlasTtsModel ?? DEFAULT_STICKMAN_TTS_MODEL),
       ),
-      visualProvider: resolveStudioVisualProvider(
-        typeof body.visualProvider === "string" ? body.visualProvider : undefined,
-      ),
+      visualProvider,
       gflowImageModel: body.gflowImageModel ? String(body.gflowImageModel) : undefined,
-      gflowVideoModel: body.gflowVideoModel ? String(body.gflowVideoModel) : undefined,
+      gflowVideoModel,
       gflowVideoMode: body.gflowVideoMode ? String(body.gflowVideoMode) : undefined,
       llmModel: isStickmanLlmId(String(body.llmModel ?? ""))
         ? String(body.llmModel)
@@ -182,8 +190,12 @@ export async function registerHistoriaRoutes(app: FastifyInstance, redis: IORedi
     arcs: STICKMAN_ARCS,
     voices: STICKMAN_VOICES,
     aspects: STICKMAN_ASPECTS,
-    durations: STICKMAN_DURATIONS,
-    hookDurations: STICKMAN_HOOK_DURATIONS,
+    durations: STICKMAN_OMNI_DURATIONS,
+    omniDurations: STICKMAN_OMNI_DURATIONS,
+    veoDurations: STICKMAN_VEO_DURATIONS,
+    hookDurations: STICKMAN_OMNI_HOOK_DURATIONS,
+    omniHookDurations: STICKMAN_OMNI_HOOK_DURATIONS,
+    veoHookDurations: STICKMAN_VEO_HOOK_DURATIONS,
     defaultMuteCharacter: DEFAULT_STICKMAN_MUTE_CHARACTER,
     defaultContentHook: DEFAULT_STICKMAN_CONTENT_HOOK,
     defaultCaptions: DEFAULT_STICKMAN_CAPTIONS,

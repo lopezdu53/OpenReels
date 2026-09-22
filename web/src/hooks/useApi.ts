@@ -1155,7 +1155,11 @@ export const api = {
       voices: { id: string; label: string; gender: string; note: string; model?: string }[];
       aspects: string[];
       durations: number[];
+      omniDurations?: number[];
+      veoDurations?: number[];
       hookDurations?: number[];
+      omniHookDurations?: number[];
+      veoHookDurations?: number[];
       defaultMuteCharacter?: boolean;
       defaultContentHook?: boolean;
       defaultCaptions?: boolean;
@@ -1219,7 +1223,11 @@ export const api = {
       voices: { id: string; label: string; gender: string; note: string; model?: string }[];
       aspects: string[];
       durations: number[];
+      omniDurations?: number[];
+      veoDurations?: number[];
       hookDurations?: number[];
+      omniHookDurations?: number[];
+      veoHookDurations?: number[];
       defaultMuteCharacter?: boolean;
       defaultContentHook?: boolean;
       defaultCaptions?: boolean;

@@ -36,7 +36,7 @@ export function historiaI2vNegative(): string {
 }
 
 export function stickmanI2vNegative(): string {
-  return "photoreal, collage, torn paper, 3D, detailed face, sphere head, jump cut, hard cut";
+  return "photoreal, collage, torn paper, 3D, detailed face, sphere head, jump cut, hard cut, blur, bokeh, shallow depth of field, rack focus, defocus, push-in, dolly-in, crash zoom";
 }
 
 export function motionNegativePrompt(script: StickmanScript): string {
@@ -151,6 +151,7 @@ export function buildContinuousMotionPrompt(
     ...timed,
     "Same stick figures, line weight, and wardrobe for the whole take.",
     "Limbs move. Oversized props and line-art architecture may grow, shatter, or morph.",
+    "Camera: pan or hold only. No push-in, no dolly-in, no crash zoom, no rack focus, no blur, no bokeh, no shallow depth of field. Every line stays razor-sharp.",
     STICKMAN_STYLE_LOCK,
   ].join(" ");
 }
