@@ -16,6 +16,7 @@ import subprocess
 import tempfile
 import threading
 import time
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -71,6 +72,7 @@ ADD_TO_PROMPT_NEEDLES = (
 LOCK = threading.Lock()
 PROC_LOCK = threading.Lock()
 CURRENT_PROC: subprocess.Popen[str] | None = None
+ABORT_REQUESTED = False
 
 
 def _is_lower_priority(model: str) -> bool:
@@ -234,6 +236,10 @@ def _is_submit_miss(msg: str) -> bool:
             "no escribió el mp4",
             "gflow exit",
             "no result json",
+            "wireformaterror",
+            "signed media",
+            "grace window",
+            "copy_count",
         )
     )
 
@@ -430,9 +436,71 @@ def _gflow_fail_message(payload: dict[str, Any] | None, stdout: str, stderr: str
     return (stderr or stdout or f"gflow exit {code}")[:400]
 
 
-def abort_current_gflow() -> bool:
-    """User hit Detener: kill the headed gflow so Chrome is free."""
+def _spawn_gflow(
+    args: list[str],
+    output_dir: str | None = None,
+    timeout: int | None = None,
+) -> subprocess.Popen[str]:
+    cmd = [GFLOW_BIN, *args, "--json"]
+    if PROFILE and "--profile" not in args:
+        cmd.extend(["--profile", PROFILE])
+    if PROJECT and "--project" not in args:
+        cmd.extend(["--project", PROJECT])
+    if PROJECT_NAME and "--project-name" not in args:
+        cmd.extend(["--project-name", PROJECT_NAME])
+    env = os.environ.copy()
+    env["GFLOW_CLI_LOG_FORMAT"] = "json"
+    env["NO_COLOR"] = "1"
+    env["FORCE_COLOR"] = "0"
+    env.setdefault("GFLOW_CLI_FLOW_HOST", "auto")
+    if timeout:
+        env["GFLOW_CLI_TIMEOUT_SECONDS"] = str(max(int(timeout), 600))
+    if output_dir:
+        env["GFLOW_CLI_OUTPUT_DIR"] = output_dir
+    bin_path = Path(GFLOW_BIN)
+    if bin_path.is_file():
+        env["PATH"] = str(bin_path.parent) + os.pathsep + env.get("PATH", "")
+    print(f"[gflow-bridge] exec {' '.join(cmd[:6])} … project={PROJECT or '-'} name={PROJECT_NAME or '-'}", flush=True)
+    return subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+
+
+def _run_gflow_raw(args: list[str], timeout: int, output_dir: str | None = None) -> tuple[int, str, str]:
     global CURRENT_PROC
+    try:
+        proc = _spawn_gflow(args, output_dir, timeout)
+    except FileNotFoundError as err:
+        raise RuntimeError(missing_gflow_message()) from err
+    with PROC_LOCK:
+        CURRENT_PROC = proc
+    try:
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            stdout, stderr = proc.communicate()
+            return 124, stdout or "", stderr or ""
+    finally:
+        with PROC_LOCK:
+            if CURRENT_PROC is proc:
+                CURRENT_PROC = None
+    return proc.returncode or 0, stdout or "", stderr or ""
+
+
+def _clear_abort() -> None:
+    global ABORT_REQUESTED
+    ABORT_REQUESTED = False
+
+
+def abort_current_gflow() -> bool:
+    """User hit Detener: kill the headed gflow and stop catalog recover."""
+    global CURRENT_PROC, ABORT_REQUESTED
+    ABORT_REQUESTED = True
     with PROC_LOCK:
         proc = CURRENT_PROC
     if proc is None or proc.poll() is not None:
@@ -451,53 +519,13 @@ def abort_current_gflow() -> bool:
 
 
 def _run_gflow(args: list[str], timeout: int, output_dir: str | None = None) -> dict[str, Any]:
-    global CURRENT_PROC
-    cmd = [GFLOW_BIN, *args, "--json"]
-    if PROFILE and "--profile" not in args:
-        cmd.extend(["--profile", PROFILE])
-    if PROJECT and "--project" not in args:
-        cmd.extend(["--project", PROJECT])
-    if PROJECT_NAME and "--project-name" not in args:
-        cmd.extend(["--project-name", PROJECT_NAME])
-    env = os.environ.copy()
-    env["GFLOW_CLI_LOG_FORMAT"] = "json"
-    env["NO_COLOR"] = "1"
-    env["FORCE_COLOR"] = "0"
-    env.setdefault("GFLOW_CLI_FLOW_HOST", "auto")
-    env["GFLOW_CLI_TIMEOUT_SECONDS"] = str(max(timeout, 600))
-    if output_dir:
-        env["GFLOW_CLI_OUTPUT_DIR"] = output_dir
-    bin_path = Path(GFLOW_BIN)
-    if bin_path.is_file():
-        env["PATH"] = str(bin_path.parent) + os.pathsep + env.get("PATH", "")
-    print(f"[gflow-bridge] exec {' '.join(cmd[:6])} … project={PROJECT or '-'} name={PROJECT_NAME or '-'}", flush=True)
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            env=env,
+    code, stdout, stderr = _run_gflow_raw(args, timeout, output_dir)
+    if code == 124:
+        raise RuntimeError(
+            f"TransportTimeoutError — gflow timeout {timeout}s (not terminal within). "
+            "Flow puede seguir renderizando el clip de 8s."
         )
-    except FileNotFoundError as err:
-        raise RuntimeError(missing_gflow_message()) from err
-    with PROC_LOCK:
-        CURRENT_PROC = proc
-    try:
-        try:
-            stdout, stderr = proc.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired as err:
-            proc.kill()
-            proc.communicate()
-            raise RuntimeError(
-                f"TransportTimeoutError — gflow timeout {timeout}s (not terminal within). "
-                "Flow puede seguir renderizando el clip de 8s."
-            ) from err
-    finally:
-        with PROC_LOCK:
-            if CURRENT_PROC is proc:
-                CURRENT_PROC = None
-    combined = f"{stdout or ''}\n{stderr or ''}"
+    combined = f"{stdout}\n{stderr}"
     payload: dict[str, Any] | None = None
     try:
         payload = _parse_gflow_json(combined)
@@ -505,17 +533,20 @@ def _run_gflow(args: list[str], timeout: int, output_dir: str | None = None) -> 
         payload = None
     if payload and _is_gflow_log_event(payload):
         payload = None
-    if (payload and payload.get("status") == "fail") or proc.returncode != 0:
-        msg = _gflow_fail_message(payload, stdout or "", stderr or "", proc.returncode or 1)
+    if (payload and payload.get("status") == "fail") or code != 0:
+        msg = _gflow_fail_message(payload, stdout, stderr, code)
         if not msg.strip() or _is_progress_noise(msg):
+            extra = (stderr or stdout).strip()
+            hint = extra[-280:] if extra and not _is_progress_noise(extra) else ""
             msg = (
-                f"gflow exit {proc.returncode} after progress log (no result JSON). "
+                f"gflow exit {code} after progress log (no result JSON). "
                 "Flow puede seguir en cola Lower Priority."
+                + (f" {hint}" if hint else "")
             )
         print(f"[gflow-bridge] gflow fail: {msg}", flush=True)
         raise RuntimeError(msg)
     if not payload:
-        raise RuntimeError(f"gflow no devolvió JSON: {(stdout or '')[:240]}")
+        raise RuntimeError(f"gflow no devolvió JSON: {stdout[:240]}")
     return payload
 
 
@@ -594,20 +625,158 @@ def _wait_for_clip(dest: Path, since: float, seconds: int) -> Path | None:
         time.sleep(4)
 
 
+def _parse_iso_ts(raw: object) -> float | None:
+    if isinstance(raw, bool):
+        return None
+    if isinstance(raw, (int, float)):
+        val = float(raw)
+        if val > 1e12:
+            return val / 1000.0
+        if val > 1e9:
+            return val
+        return None
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return None
+
+
+def _catalog_video_rows(text: str) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def _add(row: dict[str, Any]) -> None:
+        mid = str(row.get("media_id") or row.get("id") or row.get("local_path") or row.get("path") or "")
+        key = mid or json.dumps(row, sort_keys=True, default=str)
+        if key in seen:
+            return
+        seen.add(key)
+        rows.append(row)
+
+    for obj in _iter_json_objects(text):
+        if _is_gflow_log_event(obj):
+            continue
+        inner = obj.get("videos") or obj.get("items") or obj.get("rows")
+        if isinstance(inner, list):
+            for item in inner:
+                if isinstance(item, dict):
+                    _add(item)
+        elif obj.get("media_id") or obj.get("local_path") or obj.get("path") or obj.get("id"):
+            _add(obj)
+    decoder = json.JSONDecoder()
+    i = 0
+    while i < len(text):
+        start = text.find("[", i)
+        if start < 0:
+            break
+        try:
+            arr, end = decoder.raw_decode(text, start)
+        except json.JSONDecodeError:
+            i = start + 1
+            continue
+        if isinstance(arr, list):
+            for item in arr:
+                if isinstance(item, dict) and (
+                    item.get("media_id") or item.get("id") or item.get("local_path") or item.get("path")
+                ):
+                    _add(item)
+        i = end
+    return rows
+
+
+def _row_is_recent(row: dict[str, Any], since: float) -> bool:
+    ts = _parse_iso_ts(row.get("created_at") or row.get("started_at") or row.get("createdAt"))
+    if ts is not None:
+        return ts >= since - 20
+    return row.get("copy_count") == 0
+
+
+def _list_catalog_videos() -> list[dict[str, Any]]:
+    _code, out, err = _run_gflow_raw(["data", "list", "videos", "--limit", "20"], 90)
+    return _catalog_video_rows(f"{out}\n{err}")
+
+
+def _download_catalog_video(media_id: str, dest_dir: Path) -> Path | None:
+    print(f"[gflow-bridge] descargo {media_id} de Flow (ya generado, 0 créditos)", flush=True)
+    _code, out, err = _run_gflow_raw(
+        ["data", "download", media_id, "--out", str(dest_dir)],
+        420,
+        output_dir=str(dest_dir),
+    )
+    for obj in _iter_json_objects(f"{out}\n{err}"):
+        for key in ("path", "local_path"):
+            val = obj.get(key)
+            if isinstance(val, str) and val.lower().endswith(".mp4"):
+                p = Path(val)
+                if p.exists() and p.stat().st_size > 20_000:
+                    return p
+    found = [p for p in dest_dir.glob("*.mp4") if p.stat().st_size > 20_000]
+    return max(found, key=lambda p: p.stat().st_mtime) if found else None
+
+
 def _recover_generated_mp4(dest: Path, since: float, seconds: int | None = None) -> Path | None:
     wait = RECOVER_SECONDS if seconds is None else max(0, int(seconds))
     print(
-        f"[gflow-bridge] esperando hasta {wait}s a que Flow termine el clip (no se sube la siguiente still)",
+        f"[gflow-bridge] gflow cerró Chrome; Flow sigue generando. "
+        f"Espero/descargo el mp4 hasta {wait}s (no subo la siguiente still)",
         flush=True,
     )
-    found = _wait_for_clip(dest, since, wait)
-    if found is not None:
-        return found
-    print("[gflow-bridge] no mp4 in this I2V work dir (not scanning Lab/Videos/catalog)", flush=True)
-    return None
+    deadline = time.time() + wait
+    while True:
+        if ABORT_REQUESTED:
+            print("[gflow-bridge] abort: dejo de esperar el clip", flush=True)
+            return None
+        found = _newest_mp4_since(since, dest)
+        if found is not None:
+            print(f"[gflow-bridge] I2V mp4 listo {found} ({found.stat().st_size} bytes)", flush=True)
+            return found
+        try:
+            rows = _list_catalog_videos()
+            pending = 0
+            for row in rows:
+                if not _row_is_recent(row, since):
+                    continue
+                pending += 1
+                local = row.get("local_path") or row.get("path")
+                if isinstance(local, str):
+                    p = Path(local)
+                    try:
+                        if p.exists() and p.stat().st_size > 20_000 and p.stat().st_mtime >= since - 20:
+                            print(f"[gflow-bridge] catálogo ya tiene {p}", flush=True)
+                            return p
+                    except OSError:
+                        pass
+                mid = str(row.get("media_id") or row.get("id") or "").strip()
+                if not mid:
+                    continue
+                got = _download_catalog_video(mid, dest.parent)
+                if got is not None:
+                    return got
+            left = max(0, int(deadline - time.time()))
+            print(
+                f"[gflow-bridge] catálogo: {len(rows)} videos, {pending} de este job; "
+                f"aún no hay mp4, sigo {left}s",
+                flush=True,
+            )
+        except Exception as err:
+            print(f"[gflow-bridge] catálogo: {err}", flush=True)
+        if time.time() >= deadline:
+            print("[gflow-bridge] no mp4 en work dir ni en catálogo Flow", flush=True)
+            return None
+        slept = 0
+        while slept < 12:
+            if ABORT_REQUESTED:
+                print("[gflow-bridge] abort: dejo de esperar el clip", flush=True)
+                return None
+            time.sleep(1)
+            slept += 1
 
 
 def generate_image(body: dict[str, Any]) -> dict[str, Any]:
+    _clear_abort()
     prompt = str(body.get("prompt") or "").strip()
     if len(prompt) < 2:
         raise ValueError("prompt requerido")
@@ -649,6 +818,7 @@ def generate_image(body: dict[str, Any]) -> dict[str, Any]:
 
 
 def generate_video(body: dict[str, Any]) -> dict[str, Any]:
+    _clear_abort()
     prompt = _sanitize_prompt(str(body.get("prompt") or ""))
     if len(prompt) < 2:
         raise ValueError("prompt requerido")
@@ -703,6 +873,8 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                 )
                 if recovered is not None:
                     payload = {"status": "ok", "local_path": str(recovered)}
+                elif ABORT_REQUESTED:
+                    raise RuntimeError("detenido por el usuario")
                 elif mode != "i2v" or not _should_fallback_t2v(msg):
                     raise
                 else:
@@ -721,6 +893,8 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                         )
                         if recovered2 is not None:
                             payload = {"status": "ok", "local_path": str(recovered2)}
+                        elif ABORT_REQUESTED:
+                            raise RuntimeError("detenido por el usuario")
                         elif not I2V_FALLBACK_T2V:
                             raise
                         else:
@@ -745,13 +919,15 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                 local = p
         if local is None and (mode == "i2v" or _is_lower_priority(model)):
             print(
-                "[gflow-bridge] gflow volvió sin mp4; espero el clip (Lower Priority no corta a 1 min). "
-                "No subo la siguiente still.",
+                "[gflow-bridge] gflow volvió sin mp4; Flow sigue en cola. "
+                "Listo el catálogo y descargo el clip (0 créditos). No subo la siguiente still.",
                 flush=True,
             )
-            waited = _wait_for_clip(dest, started, recover_s)
+            waited = _recover_generated_mp4(dest, started, recover_s)
             if waited is not None:
                 local = waited
+            elif ABORT_REQUESTED:
+                raise RuntimeError("detenido por el usuario")
         if local is None:
             raise RuntimeError("gflow video no escribió el mp4")
         data = local.read_bytes()
