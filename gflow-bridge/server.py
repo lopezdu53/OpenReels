@@ -74,6 +74,7 @@ LOCK = threading.Lock()
 PROC_LOCK = threading.Lock()
 CURRENT_PROC: subprocess.Popen[str] | None = None
 ABORT_REQUESTED = False
+KEPT_CHROME = False
 
 
 def _is_lower_priority(model: str) -> bool:
@@ -454,10 +455,16 @@ def _spawn_gflow(
     env["NO_COLOR"] = "1"
     env["FORCE_COLOR"] = "0"
     env.setdefault("GFLOW_CLI_FLOW_HOST", "auto")
+    global KEPT_CHROME
+    keep = bool(args) and args[0] == "video"
+    KEPT_CHROME = keep
+    env["GFLOW_BRIDGE_KEEP_CHROME"] = "1" if keep else "0"
     if timeout:
         env["GFLOW_CLI_TIMEOUT_SECONDS"] = str(max(int(timeout), 600))
         env["GFLOW_BRIDGE_SUBMIT_REPLY_S"] = str(max(int(timeout), 600))
-        env["GFLOW_BRIDGE_RESULT_URL_GRACE_S"] = str(max(int(os.environ.get("GFLOW_BRIDGE_RECOVER_SECONDS_LP", "1200")), 240))
+        env["GFLOW_BRIDGE_RESULT_URL_GRACE_S"] = str(
+            max(int(os.environ.get("GFLOW_BRIDGE_RECOVER_SECONDS_LP", "1200")), 240)
+        )
     if output_dir:
         env["GFLOW_CLI_OUTPUT_DIR"] = output_dir
     bin_path = Path(GFLOW_BIN)
@@ -471,6 +478,7 @@ def _spawn_gflow(
         )
     print(
         f"[gflow-bridge] exec {via} ACK={env.get('GFLOW_BRIDGE_SUBMIT_REPLY_S', '-')}s "
+        f"keep_chrome={env['GFLOW_BRIDGE_KEEP_CHROME']} "
         f"{' '.join(cmd[:6])} … project={PROJECT or '-'} name={PROJECT_NAME or '-'}",
         flush=True,
     )
@@ -480,6 +488,7 @@ def _spawn_gflow(
         stderr=subprocess.PIPE,
         text=True,
         env=env,
+        bufsize=1,
     )
 
 
@@ -492,12 +501,39 @@ def _run_gflow_raw(args: list[str], timeout: int, output_dir: str | None = None)
     with PROC_LOCK:
         CURRENT_PROC = proc
     try:
+        stdout_chunks: list[str] = []
+        stderr_chunks: list[str] = []
+
+        def _pump(stream, chunks: list[str]) -> None:
+            if stream is None:
+                return
+            try:
+                for line in iter(stream.readline, ""):
+                    chunks.append(line)
+                    text = line.rstrip()
+                    if text:
+                        print(f"[gflow] {text[:400]}", flush=True)
+            except Exception:
+                pass
+
+        out_t = threading.Thread(target=_pump, args=(proc.stdout, stdout_chunks), daemon=True)
+        err_t = threading.Thread(target=_pump, args=(proc.stderr, stderr_chunks), daemon=True)
+        out_t.start()
+        err_t.start()
         try:
-            stdout, stderr = proc.communicate(timeout=timeout)
+            proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             proc.kill()
-            stdout, stderr = proc.communicate()
-            return 124, stdout or "", stderr or ""
+            try:
+                proc.wait(timeout=8)
+            except subprocess.TimeoutExpired:
+                pass
+            out_t.join(timeout=2)
+            err_t.join(timeout=2)
+            return 124, "".join(stdout_chunks), "".join(stderr_chunks)
+        out_t.join(timeout=2)
+        err_t.join(timeout=2)
+        stdout, stderr = "".join(stdout_chunks), "".join(stderr_chunks)
     finally:
         with PROC_LOCK:
             if CURRENT_PROC is proc:
@@ -771,18 +807,26 @@ def _recover_generated_mp4(dest: Path, since: float, seconds: int | None = None)
                     return got
             if pending == 0:
                 empty_rounds += 1
-                print(
-                    f"[gflow-bridge] catálogo local: {len(rows)} videos, 0 de este job. "
-                    "Si Chrome ya cerró, Flow canceló el clip (no sigue en el servidor).",
-                    flush=True,
-                )
-                if empty_rounds >= 2:
+                if KEPT_CHROME:
+                    left = max(0, int(deadline - time.time()))
                     print(
-                        "[gflow-bridge] no hay clip que descargar. gflow cerró Chrome "
-                        "antes de guardar el video en Flow.",
+                        f"[gflow-bridge] catálogo vacío, pero Chrome debe seguir abierto. "
+                        f"Flow está generando ahí. No lo cierres. Sigo {left}s",
                         flush=True,
                     )
-                    return None
+                else:
+                    print(
+                        f"[gflow-bridge] catálogo local: {len(rows)} videos, 0 de este job. "
+                        "Si Chrome ya cerró, Flow canceló el clip (no sigue en el servidor).",
+                        flush=True,
+                    )
+                    if empty_rounds >= 2:
+                        print(
+                            "[gflow-bridge] no hay clip que descargar. gflow cerró Chrome "
+                            "antes de guardar el video en Flow.",
+                            flush=True,
+                        )
+                        return None
             else:
                 empty_rounds = 0
                 left = max(0, int(deadline - time.time()))

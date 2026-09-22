@@ -4,8 +4,8 @@ from __future__ import annotations
 
 APP_NAME = "OpenReels Puente"
 APP_ID = "OpenReelsPuente"
-APP_VERSION = "1.6.6"
-APP_VERSION_TUPLE = (1, 6, 6, 0)
+APP_VERSION = "1.6.7"
+APP_VERSION_TUPLE = (1, 6, 7, 0)
 COMPANY = "OpenReels"
 COPYRIGHT = "© 2026 OpenReels. MIT License."
 FILE_DESCRIPTION = "Puente gflow para Windows — LAN y remoto al estudio OpenReels"

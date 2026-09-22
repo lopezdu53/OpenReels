@@ -455,12 +455,13 @@ class BrandingAndDesktopTests(unittest.TestCase):
             "i2v",
         )
         self.assertEqual(classify_log("runtime ACK=3600s grace=1200s (gflow stock is 60s/20s)"), "i2v")
+        self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(
             classify_log("Si Chrome ya cerró, Flow canceló el clip (no sigue en el servidor)."),
             "i2v",
         )
         self.assertEqual(classify_log("catálogo: 3 videos, 1 de este job; aún no hay mp4, sigo 800s"), "i2v")
-        self.assertEqual(APP_VERSION, "1.6.6")
+        self.assertEqual(APP_VERSION, "1.6.7")
         self.assertEqual(classify_log("gflow fail: crash"), "err")
         self.assertEqual(classify_log("LAN: escuchando listo"), "ok")
         self.assertEqual(classify_log("Cloudflare 404 aviso"), "warn")
@@ -496,6 +497,9 @@ class GflowPatchTests(unittest.TestCase):
 
         self.assertIn("SUBMIT_REPLY_BUDGET_S", RUNNER_SOURCE)
         self.assertIn("gflow_cli.cli", RUNNER_SOURCE)
+        self.assertIn("KEEP_CHROME", RUNNER_SOURCE)
+        self.assertIn("poll_timeout_s", RUNNER_SOURCE)
+        self.assertIn("no cierro Playwright", RUNNER_SOURCE)
         cmd = gflow_exec_command("/no/such/gflow.exe", ["video", "i2v", "prompt"])
         self.assertEqual(cmd[0], "/no/such/gflow.exe")
         self.assertIn("--json", cmd)

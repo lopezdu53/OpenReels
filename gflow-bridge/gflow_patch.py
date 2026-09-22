@@ -26,24 +26,43 @@ _COMPOSER = "gflow_cli/api/transports/migrated_composer.py"
 _LABS_VIDEO = "gflow_cli/api/transports/ui_automation_video.py"
 
 RUNNER_SOURCE = r'''#!/usr/bin/env python3
-"""In-memory gflow ACK patch. Chrome must stay open past the stock 60s cap."""
+"""In-memory gflow patches: wait for LP and do not close Chrome on fail."""
 from __future__ import annotations
 
 import os
 import sys
 
 
+def _wait_s() -> float:
+    return float(
+        os.environ.get("GFLOW_CLI_TIMEOUT_SECONDS")
+        or os.environ.get("GFLOW_BRIDGE_SUBMIT_REPLY_S")
+        or "3600"
+    )
+
+
 def _patch() -> None:
-    submit = float(os.environ.get("GFLOW_BRIDGE_SUBMIT_REPLY_S", "3600"))
+    submit = _wait_s()
     grace = float(os.environ.get("GFLOW_BRIDGE_RESULT_URL_GRACE_S", "1200"))
+    keep = os.environ.get("GFLOW_BRIDGE_KEEP_CHROME", "1") == "1"
     try:
         import gflow_cli.api.transports.migrated_composer as mc
 
         mc.SUBMIT_REPLY_BUDGET_S = submit
         mc.RESULT_URL_GRACE_S = grace
+        orig_sub = mc.MigratedComposer.submit_and_observe
+
+        async def _submit_wait(self, page, *args, **kwargs):
+            wait = _wait_s()
+            kwargs["poll_timeout_s"] = wait
+            mc.SUBMIT_REPLY_BUDGET_S = wait
+            print(f"[gflow-bridge] submit_and_observe wait={wait:.0f}s", flush=True)
+            return await orig_sub(self, page, *args, **kwargs)
+
+        mc.MigratedComposer.submit_and_observe = _submit_wait
         print(
             f"[gflow-bridge] runtime ACK={mc.SUBMIT_REPLY_BUDGET_S:.0f}s "
-            f"grace={mc.RESULT_URL_GRACE_S:.0f}s (gflow stock is 60s/20s)",
+            f"grace={mc.RESULT_URL_GRACE_S:.0f}s keep_chrome={keep}",
             flush=True,
         )
     except Exception as err:
@@ -54,6 +73,45 @@ def _patch() -> None:
         labs.SUBMIT_STAGE_TIMEOUT_S = submit
     except Exception:
         pass
+    try:
+        from gflow_cli.api.client import FlowApiClient
+
+        orig_gv = FlowApiClient.generate_video
+
+        async def _gv_wait(self, *args, **kwargs):
+            kwargs["poll_timeout_s"] = _wait_s()
+            print(
+                f"[gflow-bridge] generate_video poll_timeout={kwargs['poll_timeout_s']:.0f}s",
+                flush=True,
+            )
+            return await orig_gv(self, *args, **kwargs)
+
+        FlowApiClient.generate_video = _gv_wait
+        orig_close = FlowApiClient._close_browser_resources
+
+        async def _close_keep(self, *args, **kwargs):
+            if os.environ.get("GFLOW_BRIDGE_KEEP_CHROME") == "1":
+                print("[gflow-bridge] keep Chrome: no cierro Playwright", flush=True)
+                return None
+            return await orig_close(self, *args, **kwargs)
+
+        FlowApiClient._close_browser_resources = _close_keep
+    except Exception as err:
+        print(f"[gflow-bridge] runtime patch client: {err}", flush=True)
+    try:
+        from gflow_cli.api.transports.ui_automation import UiAutomationTransport
+
+        orig_td = UiAutomationTransport.teardown
+
+        async def _td_keep(self, *args, **kwargs):
+            if os.environ.get("GFLOW_BRIDGE_KEEP_CHROME") == "1":
+                print("[gflow-bridge] keep Chrome: no ui teardown", flush=True)
+                return None
+            return await orig_td(self, *args, **kwargs)
+
+        UiAutomationTransport.teardown = _td_keep
+    except Exception as err:
+        print(f"[gflow-bridge] runtime patch ui teardown: {err}", flush=True)
 
 
 if __name__ == "__main__":
