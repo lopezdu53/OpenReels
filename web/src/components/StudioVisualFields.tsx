@@ -153,6 +153,7 @@ export function StudioVisualFields(props: {
     {
       id: "veo-lite-lp",
       label: "Veo 3.1 Lite (Lower Priority)",
+      note: "Ultra · 0 créditos · cola lenta (hasta ~60 min) · no cierres Chrome · 4–8s",
       durations: [4, 6, 8],
       creditPerSecond: 0,
     },

@@ -3,19 +3,27 @@ import unittest
 
 from server import (
     I2V_FALLBACK_T2V,
+    RECOVER_SECONDS,
+    RECOVER_SECONDS_LP,
     STILL_PREFIX,
+    VIDEO_TIMEOUT,
+    VIDEO_TIMEOUT_LP,
     _catalog_paths_from_list,
     _flow_picker_script,
+    _is_lower_priority,
+    _lock_wait_for,
     _mp4_search_roots,
     _gflow_fail_message,
     _is_add_to_prompt_label,
     _is_submit_miss,
     _parse_gflow_json,
+    _recover_seconds_for,
     _resolve_video_mode,
     _sanitize_prompt,
     _should_fallback_t2v,
     _unique_still_name,
     _video_cli_args,
+    _video_timeout_for,
 )
 
 
@@ -134,6 +142,20 @@ class VideoModeTests(unittest.TestCase):
         self.assertIn("add to prompt", script)
         self.assertIn("or-i2v-demo.png", script)
         self.assertIn("$action = 'click'", script)
+
+    def test_lower_priority_waits_an_hour_so_chrome_stays_open(self):
+        self.assertTrue(_is_lower_priority("veo-lite-lp"))
+        self.assertTrue(_is_lower_priority("veo-lp"))
+        self.assertTrue(_is_lower_priority("veo-3.1-lite-low-priority"))
+        self.assertFalse(_is_lower_priority("veo-lite"))
+        self.assertEqual(_video_timeout_for("veo-lite"), VIDEO_TIMEOUT)
+        self.assertEqual(_video_timeout_for("veo-lite-lp"), VIDEO_TIMEOUT_LP)
+        self.assertGreaterEqual(VIDEO_TIMEOUT_LP, 3600)
+        self.assertGreaterEqual(RECOVER_SECONDS_LP, 1200)
+        self.assertEqual(_recover_seconds_for("veo-lite"), RECOVER_SECONDS)
+        self.assertEqual(_recover_seconds_for("veo-lite-lp"), RECOVER_SECONDS_LP)
+        self.assertGreaterEqual(_lock_wait_for("video", {"model": "veo-lite-lp"}), VIDEO_TIMEOUT_LP)
+        self.assertLess(_lock_wait_for("image", {}), VIDEO_TIMEOUT_LP)
 
     def test_submit_miss_is_not_picker_retry(self):
         miss = (
@@ -346,7 +368,8 @@ class BrandingAndDesktopTests(unittest.TestCase):
         from config import classify_log, default_config
         from version import APP_NAME, APP_VERSION
 
-        self.assertEqual(classify_log("I2V: gflow volvió sin mp4; espero el clip de 8s"), "i2v")
+        self.assertEqual(classify_log("I2V: gflow volvió sin mp4; espero el clip."), "i2v")
+        self.assertEqual(classify_log("Lower Priority Veo: Chrome se queda abierto hasta 3600s"), "i2v")
         self.assertEqual(classify_log("gflow fail: crash"), "err")
         self.assertEqual(classify_log("LAN: escuchando listo"), "ok")
         self.assertEqual(classify_log("Cloudflare 404 aviso"), "warn")

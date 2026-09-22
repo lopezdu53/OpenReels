@@ -22,7 +22,7 @@ export const GFLOW_VIDEO_MODELS = [
   {
     id: "veo-lite-lp",
     label: "Veo 3.1 Lite (Lower Priority)",
-    note: "Ultra · 0 créditos · cola más lenta · 4–8s",
+    note: "Ultra · 0 créditos · cola lenta (hasta ~60 min) · no cierres Chrome · 4–8s",
     durations: [4, 6, 8],
     creditPerSecond: 0,
   },
@@ -106,6 +106,33 @@ export function gflowCliDuration(modelId?: string, wanted?: number): number | un
 }
 
 export const GFLOW_DEFAULT_CLIP_SECONDS = 8;
+
+/** Wall-clock seconds Puente keeps headed Chrome open for one clip. */
+export const GFLOW_VIDEO_WAIT_SEC = 900;
+export const GFLOW_VIDEO_WAIT_LP_SEC = 3600;
+export const GFLOW_VIDEO_RECOVER_SEC = 240;
+export const GFLOW_VIDEO_RECOVER_LP_SEC = 1200;
+
+export function isGflowLowerPriority(modelId?: string): boolean {
+  return resolveGflowVideoModel(modelId).id === "veo-lite-lp";
+}
+
+export function gflowVideoWaitSeconds(modelId?: string): number {
+  return isGflowLowerPriority(modelId) ? GFLOW_VIDEO_WAIT_LP_SEC : GFLOW_VIDEO_WAIT_SEC;
+}
+
+export function gflowVideoRecoverSeconds(modelId?: string): number {
+  return isGflowLowerPriority(modelId) ? GFLOW_VIDEO_RECOVER_LP_SEC : GFLOW_VIDEO_RECOVER_SEC;
+}
+
+/** Worker / LAN / relay keep the job open until Puente can finish + recover. */
+export function gflowVideoBudgetSeconds(modelId?: string): number {
+  return gflowVideoWaitSeconds(modelId) + gflowVideoRecoverSeconds(modelId) + 60;
+}
+
+export function gflowRelayPayloadTtlSeconds(kind: "image" | "video"): number {
+  return kind === "video" ? GFLOW_VIDEO_WAIT_LP_SEC + GFLOW_VIDEO_RECOVER_LP_SEC + 600 : 900;
+}
 
 export function gflowVideoCredits(opts: {
   modelId: string;
