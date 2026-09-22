@@ -470,7 +470,8 @@ def _spawn_gflow(
             flush=True,
         )
     print(
-        f"[gflow-bridge] exec {via} {' '.join(cmd[:6])} … project={PROJECT or '-'} name={PROJECT_NAME or '-'}",
+        f"[gflow-bridge] exec {via} ACK={env.get('GFLOW_BRIDGE_SUBMIT_REPLY_S', '-')}s "
+        f"{' '.join(cmd[:6])} … project={PROJECT or '-'} name={PROJECT_NAME or '-'}",
         flush=True,
     )
     return subprocess.Popen(
