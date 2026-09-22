@@ -9,24 +9,29 @@ import IORedis from "ioredis";
 import { z } from "zod";
 import { PACING_CONFIG } from "./agents/creative-director.js";
 import { registerAnalyticsRoutes } from "./analytics/routes.js";
-import { registerCronogramaRoutes } from "./cronograma/routes.js";
 import { type AuthedRequest, registerAuth, requireUser } from "./auth/plugin.js";
 import { getArchetype, listArchetypes } from "./config/archetype-registry.js";
 import { ATELIER_STYLES } from "./config/atelier-styles.js";
+import {
+  clampFilmVolume,
+  DEFAULT_FILM_LLM_MODEL,
+  DEFAULT_FILM_MUTE_CHARACTER,
+  DEFAULT_FILM_TTS_VOLUME,
+  DEFAULT_FILM_VIDEO_VOLUME,
+} from "./config/film-duration.js";
 import { PLATFORMS } from "./config/platforms.js";
+import { registerCronogramaRoutes } from "./cronograma/routes.js";
+import { filmLookPrompt, isFilmArcId, isFilmLookId } from "./film/director-kit.js";
 import { registerFilmRoutes } from "./film/routes.js";
 import { registerFlowRoutes } from "./flow/routes.js";
 import { registerGflowBridgeRoutes } from "./gflow/relay-routes.js";
-import { registerLibraryRoutes } from "./library/routes.js";
 import { isIsolatedJobDir } from "./jobs/isolated.js";
-import { registerStickmanRoutes } from "./stickman/routes.js";
-import { ensureStickmanJobsDir, stickmanJobsDir } from "./stickman/store.js";
-import { getStickmanQueueStats } from "./stickman/worker.js";
-import { registerVoxRoutes } from "./vox/routes.js";
-import { ensureVoxJobsDir, voxJobsDir } from "./vox/store.js";
-import { getVoxQueueStats } from "./vox/worker.js";
-import { createLabImageProvider, createLabVideoProvider, labVideoRequiresStill } from "./lab/test-providers.js";
-import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "./providers/gflow/catalog.js";
+import {
+  createLabImageProvider,
+  createLabVideoProvider,
+  labVideoRequiresStill,
+} from "./lab/test-providers.js";
+import { registerLibraryRoutes } from "./library/routes.js";
 import {
   ATLAS_TTS_MODELS,
   ATLAS_TTS_VOICES,
@@ -39,17 +44,22 @@ import {
   sortedAtlasLlmModels,
   sortedAtlasVideoModels,
 } from "./providers/atlas/catalog.js";
-import { AtlasLLM } from "./providers/llm/atlas.js";
-import { AtlasTTS } from "./providers/tts/atlas.js";
+import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "./providers/gflow/catalog.js";
 import { AliCloudLLM } from "./providers/llm/alicloud.js";
 import { AnthropicLLM } from "./providers/llm/anthropic.js";
+import { AtlasLLM } from "./providers/llm/atlas.js";
 import { GeminiLLM } from "./providers/llm/gemini.js";
 import { GrokLLM } from "./providers/llm/grok.js";
 import { OpenAILLM } from "./providers/llm/openai.js";
 import { OpenRouterLLM } from "./providers/llm/openrouter.js";
 import { ViviLLM } from "./providers/llm/vivi.js";
 import { RUNPOD_IMAGE_MODELS, RUNPOD_VIDEO_MODELS } from "./providers/runpod/catalog.js";
-import { SHARPII_IMAGE_MODELS, SHARPII_VIDEO_MODELS, creditsToUsd } from "./providers/sharpii/catalog.js";
+import {
+  creditsToUsd,
+  SHARPII_IMAGE_MODELS,
+  SHARPII_VIDEO_MODELS,
+} from "./providers/sharpii/catalog.js";
+import { AtlasTTS } from "./providers/tts/atlas.js";
 import { ElevenLabsTTS } from "./providers/tts/elevenlabs.js";
 import { GEMINI_TTS_VOICES, GeminiTTS } from "./providers/tts/gemini.js";
 import { GROK_TTS_MODELS, GROK_TTS_VOICES, GrokTTS } from "./providers/tts/grok.js";
@@ -61,6 +71,13 @@ import { registerSocial } from "./publish/plugin.js";
 import { publishCompletedJob } from "./publish/run.js";
 import { DirectorScore } from "./schema/director-score.js";
 import type { SearchProviderKey } from "./schema/providers.js";
+import { registerHistoriaRoutes } from "./historia/routes.js";
+import { registerStickmanRoutes } from "./stickman/routes.js";
+import { ensureStickmanJobsDir, stickmanJobsDir } from "./stickman/store.js";
+import { getStickmanQueueStats } from "./stickman/worker.js";
+import { registerVoxRoutes } from "./vox/routes.js";
+import { ensureVoxJobsDir, voxJobsDir } from "./vox/store.js";
+import { getVoxQueueStats } from "./vox/worker.js";
 
 const REDIS_URL = process.env["REDIS_URL"] ?? "redis://localhost:6379";
 const PORT = Number(process.env["PORT"] ?? 3000);
@@ -181,7 +198,8 @@ app.get("/api/v1/health", async () => {
       YOUTUBE_API_KEY: !!process.env["YOUTUBE_API_KEY"],
       GFLOW_BRIDGE_URL: !!process.env["GFLOW_BRIDGE_URL"],
       GFLOW_BRIDGE_TOKEN: !!process.env["GFLOW_BRIDGE_TOKEN"],
-      GFLOW_BRIDGE_RELAY: process.env["GFLOW_BRIDGE_RELAY"] !== "0" && !!process.env["GFLOW_BRIDGE_TOKEN"],
+      GFLOW_BRIDGE_RELAY:
+        process.env["GFLOW_BRIDGE_RELAY"] !== "0" && !!process.env["GFLOW_BRIDGE_TOKEN"],
     },
   };
 });
@@ -391,6 +409,7 @@ await registerFlowRoutes(app);
 await registerLibraryRoutes(app);
 await registerVoxRoutes(app, redis);
 await registerStickmanRoutes(app, redis);
+await registerHistoriaRoutes(app, redis);
 
 // --- API Test endpoints ---
 
@@ -543,7 +562,13 @@ app.post("/api/v1/test/video", async (request, reply) => {
   }
   const start = Date.now();
   try {
-    const videoProvider = createLabVideoProvider({ provider, model, mode, resolution, lipSyncModel });
+    const videoProvider = createLabVideoProvider({
+      provider,
+      model,
+      mode,
+      resolution,
+      lipSyncModel,
+    });
     const sourceImage = imageBase64 ? Buffer.from(imageBase64, "base64") : Buffer.alloc(0);
     const result = await videoProvider.generate({
       sourceImage,
@@ -583,11 +608,16 @@ interface CreateJobBody {
   characterReferenceImage?: string; // base64 character model sheet
   atelierMode?: boolean;
   artStyleOverride?: string;
+  lookId?: string;
+  narrativeArc?: string;
   characterLock?: string;
   castMode?: string;
   locationLock?: string;
   objectLock?: string;
   locationReferenceImage?: string; // base64 location bible board
+  muteCharacter?: boolean;
+  videoVolume?: number;
+  ttsVolume?: number;
   providers?: {
     llm?: string;
     tts?: string;
@@ -649,11 +679,16 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     characterReferenceImage,
     atelierMode,
     artStyleOverride,
+    lookId,
+    narrativeArc,
     characterLock,
     castMode,
     locationLock,
     objectLock,
     locationReferenceImage,
+    muteCharacter: muteCharacterBody,
+    videoVolume: videoVolumeBody,
+    ttsVolume: ttsVolumeBody,
     providers,
     keys,
   } = request.body ?? {};
@@ -732,6 +767,13 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     return reply.status(400).send({ error: "castMode must be scene or hero" });
   }
 
+  if (lookId != null && (typeof lookId !== "string" || !isFilmLookId(lookId))) {
+    return reply.status(400).send({ error: "Unknown lookId" });
+  }
+  if (narrativeArc != null && (typeof narrativeArc !== "string" || !isFilmArcId(narrativeArc))) {
+    return reply.status(400).send({ error: "Unknown narrativeArc" });
+  }
+
   if (locationLock != null) {
     if (typeof locationLock !== "string") {
       return reply.status(400).send({ error: "locationLock must be a string" });
@@ -777,6 +819,17 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     validatedScore = result.data;
   }
 
+  const isFilmPlatform = platform === "youtube_horizontal" || platform === "reel_extend";
+  const muteCharacter = isFilmPlatform
+    ? Boolean(muteCharacterBody ?? DEFAULT_FILM_MUTE_CHARACTER)
+    : muteCharacterBody === true;
+  const videoVolume = isFilmPlatform
+    ? clampFilmVolume(videoVolumeBody, DEFAULT_FILM_VIDEO_VOLUME)
+    : undefined;
+  const ttsVolume = isFilmPlatform
+    ? clampFilmVolume(ttsVolumeBody, DEFAULT_FILM_TTS_VOLUME)
+    : undefined;
+
   const job = await queue.add("render", {
     topic: topic.trim(),
     userId: user.id,
@@ -797,21 +850,30 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
     ...(styleReferenceImage ? { styleReferenceImage } : {}),
     ...(characterReferenceImage ? { characterReferenceImage } : {}),
     atelierMode: atelierMode !== false,
-    ...(artStyleOverride?.trim() ? { artStyleOverride: artStyleOverride.trim() } : {}),
+    ...(artStyleOverride?.trim()
+      ? { artStyleOverride: artStyleOverride.trim() }
+      : lookId && isFilmLookId(lookId) && filmLookPrompt(lookId)
+        ? { artStyleOverride: filmLookPrompt(lookId) }
+        : {}),
+    ...(lookId && isFilmLookId(lookId) ? { lookId } : {}),
+    ...(narrativeArc && isFilmArcId(narrativeArc) ? { narrativeArc } : {}),
     ...(characterLock?.trim() ? { characterLock: characterLock.trim() } : {}),
     castMode: castMode === "hero" ? "hero" : "scene",
     ...(locationLock?.trim() ? { locationLock: locationLock.trim() } : {}),
     ...(objectLock?.trim() ? { objectLock: objectLock.trim() } : {}),
     ...(locationReferenceImage ? { locationReferenceImage } : {}),
+    muteCharacter,
+    ...(videoVolume != null ? { videoVolume } : {}),
+    ...(ttsVolume != null ? { ttsVolume } : {}),
     providers: {
-      llm: providers?.llm ?? "anthropic",
+      llm: providers?.llm ?? (isFilmPlatform ? "atlas" : "anthropic"),
       tts: providers?.tts ?? "elevenlabs",
       image: providers?.image ?? "gemini",
       stock: providers?.stock ?? "pexels",
       video: providers?.video,
       videoModel: providers?.videoModel,
       music: providers?.music === "none" ? "bundled" : (providers?.music ?? "bundled"),
-      llmModel: providers?.llmModel,
+      llmModel: providers?.llmModel ?? (isFilmPlatform ? DEFAULT_FILM_LLM_MODEL : undefined),
       llmBaseUrl: providers?.llmBaseUrl,
       searchProvider: providers?.searchProvider,
       inworldVoice: providers?.inworldVoice,
@@ -861,7 +923,7 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       ]),
     ),
     config: {
-      llm: providers?.llm ?? "anthropic",
+      llm: providers?.llm ?? (isFilmPlatform ? "atlas" : "anthropic"),
       tts: providers?.tts ?? "elevenlabs",
       image: providers?.image ?? "gemini",
       video: providers?.video,
@@ -875,8 +937,15 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       styleReference: styleReferenceImage ? true : undefined,
       characterReference: characterReferenceImage ? true : undefined,
       atelierMode: atelierMode !== false,
-      artStyleOverride: artStyleOverride?.trim() || undefined,
+      artStyleOverride:
+        artStyleOverride?.trim() ||
+        (lookId && isFilmLookId(lookId) ? filmLookPrompt(lookId) || undefined : undefined),
+      lookId: lookId && isFilmLookId(lookId) ? lookId : undefined,
+      narrativeArc: narrativeArc && isFilmArcId(narrativeArc) ? narrativeArc : undefined,
       castMode: castMode === "hero" ? "hero" : "scene",
+      muteCharacter: muteCharacter || undefined,
+      videoVolume,
+      ttsVolume,
     },
   };
   fs.writeFileSync(path.join(jobDir, "meta.json"), JSON.stringify(placeholderMeta, null, 2));

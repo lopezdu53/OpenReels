@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ArchetypeConfig } from "../../schema/archetype.js";
 import type { DirectorScore } from "../../schema/director-score.js";
-import type { ResolvedAssets } from "./score-to-props.js";
 import { MATCH_CUT_BLEND_FRAMES, MATCH_CUT_SKIP_FRAMES } from "./motion.js";
+import type { ResolvedAssets } from "./score-to-props.js";
 import { getTotalDurationInFrames, mapScoreToProps } from "./score-to-props.js";
 
 const makeWords = (start: number, end: number) => [
@@ -101,9 +101,27 @@ describe("mapScoreToProps", () => {
     const score: DirectorScore = {
       ...baseScore,
       scenes: [
-        { visual_type: "ai_video", visual_prompt: "drive", motion: "static", script_line: "Arranca el Mercedes.", transition: "none" },
-        { visual_type: "ai_video", visual_prompt: "wave", motion: "static", script_line: "Acelera en el semáforo.", transition: "none" },
-        { visual_type: "ai_video", visual_prompt: "crash", motion: "static", script_line: "Choca y se queda sin auto.", transition: null },
+        {
+          visual_type: "ai_video",
+          visual_prompt: "drive",
+          motion: "static",
+          script_line: "Arranca el Mercedes.",
+          transition: "none",
+        },
+        {
+          visual_type: "ai_video",
+          visual_prompt: "wave",
+          motion: "static",
+          script_line: "Acelera en el semáforo.",
+          transition: "none",
+        },
+        {
+          visual_type: "ai_video",
+          visual_prompt: "crash",
+          motion: "static",
+          script_line: "Choca y se queda sin auto.",
+          transition: null,
+        },
       ],
     };
     const props = mapScoreToProps(score, {
@@ -327,8 +345,20 @@ describe("getTotalDurationInFrames", () => {
       {
         ...baseScore,
         scenes: [
-          { visual_type: "ai_image", visual_prompt: "still", motion: "zoom_in", script_line: "Uno.", transition: "crossfade" },
-          { visual_type: "ai_video", visual_prompt: "clip", motion: "static", script_line: "Dos y el final de la locución.", transition: "none" },
+          {
+            visual_type: "ai_image",
+            visual_prompt: "still",
+            motion: "zoom_in",
+            script_line: "Uno.",
+            transition: "crossfade",
+          },
+          {
+            visual_type: "ai_video",
+            visual_prompt: "clip",
+            motion: "static",
+            script_line: "Dos y el final de la locución.",
+            transition: "none",
+          },
         ],
       },
       {
@@ -353,5 +383,26 @@ describe("getTotalDurationInFrames", () => {
     expect(total).toBeGreaterThanOrEqual(Math.ceil(60 * 30));
     expect(total).toBeGreaterThanOrEqual(Math.ceil(46 * 30));
     expect(props.scenes[0]!.durationInFrames).toBeGreaterThan(2);
+  });
+
+  it("splits a muted Film across the requested duration and keeps I2V bed volume", () => {
+    const props = mapScoreToProps(
+      baseScore,
+      {
+        ...baseAssets,
+        voiceoverPath: null,
+        allWords: [],
+        sceneWords: [[], [], []],
+        voiceoverDurationSeconds: undefined,
+      },
+      30,
+      true,
+      { videoVolume: 0.5, ttsVolume: 1, targetDurationSeconds: 10 },
+    );
+    expect(props.ttsVolume).toBe(1);
+    expect(props.voiceoverSrc).toBeNull();
+    expect(props.scenes.every((s) => s.videoVolume === 0.5)).toBe(true);
+    const totalSec = props.scenes.reduce((sum, s) => sum + s.durationInFrames, 0) / 30;
+    expect(totalSec).toBeCloseTo(10, 5);
   });
 });

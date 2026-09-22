@@ -1,8 +1,10 @@
+import { ArrowLeft, Check, Loader2, Newspaper } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Check, Loader2, Newspaper } from "lucide-react";
-import { api, type VoxJobDetail } from "@/hooks/useApi";
+import { CompletedJobMedia } from "@/components/JobShareBar";
+import { mediaAspect } from "@/components/JobVideo";
 import { Button } from "@/components/ui/button";
+import { api, type VoxJobDetail } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
 
 export function VoxJobPage() {
@@ -20,6 +22,7 @@ export function VoxJobPage() {
     if (j.beats && !beatsText) setBeatsText(JSON.stringify(j.beats, null, 2));
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: subscribe once per job id
   useEffect(() => {
     if (!id) return;
     setBeatsText("");
@@ -110,11 +113,17 @@ export function VoxJobPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-10 py-8">
       <div className="mx-auto max-w-5xl space-y-5">
-        <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" onClick={() => navigate("/vox")}>
+        <button
+          type="button"
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => navigate("/vox")}
+        >
           <ArrowLeft className="size-3.5" /> Nuevo Vox
         </button>
         <div>
-          <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-primary">Vox · {job.status}</p>
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.22em] text-primary">
+            Vox · {job.status}
+          </p>
           <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <Newspaper className="size-6 text-primary" />
             {job.topic}
@@ -144,29 +153,37 @@ export function VoxJobPage() {
           </section>
         )}
 
-        {(job.status === "awaiting_style" || bakeoff.length > 0) && job.status !== "awaiting_beats" && (
-          <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
-            <h2 className="text-sm font-medium">Puerta 2 — elige el look</h2>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              {bakeoff.map((file) => {
-                const theme = file.replace(/\.(jpg|jpeg|png|webp)$/i, "");
-                const selected = job.selectedTheme === theme;
-                return (
-                  <button
-                    key={file}
-                    type="button"
-                    disabled={busy || job.status !== "awaiting_style"}
-                    onClick={() => void pick(theme)}
-                    className={cn("overflow-hidden rounded-xl border", selected ? "border-primary ring-2 ring-primary/40" : "border-border")}
-                  >
-                    <img src={`/api/v1/vox/jobs/${job.id}/artifacts/style-bakeoff/${file}`} alt={theme} className="aspect-[16/9] w-full object-cover" />
-                    <span className="block px-2 py-1.5 text-[11px]">{theme}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        )}
+        {(job.status === "awaiting_style" || bakeoff.length > 0) &&
+          job.status !== "awaiting_beats" && (
+            <section className="space-y-3 rounded-2xl border border-border bg-card p-4">
+              <h2 className="text-sm font-medium">Puerta 2 — elige el look</h2>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {bakeoff.map((file) => {
+                  const theme = file.replace(/\.(jpg|jpeg|png|webp)$/i, "");
+                  const selected = job.selectedTheme === theme;
+                  return (
+                    <button
+                      key={file}
+                      type="button"
+                      disabled={busy || job.status !== "awaiting_style"}
+                      onClick={() => void pick(theme)}
+                      className={cn(
+                        "overflow-hidden rounded-xl border",
+                        selected ? "border-primary ring-2 ring-primary/40" : "border-border",
+                      )}
+                    >
+                      <img
+                        src={`/api/v1/vox/jobs/${job.id}/artifacts/style-bakeoff/${file}`}
+                        alt={theme}
+                        className="aspect-[16/9] w-full object-cover"
+                      />
+                      <span className="block px-2 py-1.5 text-[11px]">{theme}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
         {["producing", "baking", "drafting"].includes(job.status) && (
           <div className="space-y-3">
@@ -191,7 +208,11 @@ export function VoxJobPage() {
         )}
 
         {job.status === "completed" && (
-          <video className="w-full rounded-2xl border border-border bg-black" controls src={`/api/v1/vox/jobs/${job.id}/artifacts/final.mp4`} />
+          <CompletedJobMedia
+            jobId={job.id}
+            src={`/api/v1/vox/jobs/${job.id}/artifacts/final.mp4`}
+            aspect={mediaAspect(job.beats, mediaAspect(job.config))}
+          />
         )}
 
         {job.status === "failed" && (

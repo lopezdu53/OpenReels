@@ -1,20 +1,58 @@
 export const GFLOW_IMAGE_MODELS = [
-  { id: "nano2", label: "Imagen Nano 2", note: "rápido, diario" },
-  { id: "nano-pro", label: "Imagen Nano Pro", note: "más detalle" },
-  { id: "image4", label: "Imagen 4", note: "máxima calidad" },
+  { id: "nano-pro", label: "Nano Banana Pro", note: "mejor palito", credits: 0 },
+  { id: "nano2", label: "Nano Banana 2", note: "equilibrado", credits: 0 },
+  { id: "nano-lite", label: "Nano Banana 2 Lite", note: "rápido", credits: 0 },
 ] as const;
 
 export const GFLOW_VIDEO_MODELS = [
-  { id: "veo-lite", label: "Veo Lite", note: "barato · default t2v · sin --duration", durations: [4, 6, 8] },
-  { id: "veo-fast", label: "Veo Fast", note: "más rápido", durations: [4, 6, 8] },
-  { id: "veo-quality", label: "Veo Quality", note: "mejor look", durations: [4, 6, 8] },
-  { id: "omni-flash", label: "Omni Flash", note: "hasta 10s", durations: [4, 6, 8, 10] },
-  { id: "veo-lite-lp", label: "Veo Lite LP", note: "low-power", durations: [4, 6, 8] },
+  {
+    id: "omni-flash",
+    label: "Omni 1.1 Flash",
+    note: "mejor plano continuo · 4–10s · se encadena",
+    durations: [4, 6, 8, 10],
+    creditPerSecond: 2,
+  },
+  {
+    id: "veo-lite",
+    label: "Veo 3.1 Lite",
+    note: "barato · 4–8s (Flow no pide duración)",
+    durations: [4, 6, 8],
+    creditPerSecond: 5,
+  },
+  {
+    id: "veo-fast",
+    label: "Veo 3.1 Fast",
+    note: "más rápido · 4–8s",
+    durations: [4, 6, 8],
+    creditPerSecond: 10,
+  },
+  {
+    id: "veo-quality",
+    label: "Veo 3.1 Quality",
+    note: "mejor look Veo · 4–8s",
+    durations: [4, 6, 8],
+    creditPerSecond: 20,
+  },
+  {
+    id: "veo-lite-lp",
+    label: "Veo 3.1 Lite LP",
+    note: "low-power · 4–8s",
+    durations: [4, 6, 8],
+    creditPerSecond: 3,
+  },
 ] as const;
 
 export const DEFAULT_GFLOW_IMAGE_MODEL = "nano2";
 export const DEFAULT_GFLOW_VIDEO_MODEL = "veo-lite";
 export const DEFAULT_GFLOW_VIDEO_MODE = "t2v";
+
+const IMAGE_ALIASES: Record<string, string> = {
+  image4: "nano-lite",
+  "nano-banana-pro": "nano-pro",
+  "banana-pro": "nano-pro",
+  "nano-banana-2": "nano2",
+  "nano-banana-2-lite": "nano-lite",
+};
 
 export type GflowVideoMode = "t2v" | "i2v";
 
@@ -23,11 +61,23 @@ export function resolveGflowVideoMode(mode?: string): GflowVideoMode {
 }
 
 export function resolveGflowImageModel(id?: string): string {
-  return GFLOW_IMAGE_MODELS.some((m) => m.id === id) ? id! : DEFAULT_GFLOW_IMAGE_MODEL;
+  if (!id) return DEFAULT_GFLOW_IMAGE_MODEL;
+  const aliased = IMAGE_ALIASES[id] ?? id;
+  return GFLOW_IMAGE_MODELS.some((m) => m.id === aliased) ? aliased : DEFAULT_GFLOW_IMAGE_MODEL;
+}
+
+/** gflow-cli still accepts image4 for the lite slot. */
+export function gflowImageCliId(id?: string): string {
+  const resolved = resolveGflowImageModel(id);
+  return resolved === "nano-lite" ? "image4" : resolved;
 }
 
 export function resolveGflowVideoModel(id?: string): (typeof GFLOW_VIDEO_MODELS)[number] {
-  return GFLOW_VIDEO_MODELS.find((m) => m.id === id) ?? GFLOW_VIDEO_MODELS[0];
+  return (
+    GFLOW_VIDEO_MODELS.find((m) => m.id === id) ??
+    GFLOW_VIDEO_MODELS.find((m) => m.id === DEFAULT_GFLOW_VIDEO_MODEL) ??
+    GFLOW_VIDEO_MODELS[0]
+  );
 }
 
 export function pickGflowDuration(modelId: string, wanted?: number): number {
@@ -49,6 +99,23 @@ export function gflowCliDuration(modelId?: string, wanted?: number): number | un
 }
 
 export const GFLOW_DEFAULT_CLIP_SECONDS = 8;
+
+export function gflowVideoCredits(opts: {
+  modelId: string;
+  durationSec: number;
+  resolution?: "360p" | "720p";
+  variants?: 1 | 2 | 3 | 4;
+}): number {
+  const spec = resolveGflowVideoModel(opts.modelId);
+  const seconds = pickGflowDuration(opts.modelId, opts.durationSec);
+  const resMul = opts.resolution === "360p" ? 0.5 : 1;
+  const variants = opts.variants ?? 1;
+  return Math.round(spec.creditPerSecond * seconds * resMul * variants);
+}
+
+export function gflowImageCredits(_modelId?: string): number {
+  return 0;
+}
 
 /** One scene at a time: gflow Imagen still → wait for Flow I2V → next still. */
 export function shouldSerializeGflowI2v(videoProvider?: string, mode?: string): boolean {

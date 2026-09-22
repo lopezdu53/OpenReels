@@ -10,6 +10,7 @@ export const StockVideoBeat: React.FC<SceneProps> = ({
   durationInFrames: sceneFrames,
   startFrom = 0,
   fillScene = false,
+  videoVolume,
 }) => {
   const { fps } = useVideoConfig();
   const sceneDurationSeconds = Math.max(1, sceneFrames || 1) / fps;
@@ -32,12 +33,13 @@ export const StockVideoBeat: React.FC<SceneProps> = ({
       src={assetSrc}
       playbackRate={playbackRate}
       startFrom={startFrom || undefined}
+      volume={videoVolume ?? 0}
+      muted={videoVolume == null || videoVolume <= 0}
       style={{
         width: "100%",
         height: "100%",
         objectFit: "cover",
       }}
-      muted
     />
   ) : null;
 

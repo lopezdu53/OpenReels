@@ -19,16 +19,15 @@ export function SceneMixPreview({ sceneCount, mode, hasVideo, hero }: SceneMixPr
   return (
     <div className="rounded-xl border border-border/80 bg-surface-inset/60 p-3 space-y-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-xs font-medium text-foreground">
-          Mezcla de escenas
-        </p>
+        <p className="text-xs font-medium text-foreground">Mezcla de escenas</p>
         <p className="text-[11px] tabular-nums text-muted-foreground">
           ~{sceneCount} planos · {videos} I2V · {stills} foto
         </p>
       </div>
       {hero && hasVideo ? (
         <p className="text-[11px] text-muted-foreground">
-          Modo héroe: cada escena genera un still nuevo y luego I2V. No se recicla el mismo fotograma.
+          Modo héroe: plano continuo I2V. El último frame de cada toma es la imagen del siguiente
+          clip (sin freeze).
         </p>
       ) : null}
       {!hasVideo ? (
@@ -48,12 +47,18 @@ export function SceneMixPreview({ sceneCount, mode, hasVideo, hero }: SceneMixPr
                 : "bg-muted text-muted-foreground",
             )}
           >
-            {kind === "video" ? <Clapperboard className="size-2.5" /> : <ImageIcon className="size-2.5" />}
+            {kind === "video" ? (
+              <Clapperboard className="size-2.5" />
+            ) : (
+              <ImageIcon className="size-2.5" />
+            )}
             {i + 1}
           </span>
         ))}
         {extra > 0 ? (
-          <span className="rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground">+{extra}</span>
+          <span className="rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            +{extra}
+          </span>
         ) : null}
       </div>
     </div>

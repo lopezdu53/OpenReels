@@ -6,7 +6,9 @@ import {
   FlaskConical,
   Newspaper,
   PersonStanding,
+  Users,
   Workflow,
+  Clapperboard,
   LayoutDashboard,
   LayoutGrid,
   LogOut,
@@ -42,6 +44,17 @@ const NAV_ITEMS: {
     { path: "/flow", label: "Nuevo Flow", icon: Workflow },
     { path: "/vox", label: "Nuevo Vox", icon: Newspaper },
     { path: "/stickman", label: "Nuevo Stickman", icon: PersonStanding },
+    {
+      path: "/casting",
+      label: "Casting",
+      icon: Users,
+      children: [
+        { path: "/casting/personajes", label: "Personajes" },
+        { path: "/casting/objetos", label: "Objetos" },
+        { path: "/casting/entornos", label: "Entornos" },
+      ],
+    },
+    { path: "/historia", label: "Nueva Historia", icon: Clapperboard },
     { path: "/gallery", label: "Galería", icon: LayoutGrid },
     { path: "/lab", label: "API Lab", icon: FlaskConical },
     { path: "/settings", label: "Ajustes", icon: Settings },
@@ -64,6 +77,8 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
     if (path === "/flow") return location.pathname === "/flow";
     if (path === "/vox") return location.pathname === "/vox" || location.pathname.startsWith("/vox/");
     if (path === "/stickman") return location.pathname === "/stickman" || location.pathname.startsWith("/stickman/");
+    if (path === "/casting") return location.pathname === "/casting";
+    if (path === "/historia") return location.pathname === "/historia" || location.pathname.startsWith("/historia/");
     return location.pathname.startsWith(path);
   };
 

@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { buildCastBrief, buildFilmDirection, buildLocationBrief, buildObjectBrief, buildSequelBrief, extractScoreCastNames, parseYoutubeUrls, pickFilmLlm, titleFromScript } from "./script.js";
+import {
+  buildCastBrief,
+  buildFilmDirection,
+  buildLocationBrief,
+  buildObjectBrief,
+  buildSequelBrief,
+  extractScoreCastNames,
+  parseYoutubeUrls,
+  pickFilmLlm,
+  titleFromScript,
+} from "./script.js";
 
 describe("film script helpers", () => {
   it("parses unique YouTube urls", () => {
@@ -13,7 +23,9 @@ describe("film script helpers", () => {
   });
 
   it("builds a 16:9 direction that keeps the spoken script", () => {
-    const dir = buildFilmDirection("Hola mundo. Esto es el guion.", ["https://youtu.be/abcDEF12345"]);
+    const dir = buildFilmDirection("Hola mundo. Esto es el guion.", [
+      "https://youtu.be/abcDEF12345",
+    ]);
     expect(dir).toContain("Hola mundo");
     expect(dir).toContain("16:9");
     expect(dir).toContain("youtu.be/abcDEF12345");
@@ -28,7 +40,9 @@ describe("film script helpers", () => {
 
   it("lists 1–3 locked characters for the script LLM", () => {
     expect(buildCastBrief([])).toBe("");
-    expect(buildCastBrief([{ name: "Coco", kind: "animal", species: "coatí" }])).toContain("1. Coco — animal — coatí");
+    expect(buildCastBrief([{ name: "Coco", kind: "animal", species: "coatí" }])).toContain(
+      "1. Coco — animal — coatí",
+    );
     const three = buildCastBrief([
       { name: "Coco", species: "coatí" },
       { name: "Tambo", species: "gallito de las rocas" },
@@ -56,7 +70,9 @@ describe("film script helpers", () => {
 
   it("lists 1–3 locked locations for the script LLM", () => {
     expect(buildLocationBrief([])).toBe("");
-    expect(buildLocationBrief([{ name: "Villa", place: "casa blanca" }])).toContain("1. Villa — casa blanca");
+    expect(buildLocationBrief([{ name: "Villa", place: "casa blanca" }])).toContain(
+      "1. Villa — casa blanca",
+    );
     const three = buildLocationBrief([
       { name: "Villa" },
       { name: "Oficina" },
@@ -72,10 +88,10 @@ describe("film script helpers", () => {
 
   it("lists up to 10 locked objects for the script LLM", () => {
     expect(buildObjectBrief([])).toBe("");
-    expect(buildObjectBrief([{ name: "Mustang", prompt: "rojo 1967" }])).toContain("1. Mustang — rojo 1967");
-    const many = buildObjectBrief(
-      Array.from({ length: 12 }, (_, i) => ({ name: `Obj${i + 1}` })),
+    expect(buildObjectBrief([{ name: "Mustang", prompt: "rojo 1967" }])).toContain(
+      "1. Mustang — rojo 1967",
     );
+    const many = buildObjectBrief(Array.from({ length: 12 }, (_, i) => ({ name: `Obj${i + 1}` })));
     expect(many).toContain("10");
     expect(many).toContain("1. Obj1");
     expect(many).toContain("10. Obj10");
@@ -121,6 +137,7 @@ describe("pickFilmLlm", () => {
   it("uses AtlasLLM when Film selects ATLAS (not Anthropic)", () => {
     process.env["ATLASCLOUD_API_KEY"] = "test-atlas-key";
     expect(pickFilmLlm("atlas", "deepseek-ai/deepseek-v4-flash").id).toBe("atlas");
+    expect(pickFilmLlm("atlas").id).toBe("atlas");
   });
 
   it("uses ViviLLM when Film/Flow selects VIVI", () => {

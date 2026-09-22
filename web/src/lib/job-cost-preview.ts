@@ -1,6 +1,10 @@
-import type { ApiPrices } from "@/pages/LabPage";
-import { countVideoScenesForPreview, estimateFilmSceneCount } from "@/lib/video-scene-modes";
+import {
+  countVideoScenesForPreview,
+  estimateFilmSceneCount,
+  estimateFilmWordCount,
+} from "@/lib/video-scene-modes";
 import { VIVI_IMAGE_CNY, VIVI_LLM_CNY, VIVI_VIDEO_CNY } from "@/lib/vivi-prices";
+import type { ApiPrices } from "@/pages/LabPage";
 
 export interface JobCostPreviewInput {
   llm: string;
@@ -14,6 +18,7 @@ export interface JobCostPreviewInput {
   allowedVisualTypes: string[];
   videoSceneMode?: string;
   dryRun?: boolean;
+  muteCharacter?: boolean;
 }
 
 export interface JobCostLine {
@@ -45,7 +50,11 @@ const PACING_SCENES: Record<string, { scenes: number; words: number }> = {
   cinematic: { scenes: 12, words: 240 },
 };
 
-function llmCallCost(prices: ApiPrices, provider: string, est: { input: number; output: number }): number {
+function llmCallCost(
+  prices: ApiPrices,
+  provider: string,
+  est: { input: number; output: number },
+): number {
   const p = prices.llm[provider] ?? prices.llm["anthropic"] ?? { inputPer1M: 3, outputPer1M: 15 };
   return (est.input / 1_000_000) * p.inputPer1M + (est.output / 1_000_000) * p.outputPer1M;
 }
@@ -58,9 +67,8 @@ export function estimateJobCost(input: JobCostPreviewInput, prices: ApiPrices): 
   const longForm = input.platform === "reel_extend" || input.platform === "youtube_horizontal";
   const minutes = input.targetDurationMinutes ?? 5;
   const pacing = PACING_SCENES[input.pacing || "moderate"] ?? PACING_SCENES.moderate!;
-  const testFilm15 = longForm && minutes > 0 && minutes < 0.375;
   const sceneCount = longForm ? estimateFilmSceneCount(minutes) : pacing.scenes;
-  const words = testFilm15 ? 38 : longForm ? Math.round(minutes * 150) : pacing.words;
+  const words = input.muteCharacter ? 0 : longForm ? estimateFilmWordCount(minutes) : pacing.words;
   const ttsCharacters = Math.round(words * 5.4);
 
   const types = new Set(input.allowedVisualTypes);
@@ -106,18 +114,20 @@ export function estimateJobCost(input: JobCostPreviewInput, prices: ApiPrices): 
       id: "llm",
       label: "Guion / LLM",
       usd: llmCost,
-      detail: input.llm === "vivi"
-        ? `vivi · ¥${VIVI_LLM_CNY.inputPer1M}/¥${VIVI_LLM_CNY.outputPer1M} por 1M`
-        : `${input.llm}`,
+      detail:
+        input.llm === "vivi"
+          ? `vivi · ¥${VIVI_LLM_CNY.inputPer1M}/¥${VIVI_LLM_CNY.outputPer1M} por 1M`
+          : `${input.llm}`,
     },
     { id: "tts", label: "Voz / TTS", usd: ttsCost, detail: `~${ttsCharacters} caracteres` },
     {
       id: "image",
       label: "Imágenes",
       usd: imageCost,
-      detail: input.image === "vivi"
-        ? `${aiImages} IA × ¥${VIVI_IMAGE_CNY.perImage}`
-        : `${aiImages} IA × $${perImage.toFixed(3)}`,
+      detail:
+        input.image === "vivi"
+          ? `${aiImages} IA × ¥${VIVI_IMAGE_CNY.perImage}`
+          : `${aiImages} IA × $${perImage.toFixed(3)}`,
     },
     {
       id: "video",
@@ -129,7 +139,17 @@ export function estimateJobCost(input: JobCostPreviewInput, prices: ApiPrices): 
           ? `${aiVideos} clips × ¥${VIVI_VIDEO_CNY.perClip}`
           : `${aiVideos} clips × 6s`,
     },
-    { id: "music", label: "Música", usd: musicCost, detail: input.music === "lyria" ? "Lyria 3 Pro" : input.music === "none" ? "sin música" : "bundled (gratis)" },
+    {
+      id: "music",
+      label: "Música",
+      usd: musicCost,
+      detail:
+        input.music === "lyria"
+          ? "Lyria 3 Pro"
+          : input.music === "none"
+            ? "sin música"
+            : "bundled (gratis)",
+    },
   ];
 
   const totalUsd = lines.reduce((s, l) => s + l.usd, 0);

@@ -1,9 +1,14 @@
+import { randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { randomBytes } from "node:crypto";
 import type IORedis from "ioredis";
 import { isStickmanJobDirName } from "../jobs/isolated.js";
-import type { StickmanJobConfig, StickmanJobMeta, StickmanScript, StickmanStatus } from "./types.js";
+import type {
+  StickmanJobConfig,
+  StickmanJobMeta,
+  StickmanScript,
+  StickmanStatus,
+} from "./types.js";
 
 const SNAP_TTL_SEC = 7 * 24 * 60 * 60;
 
@@ -38,7 +43,11 @@ export function stickmanSnapshotKey(id: string): string {
 
 function extraLookupRoots(): string[] {
   const jobs = openReelsJobsDir();
-  return [path.join(jobs, "stickman"), path.join(process.cwd(), "stickman-jobs"), "/app/stickman-jobs"];
+  return [
+    path.join(jobs, "stickman"),
+    path.join(process.cwd(), "stickman-jobs"),
+    "/app/stickman-jobs",
+  ];
 }
 
 function jobDirCandidates(id: string): string[] {
@@ -101,14 +110,15 @@ export function createJob(userId: string, config: StickmanJobConfig): StickmanJo
   ensureStickmanJobsDir();
   const id = newStickmanId();
   const now = new Date().toISOString();
+  const historia = config.kind === "historia";
   const meta: StickmanJobMeta = {
     id,
-    kind: "stickman",
+    kind: historia ? "historia" : "stickman",
     userId,
     topic: config.topic,
     status: "drafting",
     stage: "script",
-    detail: "Escribiendo el guion de palitos",
+    detail: historia ? "Escribiendo la historia" : "Escribiendo el guion de palitos",
     createdAt: now,
     updatedAt: now,
     config,
@@ -125,6 +135,18 @@ export function patchMeta(id: string, patch: Partial<StickmanJobMeta>): Stickman
   return next;
 }
 
+export function appendJobLog(id: string, line: string): void {
+  try {
+    const text = line.replace(/\s+/g, " ").trim();
+    if (!text || !isStickmanJobId(id)) return;
+    const dest = path.join(jobDir(id), "log.txt");
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.appendFileSync(dest, `${new Date().toISOString()} ${text}\n`);
+  } catch (err) {
+    console.warn(`[stickman] log.txt ${id}`, err);
+  }
+}
+
 export function setStatus(
   id: string,
   status: StickmanStatus,
@@ -132,10 +154,15 @@ export function setStatus(
   detail: string,
   extra?: Partial<StickmanJobMeta>,
 ): StickmanJobMeta {
+  appendJobLog(id, `[${stage}] ${detail}`);
   return patchMeta(id, { status, stage, detail, ...extra });
 }
 
-export function listJobs(userId: string, limit = 30): StickmanJobMeta[] {
+export function listJobs(
+  userId: string,
+  limit = 30,
+  kind?: StickmanJobMeta["kind"],
+): StickmanJobMeta[] {
   ensureStickmanJobsDir();
   const seen = new Set<string>();
   const metas: StickmanJobMeta[] = [];
@@ -145,11 +172,28 @@ export function listJobs(userId: string, limit = 30): StickmanJobMeta[] {
       if (!d.isDirectory() || !isStickmanJobId(d.name) || seen.has(d.name)) continue;
       const meta = readMeta(d.name);
       if (!meta || meta.userId !== userId) continue;
+      if (kind === "historia" && meta.kind !== "historia") continue;
+      if (kind === "stickman" && meta.kind === "historia") continue;
       seen.add(d.name);
       metas.push(meta);
     }
   }
   return metas.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, limit);
+}
+
+export function writeCastRef(id: string, imageBase64: string): void {
+  const raw = imageBase64.includes(",") ? imageBase64.split(",")[1]! : imageBase64;
+  const buf = Buffer.from(raw, "base64");
+  if (buf.length < 80) return;
+  fs.mkdirSync(jobDir(id), { recursive: true });
+  fs.writeFileSync(path.join(jobDir(id), "cast-ref.png"), buf);
+}
+
+export function readCastRef(id: string): Buffer | undefined {
+  const p = path.join(jobDir(id), "cast-ref.png");
+  if (!fs.existsSync(p)) return undefined;
+  const buf = fs.readFileSync(p);
+  return buf.length >= 80 ? buf : undefined;
 }
 
 export async function saveJobSnapshot(redis: IORedis, id: string): Promise<void> {
@@ -174,10 +218,27 @@ export async function hydrateJobFromSnapshot(redis: IORedis, id: string): Promis
 export function stillFiles(id: string): string[] {
   const dir = path.join(jobDir(id), "stills");
   if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir).filter((f) => /\.(jpg|jpeg|png|webp)$/i.test(f)).sort();
+  return fs
+    .readdirSync(dir)
+    .filter((f) => /\.(jpg|jpeg|png|webp)$/i.test(f))
+    .sort();
 }
 
 export function finalPath(id: string): string | null {
   const p = path.join(jobDir(id), "final.mp4");
   return fs.existsSync(p) ? p : null;
+}
+
+export function fileBigEnough(file: string, minBytes: number): boolean {
+  try {
+    return fs.existsSync(file) && fs.statSync(file).size >= minBytes;
+  } catch {
+    return false;
+  }
+}
+
+/** True when a previous produce already wrote final.mp4 (BullMQ lock retry must not hit Flow again). */
+export function isStickmanFinalReady(id: string): boolean {
+  const p = finalPath(id);
+  return Boolean(p && fileBigEnough(p, 20_000));
 }

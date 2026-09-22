@@ -1,11 +1,190 @@
 import { Loader2, PersonStanding, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { DarkSelect } from "@/components/DarkSelect";
 import { StudioVisualFields } from "@/components/StudioVisualFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, type StickmanJobMeta } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
+
+const FALLBACK_LOOKS = [
+  { id: "classic", label: "Clásico" },
+  { id: "chalk", label: "Tiza" },
+  { id: "neon", label: "Neón" },
+  { id: "marker", label: "Rotulador" },
+  { id: "doodle", label: "Garabato" },
+];
+
+const FALLBACK_VOICES = [
+  { id: "eve", label: "Eve", note: "enérgica" },
+  { id: "ara", label: "Ara", note: "cálida" },
+  { id: "leo", label: "Leo", note: "clara" },
+  { id: "rex", label: "Rex", note: "segura" },
+  { id: "sal", label: "Sal", note: "suave" },
+  { id: "Kore", label: "Kore", note: "firme" },
+  { id: "Aoede", label: "Aoede", note: "ligera" },
+  { id: "Puck", label: "Puck", note: "alegre" },
+];
+
+const FALLBACK_ARCS = [
+  {
+    id: "joke_punchline",
+    label: "Chiste → punchline",
+    when: "humor rápido",
+    hint: "Abre con un gancho y cierra con el chiste. Para temas cortos, memes o un solo gag.",
+  },
+  {
+    id: "how_it_works",
+    label: "Cómo funciona",
+    when: "explicar un proceso",
+    hint: "Explica un proceso paso a paso: qué es, cómo va y el resultado.",
+  },
+  {
+    id: "vs_debate",
+    label: "Cara a cara",
+    when: "dos palitos discuten",
+    hint: "Dos palitos se contradicen (mejor con elenco Dos palitos): uno dice A, el otro B.",
+  },
+  {
+    id: "listicle",
+    label: "Lista",
+    when: "N puntos",
+    hint: "Promete N puntos y los recorre uno a uno (tips, ranking, errores).",
+  },
+  {
+    id: "origin",
+    label: "Origen",
+    when: "de dónde sale algo",
+    hint: "Cuenta de dónde nace algo: el antes, el salto y cómo quedó hoy.",
+  },
+  {
+    id: "warning",
+    label: "Advertencia",
+    when: "un error común",
+    hint: "Señala un error común, por qué duele y cómo no caer.",
+  },
+];
+
+const OMNI_DURATIONS = [10, 20, 30, 60, 120, 300, 480, 900];
+const VEO_DURATIONS = [8, 16, 24, 960, 1560];
+const OMNI_HOOK_DURATIONS = [300, 480, 900];
+const VEO_HOOK_DURATIONS = [960, 1560];
+
+function formatStickmanDuration(sec: number): string {
+  if (sec >= 60 && sec % 60 === 0) return `${sec / 60} min`;
+  return `${sec}s`;
+}
+
+function isVeoVideo(visualProvider: string, gflowVideoModel: string): boolean {
+  return visualProvider === "gflow" && gflowVideoModel.toLowerCase().startsWith("veo");
+}
+
+function durationsFor(
+  visualProvider: string,
+  gflowVideoModel: string,
+  catalog: { omniDurations?: number[]; veoDurations?: number[]; durations?: number[] } | null,
+): number[] {
+  if (isVeoVideo(visualProvider, gflowVideoModel)) {
+    return catalog?.veoDurations ?? VEO_DURATIONS;
+  }
+  return catalog?.omniDurations ?? catalog?.durations ?? OMNI_DURATIONS;
+}
+
+function hookDurationsFor(
+  visualProvider: string,
+  gflowVideoModel: string,
+  catalog: { omniHookDurations?: number[]; veoHookDurations?: number[]; hookDurations?: number[] } | null,
+): number[] {
+  if (isVeoVideo(visualProvider, gflowVideoModel)) {
+    return catalog?.veoHookDurations ?? VEO_HOOK_DURATIONS;
+  }
+  return catalog?.omniHookDurations ?? catalog?.hookDurations ?? OMNI_HOOK_DURATIONS;
+}
+
+function snapDuration(sec: number, allowed: number[]): number {
+  if (allowed.includes(sec)) return sec;
+  if (!allowed.length) return sec;
+  const short = allowed.filter((d) => d < 60);
+  const long = allowed.filter((d) => d >= 60);
+  const pool = sec < 60 ? (short.length ? short : allowed) : long.length ? long : allowed;
+  return pool.reduce((best, d) => (Math.abs(d - sec) < Math.abs(best - sec) ? d : best));
+}
+
+function VolumeSlider({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label className={`flex items-center gap-2 ${disabled ? "opacity-50" : ""}`}>
+      {label}
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={5}
+        disabled={disabled}
+        value={Math.round(value * 100)}
+        onChange={(e) => onChange(Number(e.target.value) / 100)}
+        aria-label={label}
+        className="w-24 accent-primary"
+      />
+      <span className="w-8 tabular-nums">{Math.round(value * 100)}%</span>
+    </label>
+  );
+}
+
+function formatWhen(iso?: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("es", { dateStyle: "short", timeStyle: "short" });
+}
+
+function producedLabel(job: StickmanJobMeta): string {
+  const start = Date.parse(job.createdAt);
+  const end = job.completedAt ? Date.parse(job.completedAt) : Number.NaN;
+  const when = formatWhen(job.completedAt ?? job.createdAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return when;
+  const sec = Math.round((end - start) / 1000);
+  if (sec < 60) return `${when} · ${sec}s`;
+  const min = Math.round(sec / 60);
+  return `${when} · ${min} min`;
+}
+
+function jobChips(job: StickmanJobMeta): string[] {
+  const c = job.config ?? {};
+  const chips = [
+    c.durationSec ? formatStickmanDuration(c.durationSec) : "",
+    c.aspect,
+    c.look,
+    c.castMode === "duo" ? "Dos palitos" : "Un palito",
+    c.muteCharacter ? "Mudo + SFX" : "Con voz",
+    c.contentHook ? "Gancho 10s" : "",
+    c.captions ? "Subtítulos" : "Sin subtítulos",
+    c.animate ? "I2V" : "Stills",
+    c.voiceId,
+    c.visualProvider,
+  ];
+  return chips.filter((x): x is string => Boolean(x));
+}
+
+function withArcHints(
+  arcs: { id: string; label: string; when: string; hint?: string }[] | undefined,
+  fallback: { id: string; label: string; when: string; hint: string }[],
+) {
+  return (arcs?.length ? arcs : fallback).map((item) => ({
+    ...item,
+    hint: item.hint ?? fallback.find((row) => row.id === item.id)?.hint ?? item.when,
+  }));
+}
 
 export function StickmanPage() {
   const navigate = useNavigate();
@@ -14,20 +193,30 @@ export function StickmanPage() {
   );
   const [jobs, setJobs] = useState<StickmanJobMeta[]>([]);
   const [topic, setTopic] = useState("");
-  const [durationSec, setDurationSec] = useState(30);
+  const [durationSec, setDurationSec] = useState(10);
   const [aspect, setAspect] = useState("9:16");
   const [language, setLanguage] = useState("es");
   const [look, setLook] = useState("classic");
   const [castMode, setCastMode] = useState("solo");
   const [arc, setArc] = useState("joke_punchline");
   const [voiceId, setVoiceId] = useState("eve");
-  const [captions, setCaptions] = useState(true);
-  const [animate, setAnimate] = useState(false);
-  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("atlas");
-  const [gflowImageModel, setGflowImageModel] = useState("nano2");
-  const [gflowVideoModel, setGflowVideoModel] = useState("veo-lite");
+  const [voiceSpeed, setVoiceSpeed] = useState(1);
+  const [llmModel, setLlmModel] = useState("google/gemini-2.5-flash");
+  const [captions, setCaptions] = useState(false);
+  const [muteCharacter, setMuteCharacter] = useState(true);
+  const [contentHook, setContentHook] = useState(false);
+  const [videoVolume, setVideoVolume] = useState(0.5);
+  const [ttsVolume, setTtsVolume] = useState(1);
+  const [animate, setAnimate] = useState(true);
+  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("gflow");
+  const [gflowImageModel, setGflowImageModel] = useState("nano-pro");
+  const [gflowVideoModel, setGflowVideoModel] = useState("omni-flash");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const durationOptions = durationsFor(visualProvider, gflowVideoModel, catalog);
+  const hookOptions = hookDurationsFor(visualProvider, gflowVideoModel, catalog);
+  const hookOn = hookOptions.includes(durationSec);
+  const veoOn = isVeoVideo(visualProvider, gflowVideoModel);
 
   useEffect(() => {
     api
@@ -39,6 +228,16 @@ export function StickmanPage() {
       .then((r) => setJobs(r.jobs))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!durationOptions.includes(durationSec)) {
+      setDurationSec(snapDuration(durationSec, durationOptions));
+    }
+  }, [durationOptions, durationSec]);
+
+  useEffect(() => {
+    if (!hookOn && contentHook) setContentHook(false);
+  }, [hookOn, contentHook]);
 
   async function create() {
     setError("");
@@ -53,12 +252,18 @@ export function StickmanPage() {
         castMode,
         arc,
         voiceId,
+        voiceSpeed,
         captions,
         animate,
+        muteCharacter,
+        contentHook: hookOn ? contentHook : false,
+        videoVolume,
+        ttsVolume,
         visualProvider,
         gflowImageModel: visualProvider === "gflow" ? gflowImageModel : undefined,
         gflowVideoModel: visualProvider === "gflow" ? gflowVideoModel : undefined,
         gflowVideoMode: visualProvider === "gflow" ? "i2v" : undefined,
+        llmModel,
       });
       navigate(`/stickman/${res.id}`);
     } catch (err) {
@@ -80,8 +285,9 @@ export function StickmanPage() {
             Nuevo Stickman
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Videos de palitos 2D. Visuales: Atlas Cloud del servidor o gflow (Imagen + Veo I2V).
-            Voz: Atlas del entorno. No pega la API key aquí.
+            Videos de palitos 2D. Historia: director de stickman (no OpenReels). Visuales baratos:
+            gflow Nano Banana (0 créditos) + Omni (10s–15 min) o Veo 3.1 (8s, 16s, 24s, 16/26 min).
+            Audio de Flow agachado + TTS Atlas encima. Atlas visual sigue disponible.
           </p>
         </div>
 
@@ -96,7 +302,7 @@ export function StickmanPage() {
           <div>
             <p className="mb-2 text-xs text-muted-foreground">Look de palito</p>
             <div className="flex flex-wrap gap-1.5">
-              {(catalog?.looks ?? []).map((item) => (
+              {(catalog?.looks ?? FALLBACK_LOOKS).map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -137,74 +343,127 @@ export function StickmanPage() {
             ))}
           </div>
 
-          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-            <label className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
               Duración
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
-                value={durationSec}
-                onChange={(e) => setDurationSec(Number(e.target.value))}
-              >
-                {(catalog?.durations ?? [15, 30, 60, 90]).map((d) => (
-                  <option key={d} value={d}>
-                    {d}s
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
+              <DarkSelect
+                aria-label="Duración"
+                value={String(durationSec)}
+                onValueChange={(value) => setDurationSec(Number(value))}
+                options={durationOptions.map((d) => ({
+                  value: String(d),
+                  label: formatStickmanDuration(d),
+                }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
               Aspecto
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+              <DarkSelect
+                aria-label="Aspecto"
                 value={aspect}
-                onChange={(e) => setAspect(e.target.value)}
-              >
-                {(catalog?.aspects ?? ["9:16", "16:9", "1:1"]).map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
+                onValueChange={setAspect}
+                options={(catalog?.aspects ?? ["9:16", "16:9", "1:1"]).map((a) => ({
+                  value: a,
+                  label: a,
+                }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
               Idioma
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+              <DarkSelect
+                aria-label="Idioma"
                 value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-              >
-                <option value="es">Español</option>
-                <option value="en">English</option>
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
-              Arco
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
-                value={arc}
-                onChange={(e) => setArc(e.target.value)}
-              >
-                {(catalog?.arcs ?? []).map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2">
-              Voz
-              <select
-                className="h-8 rounded-lg border border-input bg-transparent px-2 text-foreground"
+                onValueChange={setLanguage}
+                options={[
+                  { value: "es", label: "Español" },
+                  { value: "en", label: "English" },
+                ]}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              Voz Atlas
+              <DarkSelect
+                aria-label="Voz"
                 value={voiceId}
-                onChange={(e) => setVoiceId(e.target.value)}
-              >
-                {(catalog?.voices ?? []).map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.label} · {v.note}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(value) => {
+                  setVoiceId(value);
+                  setMuteCharacter(false);
+                }}
+                options={(catalog?.voices ?? FALLBACK_VOICES).map((v) => ({
+                  value: v.id,
+                  label: `${v.label} · ${v.note}`,
+                }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              Velocidad
+              <DarkSelect
+                aria-label="Velocidad de narración"
+                value={String(voiceSpeed)}
+                onValueChange={(value) => setVoiceSpeed(Number(value))}
+                options={[0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5].map((n) => ({
+                  value: String(n),
+                  label: n === 1 ? "1× normal" : n < 1 ? `${n}× lenta` : `${n}× rápida`,
+                }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              LLM historia
+              <DarkSelect
+                aria-label="LLM de la historia"
+                className="min-w-[14rem]"
+                value={llmModel}
+                onValueChange={setLlmModel}
+                options={(
+                  catalog?.llms ?? [
+                    {
+                      id: "google/gemini-2.5-flash",
+                      label: "Gemini 2.5 Flash",
+                      note: "mejor para historia de palitos",
+                    },
+                  ]
+                ).map((llm) => ({
+                  value: llm.id,
+                  label: llm.label,
+                  hint: llm.note,
+                }))}
+              />
+            </div>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={muteCharacter}
+                onChange={(e) => setMuteCharacter(e.target.checked)}
+              />
+              Sin voz narrativa (solo SFX de Flow)
             </label>
+            {muteCharacter ? (
+              <p className="text-[11px] text-amber-400">
+                El video no llevará narración Atlas. Elige una voz para activarla.
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                TTS Atlas Cloud (xAI, Gemini Flash o MiniMax según la voz).
+              </p>
+            )}
+            <label
+              className={`flex items-center gap-2 ${hookOn ? "" : "opacity-40"}`}
+            >
+              <input
+                type="checkbox"
+                checked={contentHook}
+                disabled={!hookOn}
+                onChange={(e) => setContentHook(e.target.checked)}
+              />
+              {veoOn ? "Gancho 10s (16 / 26 min)" : "Gancho 10s (5 / 8 / 15 min)"}
+            </label>
+            <VolumeSlider label="Volumen video" value={videoVolume} onChange={setVideoVolume} />
+            <VolumeSlider
+              label="Volumen TTS"
+              value={ttsVolume}
+              onChange={setTtsVolume}
+              disabled={muteCharacter}
+            />
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -219,8 +478,29 @@ export function StickmanPage() {
                 checked={animate}
                 onChange={(e) => setAnimate(e.target.checked)}
               />
-              Animar con I2V (opcional)
+              Plano continuo I2V (tomas encadenadas, sin freeze)
             </label>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              Arco narrativo
+              <DarkSelect
+                aria-label="Arco narrativo"
+                className="min-w-[14rem]"
+                value={arc}
+                onValueChange={setArc}
+                options={withArcHints(catalog?.arcs, FALLBACK_ARCS).map((item) => ({
+                  value: item.id,
+                  label: item.label,
+                  hint: item.hint,
+                }))}
+              />
+            </div>
+            <p className="max-w-2xl text-[12px] leading-snug text-muted-foreground">
+              {withArcHints(catalog?.arcs, FALLBACK_ARCS).find((item) => item.id === arc)?.hint ??
+                "El arco marca cómo se ordena el guion: gancho, desarrollo y cierre."}
+            </p>
           </div>
 
           <StudioVisualFields
@@ -232,7 +512,12 @@ export function StickmanPage() {
             gflowVideoModel={gflowVideoModel}
             onGflowVideoModel={setGflowVideoModel}
             showVideo={animate}
-            gflowHint="Stills y I2V por el Puente Windows (un Chrome, en serie). Voz: Atlas del servidor."
+            durationSec={durationSec}
+            gflowHint={
+              veoOn
+                ? "Veo 3.1: 8s, 16s, 24s, 16 min o 26 min (tomas de 8s encadenadas). Sin blur, DOF ni push-in en palitos. Audio Flow + TTS Atlas."
+                : "Omni: 10s a 15 min (tomas de 10s con cruce suave). Audio Flow agachado + TTS. Voz: Atlas."
+            }
           />
 
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -248,24 +533,63 @@ export function StickmanPage() {
         </section>
 
         {jobs.length > 0 && (
-          <section className="space-y-2">
+          <section className="space-y-3">
             <h2 className="text-sm font-medium">Trabajos Stickman</h2>
-            <ul className="divide-y divide-border rounded-2xl border border-border bg-card">
-              {jobs.map((j) => (
-                <li key={j.id}>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {jobs.map((j) => {
+                const preview = j.previewRel
+                  ? `/api/v1/stickman/jobs/${j.id}/artifacts/${j.previewRel}`
+                  : undefined;
+                const usd = j.cost?.usd;
+                const tokens = j.cost?.tokens;
+                return (
                   <button
+                    key={j.id}
                     type="button"
-                    className="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-muted/40"
+                    className="overflow-hidden rounded-2xl border border-border bg-card text-left hover:bg-muted/40"
                     onClick={() => navigate(`/stickman/${j.id}`)}
                   >
-                    <span className="truncate font-medium">{j.topic}</span>
-                    <span className="ml-3 shrink-0 text-[11px] text-muted-foreground">
-                      {j.status}
-                    </span>
+                    <div
+                      className={`bg-black ${
+                        j.config?.aspect === "16:9"
+                          ? "aspect-video"
+                          : j.config?.aspect === "1:1"
+                            ? "aspect-square"
+                            : "aspect-[9/16]"
+                      }`}
+                    >
+                      {preview ? (
+                        <img src={preview} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-[11px] text-muted-foreground">
+                          {j.status}
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2 p-3">
+                      <p className="truncate text-sm font-medium">{j.topic}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {jobChips(j).map((chip) => (
+                          <span
+                            key={chip}
+                            className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground"
+                          >
+                            {chip}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">{producedLabel(j)}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {tokens != null ? `${tokens.toLocaleString("es")} tokens` : "— tokens"}
+                        {" · "}
+                        {usd != null ? `$${usd.toFixed(3)}` : "$—"}
+                        {j.cost?.credits ? ` · ${j.cost.credits} cr Flow` : ""}
+                      </p>
+                    </div>
                   </button>
-                </li>
-              ))}
-            </ul>
+                );
+              })}
+            </div>
           </section>
         )}
       </div>

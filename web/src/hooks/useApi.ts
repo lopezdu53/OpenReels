@@ -34,6 +34,12 @@ export interface JobConfig {
   characterReference?: boolean;
   atelierMode?: boolean;
   artStyleOverride?: string;
+  lookId?: string;
+  narrativeArc?: string;
+  castMode?: string;
+  muteCharacter?: boolean;
+  videoVolume?: number;
+  ttsVolume?: number;
 }
 
 export interface JobSummary {
@@ -577,11 +583,16 @@ export interface CreateJobRequest {
   characterReferenceImage?: string; // base64 character model sheet
   atelierMode?: boolean;
   artStyleOverride?: string;
+  lookId?: string;
+  narrativeArc?: string;
   characterLock?: string;
   castMode?: "scene" | "hero";
   locationLock?: string;
   objectLock?: string;
   locationReferenceImage?: string;
+  muteCharacter?: boolean;
+  videoVolume?: number;
+  ttsVolume?: number;
   providers?: {
     llm?: string;
     tts?: string;
@@ -666,11 +677,22 @@ export const api = {
     objects?: Array<{ name: string; prompt?: string }>;
     castMode?: "scene" | "hero";
     previousStory?: string;
+    lookId?: string;
+    narrativeArc?: string;
   }) {
     return fetchJson<{
       script: { title: string; hook: string; script: string };
       youtubeUrls: string[];
     }>("/film/script", { method: "POST", body: JSON.stringify(data) });
+  },
+
+  listFilmCatalog() {
+    return fetchJson<{
+      looks: { id: string; label: string; mood: string; archetype: string; prompt: string }[];
+      arcs: { id: string; label: string; when: string; hint: string }[];
+      defaultLook: string;
+      defaultArc: string;
+    }>("/film/catalog");
   },
 
   listCharacters() {
@@ -750,6 +772,8 @@ export const api = {
   generateLibrarySheet(data: {
     type: "character" | "style" | "location" | "object";
     provider?: string;
+    model?: string;
+    fallback?: string;
     character?: Record<string, unknown>;
     style?: Record<string, unknown>;
     location?: Record<string, unknown>;
@@ -1064,7 +1088,7 @@ export const api = {
   voxCatalog() {
     return fetchJson<{
       themes: { id: string; label: string; mood: string }[];
-      arcs: { id: string; label: string; when: string }[];
+      arcs: { id: string; label: string; when: string; hint?: string }[];
       voices: { id: string; label: string; gender: string; lang: string; note: string }[];
       aspects: string[];
       durations: number[];
@@ -1126,14 +1150,31 @@ export const api = {
   stickmanCatalog() {
     return fetchJson<{
       looks: { id: string; label: string; mood: string }[];
-      arcs: { id: string; label: string; when: string }[];
+      arcs: { id: string; label: string; when: string; hint?: string }[];
       casts: { id: string; label: string }[];
-      voices: { id: string; label: string; gender: string; note: string }[];
+      voices: { id: string; label: string; gender: string; note: string; model?: string }[];
       aspects: string[];
       durations: number[];
+      omniDurations?: number[];
+      veoDurations?: number[];
+      hookDurations?: number[];
+      omniHookDurations?: number[];
+      veoHookDurations?: number[];
+      defaultMuteCharacter?: boolean;
+      defaultContentHook?: boolean;
+      defaultCaptions?: boolean;
+      defaultVideoVolume?: number;
+      defaultTtsVolume?: number;
       visualProviders?: { key: string; label: string }[];
-      gflowImageModels?: { id: string; label: string }[];
-      gflowVideoModels?: { id: string; label: string }[];
+      gflowImageModels?: { id: string; label: string; note?: string; credits?: number }[];
+      gflowVideoModels?: {
+        id: string;
+        label: string;
+        note?: string;
+        durations?: number[];
+        creditPerSecond?: number;
+      }[];
+      llms?: { id: string; label: string; note: string; recommended?: boolean }[];
       atlasReady?: boolean;
       gflowBridge?: boolean;
       doctor?: { ok: boolean; detail: string };
@@ -1162,14 +1203,61 @@ export const api = {
     });
   },
 
-  produceStickmanJob(id: string) {
+  produceStickmanJob(
+    id: string,
+    data?: { voiceSpeed?: number; muteCharacter?: boolean; voiceId?: string; audioOnly?: boolean },
+  ) {
     return fetchJson<{ ok: boolean; status: string }>(`/stickman/jobs/${id}/produce`, {
       method: "POST",
+      body: data ? JSON.stringify(data) : undefined,
     });
   },
 
   cancelStickmanJob(id: string) {
     return fetchJson<{ ok: boolean }>(`/stickman/jobs/${id}/cancel`, { method: "POST" });
+  },
+
+  historiaCatalog() {
+    return fetchJson<{
+      arcs: { id: string; label: string; when: string; hint?: string }[];
+      voices: { id: string; label: string; gender: string; note: string; model?: string }[];
+      aspects: string[];
+      durations: number[];
+      omniDurations?: number[];
+      veoDurations?: number[];
+      hookDurations?: number[];
+      omniHookDurations?: number[];
+      veoHookDurations?: number[];
+      defaultMuteCharacter?: boolean;
+      defaultContentHook?: boolean;
+      defaultCaptions?: boolean;
+      defaultVideoVolume?: number;
+      defaultTtsVolume?: number;
+      visualProviders?: { key: string; label: string }[];
+      gflowImageModels?: { id: string; label: string; note?: string; credits?: number }[];
+      gflowVideoModels?: {
+        id: string;
+        label: string;
+        note?: string;
+        durations?: number[];
+        creditPerSecond?: number;
+      }[];
+      llms?: { id: string; label: string; note: string; recommended?: boolean }[];
+      atlasReady?: boolean;
+      gflowBridge?: boolean;
+      doctor?: { ok: boolean; detail: string };
+    }>("/historia/catalog");
+  },
+
+  listHistoriaJobs() {
+    return fetchJson<{ jobs: StickmanJobMeta[] }>("/historia/jobs");
+  },
+
+  createHistoriaJob(data: Record<string, unknown>) {
+    return fetchJson<{ id: string; status: string }>("/historia/jobs", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 
   publishJob(id: string, platforms?: SocialPlatformId[]) {
@@ -1208,20 +1296,51 @@ export interface VoxJobDetail extends VoxJobMeta {
 
 export interface StickmanJobMeta {
   id: string;
-  kind: "stickman";
+  kind: "stickman" | "historia";
   topic: string;
   status: string;
   stage: string;
   detail: string;
   error?: string;
   createdAt: string;
+  completedAt?: string;
+  previewRel?: string;
   hasFinal?: boolean;
+  cost?: { tokens: number; usd: number; credits: number };
+  youtubePack?: {
+    title: string;
+    description: string;
+    hashtags: string[];
+    seo: string;
+    thumbnailRel?: string;
+  };
+  config?: {
+    durationSec?: number;
+    aspect?: string;
+    language?: string;
+    look?: string;
+    castMode?: string;
+    characterIds?: string[];
+    objectIds?: string[];
+    locationIds?: string[];
+    castRoster?: { id: string; name: string }[];
+    arc?: string;
+    voiceId?: string;
+    voiceSpeed?: number;
+    captions?: boolean;
+    animate?: boolean;
+    muteCharacter?: boolean;
+    contentHook?: boolean;
+    videoVolume?: number;
+    ttsVolume?: number;
+    visualProvider?: string;
+    llmModel?: string;
+  };
 }
 
 export interface StickmanJobDetail extends StickmanJobMeta {
   script?: unknown;
   stills?: string[];
-  config?: Record<string, unknown>;
   queue?: {
     waiting: number;
     active: number;
@@ -1281,7 +1400,7 @@ export interface DashboardData {
   warning?: string;
 }
 
-export type SocialPlatformId = "youtube" | "tiktok" | "facebook" | "x" | "bilibili";
+export type SocialPlatformId = "youtube" | "tiktok" | "facebook" | "instagram" | "x" | "bilibili";
 
 export interface SocialPublic {
   platform: SocialPlatformId;

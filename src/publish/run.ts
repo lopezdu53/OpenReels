@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getUserById } from "../auth/store.js";
+import { aspectAllowsPlatform } from "../stickman/catalog.js";
 import { alreadyPublished, platformsToAutoPublish, recordSocialPublish } from "./accounts.js";
 import type { SocialPlatform } from "./types.js";
 import { uploadToPlatform } from "./upload.js";
@@ -22,7 +23,20 @@ export function resolveVideoFile(jobDir: string, videoPath?: string): string | n
 export function captionFromMeta(meta: {
   topic?: string;
   tiktokCaption?: { title?: string; caption?: string };
+  youtubePack?: { title?: string; description?: string; hashtags?: string[]; seo?: string };
 }): { title: string; description: string } {
+  if (meta.youtubePack?.title) {
+    const tags = (meta.youtubePack.hashtags ?? [])
+      .map((tag) => (tag.startsWith("#") ? tag : `#${tag.replace(/\s+/g, "")}`))
+      .join(" ");
+    const description = [meta.youtubePack.description, tags, meta.youtubePack.seo]
+      .filter(Boolean)
+      .join("\n\n");
+    return {
+      title: meta.youtubePack.title.slice(0, 100),
+      description: (description || meta.topic || meta.youtubePack.title).slice(0, 5000),
+    };
+  }
   const title = (meta.tiktokCaption?.title ?? meta.topic ?? "Short").slice(0, 100);
   const description = meta.tiktokCaption?.caption ?? meta.topic ?? title;
   return { title, description };
@@ -35,19 +49,31 @@ async function publishOne(
   file: string,
   title: string,
   description: string,
+  thumbnailPath?: string,
 ): Promise<{ platform: SocialPlatform; ok: boolean; url?: string; error?: string; rec?: unknown }> {
   if (alreadyPublished(userId, jobId, platform)) return { platform, ok: true };
   const user = getUserById(userId);
   const account = user?.social?.[platform];
   if (!account) return { platform, ok: false, error: "Cuenta no conectada" };
   try {
-    const up = await uploadToPlatform(platform, { filePath: file, title, description, account });
+    const up = await uploadToPlatform(platform, {
+      filePath: file,
+      title,
+      description,
+      account,
+      thumbnailPath,
+    });
     const rec = recordSocialPublish({ userId, jobId, platform, url: up.url });
     return { platform, ok: true, url: up.url, rec };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     recordSocialPublish({ userId, jobId, platform, error });
-    return { platform, ok: false, error, rec: { platform, status: "error", error, at: new Date().toISOString() } };
+    return {
+      platform,
+      ok: false,
+      error,
+      rec: { platform, status: "error", error, at: new Date().toISOString() },
+    };
   }
 }
 
@@ -63,19 +89,48 @@ export async function publishJobToPlatforms(opts: {
     userId?: string;
     topic?: string;
     videoPath?: string;
+    aspect?: string;
+    config?: { aspect?: string };
     tiktokCaption?: { title?: string; caption?: string };
+    youtubePack?: {
+      title?: string;
+      description?: string;
+      hashtags?: string[];
+      seo?: string;
+      thumbnailRel?: string;
+    };
     publications?: unknown[];
   };
   if (meta.userId && meta.userId !== opts.userId) throw new Error("Ese video no es tuyo");
   const file = resolveVideoFile(jobDir, meta.videoPath);
   if (!file) throw new Error("El job no tiene final.mp4 todavía");
   if (!getUserById(opts.userId)) throw new Error("Usuario no encontrado");
+  const aspect = meta.config?.aspect ?? meta.aspect;
   const { title, description } = captionFromMeta(meta);
+  const thumb = meta.youtubePack?.thumbnailRel
+    ? path.join(jobDir, meta.youtubePack.thumbnailRel)
+    : undefined;
   const targets = opts.platforms?.length ? opts.platforms : platformsToAutoPublish(opts.userId);
   const pubs: unknown[] = Array.isArray(meta.publications) ? [...meta.publications] : [];
   const results: { platform: SocialPlatform; ok: boolean; url?: string; error?: string }[] = [];
   for (const platform of targets) {
-    const row = await publishOne(opts.userId, opts.jobId, platform, file, title, description);
+    if (aspect && !aspectAllowsPlatform(aspect, platform)) {
+      results.push({
+        platform,
+        ok: false,
+        error: `El formato ${aspect} no se publica en ${platform}`,
+      });
+      continue;
+    }
+    const row = await publishOne(
+      opts.userId,
+      opts.jobId,
+      platform,
+      file,
+      title,
+      description,
+      thumb && fs.existsSync(thumb) ? thumb : undefined,
+    );
     if (row.rec) pubs.push(row.rec);
     results.push({ platform: row.platform, ok: row.ok, url: row.url, error: row.error });
   }

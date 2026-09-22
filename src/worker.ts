@@ -3,14 +3,12 @@ import * as path from "node:path";
 import { type Job, Worker } from "bullmq";
 import IORedis from "ioredis";
 import { z } from "zod";
+import { isIsolatedJobDir } from "./jobs/isolated.js";
 import type { PipelineCallbacks, StageName } from "./pipeline/orchestrator.js";
 import { runPipeline } from "./pipeline/orchestrator.js";
 import { createProviders, createVerificationModel } from "./providers/factory.js";
 import { validateManifest } from "./providers/music/bundled.js";
 import { DirectorScore } from "./schema/director-score.js";
-import { isIsolatedJobDir } from "./jobs/isolated.js";
-import { startStickmanWorker } from "./stickman/worker.js";
-import { startVoxWorker } from "./vox/worker.js";
 import type {
   ImageProviderKey,
   LLMProviderKey,
@@ -20,6 +18,8 @@ import type {
   TTSProviderKey,
   VideoProviderKey,
 } from "./schema/providers.js";
+import { startStickmanWorker } from "./stickman/worker.js";
+import { startVoxWorker } from "./vox/worker.js";
 
 const REDIS_URL = process.env["REDIS_URL"] ?? "redis://localhost:6379";
 const JOBS_DIR = process.env["JOBS_DIR"] ?? path.join(process.cwd(), "jobs");
@@ -59,11 +59,16 @@ interface JobData {
   characterReferenceImage?: string; // base64 character model sheet
   atelierMode?: boolean;
   artStyleOverride?: string;
+  lookId?: string;
+  narrativeArc?: string;
   characterLock?: string;
   castMode?: string;
   locationLock?: string;
   objectLock?: string;
   locationReferenceImage?: string; // base64 location bible board
+  muteCharacter?: boolean;
+  videoVolume?: number;
+  ttsVolume?: number;
   providers: {
     llm: string;
     tts: string;
@@ -130,7 +135,12 @@ interface JobMeta {
     locationReference?: boolean;
     atelierMode?: boolean;
     artStyleOverride?: string;
+    lookId?: string;
+    narrativeArc?: string;
     castMode?: string;
+    muteCharacter?: boolean;
+    videoVolume?: number;
+    ttsVolume?: number;
   };
   costEstimate?: unknown;
   actualCost?: unknown;
@@ -161,8 +171,38 @@ function writeMeta(jobDir: string, meta: JobMeta) {
 const worker = new Worker<JobData>(
   "openreels",
   async (job: Job<JobData>) => {
-    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, noSubtitles, allowedVisualTypes, direction, targetDurationMinutes, score, videoSceneMode, styleReferenceImage, characterReferenceImage, locationReferenceImage, atelierMode, artStyleOverride, characterLock, castMode, locationLock, objectLock, providers, keys, userId } =
-      job.data;
+    const {
+      topic,
+      archetype,
+      pacing,
+      platform,
+      dryRun,
+      noMusic,
+      noVideo,
+      noSubtitles,
+      allowedVisualTypes,
+      direction,
+      targetDurationMinutes,
+      score,
+      videoSceneMode,
+      styleReferenceImage,
+      characterReferenceImage,
+      locationReferenceImage,
+      atelierMode,
+      artStyleOverride,
+      lookId,
+      narrativeArc,
+      characterLock,
+      castMode,
+      locationLock,
+      objectLock,
+      muteCharacter,
+      videoVolume,
+      ttsVolume,
+      providers,
+      keys,
+      userId,
+    } = job.data;
     const jobDir = path.join(JOBS_DIR, job.id!);
     fs.mkdirSync(jobDir, { recursive: true });
 
@@ -191,7 +231,12 @@ const worker = new Worker<JobData>(
         locationReference: locationReferenceImage ? true : undefined,
         atelierMode: atelierMode !== false,
         artStyleOverride: artStyleOverride ?? undefined,
+        lookId: lookId ?? undefined,
+        narrativeArc: narrativeArc ?? undefined,
         castMode: castMode === "hero" ? "hero" : "scene",
+        muteCharacter: muteCharacter === true || undefined,
+        videoVolume,
+        ttsVolume,
       },
     };
 
@@ -209,7 +254,10 @@ const worker = new Worker<JobData>(
       stock: providers.stock as StockProviderKey,
       video: providers.video as VideoProviderKey | undefined,
       videoModel: providers.videoModel,
-      music: providers.music === "none" ? "bundled" : ((providers.music as MusicProviderKey) ?? "bundled"),
+      music:
+        providers.music === "none"
+          ? "bundled"
+          : ((providers.music as MusicProviderKey) ?? "bundled"),
       keys: {
         ...keys,
         ...(providers.runpodImageEndpointId
@@ -404,7 +452,9 @@ const worker = new Worker<JobData>(
         dryRun,
         noMusic: noMusic === true || providers.music === "none",
         musicProvider: providerInstances.music,
-        musicProviderKey: (providers.music === "none" ? "bundled" : providers.music) as MusicProviderKey ?? "bundled",
+        musicProviderKey:
+          ((providers.music === "none" ? "bundled" : providers.music) as MusicProviderKey) ??
+          "bundled",
         preview: false,
         outputDir: jobDir,
         yes: true,
@@ -413,15 +463,26 @@ const worker = new Worker<JobData>(
         replayScore,
         targetDurationMinutes,
         videoSceneMode,
-        styleReferenceImage: styleReferenceImage ? Buffer.from(styleReferenceImage, "base64") : undefined,
-        characterReferenceImage: characterReferenceImage ? Buffer.from(characterReferenceImage, "base64") : undefined,
-        locationReferenceImage: locationReferenceImage ? Buffer.from(locationReferenceImage, "base64") : undefined,
+        styleReferenceImage: styleReferenceImage
+          ? Buffer.from(styleReferenceImage, "base64")
+          : undefined,
+        characterReferenceImage: characterReferenceImage
+          ? Buffer.from(characterReferenceImage, "base64")
+          : undefined,
+        locationReferenceImage: locationReferenceImage
+          ? Buffer.from(locationReferenceImage, "base64")
+          : undefined,
         atelierMode: atelierMode !== false,
         artStyleOverride: artStyleOverride ?? undefined,
+        lookId: lookId ?? undefined,
+        narrativeArc: narrativeArc ?? undefined,
         characterLock: characterLock ?? undefined,
         castMode: castMode ?? undefined,
         locationLock: locationLock ?? undefined,
         objectLock: objectLock ?? undefined,
+        muteCharacter: muteCharacter === true,
+        videoVolume,
+        ttsVolume,
       },
       callbacks,
     );

@@ -14,18 +14,78 @@ export const VOX_THEMES = [
 ] as const;
 
 export const VOX_ARCS = [
-  { id: "hook_payoff", label: "Hook → payoff", when: "una idea, el más seguro" },
-  { id: "timeline", label: "Línea de tiempo", when: "historia / evolución" },
-  { id: "how_it_works", label: "Cómo funciona", when: "proceso o sistema" },
-  { id: "pas", label: "PAS", when: "anuncio con dolor" },
-  { id: "bab", label: "Before / After / Bridge", when: "el después vende" },
-  { id: "aida", label: "AIDA", when: "anuncio en frío" },
-  { id: "man_in_hole", label: "Man in a hole", when: "transformación" },
-  { id: "myth_buster", label: "Myth buster", when: "desmentir una creencia" },
-  { id: "listicle", label: "Listicle", when: "N formas de…" },
-  { id: "story_spine", label: "Story spine", when: "marca / fundador" },
-  { id: "origin", label: "Origin", when: "por qué existimos" },
-  { id: "three_act", label: "Tres actos", when: "narrativa 60s" },
+  {
+    id: "hook_payoff",
+    label: "Hook → payoff",
+    when: "una idea, el más seguro",
+    hint: "Una sola idea: gancho, contexto, cierra con el payoff. El más seguro.",
+  },
+  {
+    id: "timeline",
+    label: "Línea de tiempo",
+    when: "historia / evolución",
+    hint: "Historia o evolución: entonces → hitos → hoy → qué queda.",
+  },
+  {
+    id: "how_it_works",
+    label: "Cómo funciona",
+    when: "proceso o sistema",
+    hint: "Explicador: qué es, 2–3 pasos que se ven, el beneficio.",
+  },
+  {
+    id: "pas",
+    label: "PAS",
+    when: "anuncio con dolor",
+    hint: "Anuncio: Problema → Agita → Soluciona. Para dolor y urgencia.",
+  },
+  {
+    id: "bab",
+    label: "Before / After / Bridge",
+    when: "el después vende",
+    hint: "Antes feo → después deseable → el puente (tu producto) que une ambos.",
+  },
+  {
+    id: "aida",
+    label: "AIDA",
+    when: "anuncio en frío",
+    hint: "Anuncio en frío: Atención → Interés → Deseo → Acción.",
+  },
+  {
+    id: "man_in_hole",
+    label: "Man in a hole",
+    when: "transformación",
+    hint: "Caída y subida: estaba bien, cae, escala y termina mejor.",
+  },
+  {
+    id: "myth_buster",
+    label: "Myth buster",
+    when: "desmentir una creencia",
+    hint: "Tira un mito: el hecho, la creencia falsa, qué creer en su lugar.",
+  },
+  {
+    id: "listicle",
+    label: "Listicle",
+    when: "N formas de…",
+    hint: "Lista tipo “N formas de…”: promesa, cada ítem, recap.",
+  },
+  {
+    id: "story_spine",
+    label: "Story spine",
+    when: "marca / fundador",
+    hint: "Cuento de marca: había una vez → hasta que un día → desde entonces.",
+  },
+  {
+    id: "origin",
+    label: "Origin",
+    when: "por qué existimos",
+    hint: "Por qué existimos: el mundo, la chispa, el salto y el hoy.",
+  },
+  {
+    id: "three_act",
+    label: "Tres actos",
+    when: "narrativa 60s",
+    hint: "Narrativa de un minuto: setup → conflicto → resolución.",
+  },
 ] as const;
 
 export const VOX_VOICES = [
@@ -48,7 +108,12 @@ export const KLING_VIDEO_MODEL = "kwaivgi/kling-video-o3-pro/image-to-video";
 export const AROLL_VIDEO_MODEL = "google/gemini-omni-flash/video-edit";
 export const AROLL_FALLBACK_MODEL = "bytedance/seedance-2.0/reference-to-video";
 
-export const DEFAULT_BAKEOFF = ["american-retro", "swiss-modern", "punk-zine", "newsprint-editorial"];
+export const DEFAULT_BAKEOFF = [
+  "american-retro",
+  "swiss-modern",
+  "punk-zine",
+  "newsprint-editorial",
+];
 
 export function recommendArc(topic: string): string {
   const t = topic.toLowerCase();

@@ -83,5 +83,8 @@ describe("atlas catalog", () => {
     expect(ATLAS_TTS_MODELS.length).toBeGreaterThanOrEqual(4);
     expect(resolveAtlasTtsModel("google/gemini-2.5-flash-tts").voiceField).toBe("voice");
     expect(resolveAtlasTtsModel("xai/tts-v1").voices.some((v) => v.id === "eve")).toBe(true);
+    expect(resolveAtlasTtsModel("google/gemini-2.5-flash-tts").voices.some((v) => v.id === "Leda")).toBe(
+      true,
+    );
   });
 });

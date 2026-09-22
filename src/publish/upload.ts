@@ -6,6 +6,7 @@ export interface UploadInput {
   title: string;
   description: string;
   account: SocialAccount;
+  thumbnailPath?: string;
 }
 
 export interface UploadResult {
@@ -73,6 +74,25 @@ async function publishYoutube(input: UploadInput): Promise<UploadResult> {
   });
   const json = (await put.json()) as { id?: string; error?: { message?: string } };
   if (!put.ok || !json.id) throw new Error(json.error?.message ?? "Fallo al subir a YouTube");
+  if (input.thumbnailPath && fs.existsSync(input.thumbnailPath)) {
+    try {
+      const thumb = fs.readFileSync(input.thumbnailPath);
+      await fetch(
+        `https://www.googleapis.com/upload/youtube/v3/thumbnails/set?videoId=${encodeURIComponent(json.id)}&uploadType=media`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "image/png",
+            "Content-Length": String(thumb.byteLength),
+          },
+          body: thumb,
+        },
+      );
+    } catch {
+      /* thumbnail is optional */
+    }
+  }
   return { url: `https://youtu.be/${json.id}` };
 }
 
@@ -259,10 +279,62 @@ async function publishBilibili(input: UploadInput): Promise<UploadResult> {
   return { url: bvid ? `https://www.bilibili.com/video/${bvid}` : "https://member.bilibili.com" };
 }
 
+async function publishInstagram(input: UploadInput): Promise<UploadResult> {
+  const igUserId = input.account.extra?.["igUserId"];
+  const token = input.account.accessToken;
+  if (!igUserId || !token) {
+    throw new Error("Reconecta Instagram (cuenta profesional vinculada a una Página)");
+  }
+  const start = await fetch(
+    `https://graph.facebook.com/v21.0/${igUserId}/media?media_type=REELS&upload_type=resumable&share_to_feed=true&caption=${encodeURIComponent(input.title.slice(0, 2200))}&access_token=${encodeURIComponent(token)}`,
+    { method: "POST" },
+  );
+  const started = (await start.json()) as {
+    id?: string;
+    uri?: string;
+    error?: { message?: string };
+  };
+  if (!started.id || !started.uri) {
+    throw new Error(started.error?.message ?? "Instagram no inició el Reel");
+  }
+  const buf = fs.readFileSync(input.filePath);
+  const up = await fetch(started.uri, {
+    method: "POST",
+    headers: {
+      Authorization: `OAuth ${token}`,
+      offset: "0",
+      file_size: String(buf.length),
+    },
+    body: buf,
+  });
+  if (!up.ok) throw new Error(`Instagram upload ${up.status}`);
+  for (let i = 0; i < 20; i++) {
+    const st = await fetch(
+      `https://graph.facebook.com/v21.0/${started.id}?fields=status_code&access_token=${encodeURIComponent(token)}`,
+    );
+    const body = (await st.json()) as { status_code?: string; error?: { message?: string } };
+    if (body.status_code === "FINISHED" || body.status_code === "PUBLISHED") break;
+    if (body.status_code === "ERROR") {
+      throw new Error(body.error?.message ?? "Instagram rechazó el video");
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  const finish = await fetch(
+    `https://graph.facebook.com/v21.0/${igUserId}/media_publish?creation_id=${started.id}&access_token=${encodeURIComponent(token)}`,
+    { method: "POST" },
+  );
+  const done = (await finish.json()) as { id?: string; error?: { message?: string } };
+  if (!finish.ok || !done.id) {
+    throw new Error(done.error?.message ?? "Instagram no publicó el Reel");
+  }
+  return { url: `https://www.instagram.com/reel/${done.id}` };
+}
+
 const HANDLERS: Record<SocialPlatform, (input: UploadInput) => Promise<UploadResult>> = {
   youtube: publishYoutube,
   tiktok: publishTiktok,
   facebook: publishFacebook,
+  instagram: publishInstagram,
   x: publishX,
   bilibili: publishBilibili,
 };

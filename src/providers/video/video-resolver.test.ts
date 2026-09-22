@@ -334,6 +334,8 @@ describe("buildHeroMotionPrompt", () => {
     expect(prompt).toContain("ACTION:");
     expect(prompt).toContain("stamps a giant gold Rolex");
     expect(prompt).not.toContain("tweed");
+    expect(prompt).toContain("Never a stick figure");
+    expect(prompt).toMatch(/Morph the environment/);
   });
 
   it("continues previous-clip pixels without a hold", () => {
@@ -346,6 +348,9 @@ describe("buildHeroMotionPrompt", () => {
     expect(prompt).toContain("immediately");
     expect(prompt).not.toContain("0.4s");
     expect(prompt).not.toMatch(/hold those pixels/i);
+    expect(prompt).toContain("locked LOOK");
+    expect(prompt).toMatch(/Morph the environment/);
+    expect(prompt).toContain("Never a stick figure");
   });
 });
 

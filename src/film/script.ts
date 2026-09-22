@@ -1,4 +1,18 @@
 import { z } from "zod";
+import {
+  DEFAULT_FILM_LLM_MODEL,
+  filmDurationLabel,
+  filmWordsTarget,
+  isFilmQuickTest,
+  normalizeFilmMinutes,
+} from "../config/film-duration.js";
+import {
+  type CastMode,
+  MAX_FILM_CHARACTERS,
+  MAX_FILM_LOCATIONS,
+  MAX_FILM_OBJECTS,
+  normalizeCastMode,
+} from "../library/identity.js";
 import { AliCloudLLM } from "../providers/llm/alicloud.js";
 import { AnthropicLLM } from "../providers/llm/anthropic.js";
 import { AtlasLLM } from "../providers/llm/atlas.js";
@@ -8,8 +22,7 @@ import { OpenAILLM } from "../providers/llm/openai.js";
 import { OpenRouterLLM } from "../providers/llm/openrouter.js";
 import { ViviLLM } from "../providers/llm/vivi.js";
 import type { LLMProvider } from "../schema/providers.js";
-import { filmDurationLabel, filmWordsTarget, isFilmQuickTest, normalizeFilmMinutes } from "../config/film-duration.js";
-import { MAX_FILM_CHARACTERS, MAX_FILM_LOCATIONS, MAX_FILM_OBJECTS, normalizeCastMode, type CastMode } from "../library/identity.js";
+import { filmScriptKitBrief } from "./director-kit.js";
 
 export const filmScriptSchema = z.object({
   title: z.string(),
@@ -82,9 +95,7 @@ export function buildCastBrief(
   return `Reparto bloqueado (${n} personaje${n === 1 ? "" : "s"}; usa estos nombres en la locución, no inventes protagonistas extra):\n${lines.join("\n")}`;
 }
 
-export function buildLocationBrief(
-  places: Array<{ name: string; place?: string }>,
-): string {
+export function buildLocationBrief(places: Array<{ name: string; place?: string }>): string {
   const members = places.filter((l) => l.name?.trim()).slice(0, MAX_FILM_LOCATIONS);
   if (!members.length) return "";
   const lines = members.map((l, i) => {
@@ -95,9 +106,7 @@ export function buildLocationBrief(
   return `Locaciones bloqueadas (${n}; nombra UNA por escena, nunca combines dos lugares en la misma frase visual):\n${lines.join("\n")}`;
 }
 
-export function buildObjectBrief(
-  objects: Array<{ name: string; prompt?: string }>,
-): string {
+export function buildObjectBrief(objects: Array<{ name: string; prompt?: string }>): string {
   const members = objects.filter((o) => o.name?.trim()).slice(0, MAX_FILM_OBJECTS);
   if (!members.length) return "";
   const lines = members.map((o, i) => {
@@ -136,11 +145,15 @@ export function buildSequelBrief(opts: {
   if (!opts.title.trim() && !lines.length) return "";
   const opening = clipText(lines.slice(0, 5).join(" "), 700);
   const ending = clipText(lines.slice(-8).join(" "), 900);
-  const locations = [...new Set((opts.scenes ?? []).map((s) => s.location?.trim()).filter(Boolean) as string[])].slice(0, 8);
+  const locations = [
+    ...new Set((opts.scenes ?? []).map((s) => s.location?.trim()).filter(Boolean) as string[]),
+  ].slice(0, 8);
   const parts = [
     `CONTINUACIÓN del episodio anterior: «${opts.title.trim()}».`,
     opening ? `Qué ya pasó: ${opening}` : "",
-    ending ? `Cómo cerró (parte de aquí, no lo reescribas ni lo resumas como si fuera nuevo): ${ending}` : "",
+    ending
+      ? `Cómo cerró (parte de aquí, no lo reescribas ni lo resumas como si fuera nuevo): ${ending}`
+      : "",
     opts.characters?.length ? `Personajes ya establecidos: ${opts.characters.join(", ")}` : "",
     locations.length ? `Lugares ya establecidos: ${locations.join(", ")}` : "",
     "No reinicies. No re-presentes a nadie como si el público no los conociera. Avanza la trama, honra los hechos ya narrados, y cierra con gancho al siguiente capítulo.",
@@ -163,7 +176,7 @@ export function pickFilmLlm(provider?: string, model?: string): LLMProvider {
     case "grok":
       return new GrokLLM(model);
     case "atlas":
-      return new AtlasLLM(model);
+      return new AtlasLLM(model || DEFAULT_FILM_LLM_MODEL);
     default:
       return new AnthropicLLM(model);
   }
@@ -180,6 +193,8 @@ export async function generateFilmScript(opts: {
   objects?: Array<{ name: string; prompt?: string }>;
   castMode?: string;
   previousStory?: string;
+  lookId?: string;
+  narrativeArc?: string;
 }): Promise<FilmScript> {
   const minutes = normalizeFilmMinutes(opts.durationMinutes) ?? 8;
   const words = filmWordsTarget(minutes);
@@ -203,8 +218,12 @@ export async function generateFilmScript(opts: {
       places,
       props,
       sequel,
-      refs.length ? `Referencias de formato (no copies identidad):\n${refs.map((u) => `- ${u}`).join("\n")}` : "",
-      "title = título propio de YouTube, ≤ 70 caracteres." + (sequel ? " Distinto al episodio anterior." : ""),
+      filmScriptKitBrief(opts.lookId, opts.narrativeArc),
+      refs.length
+        ? `Referencias de formato (no copies identidad):\n${refs.map((u) => `- ${u}`).join("\n")}`
+        : "",
+      "title = título propio de YouTube, ≤ 70 caracteres." +
+        (sequel ? " Distinto al episodio anterior." : ""),
       "hook = primera frase hablada, ≤ 160 caracteres.",
       "script = locución completa, párrafos cortos, cierre con CTA de suscripción o gancho al siguiente capítulo.",
     ]
