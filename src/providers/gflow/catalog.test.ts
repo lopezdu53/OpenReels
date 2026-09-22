@@ -6,8 +6,12 @@ import {
   gflowI2vShouldFallbackT2v,
   gflowImageCliId,
   gflowImageCredits,
+  gflowRelayPayloadTtlSeconds,
   gflowSupportsDurationFlag,
+  gflowVideoBudgetSeconds,
   gflowVideoCredits,
+  gflowVideoWaitSeconds,
+  isGflowLowerPriority,
   pickGflowDuration,
   resolveGflowImageModel,
   resolveGflowVideoMode,
@@ -87,5 +91,17 @@ describe("gflow catalog", () => {
       10,
     );
     expect(gflowVideoCredits({ modelId: "omni-flash", durationSec: 10, variants: 2 })).toBe(40);
+  });
+
+  it("keeps Lower Priority Chrome open far longer than the 15 min default", () => {
+    expect(isGflowLowerPriority("veo-lite-lp")).toBe(true);
+    expect(isGflowLowerPriority("veo-lp")).toBe(true);
+    expect(isGflowLowerPriority("veo-lite")).toBe(false);
+    expect(gflowVideoWaitSeconds("veo-lite")).toBe(900);
+    expect(gflowVideoWaitSeconds("veo-lite-lp")).toBe(3600);
+    expect(gflowVideoBudgetSeconds("veo-lite-lp")).toBeGreaterThan(gflowVideoWaitSeconds("veo-lite-lp"));
+    expect(gflowVideoBudgetSeconds("veo-lite-lp")).toBeGreaterThanOrEqual(4800);
+    expect(gflowRelayPayloadTtlSeconds("video")).toBeGreaterThan(gflowVideoBudgetSeconds("veo-lite-lp"));
+    expect(gflowRelayPayloadTtlSeconds("image")).toBe(900);
   });
 });

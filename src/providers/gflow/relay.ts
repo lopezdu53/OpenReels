@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import IORedis from "ioredis";
+import { gflowRelayPayloadTtlSeconds } from "./catalog.js";
 import {
   GFLOW_PEERS_SET_KEY,
   GFLOW_SHARED_JOBS_KEY,
@@ -142,7 +143,7 @@ export async function enqueueBridgeJob(
   const id = randomUUID();
   const job: GflowRelayJob = { id, kind, body };
   const r = getGflowRelayRedis();
-  await r.set(payloadKey(id), JSON.stringify(job), "EX", 900);
+  await r.set(payloadKey(id), JSON.stringify(job), "EX", gflowRelayPayloadTtlSeconds(kind));
   await r.lpush(jobsKeyFor(targetId), id);
   return id;
 }

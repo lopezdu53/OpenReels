@@ -9,6 +9,7 @@ import {
   gflowCliDuration,
   gflowI2vFallbackT2vEnabled,
   gflowI2vShouldFallbackT2v,
+  gflowVideoBudgetSeconds,
   resolveGflowVideoMode,
   resolveGflowVideoModel,
   type GflowVideoMode,
@@ -82,14 +83,15 @@ export class GflowVideo implements VideoProvider {
         ]
       : t2vArgs;
 
+    const waitMs = gflowVideoBudgetSeconds(this.modelId) * 1000;
     let payload: Record<string, unknown>;
     try {
-      payload = await runGflowJson(args, 480_000);
+      payload = await runGflowJson(args, waitMs);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (!useStill || !gflowI2vShouldFallbackT2v(msg) || !gflowI2vFallbackT2vEnabled()) throw err;
       console.warn(`[video/gflow] I2V failed (${msg.slice(0, 160)}); t2v fallback (credits)`);
-      payload = await runGflowJson(t2vArgs, 480_000);
+      payload = await runGflowJson(t2vArgs, waitMs);
     }
 
     const local =
