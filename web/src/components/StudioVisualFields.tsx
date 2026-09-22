@@ -90,6 +90,15 @@ export function StudioVisualFields(props: {
   ];
   const videos = catalog?.gflowVideoModels ?? [
     { id: "omni-flash", label: "Omni 1.1 Flash", durations: [4, 6, 8, 10], creditPerSecond: 2 },
+    { id: "veo-lite", label: "Veo 3.1 Lite", durations: [4, 6, 8], creditPerSecond: 5 },
+    {
+      id: "veo-lite-lp",
+      label: "Veo 3.1 Lite (Lower Priority)",
+      durations: [4, 6, 8],
+      creditPerSecond: 0,
+    },
+    { id: "veo-fast", label: "Veo 3.1 Fast", durations: [4, 6, 8], creditPerSecond: 10 },
+    { id: "veo-quality", label: "Veo 3.1 Quality", durations: [4, 6, 8], creditPerSecond: 20 },
   ];
   const video = videos.find((m) => m.id === gflowVideoModel) ?? videos[0];
   const supported = video?.durations ?? [8];

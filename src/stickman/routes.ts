@@ -168,7 +168,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     llms: STICKMAN_LLMS,
     visualProviders: [...STUDIO_VISUAL_PROVIDERS],
     gflowImageModels: GFLOW_IMAGE_MODELS,
-    gflowVideoModels: GFLOW_VIDEO_MODELS.filter((m) => m.id !== "veo-lite-lp"),
+    gflowVideoModels: GFLOW_VIDEO_MODELS,
     recommendedGflow: recommendStickmanGflow(20),
     defaultGflowImage: DEFAULT_STICKMAN_GFLOW_IMAGE,
     defaultGflowVideo: DEFAULT_STICKMAN_GFLOW_VIDEO,

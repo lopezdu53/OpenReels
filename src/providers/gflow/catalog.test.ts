@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  GFLOW_VIDEO_MODELS,
   gflowCliDuration,
   gflowI2vFallbackT2vEnabled,
   gflowI2vShouldFallbackT2v,
@@ -31,6 +32,11 @@ describe("gflow catalog", () => {
   it("resolves video models", () => {
     expect(resolveGflowVideoModel("veo-quality").id).toBe("veo-quality");
     expect(resolveGflowVideoModel("missing").id).toBe("veo-lite");
+    expect(resolveGflowVideoModel("veo-lite-lp").id).toBe("veo-lite-lp");
+    expect(resolveGflowVideoModel("veo-lite-lp").label).toContain("Lower Priority");
+    expect(resolveGflowVideoModel("veo-3.1-lite-low-priority").id).toBe("veo-lite-lp");
+    expect(resolveGflowVideoModel("veo-lp").id).toBe("veo-lite-lp");
+    expect(GFLOW_VIDEO_MODELS.map((m) => m.id)).toContain("veo-lite-lp");
   });
 
   it("defaults Veo mode to t2v", () => {
@@ -64,8 +70,10 @@ describe("gflow catalog", () => {
 
   it("only sends --duration for Omni Flash", () => {
     expect(gflowSupportsDurationFlag("veo-lite")).toBe(false);
+    expect(gflowSupportsDurationFlag("veo-lite-lp")).toBe(false);
     expect(gflowSupportsDurationFlag("veo-fast")).toBe(false);
     expect(gflowCliDuration("veo-lite", 4)).toBeUndefined();
+    expect(gflowCliDuration("veo-lite-lp", 8)).toBeUndefined();
     expect(gflowSupportsDurationFlag("omni-flash")).toBe(true);
     expect(gflowCliDuration("omni-flash", 10)).toBe(10);
   });
@@ -73,6 +81,7 @@ describe("gflow catalog", () => {
   it("prices Flow video credits at 720p x1 and images at 0", () => {
     expect(gflowVideoCredits({ modelId: "omni-flash", durationSec: 10 })).toBe(20);
     expect(gflowVideoCredits({ modelId: "veo-lite", durationSec: 8 })).toBe(40);
+    expect(gflowVideoCredits({ modelId: "veo-lite-lp", durationSec: 8 })).toBe(0);
     expect(gflowVideoCredits({ modelId: "veo-quality", durationSec: 8 })).toBe(160);
     expect(gflowVideoCredits({ modelId: "omni-flash", durationSec: 10, resolution: "360p" })).toBe(
       10,

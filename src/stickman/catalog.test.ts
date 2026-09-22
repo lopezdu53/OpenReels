@@ -56,6 +56,7 @@ describe("stickman catalog", () => {
 
   it("swaps Omni vs Veo 3.1 job durations", () => {
     expect(isVeoGflowJob("gflow", "veo-lite")).toBe(true);
+    expect(isVeoGflowJob("gflow", "veo-lite-lp")).toBe(true);
     expect(isVeoGflowJob("gflow", "veo-quality")).toBe(true);
     expect(isVeoGflowJob("gflow", "omni-flash")).toBe(false);
     expect(isVeoGflowJob("atlas", "veo-lite")).toBe(false);
