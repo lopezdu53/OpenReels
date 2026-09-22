@@ -10,13 +10,16 @@ from server import (
     VIDEO_TIMEOUT_LP,
     _catalog_paths_from_list,
     _flow_picker_script,
+    _is_gflow_log_event,
     _is_lower_priority,
+    _is_progress_noise,
     _lock_wait_for,
     _mp4_search_roots,
     _gflow_fail_message,
     _is_add_to_prompt_label,
     _is_submit_miss,
     _parse_gflow_json,
+    _should_wait_for_clip,
     _recover_seconds_for,
     _resolve_video_mode,
     _sanitize_prompt,
@@ -38,6 +41,22 @@ class ParseTests(unittest.TestCase):
     def test_missing_json(self):
         with self.assertRaises(RuntimeError):
             _parse_gflow_json("no json here")
+
+    def test_skips_browser_engine_selected_info_log(self):
+        info = (
+            '{"engine":"playwright","event":"browser_engine_selected","cli_version":"0.79.1",'
+            '"level":"info","command":"video i2v"}'
+        )
+        ok = '{"status":"ok","local_path":"C:/tmp/clip.mp4"}'
+        payload = _parse_gflow_json(f"{info}\n{ok}\n")
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["local_path"], "C:/tmp/clip.mp4")
+        self.assertTrue(_is_gflow_log_event(json.loads(info)))
+        self.assertTrue(_is_progress_noise(info))
+        self.assertTrue(_is_submit_miss(info))
+        self.assertTrue(_should_wait_for_clip(info, "veo-lite-lp", "i2v"))
+        self.assertTrue(_should_wait_for_clip("gflow exit 1 after progress log", "veo-lite", "i2v"))
+        self.assertFalse(_should_wait_for_clip("Token inválido", "veo-lite-lp", "i2v"))
 
 
 class PromptTests(unittest.TestCase):
@@ -368,7 +387,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
         from config import classify_log, default_config
         from version import APP_NAME, APP_VERSION
 
-        self.assertEqual(classify_log("I2V: gflow volvió sin mp4; espero el clip."), "i2v")
+        self.assertEqual(classify_log("gflow volvió sin mp4; espero el clip (Lower Priority no corta a 1 min)."), "i2v")
         self.assertEqual(classify_log("Lower Priority Veo: Chrome se queda abierto hasta 3600s"), "i2v")
         self.assertEqual(classify_log("gflow fail: crash"), "err")
         self.assertEqual(classify_log("LAN: escuchando listo"), "ok")

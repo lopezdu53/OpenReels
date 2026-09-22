@@ -26,4 +26,15 @@ describe("gflow json contract", () => {
   it("throws when stdout has no JSON", () => {
     expect(() => parseGflowJson("no json here")).toThrow(GflowCliError);
   });
+
+  it("skips browser_engine_selected info logs in front of the result", () => {
+    const payload = parseGflowJson(
+      [
+        '{"engine":"playwright","event":"browser_engine_selected","level":"info","command":"video i2v"}',
+        '{"status":"ok","local_path":"/tmp/clip.mp4"}',
+      ].join("\n"),
+    );
+    expect(payload.status).toBe("ok");
+    expect(payload.local_path).toBe("/tmp/clip.mp4");
+  });
 });
