@@ -26,6 +26,7 @@ import {
   isStickmanDuration,
   isStickmanLlmId,
   isStickmanVoiceId,
+  isVeoGflowJob,
   recommendArc,
   recommendStickmanGflow,
   resolveStickmanTtsModel,
@@ -78,7 +79,9 @@ function parseHistoriaCreateBody(
     typeof body.visualProvider === "string" ? body.visualProvider : undefined,
   );
   const gflowVideoModel = body.gflowVideoModel ? String(body.gflowVideoModel) : undefined;
-  const durationSec = Number(body.durationSec ?? 30);
+  const durationSec = Number(
+    body.durationSec ?? (isVeoGflowJob(visualProvider, gflowVideoModel) ? 8 : 30),
+  );
   if (!isStickmanDuration(durationSec, visualProvider, gflowVideoModel)) {
     return { error: stickmanDurationHint(visualProvider, gflowVideoModel) };
   }
