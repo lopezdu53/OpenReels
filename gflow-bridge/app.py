@@ -823,6 +823,12 @@ class App(tk.Tk):
             messagebox.showerror("gflow-cli", missing_gflow_message())
             return
         self.gflow_bin.set(gflow_bin)
+        try:
+            from gflow_patch import ensure_gflow_wait_patch
+
+            ensure_gflow_wait_patch(log=self._log)
+        except Exception as err:
+            self._log(f"parche espera gflow: {err}")
         server.apply_settings(
             token=token,
             allow_ips=allow,
