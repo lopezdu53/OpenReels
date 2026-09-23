@@ -28,6 +28,8 @@ from server import (
     _recover_generated_mp4,
     _row_is_recent,
     _should_wait_for_clip,
+    _is_audio_fail,
+    _no_signed_url,
     _recover_seconds_for,
     _resolve_video_mode,
     _sanitize_prompt,
@@ -181,6 +183,13 @@ class VideoModeTests(unittest.TestCase):
         self.assertGreaterEqual(RECOVER_SECONDS_LP, 1200)
         self.assertEqual(_recover_seconds_for("veo-lite"), RECOVER_SECONDS)
         self.assertEqual(_recover_seconds_for("veo-lite-lp"), RECOVER_SECONDS_LP)
+        self.assertEqual(
+            _recover_seconds_for("veo-lite-lp", "Flow status 4 después del video: falló el audio"),
+            180,
+        )
+        self.assertTrue(_is_audio_fail("no hay URL del mp4: Flow falló el audio"))
+        self.assertFalse(_is_audio_fail("gflow exit 1 after progress log"))
+        self.assertTrue(_no_signed_url('detail":"migrated host: no signed media URL for abc within 45s"'))
         self.assertGreaterEqual(_lock_wait_for("video", {"model": "veo-lite-lp"}), VIDEO_TIMEOUT_LP)
         self.assertLess(_lock_wait_for("image", {}), VIDEO_TIMEOUT_LP)
         self.assertGreaterEqual(PICKER_SCAN_SECONDS, 12)
@@ -261,6 +270,47 @@ class VideoModeTests(unittest.TestCase):
             self.assertIsNone(_recover_generated_mp4(Path("/tmp/or-no-clip.mp4"), time.time(), 30))
         finally:
             _clear_abort()
+
+    def test_recover_stops_when_catalog_has_no_signed_url(self):
+        import server
+        from pathlib import Path
+        import tempfile
+        import time
+
+        calls = {"n": 0}
+
+        def fake_dl(mid: str, dest: Path):
+            calls["n"] += 1
+            return None, "no_url"
+
+        def fake_list():
+            return [
+                {
+                    "media_id": "d54717be-e35b-49d3-920f-009e4ef71b22",
+                    "copy_count": 0,
+                }
+            ]
+
+        orig_dl = server._download_catalog_video
+        orig_list = server._list_catalog_videos
+        server._download_catalog_video = fake_dl
+        server._list_catalog_videos = fake_list
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                dest = Path(tmp) / "out.mp4"
+                started = time.time()
+                self.assertIsNone(
+                    _recover_generated_mp4(
+                        dest,
+                        started,
+                        1200,
+                        prefer_ids=["d54717be-e35b-49d3-920f-009e4ef71b22"],
+                    )
+                )
+        finally:
+            server._download_catalog_video = orig_dl
+            server._list_catalog_videos = orig_list
+        self.assertEqual(calls["n"], 1)
 
 
 class DrainTests(unittest.TestCase):
@@ -458,12 +508,13 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("runtime ACK=3600s grace=1200s (gflow stock is 60s/20s)"), "i2v")
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
+        self.assertEqual(classify_log("Flow status 4 después del video: falló el audio"), "i2v")
+        self.assertEqual(APP_VERSION, "1.6.9")
         self.assertEqual(
             classify_log("Si Chrome ya cerró, Flow canceló el clip (no sigue en el servidor)."),
             "i2v",
         )
         self.assertEqual(classify_log("catálogo: 3 videos, 1 de este job; aún no hay mp4, sigo 800s"), "i2v")
-        self.assertEqual(APP_VERSION, "1.6.8")
         self.assertEqual(classify_log("gflow fail: crash"), "err")
         self.assertEqual(classify_log("LAN: escuchando listo"), "ok")
         self.assertEqual(classify_log("Cloudflare 404 aviso"), "warn")
@@ -504,6 +555,16 @@ class GflowPatchTests(unittest.TestCase):
         self.assertIn("no cierro Playwright", RUNNER_SOURCE)
         self.assertIn("status 4", RUNNER_SOURCE)
         self.assertIn("is_failed", RUNNER_SOURCE)
+        self.assertIn("audio falló", RUNNER_SOURCE)
+        self.assertIn("_harvest_video", RUNNER_SOURCE)
+        from gflow_patch import generation_status_flags
+
+        self.assertEqual(generation_status_flags(4, seen_running=False), (True, False))
+        self.assertEqual(generation_status_flags(4, seen_running=True), (False, True))
+        self.assertEqual(generation_status_flags(2, seen_running=False), (True, False))
+        self.assertEqual(generation_status_flags(3, seen_running=True), (False, False))
+        self.assertEqual(generation_status_flags(6, seen_running=False), (True, False))
+        self.assertEqual(generation_status_flags(1, seen_running=False), (True, False))
         garbled = (
             '{"event":"migrated.frame_uploaded","media_id":"a7e6cf36-1035-41ad-83f6-a9d5af9e04c3"}\n'
             'noise Exception\n"media_id": "d132711e-4501-48a5-859f-bc2fd8f5d341"\n'

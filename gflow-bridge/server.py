@@ -86,8 +86,29 @@ def _video_timeout_for(model: str) -> int:
     return VIDEO_TIMEOUT_LP if _is_lower_priority(model) else VIDEO_TIMEOUT
 
 
-def _recover_seconds_for(model: str) -> int:
-    return RECOVER_SECONDS_LP if _is_lower_priority(model) else RECOVER_SECONDS
+def _is_audio_fail(msg: str) -> bool:
+    """Flow rendered the clip then failed audio (status 4 after 2). No URL."""
+    low = (msg or "").lower()
+    return any(
+        n in low
+        for n in (
+            "falló el audio",
+            "fallo el audio",
+            "no se pudo generar un audio",
+            "status 4 después",
+            "status 4 despues",
+            "sin url firmada",
+            "audio falló",
+            "audio fallo",
+        )
+    )
+
+
+def _recover_seconds_for(model: str, msg: str = "") -> int:
+    base = RECOVER_SECONDS_LP if _is_lower_priority(model) else RECOVER_SECONDS
+    if _is_audio_fail(msg):
+        return min(base, 180)
+    return base
 
 
 def _lock_wait_for(kind: str, body: dict[str, Any] | None = None) -> int:
@@ -773,22 +794,37 @@ def _list_catalog_videos() -> list[dict[str, Any]]:
     return _catalog_video_rows(f"{out}\n{err}")
 
 
-def _download_catalog_video(media_id: str, dest_dir: Path) -> Path | None:
-    print(f"[gflow-bridge] descargo {media_id} de Flow (ya generado, 0 créditos)", flush=True)
+def _no_signed_url(text: str) -> bool:
+    low = (text or "").lower()
+    return "no signed media url" in low or "no signed media url for" in low
+
+
+def _download_catalog_video(media_id: str, dest_dir: Path) -> tuple[Path | None, str]:
+    print(f"[gflow-bridge] intento descargar {media_id} del catálogo Flow", flush=True)
     _code, out, err = _run_gflow_raw(
         ["data", "download", media_id, "--out", str(dest_dir)],
         420,
         output_dir=str(dest_dir),
     )
-    for obj in _iter_json_objects(f"{out}\n{err}"):
+    combined = f"{out}\n{err}"
+    for obj in _iter_json_objects(combined):
         for key in ("path", "local_path"):
             val = obj.get(key)
             if isinstance(val, str) and val.lower().endswith(".mp4"):
                 p = Path(val)
                 if p.exists() and p.stat().st_size > 20_000:
-                    return p
+                    return p, ""
     found = [p for p in dest_dir.glob("*.mp4") if p.stat().st_size > 20_000]
-    return max(found, key=lambda p: p.stat().st_mtime) if found else None
+    if found:
+        return max(found, key=lambda p: p.stat().st_mtime), ""
+    if _no_signed_url(combined):
+        print(
+            f"[gflow-bridge] {media_id}: Flow no da URL firmada "
+            "(el video se generó y luego falló el audio). No reintento este id.",
+            flush=True,
+        )
+        return None, "no_url"
+    return None, "error"
 
 
 def _recover_generated_mp4(
@@ -807,6 +843,22 @@ def _recover_generated_mp4(
     )
     deadline = time.time() + wait
     empty_rounds = 0
+    dead_ids: set[str] = set()
+
+    def _try_download(mid: str) -> Path | None:
+        if not mid or mid in dead_ids:
+            return None
+        try:
+            got, why = _download_catalog_video(mid, dest.parent)
+        except Exception as err:
+            print(f"[gflow-bridge] download {mid}: {err}", flush=True)
+            return None
+        if got is not None:
+            return got
+        if why == "no_url":
+            dead_ids.add(mid)
+        return None
+
     while True:
         if ABORT_REQUESTED:
             print("[gflow-bridge] abort: dejo de esperar el clip", flush=True)
@@ -816,15 +868,13 @@ def _recover_generated_mp4(
             print(f"[gflow-bridge] I2V mp4 listo {found} ({found.stat().st_size} bytes)", flush=True)
             return found
         for mid in ids[-2:]:
-            try:
-                got = _download_catalog_video(mid, dest.parent)
-                if got is not None:
-                    return got
-            except Exception as err:
-                print(f"[gflow-bridge] download {mid}: {err}", flush=True)
+            got = _try_download(mid)
+            if got is not None:
+                return got
         try:
             rows = _list_catalog_videos()
             pending = 0
+            live_pending = 0
             for row in rows:
                 if not _row_is_recent(row, since):
                     continue
@@ -839,11 +889,19 @@ def _recover_generated_mp4(
                     except OSError:
                         pass
                 mid = str(row.get("media_id") or row.get("id") or "").strip()
-                if not mid:
+                if not mid or mid in dead_ids:
                     continue
-                got = _download_catalog_video(mid, dest.parent)
+                live_pending += 1
+                got = _try_download(mid)
                 if got is not None:
                     return got
+            if dead_ids and live_pending == 0:
+                print(
+                    "[gflow-bridge] el clip está en Flow pero no hay URL "
+                    "(falló el audio). Dejo de descargar.",
+                    flush=True,
+                )
+                return None
             if pending == 0:
                 empty_rounds += 1
                 if KEPT_CHROME:
@@ -982,7 +1040,10 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                 msg = str(err)
                 recovered = (
                     _recover_generated_mp4(
-                        dest, started, recover_s, prefer_ids=_media_ids_from_text(msg)
+                        dest,
+                        started,
+                        _recover_seconds_for(model, msg),
+                        prefer_ids=_media_ids_from_text(msg),
                     )
                     if _should_wait_for_clip(msg, model, mode)
                     else None
@@ -1004,7 +1065,10 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                         miss2 = str(err2)
                         recovered2 = (
                             _recover_generated_mp4(
-                                dest, started, recover_s, prefer_ids=_media_ids_from_text(miss2)
+                                dest,
+                                started,
+                                _recover_seconds_for(model, miss2),
+                                prefer_ids=_media_ids_from_text(miss2),
                             )
                             if _should_wait_for_clip(miss2, model, mode)
                             else None
@@ -1044,7 +1108,7 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
             waited = _recover_generated_mp4(
                 dest,
                 started,
-                recover_s,
+                _recover_seconds_for(model, str(payload)),
                 prefer_ids=_media_ids_from_text(str(payload)),
             )
             if waited is not None:

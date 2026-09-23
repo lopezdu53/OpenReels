@@ -22,6 +22,32 @@ SUBMIT_REPLY_S = float(os.environ.get("GFLOW_BRIDGE_SUBMIT_REPLY_S", "3600"))
 RESULT_URL_GRACE_S = float(os.environ.get("GFLOW_BRIDGE_RESULT_URL_GRACE_S", "1200"))
 LABS_SUBMIT_STAGE_S = float(os.environ.get("GFLOW_BRIDGE_LABS_SUBMIT_S", "3600"))
 
+# Flow numeric statuses (gflow_cli.api.transports.batchexecute).
+STATUS_RUNNING = 2
+STATUS_DONE = 3
+STATUS_SUBMITTED = 6
+def generation_status_flags(status: int | None, *, seen_running: bool) -> tuple[bool, bool]:
+    """Return (is_running, is_failed) for one Flow generation status.
+
+    gflow 0.79 only treats 6/2 as in-flight and 3 as done. Lower Priority
+    reports 4 (sometimes 1/5) *before* any 2 — that is the queue. The same
+    4 *after* a 2 is Flow failing audio on a clip that already rendered;
+    treating that 4 as queue made the Puente wait 3600s then hammer download.
+    """
+    if status == STATUS_DONE:
+        return False, False
+    if status == STATUS_RUNNING:
+        return True, False
+    if status == STATUS_SUBMITTED or status in (1, 5):
+        return True, False
+    if status == 4:
+        if seen_running:
+            return False, True
+        return True, False
+    if status is None:
+        return False, False
+    return False, True
+
 _COMPOSER = "gflow_cli/api/transports/migrated_composer.py"
 _LABS_VIDEO = "gflow_cli/api/transports/ui_automation_video.py"
 
@@ -29,8 +55,11 @@ RUNNER_SOURCE = r'''#!/usr/bin/env python3
 """In-memory gflow patches: wait for LP and do not close Chrome on fail."""
 from __future__ import annotations
 
+import asyncio
+import base64
 import os
 import sys
+from pathlib import Path
 
 
 def _wait_s() -> float:
@@ -41,51 +70,203 @@ def _wait_s() -> float:
     )
 
 
+def _status_flags(status, seen_running: bool) -> tuple[bool, bool]:
+    if status == 3:
+        return False, False
+    if status == 2:
+        return True, False
+    if status == 6 or status in (1, 5):
+        return True, False
+    if status == 4:
+        if seen_running:
+            return False, True
+        return True, False
+    if status is None:
+        return False, False
+    return False, True
+
+
+async def _page_video_srcs(page) -> list[str]:
+    try:
+        raw = await page.evaluate(
+            """() => {
+              const out = [];
+              for (const v of document.querySelectorAll("video")) {
+                if (v.currentSrc) out.push(v.currentSrc);
+                if (v.src) out.push(v.src);
+                for (const s of v.querySelectorAll("source")) {
+                  if (s.src) out.push(s.src);
+                }
+              }
+              return out;
+            }"""
+        )
+    except Exception:
+        return []
+    return [u for u in (raw or []) if isinstance(u, str) and u]
+
+
+async def _save_blob_mp4(page, blob_url: str, dest: Path) -> bool:
+    try:
+        data = await page.evaluate(
+            """async (u) => {
+              const r = await fetch(u);
+              const buf = await r.arrayBuffer();
+              const bytes = new Uint8Array(buf);
+              let s = "";
+              const chunk = 0x8000;
+              for (let i = 0; i < bytes.length; i += chunk) {
+                s += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+              }
+              return btoa(s);
+            }""",
+            blob_url,
+        )
+        body = base64.b64decode(data or "")
+    except Exception as err:
+        print(f"[gflow-bridge] blob mp4: {err}", flush=True)
+        return False
+    if len(body) > 20_000 and body[4:8] == b"ftyp":
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(body)
+        print(f"[gflow-bridge] guardé mp4 desde Chrome ({len(body)} bytes) {dest}", flush=True)
+        return True
+    return False
+
+
+async def _harvest_video(page, media_id: str) -> str | None:
+    found: list[str] = []
+
+    def on_resp(resp) -> None:
+        url = str(getattr(resp, "url", "") or "")
+        low = url.lower()
+        if "flow-content.google" in low or low.endswith(".mp4"):
+            found.append(url)
+
+    page.on("response", on_resp)
+    try:
+        for _ in range(12):
+            srcs = await _page_video_srcs(page)
+            for src in srcs:
+                if src.startswith("https://") or src.startswith("blob:"):
+                    return src
+            if found:
+                return found[0]
+            await asyncio.sleep(5)
+    finally:
+        try:
+            page.remove_listener("response", on_resp)
+        except Exception:
+            pass
+    srcs = await _page_video_srcs(page)
+    for src in srcs:
+        if src.startswith("https://") or src.startswith("blob:"):
+            return src
+    return found[0] if found else None
+
+
 def _patch() -> None:
     submit = _wait_s()
     grace = float(os.environ.get("GFLOW_BRIDGE_RESULT_URL_GRACE_S", "1200"))
     keep = os.environ.get("GFLOW_BRIDGE_KEEP_CHROME", "1") == "1"
+    seen_run: dict[str, bool] = {}
+    hold_chrome = {"value": keep}
     try:
         from gflow_cli.api.transports import batchexecute as be
 
-        # gflow only knows 6=submitted, 2=running, 3=done. Lower Priority
-        # reports 4 (and sometimes 1/5) while still queued; treating 4 as
-        # fail kills the clip at ~24% / ~35s.
-        pending = {1, 4, 5, be.STATUS_RUNNING, be.STATUS_SUBMITTED}
-
         def _is_running(self) -> bool:
-            return self.status in pending
+            if self.status == be.STATUS_RUNNING:
+                mid = getattr(self, "media_id", "") or ""
+                if mid:
+                    seen_run[mid] = True
+            running, _failed = _status_flags(self.status, seen_run.get(getattr(self, "media_id", "") or "", False))
+            return running
 
         def _is_failed(self) -> bool:
-            return (
-                self.status is not None
-                and self.status != be.STATUS_DONE
-                and self.status not in pending
-            )
+            _running, failed = _status_flags(self.status, seen_run.get(getattr(self, "media_id", "") or "", False))
+            return failed
 
         be.GenerationRecord.is_running = property(_is_running)
         be.GenerationRecord.is_failed = property(_is_failed)
         print(
-            f"[gflow-bridge] status 4/1/5 = en cola (sigo esperando). running={sorted(pending)}",
+            "[gflow-bridge] status 4 = en cola solo ANTES de generar; "
+            "si ya hubo status 2, 4 = audio falló (no espero 60 min)",
             flush=True,
         )
     except Exception as err:
         print(f"[gflow-bridge] runtime patch status: {err}", flush=True)
     try:
         import gflow_cli.api.transports.migrated_composer as mc
+        from gflow_cli.api.transports import batchexecute as be
 
         mc.SUBMIT_REPLY_BUDGET_S = submit
         mc.RESULT_URL_GRACE_S = grace
         orig_sub = mc.MigratedComposer.submit_and_observe
+        orig_dl = mc.MigratedComposer.download
 
         async def _submit_wait(self, page, *args, **kwargs):
             wait = _wait_s()
             kwargs["poll_timeout_s"] = wait
             mc.SUBMIT_REPLY_BUDGET_S = wait
             print(f"[gflow-bridge] submit_and_observe wait={wait:.0f}s", flush=True)
-            return await orig_sub(self, page, *args, **kwargs)
+            rec = await orig_sub(self, page, *args, **kwargs)
+            mid = getattr(rec, "media_id", "") or ""
+            if rec is not None and rec.status == 4 and seen_run.get(mid):
+                print(
+                    "[gflow-bridge] Flow status 4 después del video: "
+                    "falló el audio. Busco el mp4 en Chrome ~60s…",
+                    flush=True,
+                )
+                harvested = await _harvest_video(page, mid)
+                out_dir = Path(os.environ.get("GFLOW_CLI_OUTPUT_DIR") or os.getcwd())
+                if harvested and harvested.startswith("blob:"):
+                    dest = out_dir / "out.mp4"
+                    if await _save_blob_mp4(page, harvested, dest):
+                        hold_chrome["value"] = False
+                        return be.GenerationRecord(
+                            workflow_id=rec.workflow_id,
+                            project_id=rec.project_id,
+                            media_id=rec.media_id,
+                            status=be.STATUS_DONE,
+                            video_url=rec.video_url,
+                            poster_url=rec.poster_url,
+                            size_bytes=dest.stat().st_size,
+                        )
+                if harvested and harvested.startswith("https://"):
+                    print(
+                        f"[gflow-bridge] encontré URL del video tras fallo de audio: {harvested[:80]}",
+                        flush=True,
+                    )
+                    hold_chrome["value"] = False
+                    return be.GenerationRecord(
+                        workflow_id=rec.workflow_id,
+                        project_id=rec.project_id,
+                        media_id=rec.media_id,
+                        status=be.STATUS_DONE,
+                        video_url=harvested,
+                        poster_url=rec.poster_url,
+                        size_bytes=rec.size_bytes,
+                    )
+                print(
+                    "[gflow-bridge] no hay URL del mp4: Flow falló el audio. "
+                    "No espero 60 min ni reintento el catálogo 20 min.",
+                    flush=True,
+                )
+                hold_chrome["value"] = False
+            elif rec is not None and rec.status == be.STATUS_DONE:
+                hold_chrome["value"] = False
+            return rec
+
+        async def _download_existing(self, page, record, out_dir):
+            dest_dir = Path(out_dir or os.environ.get("GFLOW_CLI_OUTPUT_DIR") or os.getcwd())
+            ready = dest_dir / "out.mp4"
+            if ready.is_file() and ready.stat().st_size > 20_000:
+                print(f"[gflow-bridge] mp4 ya estaba en {ready}", flush=True)
+                return ready
+            return await orig_dl(self, page, record, out_dir)
 
         mc.MigratedComposer.submit_and_observe = _submit_wait
+        mc.MigratedComposer.download = _download_existing
         print(
             f"[gflow-bridge] runtime ACK={mc.SUBMIT_REPLY_BUDGET_S:.0f}s "
             f"grace={mc.RESULT_URL_GRACE_S:.0f}s keep_chrome={keep}",
@@ -116,7 +297,7 @@ def _patch() -> None:
         orig_close = FlowApiClient._close_browser_resources
 
         async def _close_keep(self, *args, **kwargs):
-            if os.environ.get("GFLOW_BRIDGE_KEEP_CHROME") == "1":
+            if os.environ.get("GFLOW_BRIDGE_KEEP_CHROME") == "1" and hold_chrome["value"]:
                 print("[gflow-bridge] keep Chrome: no cierro Playwright", flush=True)
                 return None
             return await orig_close(self, *args, **kwargs)
@@ -130,7 +311,7 @@ def _patch() -> None:
         orig_td = UiAutomationTransport.teardown
 
         async def _td_keep(self, *args, **kwargs):
-            if os.environ.get("GFLOW_BRIDGE_KEEP_CHROME") == "1":
+            if os.environ.get("GFLOW_BRIDGE_KEEP_CHROME") == "1" and hold_chrome["value"]:
                 print("[gflow-bridge] keep Chrome: no ui teardown", flush=True)
                 return None
             return await orig_td(self, *args, **kwargs)

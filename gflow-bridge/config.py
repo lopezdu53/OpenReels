@@ -65,8 +65,6 @@ def save_config(cfg: dict) -> None:
 
 def classify_log(line: str) -> str:
     text = line.lower()
-    if any(w in text for w in ("error", "fail", "falló", "fallo", "401", "crash", "traceback", "inválido")):
-        return "err"
     if any(
         w in text
         for w in (
@@ -88,11 +86,17 @@ def classify_log(line: str) -> str:
             "submit_and_observe",
             "status 4",
             "en cola",
+            "falló el audio",
+            "fallo el audio",
+            "audio falló",
+            "sin url firmada",
             "flow canceló",
             "flow cancelo",
         )
     ):
         return "i2v"
+    if any(w in text for w in ("error", "fail", "falló", "fallo", "401", "crash", "traceback", "inválido")):
+        return "err"
     if any(w in text for w in ("warn", "aviso", "404", "sin mp4", "no se guardó")):
         return "warn"
     if any(w in text for w in ("conectado", "listo", "ok", "mp4 listo", "sesión lista", "protegido")):
