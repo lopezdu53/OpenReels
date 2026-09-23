@@ -40,7 +40,7 @@ Desde la oficina elige **Fuera de casa**. Chrome + Flow van **en ese PC**. Cloud
 
 ## I2V (Nuevo Flow)
 
-gflow Imagen (0.73+) + Veo I2V en serie. El puente pulsa **Add to prompt**, nombra stills `or-i2v-*.png`, y **espera el mp4**. gflow 0.79 cierra Chrome al fallar el ACK (~24–26%) y Flow **cancela** el clip. El Puente lanza gflow con Python, espera el ACK 60 min y **no deja que Playwright cierre Chrome** mientras el clip sigue en cola (`keep_chrome=1`). Status **4 antes de generar** = cola LP; **4 después de status 2** = Flow falló el audio: busca el mp4 en Chrome y no espera 60+20 min. En el log: `status 4 = en cola solo ANTES de generar`. En Veo no pases `--duration`.
+gflow Imagen (0.73+) + Veo I2V en serie. El puente pulsa **Add to prompt**, nombra stills `or-i2v-*.png`, y **espera el mp4**. gflow 0.79 cierra Chrome al fallar el ACK (~24–26%) y Flow **cancela** el clip. El Puente lanza gflow con Python, espera el ACK 60 min y **no deja que Playwright cierre Chrome** mientras el clip sigue en cola (`keep_chrome=1`). Status **4 antes de generar** = cola LP; **4 después de status 2** = Flow falló el audio: busca el mp4 en Chrome y no espera 60+20 min. En el log: `status 4 = en cola solo ANTES de generar`. Si este Gmail **no tiene Lower Priority** en el menú de Flow (`is not offered`), el puente **reintenta al momento con Veo 3.1 Lite** y no espera el catálogo (no se envió el clip). En Veo no pases `--duration`.
 
 Si no estás en casa y el puente está apagado, el job cae a fotos (Ken Burns) en vez de colgar 15 veces el I2V.
 

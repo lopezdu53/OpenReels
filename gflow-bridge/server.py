@@ -58,7 +58,24 @@ _LP_MODELS = {
     "veo-3.1-lite-low-priority",
     "veo-lite-low-priority",
     "veo-lp",
+    "veo_3_1_lite_lower_priority",
 }
+# gflow UI labels → CLI ids. Order matters: LP before generic Lite.
+_OFFERED_TO_CLI = (
+    ("lower priority", "veo-lite-lp"),
+    ("low-priority", "veo-lite-lp"),
+    ("low priority", "veo-lite-lp"),
+    ("veo 3.1 - lite", "veo-lite"),
+    ("veo 3.1 lite", "veo-lite"),
+    ("veo 3.1 - fast", "veo-fast"),
+    ("veo 3.1 fast", "veo-fast"),
+    ("veo 3.1 - quality", "veo-quality"),
+    ("veo 3.1 quality", "veo-quality"),
+    ("omni 1.1 flash", "omni-flash"),
+    ("omni-flash", "omni-flash"),
+)
+# Account already told us LP (etc.) is missing — skip the failed first submit.
+_MODEL_OVERRIDE: dict[str, str] = {}
 STILL_PREFIX = "or-i2v-"
 ADD_TO_PROMPT_NEEDLES = (
     "add to prompt",
@@ -222,8 +239,61 @@ def _should_fallback_t2v(msg: str) -> bool:
     )
 
 
+def _is_model_not_offered(msg: str) -> bool:
+    """gflow never clicked Create — this Flow host has no such video model."""
+    low = (msg or "").lower()
+    return "is not offered" in low or (
+        "configurationerror" in low.replace(" ", "") and "offered:" in low
+    )
+
+
+def _offered_cli_models(msg: str) -> list[str]:
+    low = (msg or "").lower().replace("volume_up", "")
+    idx = low.find("offered:")
+    if idx < 0:
+        return []
+    tail = low[idx + 8 :]
+    found: list[str] = []
+    for needle, cli in _OFFERED_TO_CLI:
+        if needle in tail and cli not in found:
+            found.append(cli)
+    return found
+
+
+def _fallback_video_model(requested: str, msg: str) -> str | None:
+    """Closest CLI model this Gmail actually has. LP → Veo 3.1 Lite."""
+    if not _is_model_not_offered(msg):
+        return None
+    offered = _offered_cli_models(msg)
+    req = str(requested or "").strip().lower()
+    if req in offered:
+        return None
+    prefer = ("veo-lite", "veo-fast", "veo-quality", "omni-flash")
+    pool = offered or list(prefer)
+    for cli in prefer:
+        if cli in pool and cli != req:
+            return cli
+    for cli in pool:
+        if cli != req:
+            return cli
+    return None
+
+
+def _cli_video_model(requested: str) -> str:
+    key = str(requested or "").strip().lower()
+    return _MODEL_OVERRIDE.get(key, requested)
+
+
+def _remember_model_fallback(requested: str, used: str) -> None:
+    key = str(requested or "").strip().lower()
+    if key and used and used != requested:
+        _MODEL_OVERRIDE[key] = used
+
+
 def _is_hard_video_fail(msg: str) -> bool:
     low = msg.lower()
+    if _is_model_not_offered(msg):
+        return True
     return any(
         n in low
         for n in (
@@ -235,6 +305,7 @@ def _is_hard_video_fail(msg: str) -> bool:
             "browserengineunavailable",
             "no se encontró gflow",
             "prompt requerido",
+            "configurationerror",
         )
     )
 
@@ -269,7 +340,7 @@ def _is_submit_miss(msg: str) -> bool:
 
 def _should_wait_for_clip(msg: str, model: str, mode: str) -> bool:
     """LP / submit-miss: keep waiting. Do not abort because an info log arrived first."""
-    if _is_hard_video_fail(msg):
+    if _is_hard_video_fail(msg) or _is_model_not_offered(msg):
         return False
     if _is_lower_priority(model):
         return True
@@ -997,7 +1068,13 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
     still = _decode_b64(body.get("imagePng") if isinstance(body.get("imagePng"), str) else None)
     if mode == "i2v" and (not still or len(still) < 80):
         raise ValueError("imagePng requerido (still PNG en base64)")
-    model = str(body.get("model") or "veo-lite")
+    requested_model = str(body.get("model") or "veo-lite")
+    model = _cli_video_model(requested_model)
+    if model != requested_model:
+        print(
+            f"[gflow-bridge] esta cuenta no ofrece {requested_model}; uso {model}",
+            flush=True,
+        )
     aspect = "9:16" if body.get("aspect") == "9:16" else "16:9"
     duration: int | None = None
     if str(model).strip().lower() == "omni-flash" and body.get("durationSeconds") is not None:
@@ -1034,34 +1111,69 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
         if mode == "i2v":
             _dismiss_stale_frame_picker()
         with PickerConfirmWatch(still_path.name, enabled=mode == "i2v"):
-            try:
-                payload = _run_gflow(args, video_timeout, output_dir=str(work))
-            except Exception as err:
-                msg = str(err)
-                recovered = (
-                    _recover_generated_mp4(
-                        dest,
-                        started,
-                        _recover_seconds_for(model, msg),
-                        prefer_ids=_media_ids_from_text(msg),
+            payload: dict[str, Any] | None = None
+            last_err: Exception | None = None
+            for attempt in range(2):
+                try:
+                    payload = _run_gflow(args, video_timeout, output_dir=str(work))
+                    last_err = None
+                    break
+                except Exception as err:
+                    last_err = err
+                    msg = str(err)
+                    alt = _fallback_video_model(model, msg)
+                    if alt and attempt == 0:
+                        print(
+                            f"[gflow-bridge] Flow no ofrece '{model}' en este Gmail "
+                            f"(offered: {', '.join(_offered_cli_models(msg)) or alt}). "
+                            f"Reintento YA con {alt} — no espero el catálogo (no se envió el clip).",
+                            flush=True,
+                        )
+                        _remember_model_fallback(requested_model, alt)
+                        model = alt
+                        video_timeout = _video_timeout_for(model)
+                        recover_s = _recover_seconds_for(model)
+                        args = _video_cli_args(
+                            mode=mode,
+                            prompt=prompt,
+                            model=model,
+                            duration=duration if model == "omni-flash" else None,
+                            aspect=aspect,
+                            dest=str(dest),
+                            still_path=str(still_path) if mode == "i2v" else None,
+                        )
+                        continue
+                    recovered = (
+                        _recover_generated_mp4(
+                            dest,
+                            started,
+                            _recover_seconds_for(model, msg),
+                            prefer_ids=_media_ids_from_text(msg),
+                        )
+                        if _should_wait_for_clip(msg, model, mode)
+                        else None
                     )
-                    if _should_wait_for_clip(msg, model, mode)
-                    else None
-                )
-                if recovered is not None:
-                    payload = {"status": "ok", "local_path": str(recovered)}
-                elif ABORT_REQUESTED:
-                    raise RuntimeError("detenido por el usuario")
-                elif mode != "i2v" or not _should_fallback_t2v(msg):
-                    raise
-                else:
-                    print(f"[gflow-bridge] I2V picker stuck; wait {SETTLE_SECONDS}s and retry I2V: {err}", flush=True)
+                    if recovered is not None:
+                        payload = {"status": "ok", "local_path": str(recovered)}
+                        last_err = None
+                        break
+                    if ABORT_REQUESTED:
+                        raise RuntimeError("detenido por el usuario") from err
+                    if mode != "i2v" or not _should_fallback_t2v(msg):
+                        raise
+                    print(
+                        f"[gflow-bridge] I2V picker stuck; wait {SETTLE_SECONDS}s and retry I2V: {err}",
+                        flush=True,
+                    )
                     _dismiss_stale_frame_picker()
                     if SETTLE_SECONDS > 0:
                         time.sleep(SETTLE_SECONDS)
                     try:
                         payload = _run_gflow(args, video_timeout, output_dir=str(work))
+                        last_err = None
+                        break
                     except Exception as err2:
+                        last_err = err2
                         miss2 = str(err2)
                         recovered2 = (
                             _recover_generated_mp4(
@@ -1075,25 +1187,33 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                         )
                         if recovered2 is not None:
                             payload = {"status": "ok", "local_path": str(recovered2)}
-                        elif ABORT_REQUESTED:
-                            raise RuntimeError("detenido por el usuario")
-                        elif not I2V_FALLBACK_T2V:
+                            last_err = None
+                            break
+                        if ABORT_REQUESTED:
+                            raise RuntimeError("detenido por el usuario") from err2
+                        if not I2V_FALLBACK_T2V:
                             raise
-                        else:
-                            print(f"[gflow-bridge] I2V retry failed; t2v fallback (credits): {err2}", flush=True)
-                            payload = _run_gflow(
-                                _video_cli_args(
-                                    mode="t2v",
-                                    prompt=prompt,
-                                    model=model,
-                                    duration=duration,
-                                    aspect=aspect,
-                                    dest=str(dest),
-                                    still_path=None,
-                                ),
-                                video_timeout,
-                                output_dir=str(work),
-                            )
+                        print(
+                            f"[gflow-bridge] I2V retry failed; t2v fallback (credits): {err2}",
+                            flush=True,
+                        )
+                        payload = _run_gflow(
+                            _video_cli_args(
+                                mode="t2v",
+                                prompt=prompt,
+                                model=model,
+                                duration=duration if model == "omni-flash" else None,
+                                aspect=aspect,
+                                dest=str(dest),
+                                still_path=None,
+                            ),
+                            video_timeout,
+                            output_dir=str(work),
+                        )
+                        last_err = None
+                        break
+            if payload is None:
+                raise last_err or RuntimeError("gflow video no devolvió resultado")
         local = dest if dest.exists() and dest.stat().st_size > 20_000 else None
         if local is None and isinstance(payload.get("local_path"), str):
             p = Path(str(payload["local_path"]))

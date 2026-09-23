@@ -90,6 +90,8 @@ def classify_log(line: str) -> str:
             "fallo el audio",
             "audio falló",
             "sin url firmada",
+            "no ofrece",
+            "reintento ya",
             "flow canceló",
             "flow cancelo",
         )

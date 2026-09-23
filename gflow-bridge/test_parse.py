@@ -28,6 +28,9 @@ from server import (
     _recover_generated_mp4,
     _row_is_recent,
     _should_wait_for_clip,
+    _fallback_video_model,
+    _is_model_not_offered,
+    _offered_cli_models,
     _is_audio_fail,
     _no_signed_url,
     _recover_seconds_for,
@@ -222,6 +225,24 @@ class VideoModeTests(unittest.TestCase):
         )
         self.assertTrue(_is_submit_miss("copy_count stayed 0 after credits were spent"))
         self.assertTrue(_should_wait_for_clip("WireFormatError grace window", "veo-lite-lp", "i2v"))
+
+    def test_lp_missing_on_account_falls_back_to_veo_lite(self):
+        msg = (
+            "ConfigurationError — model 'veo_3_1_lite_lower_priority' is not offered "
+            "on this account's migrated Flow host; offered: volume_upOmni 1.1 Flash, "
+            "volume_upVeo 3.1 - Lite, volume_upVeo 3.1 - Fast, volume_upVeo 3.1 - Quality "
+            "— Pass --model with one of the offered names, or omit it."
+        )
+        self.assertTrue(_is_model_not_offered(msg))
+        self.assertEqual(
+            _offered_cli_models(msg),
+            ["veo-lite", "veo-fast", "veo-quality", "omni-flash"],
+        )
+        self.assertEqual(_fallback_video_model("veo-lite-lp", msg), "veo-lite")
+        self.assertEqual(_fallback_video_model("veo_3_1_lite_lower_priority", msg), "veo-lite")
+        self.assertIsNone(_fallback_video_model("veo-lite", "gflow exit 1 after progress log"))
+        self.assertFalse(_should_wait_for_clip(msg, "veo-lite-lp", "i2v"))
+        self.assertFalse(_should_wait_for_clip(msg, "veo-lite", "i2v"))
 
     def test_catalog_paths_from_list(self):
         import os
@@ -509,7 +530,13 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
         self.assertEqual(classify_log("Flow status 4 después del video: falló el audio"), "i2v")
-        self.assertEqual(APP_VERSION, "1.6.9")
+        self.assertEqual(APP_VERSION, "1.7.0")
+        self.assertEqual(
+            classify_log(
+                "Flow no ofrece 'veo-lite-lp' en este Gmail. Reintento YA con veo-lite"
+            ),
+            "i2v",
+        )
         self.assertEqual(
             classify_log("Si Chrome ya cerró, Flow canceló el clip (no sigue en el servidor)."),
             "i2v",
