@@ -47,6 +47,11 @@ from server import (
     _is_hard_video_fail,
     _is_unusual_activity,
     _friendly_unusual_activity,
+    _friendly_image_error,
+    _is_host_migrated,
+    _flow_host_env,
+    _migrated_image_model,
+    _migrated_image_aspect,
     _pace_between_jobs,
     JOB_GAP_S,
 )
@@ -159,6 +164,25 @@ class VideoModeTests(unittest.TestCase):
         self.assertTrue(_is_hard_video_fail(blocked))
         self.assertFalse(_is_image_wire_miss(blocked))
         self.assertIn("actividad inusual", _friendly_unusual_activity())
+        migrated = (
+            "FlowHostMigratedError — Flow handed this session to flow.google.com "
+            "— the origin Google is migrating accounts onto"
+        )
+        self.assertTrue(_is_host_migrated(migrated))
+        self.assertFalse(_is_image_wire_miss(migrated))
+        self.assertIn("flow.google.com", _friendly_image_error(migrated))
+        self.assertEqual(_migrated_image_model("image4"), "nano2")
+        self.assertEqual(_migrated_image_model("nano-lite"), "nano2")
+        self.assertEqual(_migrated_image_model("nano-pro"), "nano-pro")
+        self.assertEqual(_migrated_image_aspect("3:4"), "9:16")
+        self.assertEqual(_migrated_image_aspect("9:16"), "9:16")
+        import os
+        from unittest.mock import patch
+
+        with patch.dict(os.environ, {"GFLOW_CLI_FLOW_HOST": "labs.google"}, clear=False):
+            self.assertEqual(_flow_host_env(), "auto")
+        with patch.dict(os.environ, {"GFLOW_CLI_FLOW_HOST": "flow.google.com"}, clear=False):
+            self.assertEqual(_flow_host_env(), "flow.google.com")
         import server as srv
 
         srv._LAST_JOB_END = 0.0
@@ -603,7 +627,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
         self.assertEqual(classify_log("Flow status 4 después del video: falló el audio"), "i2v")
-        self.assertEqual(APP_VERSION, "1.7.5")
+        self.assertEqual(APP_VERSION, "1.7.6")
         self.assertEqual(
             classify_log(
                 "Flow no ofrece 'veo-lite-lp' en este Gmail. Reintento YA con veo-lite"

@@ -1,7 +1,12 @@
 export const GFLOW_IMAGE_MODELS = [
   { id: "nano-pro", label: "Nano Banana Pro", note: "mejor palito", credits: 0 },
   { id: "nano2", label: "Nano Banana 2", note: "equilibrado", credits: 0 },
-  { id: "nano-lite", label: "Nano Banana 2 Lite", note: "rápido", credits: 0 },
+  {
+    id: "nano-lite",
+    label: "Nano Banana 2 Lite",
+    note: "rápido · en Flow migrado = Nano 2 (image4 no existe)",
+    credits: 0,
+  },
 ] as const;
 
 export const GFLOW_VIDEO_MODELS = [
@@ -72,10 +77,14 @@ export function resolveGflowImageModel(id?: string): string {
   return GFLOW_IMAGE_MODELS.some((m) => m.id === aliased) ? aliased : DEFAULT_GFLOW_IMAGE_MODEL;
 }
 
-/** gflow-cli still accepts image4 for the lite slot. */
+/**
+ * Migrated flow.google.com only offers NARWHAL (nano2) and GEM_PIX_2 (nano-pro).
+ * Sending image4 / Imagen 4 makes gflow take the labs driver, then
+ * FlowHostMigratedError when the account is already handed off.
+ */
 export function gflowImageCliId(id?: string): string {
   const resolved = resolveGflowImageModel(id);
-  return resolved === "nano-lite" ? "image4" : resolved;
+  return resolved === "nano-lite" ? "nano2" : resolved;
 }
 
 export function resolveGflowVideoModel(id?: string): (typeof GFLOW_VIDEO_MODELS)[number] {
