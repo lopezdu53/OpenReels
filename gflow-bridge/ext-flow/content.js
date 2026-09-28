@@ -108,13 +108,38 @@
   }
 
   function generateBtn() {
-    const labeled = deepAll().find((el) => {
+    const nodes = deepAll().filter((el) => {
       if (!visible(el)) return false;
-      const a = `${el.getAttribute("aria-label") || ""} ${textOf(el)}`.toLowerCase();
-      return /^(generar|generate|create)$/i.test(textOf(el).trim()) || /generar|generate|create/i.test(el.getAttribute("aria-label") || "");
+      const tag = el.tagName;
+      const role = el.getAttribute("role") || "";
+      return tag === "BUTTON" || role === "button";
     });
-    if (labeled) return labeled;
-    return clickable(["generar", "generate", "create"], { exact: true, maxLen: 24 });
+    for (const el of nodes) {
+      const label = `${el.getAttribute("aria-label") || ""} ${el.getAttribute("title") || ""}`.toLowerCase();
+      const t = textOf(el).toLowerCase().replace(/\s+/g, " ").trim();
+      if (/cerrar|close|dismiss|cancel/.test(label) || t === "×" || t === "x") continue;
+      if (/generar|generate|create|submit|enviar|arrow_forward|send/.test(label)) return el;
+      if (/^(generar|generate|create|arrow_forward|send)$/.test(t)) return el;
+    }
+    const icons = nodes.filter((el) => {
+      const t = textOf(el).toLowerCase();
+      const html = (el.innerHTML || "").toLowerCase();
+      return /arrow_forward|arrow-forward|send/.test(t) || /arrow_forward|send/.test(html);
+    });
+    if (icons[0]) return icons[0];
+    const rounds = nodes.filter((el) => {
+      const t = textOf(el).replace(/\s+/g, "");
+      if (t.length > 8) return false;
+      if (/agente|agent|nano|banana|veo|omni|\+|x1|×/i.test(t)) return false;
+      const b = el.getBoundingClientRect();
+      if (b.top < window.innerHeight * 0.5) return false;
+      if (b.width < 28 || b.height < 28 || b.width > 80 || b.height > 80) return false;
+      const radius = parseFloat(getComputedStyle(el).borderRadius) || 0;
+      const round = radius >= Math.min(b.width, b.height) * 0.3 || Math.abs(b.width - b.height) < 10;
+      return round;
+    });
+    rounds.sort((a, b) => b.getBoundingClientRect().left - a.getBoundingClientRect().left);
+    return rounds[0] || null;
   }
 
   function fileInput() {
@@ -262,9 +287,21 @@
       if (btn && !btn.disabled) break;
       await wait(0.5);
     }
-    if (!btn) throw new Error("no encuentro Generar en Flow");
-    btn.click();
-    await wait(1);
+    if (btn && !btn.disabled) {
+      btn.click();
+      await wait(1);
+      return;
+    }
+    const prompt = promptEl();
+    if (prompt) {
+      prompt.focus();
+      prompt.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }),
+      );
+      await wait(1);
+      return;
+    }
+    throw new Error("no encuentro el botón de flecha (Generar) en Flow");
   }
 
   async function waitMedia(kind, before, timeoutS) {
