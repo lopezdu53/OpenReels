@@ -651,7 +651,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
         self.assertEqual(classify_log("Flow status 4 después del video: falló el audio"), "i2v")
-        self.assertEqual(APP_VERSION, "1.7.9")
+        self.assertEqual(APP_VERSION, "1.8.0")
         self.assertEqual(
             classify_log(
                 "Flow no ofrece 'veo-lite-lp' en este Gmail. Reintento YA con veo-lite"
@@ -678,6 +678,8 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertTrue(cfg["keepAwake"])
         self.assertIn("bridgeId", cfg)
         self.assertIn("bridgeName", cfg)
+        self.assertEqual(cfg.get("engine"), "gflow")
+        self.assertEqual(classify_log("extensión Flow: image abc modelo=nano2"), "i2v")
 
 
 class GflowPatchTests(unittest.TestCase):
@@ -743,6 +745,66 @@ class GflowPatchTests(unittest.TestCase):
         cmd = gflow_exec_command("/no/such/gflow.exe", ["video", "i2v", "prompt"])
         self.assertEqual(cmd[0], "/no/such/gflow.exe")
         self.assertIn("--json", cmd)
+
+
+class ExtEngineTests(unittest.TestCase):
+    def setUp(self):
+        import server as srv
+
+        srv.reset_ext_state()
+        srv.ENGINE = "gflow"
+        srv.ABORT_REQUESTED = False
+
+    def tearDown(self):
+        import server as srv
+
+        srv.reset_ext_state()
+        srv.ENGINE = "gflow"
+        srv.ABORT_REQUESTED = False
+
+    def test_resolve_engine(self):
+        from server import engine_is_ext, resolve_engine
+
+        self.assertEqual(resolve_engine("gflow-cli"), "gflow")
+        self.assertEqual(resolve_engine("extension"), "ext")
+        self.assertTrue(engine_is_ext("chrome-ext"))
+        self.assertFalse(engine_is_ext("gflow"))
+
+    def test_poll_complete_image_roundtrip(self):
+        import base64
+        import threading
+
+        import server as srv
+
+        png = base64.b64encode(b"\x89PNG\r\n" + b"x" * 1200).decode("ascii")
+        box: dict = {}
+
+        def worker() -> None:
+            box["r"] = srv.generate_via_extension("image", {"prompt": "hola mundo test"})
+
+        t = threading.Thread(target=worker)
+        t.start()
+        job = None
+        for _ in range(30):
+            job = srv.poll_ext_job(0.15)
+            if job:
+                break
+        self.assertIsNotNone(job)
+        assert job is not None
+        self.assertEqual(job["kind"], "image")
+        self.assertIn("hola mundo", job["prompt"])
+        ack = srv.complete_ext_job({"id": job["id"], "ok": True, "png": png})
+        self.assertTrue(ack["ok"])
+        t.join(5)
+        self.assertTrue(box["r"]["ok"])
+        self.assertGreaterEqual(box["r"]["bytes"], 1000)
+
+    def test_ext_status_online_after_poll(self):
+        import server as srv
+
+        self.assertFalse(srv.ext_status()["online"])
+        self.assertIsNone(srv.poll_ext_job(0.05))
+        self.assertTrue(srv.ext_status()["online"])
 
 
 if __name__ == "__main__":

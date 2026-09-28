@@ -16,11 +16,12 @@ import subprocess
 import tempfile
 import threading
 import time
+from collections import deque
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from gflow_patch import ensure_gflow_wait_patch, gflow_exec_command
 from profiles import (
@@ -104,6 +105,12 @@ PROC_LOCK = threading.Lock()
 CURRENT_PROC: subprocess.Popen[str] | None = None
 ABORT_REQUESTED = False
 KEPT_CHROME = False
+ENGINE = (os.environ.get("GFLOW_BRIDGE_ENGINE") or "gflow").strip() or "gflow"
+_EXT_CV = threading.Condition()
+_EXT_QUEUE: deque[dict[str, Any]] = deque()
+_EXT_WAITERS: dict[str, threading.Event] = {}
+_EXT_RESULTS: dict[str, dict[str, Any]] = {}
+_EXT_SEEN = 0.0
 
 
 def _is_lower_priority(model: str) -> bool:
@@ -870,14 +877,201 @@ def _clear_abort() -> None:
     ABORT_REQUESTED = False
 
 
+def resolve_engine(raw: str | None = None) -> str:
+    text = str(raw if raw is not None else os.environ.get("GFLOW_BRIDGE_ENGINE") or ENGINE or "gflow")
+    key = text.strip().lower()
+    if key in {"ext", "extension", "flow-ext", "chrome", "chrome-ext"}:
+        return "ext"
+    return "gflow"
+
+
+def engine_is_ext(raw: str | None = None) -> bool:
+    return resolve_engine(raw) == "ext"
+
+
+def reset_ext_state() -> None:
+    global _EXT_SEEN
+    with _EXT_CV:
+        _EXT_QUEUE.clear()
+        _EXT_RESULTS.clear()
+        waiters = list(_EXT_WAITERS.values())
+        _EXT_WAITERS.clear()
+        _EXT_SEEN = 0.0
+        _EXT_CV.notify_all()
+    for ev in waiters:
+        ev.set()
+
+
+def ext_status() -> dict[str, Any]:
+    with _EXT_CV:
+        pending = len(_EXT_QUEUE)
+        waiting = len(_EXT_WAITERS)
+        seen = _EXT_SEEN
+    ago = (time.time() - seen) if seen else None
+    return {
+        "engine": resolve_engine(),
+        "pending": pending,
+        "waiting": waiting,
+        "lastSeenAgo": None if ago is None else round(ago, 1),
+        "online": ago is not None and ago < 45,
+    }
+
+
+def _ext_public_job(job: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": job["id"],
+        "kind": job["kind"],
+        "prompt": job["prompt"],
+        "model": job.get("model") or "",
+        "aspect": job.get("aspect") or "16:9",
+        "mode": job.get("mode") or "",
+        "durationSeconds": job.get("durationSeconds"),
+        "referencePng": job.get("referencePng") or "",
+        "imagePng": job.get("imagePng") or "",
+    }
+
+
+def poll_ext_job(wait_s: float = 20.0) -> dict[str, Any] | None:
+    global _EXT_SEEN
+    deadline = time.time() + max(0.2, min(float(wait_s), 60.0))
+    with _EXT_CV:
+        _EXT_SEEN = time.time()
+        while True:
+            if _EXT_QUEUE:
+                job = _EXT_QUEUE.popleft()
+                _EXT_SEEN = time.time()
+                return _ext_public_job(job)
+            left = deadline - time.time()
+            if left <= 0:
+                return None
+            _EXT_CV.wait(timeout=min(1.0, left))
+            _EXT_SEEN = time.time()
+
+
+def complete_ext_job(body: dict[str, Any]) -> dict[str, Any]:
+    job_id = str(body.get("id") or "").strip()
+    if not job_id:
+        raise ValueError("id requerido")
+    result = dict(body)
+    result["ok"] = bool(body.get("ok", True)) and not body.get("error")
+    with _EXT_CV:
+        _EXT_RESULTS[job_id] = result
+        ev = _EXT_WAITERS.get(job_id)
+    if ev is None:
+        return {"ok": False, "error": "job desconocido o ya cerrado", "id": job_id}
+    ev.set()
+    return {"ok": True, "id": job_id}
+
+
+def generate_via_extension(kind: str, body: dict[str, Any]) -> dict[str, Any]:
+    prompt = str(body.get("prompt") or "").strip()
+    if kind == "image":
+        style = str(body.get("style") or "").strip()
+        prompt = f"{prompt}. Style: {style}" if style else prompt
+        model = _migrated_image_model(str(body.get("model") or "nano2"))
+        aspect = _migrated_image_aspect(str(body.get("aspect") or "16:9"))
+        mode = "i2i" if str(body.get("referencePng") or "").strip() else "t2i"
+        duration = None
+        timeout = max(IMAGE_TIMEOUT, 420)
+    else:
+        prompt = _sanitize_prompt(prompt)
+        mode = _resolve_video_mode(body.get("mode"))
+        requested_model = str(body.get("model") or "veo-lite")
+        model = _cli_video_model(requested_model)
+        aspect = "9:16" if body.get("aspect") == "9:16" else "16:9"
+        duration = None
+        if str(model).strip().lower() == "omni-flash":
+            try:
+                duration = max(4, min(int(body.get("durationSeconds") or 10), 10))
+            except (TypeError, ValueError):
+                duration = 10
+        timeout = _video_timeout_for(model)
+    if len(prompt) < 2:
+        raise ValueError("prompt requerido")
+    job_id = secrets.token_hex(8)
+    job: dict[str, Any] = {
+        "id": job_id,
+        "kind": kind,
+        "prompt": prompt,
+        "model": model,
+        "aspect": aspect,
+        "mode": mode,
+        "durationSeconds": duration,
+        "referencePng": str(body.get("referencePng") or "") if kind == "image" else "",
+        "imagePng": str(body.get("imagePng") or "") if kind == "video" else "",
+    }
+    ev = threading.Event()
+    print(
+        f"[gflow-bridge] extensión Flow: {kind} {job_id} modelo={model} "
+        f"(abre Chrome en flow.google.com con OpenReels Flow)",
+        flush=True,
+    )
+    with _EXT_CV:
+        _EXT_WAITERS[job_id] = ev
+        _EXT_QUEUE.append(job)
+        _EXT_CV.notify_all()
+    deadline = time.time() + timeout
+    try:
+        while time.time() < deadline:
+            if ABORT_REQUESTED:
+                raise RuntimeError("detenido por el usuario")
+            if ev.wait(timeout=1.0):
+                break
+        else:
+            raise RuntimeError(
+                "La extensión Flow no contestó. Carga OpenReels Flow (carpeta ext-flow) "
+                "en chrome://extensions, abre flow.google.com con el Gmail Gemini y Agent OFF."
+            )
+        with _EXT_CV:
+            result = _EXT_RESULTS.pop(job_id, None)
+            _EXT_WAITERS.pop(job_id, None)
+        if not result:
+            raise RuntimeError("la extensión Flow cerró el job vacío")
+        if result.get("error") or not result.get("ok", True):
+            raise RuntimeError(str(result.get("error") or "extensión Flow falló"))
+        if kind == "image":
+            png = str(result.get("png") or "")
+            raw = _decode_b64(png) if png else b""
+            if not raw or len(raw) < 1000:
+                raise RuntimeError("la extensión Flow no devolvió un PNG")
+            return {"ok": True, "kind": "image", "png": base64.b64encode(raw).decode("ascii"), "bytes": len(raw)}
+        mp4 = str(result.get("mp4") or "")
+        raw = _decode_b64(mp4) if mp4 else b""
+        if not raw or len(raw) < 20_000:
+            raise RuntimeError("la extensión Flow no devolvió un mp4")
+        reported = duration if duration is not None else 8
+        return {
+            "ok": True,
+            "kind": "video",
+            "mp4": base64.b64encode(raw).decode("ascii"),
+            "bytes": len(raw),
+            "durationSeconds": reported,
+        }
+    finally:
+        with _EXT_CV:
+            _EXT_WAITERS.pop(job_id, None)
+            _EXT_RESULTS.pop(job_id, None)
+            leftover = [row for row in _EXT_QUEUE if row.get("id") != job_id]
+            _EXT_QUEUE.clear()
+            _EXT_QUEUE.extend(leftover)
+
+
 def abort_current_gflow() -> bool:
     """User hit Detener: kill the headed gflow and stop catalog recover."""
     global CURRENT_PROC, ABORT_REQUESTED
     ABORT_REQUESTED = True
+    with _EXT_CV:
+        had_ext = bool(_EXT_WAITERS or _EXT_QUEUE)
+        while _EXT_QUEUE:
+            job = _EXT_QUEUE.popleft()
+            _EXT_RESULTS[str(job.get("id") or "")] = {"ok": False, "error": "detenido por el usuario"}
+        for ev in list(_EXT_WAITERS.values()):
+            ev.set()
+        _EXT_CV.notify_all()
     with PROC_LOCK:
         proc = CURRENT_PROC
     if proc is None or proc.poll() is not None:
-        return False
+        return had_ext
     print("[gflow-bridge] abort: detengo gflow (no espero el clip)", flush=True)
     proc.terminate()
     try:
@@ -1261,6 +1455,11 @@ def generate_image(body: dict[str, Any]) -> dict[str, Any]:
     _raise_if_unusual_cooldown()
     _clear_abort()
     _pace_between_jobs("image")
+    if engine_is_ext():
+        try:
+            return generate_via_extension("image", body)
+        finally:
+            _mark_job_finished()
     prompt = str(body.get("prompt") or "").strip()
     if len(prompt) < 2:
         raise ValueError("prompt requerido")
@@ -1328,6 +1527,11 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
     still = _decode_b64(body.get("imagePng") if isinstance(body.get("imagePng"), str) else None)
     if mode == "i2v" and (not still or len(still) < 80):
         raise ValueError("imagePng requerido (still PNG en base64)")
+    if engine_is_ext():
+        try:
+            return generate_via_extension("video", body)
+        finally:
+            _mark_job_finished()
     requested_model = str(body.get("model") or "veo-lite")
     model = _cli_video_model(requested_model)
     if model != requested_model:
@@ -1543,11 +1747,27 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Access-Control-Allow-Origin", "*")
         if code >= 400:
             self.send_header("Connection", "close")
             self.close_connection = True
         self.end_headers()
         self.wfile.write(raw)
+
+    def _auth_ext(self) -> bool:
+        ip = self._client_ip()
+        if ip in {"127.0.0.1", "::1"}:
+            return True
+        return self._auth()
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+        self.send_header("Access-Control-Max-Age", "600")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def _read_body(self) -> bytes:
         """Always consume Content-Length so a 401 does not leave PNG/base64 as the next request line (HTTP 414)."""
@@ -1581,6 +1801,7 @@ class Handler(BaseHTTPRequestHandler):
         if path in {"/health", "/v1/health"}:
             if not self._auth():
                 return
+            extra = ext_status()
             self._json(
                 200,
                 {
@@ -1590,15 +1811,50 @@ class Handler(BaseHTTPRequestHandler):
                     "projectName": PROJECT_NAME or "",
                     "profile": bool(PROFILE),
                     "busy": LOCK.locked(),
+                    "engine": extra["engine"],
+                    "ext": extra,
                     "ts": int(time.time()),
                 },
             )
+            return
+        if path in {"/v1/ext/status"}:
+            if not self._auth_ext():
+                return
+            self._json(200, {"ok": True, **ext_status()})
             return
         self._json(404, {"ok": False, "error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
         raw = self._read_body()
+        if path in {"/v1/ext/poll", "/v1/ext/result"}:
+            if not self._auth_ext():
+                return
+            body: dict[str, Any] = {}
+            if raw:
+                try:
+                    parsed = json.loads(raw.decode("utf-8"))
+                    if isinstance(parsed, dict):
+                        body = parsed
+                except Exception:
+                    self._json(400, {"ok": False, "error": "JSON inválido"})
+                    return
+            if path == "/v1/ext/poll":
+                wait_raw = body.get("wait")
+                if wait_raw is None:
+                    wait_raw = parse_qs(urlparse(self.path).query).get("wait", ["20"])[0]
+                try:
+                    wait_s = float(wait_raw)
+                except (TypeError, ValueError):
+                    wait_s = 20.0
+                job = poll_ext_job(wait_s)
+                self._json(200, {"ok": True, "job": job})
+                return
+            try:
+                self._json(200, complete_ext_job(body))
+            except ValueError as err:
+                self._json(400, {"ok": False, "error": str(err)})
+            return
         if path == "/v1/abort":
             if not self._auth():
                 return
@@ -1647,8 +1903,9 @@ def apply_settings(
     port: int | None = None,
     profile: str = "",
     gflow_bin: str = "",
+    engine: str | None = None,
 ) -> None:
-    global TOKEN, ALLOW_IPS, PROJECT, PROJECT_NAME, HOST, PORT, PROFILE, GFLOW_HOME, GFLOW_BIN
+    global TOKEN, ALLOW_IPS, PROJECT, PROJECT_NAME, HOST, PORT, PROFILE, GFLOW_HOME, GFLOW_BIN, ENGINE
     TOKEN = (token or "").strip()
     ALLOW_IPS = {ip.strip() for ip in (allow_ips or "").split(",") if ip.strip()}
     PROJECT = (project or "").strip()
@@ -1687,6 +1944,9 @@ def apply_settings(
         os.environ.pop("GFLOW_CLI_HOME", None)
     if GFLOW_BIN:
         os.environ["GFLOW_CLI_BIN"] = GFLOW_BIN
+    if engine is not None:
+        ENGINE = resolve_engine(engine)
+    os.environ["GFLOW_BRIDGE_ENGINE"] = resolve_engine()
 
 
 def run_kind(kind: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -1706,7 +1966,7 @@ def serve_forever() -> ThreadingHTTPServer:
     if not TOKEN and not ALLOW_ANON:
         raise SystemExit("Define GFLOW_BRIDGE_TOKEN (el mismo valor que en el Xeon) o GFLOW_BRIDGE_ALLOW_ANON=1")
     print(
-        f"[gflow-bridge] {HOST}:{PORT} bin={GFLOW_BIN} token={'yes' if TOKEN else 'anon'} allow={','.join(sorted(ALLOW_IPS)) or '*'}",
+        f"[gflow-bridge] {HOST}:{PORT} engine={resolve_engine()} bin={GFLOW_BIN} token={'yes' if TOKEN else 'anon'} allow={','.join(sorted(ALLOW_IPS)) or '*'}",
         flush=True,
     )
     httpd = ThreadingHTTPServer((HOST, PORT), Handler)

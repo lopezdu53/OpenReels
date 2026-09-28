@@ -27,6 +27,7 @@ def default_config() -> dict:
         "chromeProfile": "Default",
         "gflowProfile": "",
         "gflowBin": "",
+        "engine": "gflow",
         "geometry": DEFAULT_SIZE,
         "bridgeId": "",
         "bridgeName": "",
@@ -96,6 +97,8 @@ def classify_log(line: str) -> str:
             "flow cancelo",
             "flecha curva",
             "pulso la flecha",
+            "extensión flow",
+            "extension flow",
         )
     ):
         return "i2v"

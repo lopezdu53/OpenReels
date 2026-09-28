@@ -120,6 +120,8 @@ class App(tk.Tk):
         self._log_lines = 0
 
         self.mode = tk.StringVar(value=self.cfg.get("mode") or "both")
+        saved_engine = str(self.cfg.get("engine") or "gflow").strip().lower()
+        self.engine = tk.StringVar(value="ext" if saved_engine in {"ext", "extension", "chrome"} else "gflow")
         self.token = tk.StringVar(value=self.cfg.get("token") or "")
         self.bridge_name = tk.StringVar(value=self.cfg.get("bridgeName") or socket.gethostname())
         self.xeon = tk.StringVar(value=self.cfg.get("xeonIp") or "192.168.1.71")
@@ -365,34 +367,64 @@ class App(tk.Tk):
         form = tk.Frame(card, bg=CARD)
         form.pack(fill="both", expand=True, padx=12, pady=12)
         form.columnconfigure(0, weight=1)
-        self._grid_field(form, 0, "Project id de Flow", self.project)
-        self._grid_field(form, 1, "Nombre del proyecto", self.project_name)
+        tk.Label(form, text="Motor", fg=LIME, bg=CARD, font=("Segoe UI", 8, "bold")).grid(
+            row=0, column=0, sticky="w"
+        )
+        motors = tk.Frame(form, bg=CARD)
+        motors.grid(row=1, column=0, sticky="w", pady=(0, 6))
+        for value, label in (("gflow", "gflow-cli"), ("ext", "Extensión Flow")):
+            tk.Radiobutton(
+                motors,
+                text=label,
+                variable=self.engine,
+                value=value,
+                fg=FG,
+                bg=CARD,
+                selectcolor=BG,
+                activebackground=CARD,
+                activeforeground=LIME,
+                highlightthickness=0,
+                font=("Segoe UI", 9),
+            ).pack(side="left", padx=(0, 14))
+        tk.Button(
+            motors,
+            text="Carpeta extensión",
+            command=self.open_ext_folder,
+            bg=PANEL,
+            fg=FG,
+            relief="flat",
+            padx=8,
+            pady=2,
+            font=("Segoe UI", 8),
+        ).pack(side="left")
+        self._grid_field(form, 2, "Project id de Flow", self.project)
+        self._grid_field(form, 3, "Nombre del proyecto", self.project_name)
         tk.Label(
             form,
             text="Chrome (Gmail / perfil Gemini Flow)",
             fg=MUTED,
             bg=CARD,
             font=("Segoe UI", 8),
-        ).grid(row=2, column=0, sticky="w", pady=(8, 0))
-        self._chrome_menu(form, row=3)
+        ).grid(row=4, column=0, sticky="w", pady=(8, 0))
+        self._chrome_menu(form, row=5)
         tk.Label(
             form,
             text="Sesión gflow (la que abre Chrome de Flow)",
             fg=MUTED,
             bg=CARD,
             font=("Segoe UI", 8),
-        ).grid(row=4, column=0, sticky="w", pady=(8, 0))
-        self._gflow_menu(form, row=5)
-        self._grid_field(form, 6, "Ruta de gflow.exe", self.gflow_bin)
+        ).grid(row=6, column=0, sticky="w", pady=(8, 0))
+        self._gflow_menu(form, row=7)
+        self._grid_field(form, 8, "Ruta de gflow.exe", self.gflow_bin)
         tk.Label(
             form,
-            text="Abrir Flow usa tu Chrome de cada día. Entrar a Flow abre OTRO Chrome (el de gflow) y lo deja abierto hasta que tú lo cierres.",
+            text="gflow-cli abre un Chrome de Playwright. Extensión Flow usa tu Chrome de cada día: chrome://extensions → Cargar descomprimida → carpeta ext-flow. Agent OFF.",
             fg=MUTED,
             bg=CARD,
             wraplength=380,
             justify="left",
             font=("Segoe UI", 8),
-        ).grid(row=7, column=0, sticky="w", pady=(8, 0))
+        ).grid(row=9, column=0, sticky="w", pady=(8, 0))
         return card
 
     def _tab_sistema(self, parent: tk.Frame) -> tk.Frame:
@@ -698,6 +730,15 @@ class App(tk.Tk):
         self._log("Falta gflow. Lo instalo ahora y sigo…")
         self.install_stack(upgrade=False, then=then)
 
+    def open_ext_folder(self) -> None:
+        path = Path(__file__).resolve().parent / "ext-flow"
+        path.mkdir(parents=True, exist_ok=True)
+        if sys.platform == "win32":
+            os.startfile(str(path))  # type: ignore[attr-defined]
+        else:
+            subprocess.run(["xdg-open", str(path)], check=False)
+        self._log(f"Carga descomprimida en chrome://extensions → {path}")
+
     def open_flow(self) -> None:
         directory = self._chrome_directory()
         try:
@@ -815,6 +856,7 @@ class App(tk.Tk):
         self.cfg.update(
             {
                 "mode": self.mode.get(),
+                "engine": self.engine.get(),
                 "token": self.token.get().strip(),
                 "bridgeId": str(self.cfg.get("bridgeId") or ""),
                 "bridgeName": self.bridge_name.get().strip() or socket.gethostname(),
@@ -850,6 +892,9 @@ class App(tk.Tk):
         except ValueError:
             messagebox.showerror("Puerto", "Puerto inválido")
             return
+        if self.engine.get() == "ext":
+            self._start_now()
+            return
         self._ensure_gflow(self._start_now)
 
     def _start_now(self) -> None:
@@ -858,10 +903,11 @@ class App(tk.Tk):
         port = int(self.port.get() or 8787)
         allow = self.xeon.get().strip()
         gflow_bin = find_gflow(self.gflow_bin.get()) or self.gflow_bin.get().strip()
-        if not find_gflow(self.gflow_bin.get()):
+        if self.engine.get() != "ext" and not find_gflow(self.gflow_bin.get()):
             messagebox.showerror("gflow-cli", missing_gflow_message())
             return
-        self.gflow_bin.set(gflow_bin)
+        if gflow_bin:
+            self.gflow_bin.set(gflow_bin)
         try:
             from gflow_patch import ensure_gflow_wait_patch
 
@@ -877,6 +923,7 @@ class App(tk.Tk):
             port=port,
             profile=self._selected_gflow_name() or self.gflow_profile.get().strip(),
             gflow_bin=gflow_bin,
+            engine=self.engine.get(),
         )
         self.stop_relay.clear()
         self.running = True
@@ -909,8 +956,14 @@ class App(tk.Tk):
             )
             self.relay_thread.start()
         self.status.set("Conectado · " + {"local": "red local", "remote": "remoto", "both": "local + remoto"}[mode])
+        if self.engine.get() == "ext":
+            self._log(
+                "Motor extensión Flow: deja chrome://extensions cargada (carpeta ext-flow) "
+                "y flow.google.com abierto. Agent OFF.",
+                "ok",
+            )
         self._log(
-            f"gflow: {server.GFLOW_BIN} · perfil gflow: {server.PROFILE or 'default'} "
+            f"motor: {self.engine.get()} · gflow: {server.GFLOW_BIN} · perfil gflow: {server.PROFILE or 'default'} "
             f"· home: {getattr(server, 'GFLOW_HOME', '') or '-'} · Chrome: {self._chrome_directory()}",
             "ok",
         )
@@ -985,12 +1038,14 @@ class App(tk.Tk):
         self._style_dialog(win, 520, 460)
         text = (
             "1. Sistema → Evitar suspensión (déjalo marcado).\n"
-            "2. Instalar todo si falta gflow.\n"
-            "3. Pestaña Flow: perfil Chrome del Gmail Gemini → Entrar a Flow.\n"
-            "   Chrome de Flow se queda abierto. Entra al Gmail; cuando veas Flow, ciérralo.\n"
+            "2. Instalar todo si falta gflow (solo motor gflow-cli).\n"
+            "3. Pestaña Flow: motor gflow-cli o Extensión Flow.\n"
+            "   Extensión: chrome://extensions → Cargar descomprimida → ext-flow.\n"
+            "   Abre flow.google.com con el Gmail Gemini. Agent OFF.\n"
+            "   gflow-cli: perfil Chrome → Entrar a Flow (otro Chrome).\n"
             "4. Pestaña Conexión: token de EasyPanel. En casa, IP del Xeon.\n"
             "   Fuera de casa, URL del estudio.\n"
-            "5. Conectar. Agent OFF en Flow.\n\n"
+            "5. Conectar.\n\n"
             "El log de la derecha muestra cada still y la espera del clip de 8s.\n"
             "No cierres el puente a mitad de un job."
         )

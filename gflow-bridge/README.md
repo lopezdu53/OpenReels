@@ -17,6 +17,17 @@ App de **un clic** en Windows. El worker de EasyPanel llama aquí: en casa por L
 7. Pestaña **Flow**: project id de `gflow project list` y **Conectar**.
 8. Chrome: proyecto Flow abierto, chip **Agent en OFF**.
 
+## Motor: Extensión Flow (sin Playwright)
+
+Si Flow marca **actividad inusual** en el Chrome de gflow, usa tu Chrome de cada día:
+
+1. Pestaña **Flow** → motor **Extensión Flow**.
+2. `chrome://extensions` → Modo desarrollador → **Cargar descomprimida** → carpeta `gflow-bridge/ext-flow`.
+3. Abre [flow.google.com](https://flow.google.com) con el Gmail Gemini. Agent OFF. Deja la pestaña abierta.
+4. **Conectar** el puente. OpenReels sigue llamando `/v1/image` y `/v1/video` (LAN o remoto); la extensión hace poll a `http://127.0.0.1:8787/v1/ext/poll` y publica el PNG/mp4 en `/v1/ext/result`.
+
+No hace falta gflow-cli con este motor. El icono de la extensión pone `ok` / `GO`.
+
 **Sistema → Evitar suspensión y cierre de sesión** (activado por defecto) pide a Windows que no duerma, no apague la pantalla ni bloquee la sesión mientras el puente está abierto. Hace falta para los clips de 8s de Flow. **Inicio con Windows** deja el puente al encender el PC.
 
 Tras cada merge, vuelve a bajar `server.py` (y `app.py` si usas la carpeta, no el exe):
