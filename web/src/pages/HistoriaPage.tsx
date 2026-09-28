@@ -19,8 +19,9 @@ import {
 import { cn } from "@/lib/utils";
 
 const CASTING_PROVIDERS: ProviderOption[] = [
-  { key: "gflow", label: "gflow (Nano Banana)" },
   { key: "vivi", label: "VIVI" },
+  { key: "atlas", label: "ATLAS Cloud" },
+  { key: "gflow", label: "gflow (Nano Banana)" },
   { key: "gemini", label: "Google Gemini" },
   { key: "openai", label: "OpenAI" },
   { key: "grok", label: "Grok Imagine" },
@@ -226,7 +227,7 @@ export function HistoriaPage() {
   const [videoVolume, setVideoVolume] = useState(0.5);
   const [ttsVolume, setTtsVolume] = useState(1);
   const [animate, setAnimate] = useState(true);
-  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("gflow");
+  const [visualProvider, setVisualProvider] = useState<"vivi" | "atlas" | "gflow">("vivi");
   const [gflowImageModel, setGflowImageModel] = useState("nano-pro");
   const [gflowVideoModel, setGflowVideoModel] = useState("omni-flash");
   const [gflowBridgeId, setGflowBridgeId] = useState(loadGflowBridgeId);
@@ -338,7 +339,7 @@ export function HistoriaPage() {
             selectedIds={characterIds}
             maxSelect={3}
             imageProviders={CASTING_PROVIDERS}
-            defaultSheetProvider="gflow"
+            defaultSheetProvider="vivi"
             onToggle={(id) => {
               setCharacterIds((prev) => {
                 if (prev.includes(id)) return prev.filter((x) => x !== id);
@@ -372,7 +373,7 @@ export function HistoriaPage() {
             selectedIds={objectIds}
             maxSelect={10}
             imageProviders={CASTING_PROVIDERS}
-            defaultSheetProvider="gflow"
+            defaultSheetProvider="vivi"
             onToggle={(id) => {
               setObjectIds((prev) => {
                 if (prev.includes(id)) return prev.filter((x) => x !== id);
@@ -406,7 +407,7 @@ export function HistoriaPage() {
             selectedIds={locationIds}
             maxSelect={3}
             imageProviders={CASTING_PROVIDERS}
-            defaultSheetProvider="gflow"
+            defaultSheetProvider="vivi"
             onToggle={(id) => {
               setLocationIds((prev) => {
                 if (prev.includes(id)) return prev.filter((x) => x !== id);
@@ -609,8 +610,10 @@ export function HistoriaPage() {
             durationSec={durationSec}
             gflowHint={
               veoOn
-                ? "Veo 3.1: 8s, 16s, 24s, 16 min o 26 min (tomas de 8s encadenadas). El primer still usa la ficha gflow del Casting."
-                : "Omni: 10s a 15 min. El primer still usa la ficha gflow del Casting. Audio Flow agachado + TTS Atlas."
+                ? "Veo 3.1: 8s, 16s, 24s, 16 min o 26 min (tomas de 8s encadenadas). El primer still usa la ficha del Casting."
+                : visualProvider === "vivi"
+                  ? "Stills VIVI por defecto. Atlas y gflow están en la lista. I2V VIVI si está activo."
+                  : "Omni: 10s a 15 min. El primer still usa la ficha del Casting. Audio Flow agachado + TTS Atlas."
             }
           />
 

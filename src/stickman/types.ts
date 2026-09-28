@@ -128,7 +128,7 @@ export interface StickmanJobConfig {
   imageModel: string;
   videoModel: string;
   atlasTtsModel: string;
-  visualProvider?: "atlas" | "gflow";
+  visualProvider?: "atlas" | "gflow" | "vivi";
   gflowImageModel?: string;
   gflowVideoModel?: string;
   gflowVideoMode?: string;

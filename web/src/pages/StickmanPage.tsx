@@ -208,7 +208,7 @@ export function StickmanPage() {
   const [videoVolume, setVideoVolume] = useState(0.5);
   const [ttsVolume, setTtsVolume] = useState(1);
   const [animate, setAnimate] = useState(true);
-  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("gflow");
+  const [visualProvider, setVisualProvider] = useState<"vivi" | "atlas" | "gflow">("gflow");
   const [gflowImageModel, setGflowImageModel] = useState("nano-pro");
   const [gflowVideoModel, setGflowVideoModel] = useState("omni-flash");
   const [gflowBridgeId, setGflowBridgeId] = useState(loadGflowBridgeId);

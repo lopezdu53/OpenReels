@@ -7,7 +7,11 @@ import { resolveAtlasApiKey } from "../providers/atlas/client.js";
 import { gflowBridgeCatalog, gflowBridgeUrl } from "../providers/gflow/bridge.js";
 import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "../providers/gflow/catalog.js";
 import { gflowDoctor } from "../providers/gflow/client.js";
-import { resolveStudioVisualProvider, STUDIO_VISUAL_PROVIDERS } from "../studio/visual-provider.js";
+import {
+  DEFAULT_HISTORIA_VISUAL_PROVIDER,
+  resolveHistoriaVisualProvider,
+  STUDIO_VISUAL_PROVIDERS,
+} from "../studio/visual-provider.js";
 import {
   clampStickmanVoiceSpeed,
   clampStickmanVolume,
@@ -75,7 +79,7 @@ function parseHistoriaCreateBody(
 ): { error: string } | { config: StickmanJobConfig } {
   const topic = String(body.topic ?? "").trim();
   if (topic.length < 4) return { error: "Escribe un tema (mín. 4 caracteres)" };
-  const visualProvider = resolveStudioVisualProvider(
+  const visualProvider = resolveHistoriaVisualProvider(
     typeof body.visualProvider === "string" ? body.visualProvider : undefined,
   );
   const gflowVideoModel = body.gflowVideoModel ? String(body.gflowVideoModel) : undefined;
@@ -211,6 +215,8 @@ export async function registerHistoriaRoutes(app: FastifyInstance, redis: IORedi
     defaultLlm: DEFAULT_STICKMAN_LLM,
     llms: STICKMAN_LLMS,
     visualProviders: [...STUDIO_VISUAL_PROVIDERS],
+    defaultVisualProvider: DEFAULT_HISTORIA_VISUAL_PROVIDER,
+    viviReady: Boolean(process.env["VIVI_IMAGE_API_KEY"]),
     gflowImageModels: GFLOW_IMAGE_MODELS,
     gflowVideoModels: GFLOW_VIDEO_MODELS,
     recommendedGflow: recommendStickmanGflow(20),

@@ -72,10 +72,10 @@ export function estimateStickmanCost(opts: {
       (sum, sec) => sum + gflowVideoCredits({ modelId: model, durationSec: sec }),
       0,
     );
-  } else if (config.animate && config.visualProvider !== "gflow") {
+  } else if (config.animate && config.visualProvider === "atlas") {
     usd += resolveAtlasVideoModel(config.videoModel).usdPerSecond * config.durationSec;
   }
-  if (config.visualProvider !== "gflow") {
+  if (config.visualProvider === "atlas") {
     const n = opts.script?.beats.length ?? 1;
     usd += resolveAtlasImageModel(config.imageModel).usd * n;
   }
