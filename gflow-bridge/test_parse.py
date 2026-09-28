@@ -650,7 +650,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
         self.assertEqual(classify_log("Flow status 4 después del video: falló el audio"), "i2v")
-        self.assertEqual(APP_VERSION, "1.7.7")
+        self.assertEqual(APP_VERSION, "1.7.8")
         self.assertEqual(
             classify_log(
                 "Flow no ofrece 'veo-lite-lp' en este Gmail. Reintento YA con veo-lite"
@@ -664,6 +664,10 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("catálogo: 3 videos, 1 de este job; aún no hay mp4, sigo 800s"), "i2v")
         self.assertEqual(classify_log("gflow fail: crash"), "err")
         self.assertEqual(classify_log("Flow bloqueó: actividad inusual. No se cobró."), "err")
+        self.assertEqual(
+            classify_log("pulso la flecha curva (refresh) 1/2 — Flow reintenta (no cobró el toast)"),
+            "i2v",
+        )
         self.assertEqual(classify_log("LAN: escuchando listo"), "ok")
         self.assertEqual(classify_log("Cloudflare 404 aviso"), "warn")
         self.assertRegex(APP_VERSION, r"^\d+\.\d+\.\d+$")
@@ -709,10 +713,14 @@ class GflowPatchTests(unittest.TestCase):
         self.assertIn("_select_soft_duration", RUNNER_SOURCE)
         self.assertIn("_harvest_page_images", RUNNER_SOURCE)
         self.assertIn("_page_unusual_activity", RUNNER_SOURCE)
+        self.assertIn("_wire_unusual", RUNNER_SOURCE)
+        self.assertIn("_click_unusual_refresh", RUNNER_SOURCE)
+        self.assertIn("_retry_unusual_refresh", RUNNER_SOURCE)
+        self.assertIn("flecha curva", RUNNER_SOURCE)
+        self.assertIn('lig(el) === "refresh"', RUNNER_SOURCE)
         self.assertIn("UNUSUAL_ACTIVITY", RUNNER_SOURCE)
         self.assertIn("PUBLIC_ERROR_UNUSUAL_ACTIVITY", RUNNER_SOURCE)
         self.assertIn("WafRejectionError", RUNNER_SOURCE)
-        self.assertIn("no pulso Generate", RUNNER_SOURCE)
         self.assertIn("_pace_s", RUNNER_SOURCE)
         self.assertIn("ritmo humano", RUNNER_SOURCE)
         from gflow_patch import generation_status_flags

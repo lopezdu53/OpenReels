@@ -94,6 +94,8 @@ def classify_log(line: str) -> str:
             "reintento ya",
             "flow canceló",
             "flow cancelo",
+            "flecha curva",
+            "pulso la flecha",
         )
     ):
         return "i2v"
