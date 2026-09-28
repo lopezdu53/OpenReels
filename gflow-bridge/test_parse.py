@@ -45,6 +45,8 @@ from server import (
     _is_duration_not_offered,
     _is_image_wire_miss,
     _is_hard_video_fail,
+    _is_unusual_activity,
+    _friendly_unusual_activity,
 )
 
 
@@ -149,6 +151,12 @@ class VideoModeTests(unittest.TestCase):
         self.assertTrue(
             _is_image_wire_miss("WireFormatError — migrated image submit returned no ogiZ0b frame")
         )
+        blocked = "UNUSUAL_ACTIVITY: Flow detectó actividad inusual y no generó. No se cobró."
+        self.assertTrue(_is_unusual_activity(blocked))
+        self.assertTrue(_is_unusual_activity("Detectamos actividad inusual. No se te cobró por esta generación."))
+        self.assertTrue(_is_hard_video_fail(blocked))
+        self.assertFalse(_is_image_wire_miss(blocked))
+        self.assertIn("actividad inusual", _friendly_unusual_activity())
 
     def test_i2v_args_need_still(self):
         args = _video_cli_args(
@@ -588,7 +596,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
         self.assertEqual(classify_log("Flow status 4 después del video: falló el audio"), "i2v")
-        self.assertEqual(APP_VERSION, "1.7.3")
+        self.assertEqual(APP_VERSION, "1.7.4")
         self.assertEqual(
             classify_log(
                 "Flow no ofrece 'veo-lite-lp' en este Gmail. Reintento YA con veo-lite"
@@ -601,6 +609,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
         )
         self.assertEqual(classify_log("catálogo: 3 videos, 1 de este job; aún no hay mp4, sigo 800s"), "i2v")
         self.assertEqual(classify_log("gflow fail: crash"), "err")
+        self.assertEqual(classify_log("Flow bloqueó: actividad inusual. No se cobró."), "err")
         self.assertEqual(classify_log("LAN: escuchando listo"), "ok")
         self.assertEqual(classify_log("Cloudflare 404 aviso"), "warn")
         self.assertRegex(APP_VERSION, r"^\d+\.\d+\.\d+$")
@@ -645,6 +654,8 @@ class GflowPatchTests(unittest.TestCase):
         self.assertIn("ogiZ0b", RUNNER_SOURCE)
         self.assertIn("_select_soft_duration", RUNNER_SOURCE)
         self.assertIn("_harvest_page_images", RUNNER_SOURCE)
+        self.assertIn("_page_unusual_activity", RUNNER_SOURCE)
+        self.assertIn("UNUSUAL_ACTIVITY", RUNNER_SOURCE)
         from gflow_patch import generation_status_flags
 
         self.assertEqual(generation_status_flags(4, seen_running=False), (True, False))

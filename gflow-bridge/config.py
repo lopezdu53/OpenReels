@@ -97,6 +97,17 @@ def classify_log(line: str) -> str:
         )
     ):
         return "i2v"
+    if any(
+        w in text
+        for w in (
+            "actividad inusual",
+            "unusual_activity",
+            "unusual activity",
+            "no se te cobró",
+            "no se te cobro",
+        )
+    ):
+        return "err"
     if any(w in text for w in ("error", "fail", "falló", "fallo", "401", "crash", "traceback", "inválido")):
         return "err"
     if any(w in text for w in ("warn", "aviso", "404", "sin mp4", "no se guardó")):

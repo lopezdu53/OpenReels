@@ -233,23 +233,57 @@ def _is_duration_not_offered(msg: str) -> bool:
     return "duration control" in low or "drop --duration" in low or "no duration control offering" in low
 
 
+def _is_unusual_activity(msg: str) -> bool:
+    low = msg.lower()
+    return any(
+        n in low
+        for n in (
+            "unusual_activity",
+            "actividad inusual",
+            "unusual activity",
+            "no se te cobró",
+            "no se te cobro",
+            "you were not charged",
+            "not charged for this",
+            "no se pudo completar la acción",
+            "no se pudo completar la accion",
+            "couldn't complete the action",
+            "could not complete the action",
+        )
+    )
+
+
 def _is_image_wire_miss(msg: str) -> bool:
+    if _is_unusual_activity(msg):
+        return False
     low = msg.lower()
     return "ogiz0b" in low or (
         "wireformaterror" in low and ("image" in low or "ogi" in low)
     )
 
 
+def _friendly_unusual_activity() -> str:
+    return (
+        "Flow bloqueó la generación: detectó actividad inusual. No se cobró. "
+        "Espera 20–30 min, abre Flow a mano y genera 1 still. "
+        "No lances varios jobs seguidos desde el estudio."
+    )
+
+
 def _friendly_image_error(msg: str) -> str:
+    if _is_unusual_activity(msg):
+        return _friendly_unusual_activity()
     if _is_image_wire_miss(msg):
         return (
             "Flow no confirmó el still (respuesta ogiZ0b vacía). "
-            "El puente reintenta; si sigue fallando, abre Flow en Chrome y genera un still a mano."
+            "Si Flow mostró «actividad inusual», espera; no reintentes en cadena."
         )
     return msg
 
 
 def _friendly_video_error(msg: str) -> str:
+    if _is_unusual_activity(msg):
+        return _friendly_unusual_activity()
     if _is_duration_not_offered(msg):
         return (
             "Este Gmail no muestra duración 6s/10s en Omni. "
@@ -344,6 +378,8 @@ def _remember_model_fallback(requested: str, used: str) -> None:
 
 def _is_hard_video_fail(msg: str) -> bool:
     low = msg.lower()
+    if _is_unusual_activity(msg):
+        return True
     if _is_duration_not_offered(msg):
         return False
     if _is_model_not_offered(msg):
@@ -1241,6 +1277,8 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                         break
                     if ABORT_REQUESTED:
                         raise RuntimeError("detenido por el usuario") from err
+                    if _is_unusual_activity(msg):
+                        raise RuntimeError(_friendly_unusual_activity()) from err
                     if mode != "i2v" or not _should_fallback_t2v(msg):
                         raise
                     print(
@@ -1295,7 +1333,9 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                         last_err = None
                         break
             if payload is None:
-                raise last_err or RuntimeError("gflow video no devolvió resultado")
+                raise RuntimeError(
+                    _friendly_video_error(str(last_err) if last_err else "gflow video no devolvió resultado")
+                ) from last_err
         local = dest if dest.exists() and dest.stat().st_size > 20_000 else None
         if local is None and isinstance(payload.get("local_path"), str):
             p = Path(str(payload["local_path"]))

@@ -165,6 +165,37 @@ async def _harvest_video(page, media_id: str) -> str | None:
     return found[0] if found else None
 
 
+async def _page_unusual_activity(page) -> str | None:
+    try:
+        text = await page.evaluate("() => (document.body && document.body.innerText) || ''")
+    except Exception:
+        return None
+    compact = " ".join((text or "").lower().split())
+    for needle in (
+        "actividad inusual",
+        "unusual activity",
+        "no se te cobró",
+        "no se te cobro",
+        "you were not charged",
+        "not charged for this",
+        "no se pudo completar la acción",
+        "no se pudo completar la accion",
+        "couldn't complete the action",
+        "could not complete the action",
+    ):
+        if needle in compact:
+            return needle
+    return None
+
+
+def _unusual_activity_error() -> RuntimeError:
+    return RuntimeError(
+        "UNUSUAL_ACTIVITY: Flow detectó actividad inusual y no generó. "
+        "No se cobró. Espera 20–30 min, abre Flow a mano y genera 1 still. "
+        "No lances varios jobs seguidos."
+    )
+
+
 async def _harvest_page_images(page) -> list[str]:
     try:
         raw = await page.evaluate(
@@ -228,7 +259,16 @@ def _patch() -> None:
             kwargs["poll_timeout_s"] = wait
             mc.SUBMIT_REPLY_BUDGET_S = wait
             print(f"[gflow-bridge] submit_and_observe wait={wait:.0f}s", flush=True)
-            rec = await orig_sub(self, page, *args, **kwargs)
+            try:
+                rec = await orig_sub(self, page, *args, **kwargs)
+            except Exception as err:
+                if await _page_unusual_activity(page):
+                    print(
+                        "[gflow-bridge] Flow bloqueó el video: actividad inusual. No se cobró.",
+                        flush=True,
+                    )
+                    raise _unusual_activity_error() from err
+                raise
             mid = getattr(rec, "media_id", "") or ""
             if rec is not None and rec.status == 4 and seen_run.get(mid):
                 print(
@@ -331,6 +371,13 @@ def _patch() -> None:
                 try:
                     return await orig_img(self, page, request, *args, **kwargs)
                 except Exception as err:
+                    if await _page_unusual_activity(page):
+                        print(
+                            "[gflow-bridge] Flow bloqueó: actividad inusual. No se cobró. "
+                            "No reintento.",
+                            flush=True,
+                        )
+                        raise _unusual_activity_error() from err
                     msg = str(err).lower()
                     if "ogiz0b" not in msg and "wireformat" not in msg:
                         raise
