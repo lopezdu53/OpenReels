@@ -103,6 +103,8 @@ def classify_log(line: str) -> str:
             "actividad inusual",
             "unusual_activity",
             "unusual activity",
+            "public_error_unusual_activity",
+            "cooldown",
             "no se te cobró",
             "no se te cobro",
         )
