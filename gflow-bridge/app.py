@@ -31,9 +31,11 @@ from profiles import (
     find_gflow,
     list_chrome_profiles,
     list_gflow_accounts,
+    list_gflow_profiles,
     missing_gflow_message,
     open_flow_in_chrome,
     pick_gflow_profile,
+    resolve_gflow_session,
     run_gflow_login,
 )
 from relay_client import run_poll_loop
@@ -126,6 +128,7 @@ class App(tk.Tk):
         self.project = tk.StringVar(value=self.cfg.get("project") or "")
         self.project_name = tk.StringVar(value=self.cfg.get("projectName") or "OpenReels")
         self.gflow_profile = tk.StringVar(value=self.cfg.get("gflowProfile") or "")
+        self.gflow_choice = tk.StringVar(value="")
         self.gflow_bin = tk.StringVar(value=self.cfg.get("gflowBin") or find_gflow() or "")
         self.chrome_choice = tk.StringVar(value="")
         self.status = tk.StringVar(value="Apagado")
@@ -135,6 +138,7 @@ class App(tk.Tk):
         self.autostart_var = tk.BooleanVar(value=bool(self.cfg.get("autostart")))
         self._tab = tk.StringVar(value="conexion")
         self._chrome_by_label: dict[str, str] = {}
+        self._gflow_by_label: dict[str, str] = {}
         self._gflow_meta: dict[str, str | None] = {}
         self._installing = False
         self._after_install = None
@@ -371,8 +375,15 @@ class App(tk.Tk):
             font=("Segoe UI", 8),
         ).grid(row=2, column=0, sticky="w", pady=(8, 0))
         self._chrome_menu(form, row=3)
-        self._grid_field(form, 4, "Perfil gflow (vacío = default)", self.gflow_profile)
-        self._grid_field(form, 5, "Ruta de gflow.exe", self.gflow_bin)
+        tk.Label(
+            form,
+            text="Sesión gflow (la que abre Chrome de Flow)",
+            fg=MUTED,
+            bg=CARD,
+            font=("Segoe UI", 8),
+        ).grid(row=4, column=0, sticky="w", pady=(8, 0))
+        self._gflow_menu(form, row=5)
+        self._grid_field(form, 6, "Ruta de gflow.exe", self.gflow_bin)
         tk.Label(
             form,
             text="Abrir Flow usa tu Chrome de cada día. Entrar a Flow abre OTRO Chrome (el de gflow) y lo deja abierto hasta que tú lo cierres.",
@@ -381,7 +392,7 @@ class App(tk.Tk):
             wraplength=380,
             justify="left",
             font=("Segoe UI", 8),
-        ).grid(row=6, column=0, sticky="w", pady=(8, 0))
+        ).grid(row=7, column=0, sticky="w", pady=(8, 0))
         return card
 
     def _tab_sistema(self, parent: tk.Frame) -> tk.Frame:
@@ -494,6 +505,29 @@ class App(tk.Tk):
         menu = tk.OptionMenu(parent, self.chrome_choice, *self._chrome_by_label.keys())
         menu.configure(bg=BG, fg=FG, highlightthickness=0, activebackground=CARD, activeforeground=LIME)
         menu.grid(row=row, column=0, sticky="ew", pady=(2, 8))
+
+    def _gflow_menu(self, parent: tk.Frame, row: int) -> None:
+        rows = list_gflow_profiles()
+        self._gflow_by_label = {f"{r['name']} · {r['email']}": r["name"] for r in rows}
+        labels = list(self._gflow_by_label.keys()) or ["(ninguna sesión — Entrar a Flow)"]
+        saved = self.gflow_profile.get().strip()
+        initial = next((lab for lab, name in self._gflow_by_label.items() if name == saved), labels[0])
+        self.gflow_choice.set(initial)
+        if self._gflow_by_label.get(initial):
+            self.gflow_profile.set(self._gflow_by_label[initial])
+        menu = tk.OptionMenu(parent, self.gflow_choice, *labels, command=self._on_gflow_choice)
+        menu.configure(bg=BG, fg=FG, highlightthickness=0, activebackground=CARD, activeforeground=LIME)
+        menu.grid(row=row, column=0, sticky="ew", pady=(2, 8))
+        self._gflow_menu_widget = menu
+
+    def _on_gflow_choice(self, label: str) -> None:
+        name = self._gflow_by_label.get(label, "")
+        if name:
+            self.gflow_profile.set(name)
+            self.persist()
+
+    def _selected_gflow_name(self) -> str:
+        return self._gflow_by_label.get(self.gflow_choice.get(), self.gflow_profile.get().strip())
 
     def _build_log(self, right: tk.Frame) -> None:
         bar = tk.Frame(right, bg=BG)
@@ -679,14 +713,18 @@ class App(tk.Tk):
         return ""
 
     def _fill_gflow_profile(self) -> None:
-        row = pick_gflow_profile(self._chrome_email())
         accounts = list_gflow_accounts()
         if accounts:
             self._log("Sesiones gflow: " + " | ".join(accounts))
+        saved = self._selected_gflow_name() or self.gflow_profile.get().strip()
+        row = resolve_gflow_session(saved) or resolve_gflow_session(self._chrome_email())
         if not row:
             self._log("Aún no hay sesión gflow. Pulsa «Entrar a Flow» y deja abierta la ventana negra.")
             return
         self.gflow_profile.set(row["name"])
+        label = next((lab for lab, name in self._gflow_by_label.items() if name == row["name"]), "")
+        if label:
+            self.gflow_choice.set(label)
         self.persist()
         self._log(f"Perfil gflow: {row['name']} · {row['email']}", "ok")
 
@@ -705,7 +743,7 @@ class App(tk.Tk):
 
         def work() -> None:
             try:
-                code = run_gflow_login(bin_path, self.gflow_profile.get())
+                code = run_gflow_login(bin_path, self._selected_gflow_name())
                 self.after(0, lambda: self._login_flow_done(code))
             except FileNotFoundError:
                 self.after(0, lambda: messagebox.showerror("gflow-cli", missing_gflow_message()))
@@ -716,7 +754,7 @@ class App(tk.Tk):
 
     def _login_flow_done(self, code: int) -> None:
         self._fill_gflow_profile()
-        row = pick_gflow_profile(self._chrome_email())
+        row = resolve_gflow_session(self._selected_gflow_name()) or pick_gflow_profile(self._chrome_email())
         if row:
             messagebox.showinfo("Flow", f"Sesión lista: {row['email']}")
             return
@@ -786,7 +824,7 @@ class App(tk.Tk):
                 "project": self.project.get().strip(),
                 "projectName": self.project_name.get().strip(),
                 "chromeProfile": self._chrome_directory(),
-                "gflowProfile": self.gflow_profile.get().strip(),
+                "gflowProfile": self._selected_gflow_name() or self.gflow_profile.get().strip(),
                 "gflowBin": self.gflow_bin.get().strip(),
                 "keepAwake": bool(self.keep_awake.get()),
                 "autostart": bool(self.autostart_var.get()),
@@ -837,7 +875,7 @@ class App(tk.Tk):
             project_name=self.project_name.get().strip() or "OpenReels",
             host="0.0.0.0",
             port=port,
-            profile=self.gflow_profile.get().strip(),
+            profile=self._selected_gflow_name() or self.gflow_profile.get().strip(),
             gflow_bin=gflow_bin,
         )
         self.stop_relay.clear()
@@ -872,7 +910,8 @@ class App(tk.Tk):
             self.relay_thread.start()
         self.status.set("Conectado · " + {"local": "red local", "remote": "remoto", "both": "local + remoto"}[mode])
         self._log(
-            f"gflow: {server.GFLOW_BIN} · perfil gflow: {server.PROFILE or 'default'} · Chrome: {self._chrome_directory()}",
+            f"gflow: {server.GFLOW_BIN} · perfil gflow: {server.PROFILE or 'default'} "
+            f"· home: {getattr(server, 'GFLOW_HOME', '') or '-'} · Chrome: {self._chrome_directory()}",
             "ok",
         )
         if self.keep_awake.get():

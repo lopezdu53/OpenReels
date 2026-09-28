@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -162,10 +163,6 @@ def sanitize_gflow_profile_name(name: str) -> str:
     return cleaned.strip("-.") or "default"
 
 
-def login_user_data_dir(profile: str = "") -> Path:
-    return preferred_gflow_home() / f"profile_{sanitize_gflow_profile_name(profile)}"
-
-
 def _email_from_gflow_profile(folder: Path) -> str:
     acc = folder / ".gflow_account"
     if acc.is_file():
@@ -214,7 +211,14 @@ def list_gflow_profiles(home: Path | None = None) -> list[dict[str, str]]:
             if key in seen and not email:
                 continue
             seen.add(key)
-            rows.append({"name": name, "email": email or name, "dir": str(folder)})
+            rows.append(
+                {
+                    "name": name,
+                    "email": email or name,
+                    "dir": str(folder),
+                    "home": str(root),
+                }
+            )
     return rows
 
 
@@ -222,16 +226,47 @@ def list_gflow_accounts(home: Path | None = None) -> list[str]:
     return [f"{row['name']}: {row['email']}" for row in list_gflow_profiles(home)]
 
 
-def pick_gflow_profile(preferred_email: str = "", home: Path | None = None) -> dict[str, str] | None:
+def resolve_gflow_session(wanted: str = "", home: Path | None = None) -> dict[str, str] | None:
+    """Exact profile name or Gmail. Never silently pick another account's folder."""
     rows = list_gflow_profiles(home)
     if not rows:
         return None
-    want = preferred_email.strip().lower()
-    if want:
-        for row in rows:
-            if row["email"].lower() == want:
-                return row
-    return rows[0]
+    key = (wanted or "").strip().lower()
+    if not key:
+        return rows[0] if len(rows) == 1 else None
+    for row in rows:
+        if row["name"].lower() == key:
+            return row
+    for row in rows:
+        email = row["email"].lower()
+        if email == key or email.split("@", 1)[0] == key:
+            return row
+    return None
+
+
+def pick_gflow_profile(preferred_email: str = "", home: Path | None = None) -> dict[str, str] | None:
+    return resolve_gflow_session(preferred_email, home)
+
+
+def write_gflow_default_profile(name: str, home: Path | None = None) -> None:
+    """Point gflow-cli config.toml at this profile so it stops using the last login."""
+    root = Path(home) if home else preferred_gflow_home()
+    root.mkdir(parents=True, exist_ok=True)
+    dest = root / "config.toml"
+    body = dest.read_text(encoding="utf-8") if dest.is_file() else ""
+    line = f'default_profile = "{name}"'
+    if re.search(r"(?m)^default_profile\s*=", body):
+        body = re.sub(r"(?m)^default_profile\s*=.*$", line, body)
+    else:
+        body = (body.rstrip() + "\n" if body.strip() else "") + line + "\n"
+    dest.write_text(body, encoding="utf-8")
+
+
+def login_user_data_dir(profile: str = "") -> Path:
+    row = resolve_gflow_session(profile)
+    if row:
+        return Path(row["dir"])
+    return preferred_gflow_home() / f"profile_{sanitize_gflow_profile_name(profile)}"
 
 
 def open_flow_in_chrome(profile_directory: str = "Default") -> None:
@@ -248,6 +283,21 @@ def open_flow_in_chrome(profile_directory: str = "Default") -> None:
         creationflags=flags,
         close_fds=False,
     )
+
+
+def inject_profile_args(cmd: list[str], profile: str) -> list[str]:
+    """`--profile` is per-subcommand in gflow-cli, not a global flag."""
+    name = (profile or "").strip()
+    if not name or "--profile" in cmd:
+        return cmd
+    verbs = {"image", "video", "auth", "data", "project"}
+    idx = next((i for i, part in enumerate(cmd) if part in verbs), -1)
+    if idx < 0:
+        return [*cmd, "--profile", name]
+    insert = idx + 1
+    if insert < len(cmd) and not str(cmd[insert]).startswith("-"):
+        insert += 1
+    return [*cmd[:insert], "--profile", name, *cmd[insert:]]
 
 
 def gflow_login_cmd(gflow_bin: str, profile: str = "") -> list[str]:

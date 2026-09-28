@@ -23,7 +23,13 @@ from typing import Any
 from urllib.parse import urlparse
 
 from gflow_patch import ensure_gflow_wait_patch, gflow_exec_command
-from profiles import find_gflow, missing_gflow_message
+from profiles import (
+    find_gflow,
+    inject_profile_args,
+    missing_gflow_message,
+    resolve_gflow_session,
+    write_gflow_default_profile,
+)
 
 HOST = os.environ.get("GFLOW_BRIDGE_HOST", "0.0.0.0")
 PORT = int(os.environ.get("GFLOW_BRIDGE_PORT", "8787"))
@@ -36,6 +42,7 @@ ALLOW_IPS = {
 }
 GFLOW_BIN = find_gflow() or os.environ.get("GFLOW_CLI_BIN") or shutil.which("gflow") or "gflow"
 PROFILE = os.environ.get("GFLOW_CLI_PROFILE") or ""
+GFLOW_HOME = os.environ.get("GFLOW_CLI_HOME") or ""
 PROJECT = os.environ.get("GFLOW_CLI_PROJECT") or ""
 PROJECT_NAME = os.environ.get("GFLOW_CLI_PROJECT_NAME") or ("OpenReels" if PROJECT else "")
 IMAGE_TIMEOUT = int(os.environ.get("GFLOW_BRIDGE_IMAGE_TIMEOUT", "240"))
@@ -551,9 +558,7 @@ def _spawn_gflow(
     output_dir: str | None = None,
     timeout: int | None = None,
 ) -> subprocess.Popen[str]:
-    cmd = gflow_exec_command(GFLOW_BIN, args)
-    if PROFILE and "--profile" not in args:
-        cmd.extend(["--profile", PROFILE])
+    cmd = inject_profile_args(gflow_exec_command(GFLOW_BIN, args), PROFILE)
     kind = args[0] if args else ""
     # `gflow data *` has no --project / --project-name (1.6.7 recover died on that).
     if kind != "data":
@@ -566,6 +571,10 @@ def _spawn_gflow(
     env["NO_COLOR"] = "1"
     env["FORCE_COLOR"] = "0"
     env.setdefault("GFLOW_CLI_FLOW_HOST", "auto")
+    if PROFILE:
+        env["GFLOW_CLI_PROFILE"] = PROFILE
+    if GFLOW_HOME:
+        env["GFLOW_CLI_HOME"] = GFLOW_HOME
     global KEPT_CHROME
     keep = kind == "video"
     if keep:
@@ -591,7 +600,8 @@ def _spawn_gflow(
     print(
         f"[gflow-bridge] exec {via} ACK={env.get('GFLOW_BRIDGE_SUBMIT_REPLY_S', '-')}s "
         f"keep_chrome={env['GFLOW_BRIDGE_KEEP_CHROME']} "
-        f"{' '.join(cmd[:6])} … project={PROJECT or '-'} name={PROJECT_NAME or '-'}",
+        f"{' '.join(cmd[:6])} … profile={PROFILE or '-'} home={GFLOW_HOME or '-'} "
+        f"project={PROJECT or '-'} name={PROJECT_NAME or '-'}",
         flush=True,
     )
     return subprocess.Popen(
@@ -1375,12 +1385,22 @@ def apply_settings(
     profile: str = "",
     gflow_bin: str = "",
 ) -> None:
-    global TOKEN, ALLOW_IPS, PROJECT, PROJECT_NAME, HOST, PORT, PROFILE, GFLOW_BIN
+    global TOKEN, ALLOW_IPS, PROJECT, PROJECT_NAME, HOST, PORT, PROFILE, GFLOW_HOME, GFLOW_BIN
     TOKEN = (token or "").strip()
     ALLOW_IPS = {ip.strip() for ip in (allow_ips or "").split(",") if ip.strip()}
     PROJECT = (project or "").strip()
     PROJECT_NAME = (project_name or "").strip() or ("OpenReels" if PROJECT else "")
     PROFILE = (profile or "").strip()
+    session = resolve_gflow_session(PROFILE) if PROFILE else None
+    if session:
+        PROFILE = session["name"]
+        GFLOW_HOME = session.get("home") or str(Path(session["dir"]).parent)
+        try:
+            write_gflow_default_profile(PROFILE, Path(GFLOW_HOME))
+        except OSError:
+            pass
+    else:
+        GFLOW_HOME = ""
     found = find_gflow(gflow_bin) or find_gflow()
     if found:
         GFLOW_BIN = found
@@ -1396,6 +1416,12 @@ def apply_settings(
     os.environ["GFLOW_CLI_PROJECT_NAME"] = PROJECT_NAME
     if PROFILE:
         os.environ["GFLOW_CLI_PROFILE"] = PROFILE
+    else:
+        os.environ.pop("GFLOW_CLI_PROFILE", None)
+    if GFLOW_HOME:
+        os.environ["GFLOW_CLI_HOME"] = GFLOW_HOME
+    else:
+        os.environ.pop("GFLOW_CLI_HOME", None)
     if GFLOW_BIN:
         os.environ["GFLOW_CLI_BIN"] = GFLOW_BIN
 

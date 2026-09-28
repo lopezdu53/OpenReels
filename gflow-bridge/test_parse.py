@@ -351,6 +351,7 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(server.ALLOW_IPS, {"192.168.1.71", "10.0.0.2"})
 
     def test_apply_settings_sets_gflow_profile(self):
+        import os
         import server
 
         server.apply_settings(
@@ -362,6 +363,7 @@ class SettingsTests(unittest.TestCase):
         )
         self.assertEqual(server.PROFILE, "gemini")
         self.assertEqual(server.GFLOW_BIN, "/tmp/does-not-exist-gflow")
+        self.assertEqual(os.environ.get("GFLOW_CLI_PROFILE"), "gemini")
 
 
 class RelayClientTests(unittest.TestCase):
@@ -476,6 +478,19 @@ class ChromeProfileTests(unittest.TestCase):
             names = {row["name"] for row in found}
             self.assertIn("keepupwalking7", names)
             self.assertIn("ventabot.cloud", names)
+            from profiles import inject_profile_args, resolve_gflow_session, write_gflow_default_profile
+
+            self.assertEqual(resolve_gflow_session("keepupwalking7")["name"], "keepupwalking7")
+            self.assertEqual(resolve_gflow_session("ventabot.cloud@gmail.com")["name"], "ventabot.cloud")
+            self.assertIsNone(resolve_gflow_session("otro-gmail@gmail.com"))
+            injected = inject_profile_args(
+                ["gflow", "image", "i2i", "a dog", "--json"],
+                "keepupwalking7",
+            )
+            self.assertEqual(injected[3:5], ["--profile", "keepupwalking7"])
+            write_gflow_default_profile("keepupwalking7", Path(tmp) / "ffroliva" / "gflow-cli")
+            toml = (Path(tmp) / "ffroliva" / "gflow-cli" / "config.toml").read_text(encoding="utf-8")
+            self.assertIn('default_profile = "keepupwalking7"', toml)
             self.assertEqual(preferred_gflow_home().name, "gflow-cli")
             self.assertIn("ffroliva", str(login_user_data_dir("ventabot.cloud")))
             bat = write_login_batch(r"C:\Tools\gflow.exe", "ventabot.cloud")
@@ -555,7 +570,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
         self.assertEqual(classify_log("Flow status 4 después del video: falló el audio"), "i2v")
-        self.assertEqual(APP_VERSION, "1.7.1")
+        self.assertEqual(APP_VERSION, "1.7.2")
         self.assertEqual(
             classify_log(
                 "Flow no ofrece 'veo-lite-lp' en este Gmail. Reintento YA con veo-lite"
