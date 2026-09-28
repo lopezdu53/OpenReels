@@ -62,6 +62,13 @@ import sys
 from pathlib import Path
 
 
+def _pace_s() -> float:
+    try:
+        return max(0.0, float(os.environ.get("GFLOW_BRIDGE_PACE_S") or "8"))
+    except ValueError:
+        return 8.0
+
+
 def _wait_s() -> float:
     return float(
         os.environ.get("GFLOW_CLI_TIMEOUT_SECONDS")
@@ -259,6 +266,14 @@ def _patch() -> None:
             kwargs["poll_timeout_s"] = wait
             mc.SUBMIT_REPLY_BUDGET_S = wait
             print(f"[gflow-bridge] submit_and_observe wait={wait:.0f}s", flush=True)
+            pace = _pace_s()
+            if pace > 0:
+                print(
+                    f"[gflow-bridge] espero {pace:.0f}s antes de Generate video "
+                    "(ritmo humano; el CLI solo tarda 2s y Flow lo marca)",
+                    flush=True,
+                )
+                await asyncio.sleep(pace)
             try:
                 rec = await orig_sub(self, page, *args, **kwargs)
             except Exception as err:
@@ -368,6 +383,14 @@ def _patch() -> None:
 
             page.on("response", on_any)
             try:
+                pace = _pace_s()
+                if pace > 0:
+                    print(
+                        f"[gflow-bridge] espero {pace:.0f}s antes de Generate still "
+                        "(ritmo humano; el CLI solo tarda 2s y Flow lo marca)",
+                        flush=True,
+                    )
+                    await asyncio.sleep(pace)
                 try:
                     return await orig_img(self, page, request, *args, **kwargs)
                 except Exception as err:

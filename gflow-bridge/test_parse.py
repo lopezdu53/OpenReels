@@ -47,6 +47,8 @@ from server import (
     _is_hard_video_fail,
     _is_unusual_activity,
     _friendly_unusual_activity,
+    _pace_between_jobs,
+    JOB_GAP_S,
 )
 
 
@@ -157,6 +159,11 @@ class VideoModeTests(unittest.TestCase):
         self.assertTrue(_is_hard_video_fail(blocked))
         self.assertFalse(_is_image_wire_miss(blocked))
         self.assertIn("actividad inusual", _friendly_unusual_activity())
+        import server as srv
+
+        srv._LAST_JOB_END = 0.0
+        _pace_between_jobs("image")
+        self.assertGreaterEqual(JOB_GAP_S, 30)
 
     def test_i2v_args_need_still(self):
         args = _video_cli_args(
@@ -596,7 +603,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
         self.assertEqual(classify_log("Flow status 4 después del video: falló el audio"), "i2v")
-        self.assertEqual(APP_VERSION, "1.7.4")
+        self.assertEqual(APP_VERSION, "1.7.5")
         self.assertEqual(
             classify_log(
                 "Flow no ofrece 'veo-lite-lp' en este Gmail. Reintento YA con veo-lite"
@@ -656,6 +663,8 @@ class GflowPatchTests(unittest.TestCase):
         self.assertIn("_harvest_page_images", RUNNER_SOURCE)
         self.assertIn("_page_unusual_activity", RUNNER_SOURCE)
         self.assertIn("UNUSUAL_ACTIVITY", RUNNER_SOURCE)
+        self.assertIn("_pace_s", RUNNER_SOURCE)
+        self.assertIn("ritmo humano", RUNNER_SOURCE)
         from gflow_patch import generation_status_flags
 
         self.assertEqual(generation_status_flags(4, seen_running=False), (True, False))

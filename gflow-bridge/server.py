@@ -51,6 +51,9 @@ VIDEO_TIMEOUT_LP = int(os.environ.get("GFLOW_BRIDGE_VIDEO_TIMEOUT_LP", "3600"))
 QUEUE_WAIT = int(os.environ.get("GFLOW_BRIDGE_QUEUE_WAIT", "1200"))
 MAX_BODY = int(os.environ.get("GFLOW_BRIDGE_MAX_BODY", str(48 * 1024 * 1024)))
 SETTLE_SECONDS = int(os.environ.get("GFLOW_BRIDGE_SETTLE_SECONDS", "8"))
+JOB_GAP_S = float(os.environ.get("GFLOW_BRIDGE_JOB_GAP_S", "50"))
+PACE_S = float(os.environ.get("GFLOW_BRIDGE_PACE_S", "8"))
+_LAST_JOB_END = 0.0
 I2V_FALLBACK_T2V = os.environ.get("GFLOW_I2V_FALLBACK_T2V", "") == "1"
 # gflow 0.71 picks the library tile then waits for the picker to close. Migrated
 # Flow keeps it open until "Add to prompt" — the CLI never clicks that button.
@@ -663,6 +666,7 @@ def _spawn_gflow(
     if keep:
         KEPT_CHROME = True
     env["GFLOW_BRIDGE_KEEP_CHROME"] = "1" if keep else "0"
+    env.setdefault("GFLOW_BRIDGE_PACE_S", str(PACE_S))
     if timeout:
         env["GFLOW_CLI_TIMEOUT_SECONDS"] = str(max(int(timeout), 600))
         env["GFLOW_BRIDGE_SUBMIT_REPLY_S"] = str(max(int(timeout), 600))
@@ -1110,8 +1114,34 @@ def _recover_generated_mp4(
             slept += 1
 
 
+def _pace_between_jobs(kind: str) -> None:
+    """Flow flags Playwright if stills/videos fire a few seconds apart."""
+    global _LAST_JOB_END
+    if _LAST_JOB_END <= 0:
+        return
+    wait = JOB_GAP_S - (time.time() - _LAST_JOB_END)
+    if wait <= 0.5:
+        return
+    print(
+        f"[gflow-bridge] pausa {wait:.0f}s antes de {kind} "
+        "(el CLI va demasiado rápido y Flow marca actividad inusual)",
+        flush=True,
+    )
+    deadline = time.time() + wait
+    while time.time() < deadline:
+        if ABORT_REQUESTED:
+            raise RuntimeError("detenido por el usuario")
+        time.sleep(min(1.0, deadline - time.time()))
+
+
+def _mark_job_finished() -> None:
+    global _LAST_JOB_END
+    _LAST_JOB_END = time.time()
+
+
 def generate_image(body: dict[str, Any]) -> dict[str, Any]:
     _clear_abort()
+    _pace_between_jobs("image")
     prompt = str(body.get("prompt") or "").strip()
     if len(prompt) < 2:
         raise ValueError("prompt requerido")
@@ -1166,11 +1196,13 @@ def generate_image(body: dict[str, Any]) -> dict[str, Any]:
             raise RuntimeError(f"gflow image too small ({len(data)} bytes)")
         return {"ok": True, "kind": "image", "png": base64.b64encode(data).decode("ascii"), "bytes": len(data)}
     finally:
+        _mark_job_finished()
         shutil.rmtree(work, ignore_errors=True)
 
 
 def generate_video(body: dict[str, Any]) -> dict[str, Any]:
     _clear_abort()
+    _pace_between_jobs("video")
     prompt = _sanitize_prompt(str(body.get("prompt") or ""))
     if len(prompt) < 2:
         raise ValueError("prompt requerido")
@@ -1370,6 +1402,7 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
             "durationSeconds": reported,
         }
     finally:
+        _mark_job_finished()
         if mode == "i2v" and SETTLE_SECONDS > 0:
             time.sleep(SETTLE_SECONDS)
         shutil.rmtree(work, ignore_errors=True)
