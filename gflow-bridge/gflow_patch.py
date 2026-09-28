@@ -165,6 +165,25 @@ async def _harvest_video(page, media_id: str) -> str | None:
     return found[0] if found else None
 
 
+async def _harvest_page_images(page) -> list[str]:
+    try:
+        raw = await page.evaluate(
+            """() => {
+              const out = [];
+              for (const img of document.querySelectorAll("img")) {
+                const s = img.currentSrc || img.src || "";
+                if (s.startsWith("https://") && (s.includes("google") || s.includes("ggpht") || s.includes("fife"))) {
+                  out.push(s);
+                }
+              }
+              return out;
+            }"""
+        )
+    except Exception:
+        return []
+    return [u for u in (raw or []) if isinstance(u, str) and u.startswith("https://")]
+
+
 def _patch() -> None:
     submit = _wait_s()
     grace = float(os.environ.get("GFLOW_BRIDGE_RESULT_URL_GRACE_S", "1200"))
@@ -267,6 +286,93 @@ def _patch() -> None:
 
         mc.MigratedComposer.submit_and_observe = _submit_wait
         mc.MigratedComposer.download = _download_existing
+        orig_select = mc.MigratedComposer._select
+        orig_img = mc.MigratedComposer.submit_images_and_observe
+
+        async def _select_soft_duration(self, page, pane, *, axis, lig=None, text=None):
+            try:
+                return await orig_select(self, page, pane, axis=axis, lig=lig, text=text)
+            except Exception as err:
+                if axis != "duration":
+                    raise
+                print(
+                    f"[gflow-bridge] Flow no tiene duración {text or lig}; "
+                    "sigo con la que ya está en el editor.",
+                    flush=True,
+                )
+                return None
+
+        async def _submit_images_flex(self, page, request, *args, **kwargs):
+            extra: list = []
+
+            def on_any(resp) -> None:
+                url = str(getattr(resp, "url", "") or "")
+                if "batchexecute" not in url.lower():
+                    return
+
+                async def _eat() -> None:
+                    try:
+                        text = await resp.text()
+                        for rpcid, payload in be.parse_frames(text):
+                            recs = be.image_records(rpcid, payload)
+                            if recs:
+                                extra.extend(recs)
+                                print(
+                                    f"[gflow-bridge] imagen en rpc={rpcid} n={len(recs)}",
+                                    flush=True,
+                                )
+                    except Exception:
+                        return
+
+                asyncio.create_task(_eat())
+
+            page.on("response", on_any)
+            try:
+                try:
+                    return await orig_img(self, page, request, *args, **kwargs)
+                except Exception as err:
+                    msg = str(err).lower()
+                    if "ogiz0b" not in msg and "wireformat" not in msg:
+                        raise
+                    print(
+                        "[gflow-bridge] ogiZ0b vacío; espero otra respuesta o la imagen en Chrome…",
+                        flush=True,
+                    )
+                    for _ in range(20):
+                        if extra:
+                            break
+                        await asyncio.sleep(1.5)
+                    rec = extra[0] if extra else None
+                    url = rec.image_url if rec is not None else None
+                    if not url:
+                        urls = await _harvest_page_images(page)
+                        url = urls[0] if urls else None
+                    if not url:
+                        raise
+                    from gflow_cli.api.dto import GeneratedImage
+
+                    return [
+                        GeneratedImage(
+                            media_name=getattr(rec, "media_id", None) or "harvested",
+                            workflow_id=getattr(rec, "workflow_id", None) or "harvested",
+                            seed=int(getattr(rec, "seed", 0) or 0),
+                            prompt=getattr(rec, "prompt", None) or "",
+                            model_name_type=None,
+                            aspect_ratio=getattr(getattr(request, "aspect", None), "value", None)
+                            or "IMAGE_ASPECT_RATIO_PORTRAIT",
+                            fife_url=url,
+                            dimensions=getattr(rec, "dimensions", None) or (1080, 1920),
+                            display_name=getattr(rec, "display_name", None),
+                        )
+                    ]
+            finally:
+                try:
+                    page.remove_listener("response", on_any)
+                except Exception:
+                    pass
+
+        mc.MigratedComposer._select = _select_soft_duration
+        mc.MigratedComposer.submit_images_and_observe = _submit_images_flex
         print(
             f"[gflow-bridge] runtime ACK={mc.SUBMIT_REPLY_BUDGET_S:.0f}s "
             f"grace={mc.RESULT_URL_GRACE_S:.0f}s keep_chrome={keep}",

@@ -207,10 +207,55 @@ def _resolve_video_mode(raw: object) -> str:
 
 
 def _duration_flag(model: str, duration: int | None) -> list[str]:
-    # gflow 0.71: only Omni Flash has a duration row on migrated Flow.
-    if duration is None or str(model).strip().lower() != "omni-flash":
-        return []
-    return ["--duration", str(duration)]
+    # gflow 0.79: most migrated Gmails (incl. Omni 1.1 Flash) have no duration
+    # row. Passing --duration raises ConfigurationError exit 11. Flow picks
+    # the default length; do not send the flag.
+    del model, duration
+    return []
+
+
+def _strip_duration_args(args: list[str]) -> list[str]:
+    out: list[str] = []
+    skip = False
+    for item in args:
+        if skip:
+            skip = False
+            continue
+        if item == "--duration":
+            skip = True
+            continue
+        out.append(item)
+    return out
+
+
+def _is_duration_not_offered(msg: str) -> bool:
+    low = msg.lower()
+    return "duration control" in low or "drop --duration" in low or "no duration control offering" in low
+
+
+def _is_image_wire_miss(msg: str) -> bool:
+    low = msg.lower()
+    return "ogiz0b" in low or (
+        "wireformaterror" in low and ("image" in low or "ogi" in low)
+    )
+
+
+def _friendly_image_error(msg: str) -> str:
+    if _is_image_wire_miss(msg):
+        return (
+            "Flow no confirmó el still (respuesta ogiZ0b vacía). "
+            "El puente reintenta; si sigue fallando, abre Flow en Chrome y genera un still a mano."
+        )
+    return msg
+
+
+def _friendly_video_error(msg: str) -> str:
+    if _is_duration_not_offered(msg):
+        return (
+            "Este Gmail no muestra duración 6s/10s en Omni. "
+            "El puente ya no manda --duration: Flow usa la duración por defecto."
+        )
+    return msg
 
 
 def _video_cli_args(
@@ -299,6 +344,8 @@ def _remember_model_fallback(requested: str, used: str) -> None:
 
 def _is_hard_video_fail(msg: str) -> bool:
     low = msg.lower()
+    if _is_duration_not_offered(msg):
+        return False
     if _is_model_not_offered(msg):
         return True
     return any(
@@ -1051,9 +1098,26 @@ def generate_image(body: dict[str, Any]) -> dict[str, Any]:
         else:
             args += ["t2i", full]
         args += ["--model", model, "--aspect", aspect, "-o", str(dest)]
-        payload = _run_gflow(args, IMAGE_TIMEOUT)
+        last_err: Exception | None = None
+        payload: dict[str, Any] | None = None
+        for attempt in range(2):
+            try:
+                payload = _run_gflow(args, IMAGE_TIMEOUT)
+                last_err = None
+                break
+            except Exception as err:
+                last_err = err
+                if attempt == 0 and _is_image_wire_miss(str(err)):
+                    print(
+                        "[gflow-bridge] Flow no devolvió ogiZ0b. Reintento la imagen una vez…",
+                        flush=True,
+                    )
+                    continue
+                raise RuntimeError(_friendly_image_error(str(err))) from err
+        if last_err is not None:
+            raise RuntimeError(_friendly_image_error(str(last_err))) from last_err
         local = dest if dest.exists() else None
-        if local is None:
+        if local is None and payload:
             images = payload.get("images")
             if isinstance(images, list) and images and isinstance(images[0], dict):
                 p = images[0].get("local_path")
@@ -1131,6 +1195,14 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                 except Exception as err:
                     last_err = err
                     msg = str(err)
+                    if _is_duration_not_offered(msg) and "--duration" in args and attempt == 0:
+                        print(
+                            "[gflow-bridge] Flow no tiene fila de duración. Reintento sin --duration.",
+                            flush=True,
+                        )
+                        args = _strip_duration_args(args)
+                        duration = None
+                        continue
                     alt = _fallback_video_model(model, msg)
                     if alt and attempt == 0:
                         print(

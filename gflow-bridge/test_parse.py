@@ -40,6 +40,11 @@ from server import (
     _unique_still_name,
     _video_cli_args,
     _video_timeout_for,
+    _duration_flag,
+    _strip_duration_args,
+    _is_duration_not_offered,
+    _is_image_wire_miss,
+    _is_hard_video_fail,
 )
 
 
@@ -119,7 +124,7 @@ class VideoModeTests(unittest.TestCase):
         )
         self.assertNotIn("--duration", args)
 
-    def test_omni_flash_keeps_duration(self):
+    def test_omni_flash_omits_duration(self):
         args = _video_cli_args(
             mode="t2v",
             prompt="pan",
@@ -129,8 +134,21 @@ class VideoModeTests(unittest.TestCase):
             dest="out.mp4",
             still_path=None,
         )
-        self.assertIn("--duration", args)
-        self.assertIn("10", args)
+        self.assertNotIn("--duration", args)
+        self.assertEqual(_duration_flag("omni-flash", 6), [])
+        self.assertEqual(
+            _strip_duration_args(["video", "t2v", "x", "--duration", "6", "--aspect", "16:9"]),
+            ["video", "t2v", "x", "--aspect", "16:9"],
+        )
+        miss = (
+            "ConfigurationError — the migrated Flow host renders no duration control "
+            "offering '6s' for this account and model"
+        )
+        self.assertTrue(_is_duration_not_offered(miss))
+        self.assertFalse(_is_hard_video_fail(miss))
+        self.assertTrue(
+            _is_image_wire_miss("WireFormatError — migrated image submit returned no ogiZ0b frame")
+        )
 
     def test_i2v_args_need_still(self):
         args = _video_cli_args(
@@ -570,7 +588,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
         self.assertEqual(classify_log("Flow status 4 después del video: falló el audio"), "i2v")
-        self.assertEqual(APP_VERSION, "1.7.2")
+        self.assertEqual(APP_VERSION, "1.7.3")
         self.assertEqual(
             classify_log(
                 "Flow no ofrece 'veo-lite-lp' en este Gmail. Reintento YA con veo-lite"
@@ -624,6 +642,9 @@ class GflowPatchTests(unittest.TestCase):
         self.assertIn("is_failed", RUNNER_SOURCE)
         self.assertIn("audio falló", RUNNER_SOURCE)
         self.assertIn("_harvest_video", RUNNER_SOURCE)
+        self.assertIn("ogiZ0b", RUNNER_SOURCE)
+        self.assertIn("_select_soft_duration", RUNNER_SOURCE)
+        self.assertIn("_harvest_page_images", RUNNER_SOURCE)
         from gflow_patch import generation_status_flags
 
         self.assertEqual(generation_status_flags(4, seen_running=False), (True, False))
