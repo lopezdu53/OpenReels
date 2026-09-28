@@ -36,12 +36,17 @@ export async function registerAnalyticsRoutes(app: FastifyInstance): Promise<voi
   });
 
   app.post("/api/v1/analytics/top-niches", async (request, reply) => {
-    const body = (request.body ?? {}) as { region?: string; seed?: string; refresh?: boolean };
+    const body = (request.body ?? {}) as {
+      region?: string;
+      seed?: string;
+      salt?: string;
+      refresh?: boolean;
+    };
     try {
       if (body.refresh === false) {
-        return curatedTopNiches(body.region);
+        return curatedTopNiches(body.region, { salt: body.salt ?? body.seed });
       }
-      return await generateTopNiches({ region: body.region, seed: body.seed });
+      return await generateTopNiches({ region: body.region, seed: body.seed, salt: body.salt });
     } catch (err) {
       reply.status(500);
       return { error: err instanceof Error ? err.message : String(err) };

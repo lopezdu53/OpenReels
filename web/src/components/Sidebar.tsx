@@ -17,49 +17,32 @@ import {
   PlusCircle,
   Settings,
   Shield,
+  Tv,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { StatsResponse } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
+import { visibleNav } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "./BrandMark";
 
-const NAV_ITEMS: {
-  path: string;
-  label: string;
-  icon: typeof LayoutDashboard;
-  admin?: boolean;
-  children?: { path: string; label: string }[];
-}[] = [
-    { path: "/dashboard", label: "Panel", icon: LayoutDashboard },
-    {
-      path: "/analytic",
-      label: "Analítica",
-      icon: BarChart3,
-      children: [{ path: "/analytic/cronograma", label: "Cronograma" }],
-    },
-    { path: "/learning", label: "Aprendizaje", icon: BookOpen },
-    { path: "/", label: "Nuevo Short", icon: PlusCircle },
-    { path: "/film", label: "Nuevo Film", icon: Film },
-    { path: "/flow", label: "Nuevo Flow", icon: Workflow },
-    { path: "/vox", label: "Nuevo Vox", icon: Newspaper },
-    { path: "/stickman", label: "Nuevo Stickman", icon: PersonStanding },
-    {
-      path: "/casting",
-      label: "Casting",
-      icon: Users,
-      children: [
-        { path: "/casting/personajes", label: "Personajes" },
-        { path: "/casting/objetos", label: "Objetos" },
-        { path: "/casting/entornos", label: "Entornos" },
-      ],
-    },
-    { path: "/historia", label: "Nueva Historia", icon: Clapperboard },
-    { path: "/gallery", label: "Galería", icon: LayoutGrid },
-    { path: "/lab", label: "API Lab", icon: FlaskConical },
-    { path: "/settings", label: "Ajustes", icon: Settings },
-    { path: "/admin", label: "Admin", icon: Shield, admin: true },
-  ];
+const ICONS = {
+  panel: LayoutDashboard,
+  analytic: BarChart3,
+  canal: Tv,
+  learning: BookOpen,
+  short: PlusCircle,
+  film: Film,
+  flow: Workflow,
+  vox: Newspaper,
+  stickman: PersonStanding,
+  casting: Users,
+  historia: Clapperboard,
+  gallery: LayoutGrid,
+  lab: FlaskConical,
+  settings: Settings,
+  admin: Shield,
+} as const;
 
 interface SidebarProps {
   collapsed: boolean;
@@ -70,15 +53,20 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
   const location = useLocation();
   const { user, logout } = useAuth();
+  const items = visibleNav(user?.role);
 
   const isActive = (path: string) => {
     if (path === "/") return location.pathname === "/";
     if (path === "/film") return location.pathname === "/film";
     if (path === "/flow") return location.pathname === "/flow";
     if (path === "/vox") return location.pathname === "/vox" || location.pathname.startsWith("/vox/");
-    if (path === "/stickman") return location.pathname === "/stickman" || location.pathname.startsWith("/stickman/");
+    if (path === "/stickman")
+      return location.pathname === "/stickman" || location.pathname.startsWith("/stickman/");
     if (path === "/casting") return location.pathname === "/casting";
-    if (path === "/historia") return location.pathname === "/historia" || location.pathname.startsWith("/historia/");
+    if (path === "/historia")
+      return location.pathname === "/historia" || location.pathname.startsWith("/historia/");
+    if (path === "/analytic") return location.pathname === "/analytic";
+    if (path === "/canal") return location.pathname === "/canal" || location.pathname.startsWith("/canal/");
     return location.pathname.startsWith(path);
   };
 
@@ -102,9 +90,10 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
       </div>
 
       <nav className={cn("mt-8 flex flex-col gap-1", collapsed ? "px-2" : "px-5")}>
-        {NAV_ITEMS.filter((item) => !item.admin || user?.role === "admin").map((item) => {
+        {items.map((item) => {
           const childActive = item.children?.some((c) => location.pathname.startsWith(c.path));
-          const active = item.path === "/analytic" ? location.pathname === "/analytic" : isActive(item.path);
+          const active = isActive(item.path);
+          const Icon = ICONS[item.icon as keyof typeof ICONS] ?? LayoutDashboard;
           return (
             <div key={item.path}>
               <Link
@@ -120,7 +109,7 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
                       : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground",
                 )}
               >
-                <item.icon className="size-5 shrink-0" />
+                <Icon className="size-5 shrink-0" />
                 {!collapsed && item.label}
                 {(item.path === "/" || item.path === "/film") && stats && stats.activeJobs > 0 && (
                   <span

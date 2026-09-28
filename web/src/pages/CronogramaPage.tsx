@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  CalendarDays,
   Clock,
   Copy,
   ImageIcon,
   Loader2,
+  Save,
   Search,
   Sparkles,
   TrendingUp,
   Tv,
 } from "lucide-react";
-import { AnalyticsSubnav } from "@/components/analytic/AnalyticsSubnav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +21,7 @@ import {
   type CronogramaNiche,
   type CronogramaPlan,
   type CronogramaStatus,
+  type SavedCanal,
 } from "@/hooks/useApi";
 import { formatUsd } from "@/lib/job-cost-preview";
 import { cn } from "@/lib/utils";
@@ -64,6 +64,48 @@ export function CronogramaPage() {
   const [banner, setBanner] = useState<string>("");
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [openKey, setOpenKey] = useState<string>("");
+  const [savedAt, setSavedAt] = useState("");
+
+  function applySaved(saved: SavedCanal) {
+    if (saved.plan) {
+      setPlan(saved.plan);
+      setChannel(saved.plan.channel);
+      setPicked(saved.plan.niche);
+      setTab("videos");
+    } else if (saved.channel) {
+      setChannel(saved.channel);
+      setTab("canal");
+    }
+    if (saved.nicheQuery) {
+      setPicked((prev) =>
+        prev ??
+        ({
+          rank: 0,
+          name: saved.nicheName || saved.nicheQuery,
+          query: saved.nicheQuery,
+          category: "",
+          youtubeCategory: "",
+          why: "",
+          demand: "media",
+          competition: "media",
+          cpmLongformUsd: 0,
+          cpmShortsUsd: 0,
+          exampleTopics: [],
+          formats: ["short"],
+        } as CronogramaNiche),
+      );
+    }
+    if (saved.avatar) setAvatar(saved.avatar);
+    if (saved.banner) setBanner(saved.banner);
+    if (saved.thumbs) setThumbs(saved.thumbs);
+    if (saved.timezone) setTimezone(saved.timezone);
+    if (saved.videosPerDay) setVideosPerDay(saved.videosPerDay);
+    if (saved.startDate) setStartDate(saved.startDate);
+    if (saved.angle) setAngle(saved.angle);
+    if (saved.llm) setLlm(saved.llm);
+    if (saved.image) setImage(saved.image);
+    setSavedAt(saved.savedAt);
+  }
 
   useEffect(() => {
     void api.cronogramaStatus().then((s) => {
@@ -77,29 +119,46 @@ export function CronogramaPage() {
       setNiches(r.niches);
       setCategories(r.categories);
     }).catch(() => {});
-    try {
-      const raw = localStorage.getItem(STORE_KEY);
-      if (raw) {
-        const saved = JSON.parse(raw) as { plan?: CronogramaPlan; avatar?: string; banner?: string; thumbs?: Record<string, string> };
-        if (saved.plan) {
-          setPlan(saved.plan);
-          setChannel(saved.plan.channel);
-          setPicked(saved.plan.niche);
-          setTab("videos");
+    void api
+      .loadCanal()
+      .then((res) => {
+        if (res.canal) applySaved(res.canal);
+      })
+      .catch(() => {
+        try {
+          const raw = localStorage.getItem(STORE_KEY);
+          if (!raw) return;
+          const saved = JSON.parse(raw) as {
+            plan?: CronogramaPlan;
+            avatar?: string;
+            banner?: string;
+            thumbs?: Record<string, string>;
+          };
+          if (saved.plan) {
+            setPlan(saved.plan);
+            setChannel(saved.plan.channel);
+            setPicked(saved.plan.niche);
+            setTab("videos");
+          }
+          if (saved.avatar) setAvatar(saved.avatar);
+          if (saved.banner) setBanner(saved.banner);
+          if (saved.thumbs) setThumbs(saved.thumbs);
+        } catch {
+          /* ignore */
         }
-        if (saved.avatar) setAvatar(saved.avatar);
-        if (saved.banner) setBanner(saved.banner);
-        if (saved.thumbs) setThumbs(saved.thumbs);
-      }
-    } catch {
-      /* ignore */
-    }
+      });
   }, []);
 
   useEffect(() => {
     if (!plan) return;
     localStorage.setItem(STORE_KEY, JSON.stringify({ plan, avatar, banner, thumbs }));
   }, [plan, avatar, banner, thumbs]);
+
+  useEffect(() => {
+    if (!picked?.query || niches.length === 0) return;
+    const match = niches.find((n) => n.query === picked.query);
+    if (match && match.rank !== picked.rank) setPicked(match);
+  }, [niches, picked]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -153,6 +212,34 @@ export function CronogramaPage() {
     }
   }
 
+  async function saveCanal() {
+    if (!picked && !channel) return;
+    setError("");
+    setBusy("save");
+    try {
+      const res = await api.saveCanal({
+        nicheQuery: picked?.query ?? "",
+        nicheName: picked?.name ?? channel?.name ?? "",
+        angle,
+        timezone,
+        videosPerDay,
+        startDate,
+        llm,
+        image,
+        channel: channel ?? undefined,
+        plan: plan ?? undefined,
+        avatar,
+        banner,
+        thumbs,
+      });
+      setSavedAt(res.canal.savedAt);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function makeImage(kind: "avatar" | "banner" | "thumbnail", prompt: string, key?: string) {
     setError("");
     setBusy(kind + (key ?? ""));
@@ -173,17 +260,29 @@ export function CronogramaPage() {
 
   return (
     <div className="px-4 py-8 sm:px-10 max-w-[1280px]">
-      <AnalyticsSubnav />
-      <div className="mb-6 flex items-start gap-3">
-        <CalendarDays className="mt-0.5 size-6 text-primary" />
-        <div>
-          <h1 className="text-3xl font-bold uppercase tracking-tight">Cronograma</h1>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
-            Elige uno de los 100 nichos, arma un canal con cara de YouTube y un mes de publicaciones:
-            título, descripción, tags, hora y predicción. Vivi y el resto de LLMs escriben; Vivi imagen
-            (u otro) pinta avatar, banner y miniaturas.
-          </p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <Tv className="mt-0.5 size-6 text-primary" />
+          <div>
+            <h1 className="text-3xl font-bold uppercase tracking-tight">Mi Canal</h1>
+            <p className="mt-0.5 text-[13px] text-muted-foreground">
+              Elige un nicho, construye la portada, el handle y un mes de Shorts. Guarda la
+              construcción en tu cuenta para seguirla después.
+            </p>
+            {savedAt ? (
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Último guardado {new Date(savedAt).toLocaleString("es")}
+              </p>
+            ) : null}
+          </div>
         </div>
+        <Button
+          onClick={() => void saveCanal()}
+          disabled={busy === "save" || (!picked && !channel)}
+        >
+          {busy === "save" ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+          Guardar canal
+        </Button>
       </div>
 
       <div className="mb-6 grid gap-3 lg:grid-cols-4">
@@ -296,11 +395,15 @@ export function CronogramaPage() {
                 <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-10 w-40" />
                 <Button onClick={() => void makeChannel()} disabled={busy === "channel"}>
                   {busy === "channel" ? <Loader2 className="size-4 animate-spin" /> : <Tv className="size-4" />}
-                  Crear canal
+                  Construir canal
                 </Button>
                 <Button onClick={() => void makePlan()} disabled={busy === "plan"} variant={channel ? "default" : "outline"}>
                   {busy === "plan" ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
                   Mes de 30 días
+                </Button>
+                <Button onClick={() => void saveCanal()} disabled={busy === "save"} variant="outline">
+                  {busy === "save" ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                  Guardar
                 </Button>
               </div>
               <Input

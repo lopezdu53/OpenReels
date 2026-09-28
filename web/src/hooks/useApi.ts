@@ -923,7 +923,7 @@ export const api = {
     });
   },
 
-  analyticsTopNiches(data?: { region?: string; seed?: string; refresh?: boolean }) {
+  analyticsTopNiches(data?: { region?: string; seed?: string; salt?: string; refresh?: boolean }) {
     return fetchJson<TopNiches>("/analytics/top-niches", {
       method: "POST",
       body: JSON.stringify(data ?? { refresh: false }),
@@ -1053,8 +1053,40 @@ export const api = {
     return fetchJson<YppInfo>("/learning/ypp");
   },
 
+  saveCanal(data: {
+    nicheQuery?: string;
+    nicheName?: string;
+    angle?: string;
+    timezone?: string;
+    videosPerDay?: number;
+    startDate?: string;
+    llm?: string;
+    image?: string;
+    channel?: unknown;
+    plan?: unknown;
+    avatar?: string;
+    banner?: string;
+    thumbs?: Record<string, string>;
+  }) {
+    return fetchJson<{ canal: SavedCanal; canals: SavedCanal[] }>("/me/canal", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  loadCanal() {
+    return fetchJson<{ canal: SavedCanal | null; canals: SavedCanal[] }>("/me/canal");
+  },
+
   adminUsers() {
     return fetchJson<{ users: AdminUserRow[] }>("/admin/users");
+  },
+
+  adminCreateUser(data: { email: string; name: string; password: string }) {
+    return fetchJson<{ user: AdminUserRow }>("/admin/users", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 
   adminUpdateUser(
@@ -1383,6 +1415,24 @@ export interface AuthUser {
   createdAt: string;
   dailyGoal: number;
   role: "admin" | "user";
+}
+
+export interface SavedCanal {
+  id: string;
+  savedAt: string;
+  nicheQuery: string;
+  nicheName: string;
+  angle: string;
+  timezone: string;
+  videosPerDay: number;
+  startDate: string;
+  llm: string;
+  image: string;
+  channel: CronogramaChannel | null;
+  plan: CronogramaPlan | null;
+  avatar: string;
+  banner: string;
+  thumbs: Record<string, string>;
 }
 
 export interface AdminUserRow {

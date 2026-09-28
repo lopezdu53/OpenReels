@@ -37,22 +37,23 @@ export function TopNichesPanel({
             Top 10 nichos
           </h2>
           <p className="mt-1 text-[12px] text-muted-foreground">
-            Ranking para Shorts en LATAM. Elige uno para investigar canales y ganancias. Vivi puede
-            reordenar el listado con señales de 2026.
+            Ranking semanal de nichos en tendencia para Shorts LATAM. Cambia al explorar; no se
+            queda en el mismo top 10.
           </p>
         </div>
-        <Button size="sm" variant="outline" onClick={onRefresh} disabled={loading || !canVivi}>
+        <Button size="sm" variant="outline" onClick={onRefresh} disabled={loading}>
           {loading ? (
             <Loader2 className="size-3.5 animate-spin" />
           ) : (
             <Sparkles className="size-3.5" />
           )}
-          Pulir ranking con Vivi
+          Explorar nichos en tendencia
         </Button>
       </div>
       {!canVivi ? (
-        <p className="text-[12px] text-status-warning">
-          Sin Vivi LLM se muestra el ranking curado. Añade VIVI_LLM_API_KEY para actualizarlo.
+        <p className="text-[12px] text-muted-foreground">
+          Sin Vivi se rota el pool curado cada semana. Con VIVI_LLM_API_KEY el ranking busca señales
+          nuevas.
         </p>
       ) : null}
       {error ? (

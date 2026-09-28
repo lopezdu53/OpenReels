@@ -44,6 +44,24 @@ export interface StoredCloneContent {
   facebook: { title: string; description: string; hashtags: string[] };
 }
 
+export interface StoredCanal {
+  id: string;
+  savedAt: string;
+  nicheQuery: string;
+  nicheName: string;
+  angle: string;
+  timezone: string;
+  videosPerDay: number;
+  startDate: string;
+  llm: string;
+  image: string;
+  channel: Record<string, unknown> | null;
+  plan: Record<string, unknown> | null;
+  avatar: string;
+  banner: string;
+  thumbs: Record<string, string>;
+}
+
 export interface UserRecord {
   id: string;
   email: string;
@@ -55,6 +73,7 @@ export interface UserRecord {
   checkins: Record<string, number>;
   clonedChannels: StoredCloneChannel[];
   clonedVideos: StoredCloneContent[];
+  canals: StoredCanal[];
   characters: StoredCharacter[];
   visualStyles: StoredVisualStyle[];
   locations: StoredLocation[];
@@ -157,6 +176,7 @@ export function hydrateUser(raw: UserRecord): UserRecord {
     checkins: raw.checkins && typeof raw.checkins === "object" ? raw.checkins : {},
     clonedChannels: Array.isArray(raw.clonedChannels) ? raw.clonedChannels : [],
     clonedVideos: Array.isArray(raw.clonedVideos) ? raw.clonedVideos : [],
+    canals: Array.isArray(raw.canals) ? raw.canals : [],
     characters: Array.isArray(raw.characters) ? raw.characters : [],
     visualStyles: Array.isArray(raw.visualStyles) ? raw.visualStyles : [],
     locations: Array.isArray(raw.locations) ? raw.locations : [],
@@ -231,6 +251,7 @@ export async function createUser(opts: {
     checkins: {},
     clonedChannels: [],
     clonedVideos: [],
+    canals: [],
     characters: [],
     visualStyles: [],
     locations: [],

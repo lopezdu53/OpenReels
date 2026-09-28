@@ -20,6 +20,7 @@ import {
   isAdmin,
   listUsers,
   type PublicUser,
+  type StoredCanal,
   type StoredCloneChannel,
   type StoredCloneContent,
   saveUser,
@@ -64,22 +65,9 @@ export async function registerAuth(app: FastifyInstance, redis: IORedis | null):
     request.userRecord = record;
   });
 
-  app.post("/api/v1/auth/register", async (request, reply) => {
-    const body = (request.body ?? {}) as { email?: string; name?: string; password?: string };
-    try {
-      const user = await createUser({
-        email: body.email ?? "",
-        name: body.name ?? "",
-        password: body.password ?? "",
-      });
-      const sid = createSessionId();
-      await putSession(redis, sid, user.id);
-      setSid(reply, sid);
-      return { user: toPublic(user) };
-    } catch (err) {
-      reply.status(400);
-      return { error: err instanceof Error ? err.message : String(err) };
-    }
+  app.post("/api/v1/auth/register", async (_request, reply) => {
+    reply.status(403);
+    return { error: "Las cuentas las crea el superadmin desde Admin" };
   });
 
   app.post("/api/v1/auth/login", async (request, reply) => {
@@ -277,9 +265,62 @@ export async function registerAuth(app: FastifyInstance, redis: IORedis | null):
     return { date: day, count: record.checkins[day], dailyGoal: record.dailyGoal };
   });
 
+  app.get("/api/v1/me/canal", async (request: AuthedRequest, reply) => {
+    const record = request.userRecord;
+    if (!record) return reply.status(401).send({ error: "Inicia sesión" });
+    const canals = record.canals ?? [];
+    return { canal: canals[0] ?? null, canals };
+  });
+
+  app.put("/api/v1/me/canal", async (request: AuthedRequest, reply) => {
+    const record = request.userRecord;
+    if (!record) return reply.status(401).send({ error: "Inicia sesión" });
+    const body = (request.body ?? {}) as Partial<StoredCanal>;
+    if (!body.channel && !body.nicheQuery?.trim()) {
+      return reply.status(400).send({ error: "Guarda un nicho o un canal construido" });
+    }
+    const row: StoredCanal = {
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      savedAt: new Date().toISOString(),
+      nicheQuery: (body.nicheQuery ?? "").trim(),
+      nicheName: (body.nicheName ?? "").trim(),
+      angle: body.angle ?? "",
+      timezone: body.timezone ?? "America/Mexico_City",
+      videosPerDay: Math.min(3, Math.max(1, Math.round(body.videosPerDay ?? 1))),
+      startDate: body.startDate ?? new Date().toISOString().slice(0, 10),
+      llm: body.llm ?? "vivi",
+      image: body.image ?? "vivi",
+      channel: (body.channel as StoredCanal["channel"]) ?? null,
+      plan: (body.plan as StoredCanal["plan"]) ?? null,
+      avatar: typeof body.avatar === "string" ? body.avatar : "",
+      banner: typeof body.banner === "string" ? body.banner : "",
+      thumbs: body.thumbs && typeof body.thumbs === "object" ? body.thumbs : {},
+    };
+    record.canals = [row, ...(record.canals ?? [])].slice(0, 8);
+    saveUser(record);
+    return { canal: row, canals: record.canals };
+  });
+
   app.get("/api/v1/admin/users", async (request: AuthedRequest, reply) => {
     if (!requireAdmin(request, reply)) return;
     return { users: listUsers().map(toAdminRow) };
+  });
+
+  app.post("/api/v1/admin/users", async (request: AuthedRequest, reply) => {
+    if (!requireAdmin(request, reply)) return;
+    const body = (request.body ?? {}) as { email?: string; name?: string; password?: string };
+    try {
+      const user = await createUser({
+        email: body.email ?? "",
+        name: body.name ?? "",
+        password: body.password ?? "",
+        role: "user",
+      });
+      return { user: toAdminRow(user) };
+    } catch (err) {
+      reply.status(400);
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
   });
 
   app.patch("/api/v1/admin/users/:id", async (request: AuthedRequest, reply) => {

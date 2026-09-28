@@ -45,6 +45,7 @@ describe("user store + superadmin", () => {
     expect(rows[0]?.email).toBe("a@test.com");
     expect(JSON.stringify(rows[0])).not.toContain("passwordHash");
     expect(toPublic(listUsers()[0]!).role).toBe("user");
+    expect(listUsers()[0]!.canals).toEqual([]);
   });
 
   it("updates email in the index and sets a new password", async () => {
@@ -99,6 +100,7 @@ describe("user store + superadmin", () => {
     expect(loaded).not.toBeNull();
     expect(loaded!.clonedVideos).toEqual([]);
     expect(loaded!.clonedChannels).toEqual([]);
+    expect(loaded!.canals).toEqual([]);
     expect(loaded!.characters).toEqual([]);
     expect(loaded!.visualStyles).toEqual([]);
     expect(loaded!.checkins).toEqual({});

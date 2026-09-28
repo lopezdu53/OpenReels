@@ -225,7 +225,7 @@ export function HistoriaPage() {
   const [contentHook, setContentHook] = useState(false);
   const [videoVolume, setVideoVolume] = useState(0.5);
   const [ttsVolume, setTtsVolume] = useState(1);
-  const [animate, setAnimate] = useState(true);
+  const [animate, setAnimate] = useState(false);
   const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("gflow");
   const [gflowImageModel, setGflowImageModel] = useState("nano-pro");
   const [gflowVideoModel, setGflowVideoModel] = useState("omni-flash");
@@ -564,14 +564,22 @@ export function HistoriaPage() {
               />
               Subtítulos
             </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={animate}
-                onChange={(e) => setAnimate(e.target.checked)}
-              />
-              Plano continuo I2V (tomas encadenadas, sin freeze)
-            </label>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2.5">
+              <div>
+                <p className="text-sm font-medium">Plano I2V</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Tomas encadenadas, sin freeze. Actívalo si quieres video continuo en vez de stills.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant={animate ? "default" : "outline"}
+                onClick={() => setAnimate((v) => !v)}
+              >
+                {animate ? "I2V activo" : "Activar"}
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-1.5">

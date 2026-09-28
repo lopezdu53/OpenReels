@@ -1,10 +1,10 @@
-import { BarChart3, CalendarDays } from "lucide-react";
+import { BarChart3, Tv } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
   { path: "/analytic", label: "Mercado", icon: BarChart3, exact: true },
-  { path: "/analytic/cronograma", label: "Cronograma", icon: CalendarDays, exact: false },
+  { path: "/canal", label: "Mi Canal", icon: Tv, exact: false },
 ];
 
 export function AnalyticsSubnav() {

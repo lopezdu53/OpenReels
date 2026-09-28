@@ -16,6 +16,11 @@ export function AdminPage() {
   const [dailyGoal, setDailyGoal] = useState(4);
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createEmail, setCreateEmail] = useState("");
+  const [createPassword, setCreatePassword] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createdNote, setCreatedNote] = useState("");
 
   useEffect(() => {
     void api
@@ -65,6 +70,29 @@ export function AdminPage() {
     }
   }
 
+  async function createAccount() {
+    setCreating(true);
+    setCreatedNote("");
+    try {
+      const { user: row } = await api.adminCreateUser({
+        name: createName,
+        email: createEmail,
+        password: createPassword,
+      });
+      setCreateName("");
+      setCreateEmail("");
+      setCreatePassword("");
+      setCreatedNote(
+        `Listo: ${row.email} ya puede entrar. Verá Panel, Analítica, Mi Canal, Aprendizaje, Casting, Nueva Historia y API Lab.`,
+      );
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCreating(false);
+    }
+  }
+
   async function savePassword() {
     if (!selected) return;
     setSaving(true);
@@ -90,11 +118,64 @@ export function AdminPage() {
         <div>
           <h1 className="text-3xl font-bold uppercase tracking-tight">Superadmin</h1>
           <p className="text-[13px] text-muted-foreground">
-            {users.length} usuario{users.length === 1 ? "" : "s"}. La clave de la cuenta marcada
-            EasyPanel sale de SUPERADMIN_PASSWORD (servicio video).
+            {users.length} usuario{users.length === 1 ? "" : "s"}. Crea cuentas de creador con su
+            propio contenido. La clave EasyPanel sale de SUPERADMIN_PASSWORD (servicio video).
           </p>
         </div>
       </div>
+
+      <form
+        className="max-w-lg space-y-3 rounded-xl border border-border bg-card p-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void createAccount();
+        }}
+      >
+        <p className="text-sm font-semibold">Nuevo creador</p>
+        <p className="text-[12px] text-muted-foreground">
+          Entra con su email y contraseña. No ve Short, Film, Flow, Vox, Stickman, Galería ni
+          Ajustes.
+        </p>
+        <label htmlFor="create-name" className="block text-[12px] text-muted-foreground">
+          Nombre
+          <Input
+            id="create-name"
+            className="mt-1 h-10"
+            value={createName}
+            onChange={(e) => setCreateName(e.target.value)}
+            required
+          />
+        </label>
+        <label htmlFor="create-email" className="block text-[12px] text-muted-foreground">
+          Email
+          <Input
+            id="create-email"
+            type="email"
+            className="mt-1 h-10"
+            value={createEmail}
+            onChange={(e) => setCreateEmail(e.target.value)}
+            required
+          />
+        </label>
+        <label htmlFor="create-pass" className="block text-[12px] text-muted-foreground">
+          Contraseña (mín. 8)
+          <Input
+            id="create-pass"
+            type="password"
+            className="mt-1 h-10"
+            value={createPassword}
+            onChange={(e) => setCreatePassword(e.target.value)}
+            autoComplete="new-password"
+            minLength={8}
+            required
+          />
+        </label>
+        <Button type="submit" disabled={creating || createPassword.length < 8}>
+          {creating ? <Loader2 className="size-4 animate-spin" /> : null}
+          Crear usuario
+        </Button>
+        {createdNote ? <p className="text-[12px] text-status-success">{createdNote}</p> : null}
+      </form>
 
       <Input
         value={q}

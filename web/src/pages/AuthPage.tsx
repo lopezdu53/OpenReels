@@ -6,9 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 
 export function AuthPage() {
-  const { login, register } = useAuth();
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [name, setName] = useState("");
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -19,8 +17,7 @@ export function AuthPage() {
     setError("");
     setLoading(true);
     try {
-      if (mode === "register") await register(name, email, password);
-      else await login(email, password);
+      await login(email, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -41,18 +38,6 @@ export function AuthPage() {
             <p className="text-[12px] text-muted-foreground">Tu estudio, con tu cuenta</p>
           </div>
         </div>
-        {mode === "register" ? (
-          <label htmlFor="auth-name" className="mb-3 block text-[12px] text-muted-foreground">
-            Nombre
-            <Input
-              id="auth-name"
-              className="mt-1 h-11 rounded-2xl bg-secondary"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoComplete="name"
-            />
-          </label>
-        ) : null}
         <label htmlFor="auth-email" className="mb-3 block text-[12px] text-muted-foreground">
           Email
           <Input
@@ -66,16 +51,15 @@ export function AuthPage() {
           />
         </label>
         <label htmlFor="auth-pass" className="mb-4 block text-[12px] text-muted-foreground">
-          Contraseña {mode === "register" ? "(mín. 8)" : ""}
+          Contraseña
           <Input
             id="auth-pass"
             type="password"
             className="mt-1 h-11 rounded-2xl bg-secondary"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            autoComplete={mode === "register" ? "new-password" : "current-password"}
+            autoComplete="current-password"
             required
-            minLength={mode === "register" ? 8 : 1}
           />
         </label>
         {error ? (
@@ -85,18 +69,12 @@ export function AuthPage() {
         ) : null}
         <Button type="submit" className="h-11 w-full rounded-2xl text-sm font-semibold" disabled={loading}>
           {loading ? <Loader2 className="size-4 animate-spin" /> : null}
-          {mode === "login" ? "Entrar" : "Regístrate"}
+          Entrar
         </Button>
-        <button
-          type="button"
-          className="mt-4 w-full text-center text-[12px] font-medium text-primary hover:underline"
-          onClick={() => {
-            setMode(mode === "login" ? "register" : "login");
-            setError("");
-          }}
-        >
-          {mode === "login" ? "¿No tienes cuenta? Regístrate" : "Ya tengo cuenta"}
-        </button>
+        <p className="mt-4 text-center text-[12px] text-muted-foreground">
+          Si no tienes cuenta, pídesela al superadmin. Él crea el usuario y tú entras a generar tu
+          contenido.
+        </p>
       </form>
     </div>
   );
