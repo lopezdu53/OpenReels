@@ -23,7 +23,8 @@ export {
 } from "./bridge-id.js";
 
 const ONLINE_KEY = "gflow:bridge:online";
-const ONLINE_TTL_SEC = 45;
+/** Longer than one still + JOB_GAP: the Windows box stops polling while gflow runs. */
+export const BRIDGE_ONLINE_TTL_SEC = 180;
 
 export interface GflowRelayJob {
   id: string;
@@ -80,7 +81,7 @@ function resultKey(id: string): string {
 }
 
 export async function markBridgeOnline(): Promise<void> {
-  await getGflowRelayRedis().set(ONLINE_KEY, String(Date.now()), "EX", ONLINE_TTL_SEC);
+  await getGflowRelayRedis().set(ONLINE_KEY, String(Date.now()), "EX", BRIDGE_ONLINE_TTL_SEC);
 }
 
 export async function markPeerOnline(identity: GflowBridgeIdentity): Promise<void> {
@@ -93,8 +94,14 @@ export async function markPeerOnline(identity: GflowBridgeIdentity): Promise<voi
     seenAt: Date.now(),
   };
   const r = getGflowRelayRedis();
-  await r.set(peerKey(id), JSON.stringify(peer), "EX", ONLINE_TTL_SEC);
+  await r.set(peerKey(id), JSON.stringify(peer), "EX", BRIDGE_ONLINE_TTL_SEC);
   await r.sadd(GFLOW_PEERS_SET_KEY, id);
+}
+
+/** Poll and abort-check both call this so a long Generate does not look disconnected. */
+export async function touchBridgePresence(identity?: GflowBridgeIdentity): Promise<void> {
+  await markBridgeOnline();
+  if (identity) await markPeerOnline(identity);
 }
 
 export async function isBridgeOnline(): Promise<boolean> {
@@ -197,8 +204,7 @@ export async function pollBridgeJob(
   waitSec: number,
   identity?: GflowBridgeIdentity,
 ): Promise<GflowRelayJob | null> {
-  await markBridgeOnline();
-  if (identity) await markPeerOnline(identity);
+  await touchBridgePresence(identity);
   const keys = pollKeysFor(identity?.id);
   const r = getGflowRelayRedis().duplicate();
   try {

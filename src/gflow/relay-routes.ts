@@ -8,6 +8,7 @@ import {
   parseBridgeIdentity,
   pollBridgeJob,
   queuedBridgeJobs,
+  touchBridgePresence,
   type GflowRelayResult,
 } from "../providers/gflow/relay.js";
 
@@ -36,7 +37,9 @@ export async function registerGflowBridgeRoutes(app: FastifyInstance): Promise<v
     if (!expected || !bearerOk(request.headers.authorization, expected)) {
       return reply.status(401).send({ ok: false, error: "Token inválido" });
     }
-    const abort = await consumeBridgeAbort(parseBridgeIdentity(request.body));
+    const identity = parseBridgeIdentity(request.body);
+    await touchBridgePresence(identity);
+    const abort = await consumeBridgeAbort(identity);
     return { ok: true, abort };
   });
 

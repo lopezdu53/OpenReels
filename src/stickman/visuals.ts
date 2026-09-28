@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { isGflowBridgeOfflineError } from "../providers/gflow/errors.js";
 import type { ImageProvider } from "../schema/providers.js";
 import { lookPrompt, STICKMAN_STYLE_LOCK } from "./catalog.js";
 import { HISTORIA_STYLE_LOCK } from "./director.js";
@@ -199,7 +200,7 @@ export async function renderStills(
       }
     }
     if (!buf) {
-      if (previous) {
+      if (previous && !isGflowBridgeOfflineError(String(lastError))) {
         log(`beat ${beat.id} failed (${lastError}); holding previous stickman still`);
         buf = previous;
       } else {

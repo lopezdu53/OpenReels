@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { gflowBridgeToken, gflowBridgeUrl } from "./bridge.js";
 import { isGflowBridgeUnreachable } from "./errors.js";
-import { gflowRelayEnabled } from "./relay.js";
+import { BRIDGE_ONLINE_TTL_SEC, gflowRelayEnabled } from "./relay.js";
 
 describe("gflow bridge env", () => {
   const prevUrl = process.env["GFLOW_BRIDGE_URL"];
@@ -40,9 +40,18 @@ describe("gflow bridge env", () => {
     expect(gflowRelayEnabled()).toBe(false);
   });
 
+  it("keeps a remote peer marked online longer than one still", () => {
+    expect(BRIDGE_ONLINE_TTL_SEC).toBeGreaterThanOrEqual(120);
+  });
+
   it("detects an unreachable Windows box", () => {
     expect(isGflowBridgeUnreachable("No se alcanzó el puente Windows (http://192.168.1.9:8787): fetch failed")).toBe(true);
     expect(isGflowBridgeUnreachable("Ningún Windows remoto conectado")).toBe(true);
+    expect(
+      isGflowBridgeUnreachable(
+        "El puente «a46ba334-19ae-4c51-b810-dcdd99a98da4» no está conectado. Ábrelo en OpenReels Puente → modo Remoto.",
+      ),
+    ).toBe(true);
     expect(isGflowBridgeUnreachable("Token inválido")).toBe(false);
   });
 });
