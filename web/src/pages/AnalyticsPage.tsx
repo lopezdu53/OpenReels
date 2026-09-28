@@ -18,7 +18,6 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { TopNichesPanel } from "@/components/analytic/TopNichesPanel";
-import { AnalyticsSubnav } from "@/components/analytic/AnalyticsSubnav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -160,7 +159,11 @@ export function AnalyticsPage() {
       .then(setCopRate)
       .catch(() => setCopRate(null));
     void api
-      .analyticsTopNiches({ refresh: false })
+      .analyticsTopNiches({
+        region: "LATAM",
+        salt: new Date().toISOString().slice(0, 10),
+        refresh: true,
+      })
       .then(setTopNiches)
       .catch(() => {
         /* keep CURATED_TOP_NICHES */
@@ -262,6 +265,7 @@ export function AnalyticsPage() {
       const data = await api.analyticsTopNiches({
         region: "LATAM",
         seed: polish || query,
+        salt: `${Date.now()}-${polish || query || "tendencia"}`,
         refresh,
       });
       setTopNiches(data);
@@ -384,7 +388,6 @@ export function AnalyticsPage() {
 
   return (
     <div className="py-8 px-4 sm:px-10 max-w-[1100px]">
-      <AnalyticsSubnav />
       <div className="mb-6 flex items-start gap-3">
         <BarChart3 className="mt-0.5 size-6 text-primary" />
         <div>

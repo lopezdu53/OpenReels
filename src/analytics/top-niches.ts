@@ -104,13 +104,180 @@ export const CURATED_NICHE_SEEDS: NicheSeed[] = [
     exampleTopics: ["por qué el cielo es azul", "el cerebro en 60s", "espacio"],
     formats: ["short"],
   },
+  {
+    name: "True crime en 60s",
+    query: "true crime casos reales",
+    why: "Retención altísima; gana quien resume un caso con fuente y cierre moral.",
+    demand: "alta",
+    competition: "alta",
+    exampleTopics: ["caso resuelto", "error del detective", "prueba que cambió todo"],
+    formats: ["short"],
+  },
+  {
+    name: "Fútbol LATAM (jugadas)",
+    query: "fútbol highlights latinoamérica",
+    why: "Picos de búsqueda cada jornada; recortes cortos viajan a TikTok.",
+    demand: "alta",
+    competition: "alta",
+    exampleTopics: ["gol de la fecha", "error arbitral", "promesa sub-20"],
+    formats: ["short"],
+  },
+  {
+    name: "Inglés en 60 segundos",
+    query: "aprender inglés shorts",
+    why: "Intención de estudio diaria y series fáciles de serializar.",
+    demand: "alta",
+    competition: "alta",
+    exampleTopics: ["phrasal verb", "error de pronunciación", "frase para entrevista"],
+    formats: ["short", "long"],
+  },
+  {
+    name: "Mascotas y cuidados",
+    query: "perros gatos cuidados",
+    why: "Share emocional alto; bajo costo si filmas en casa.",
+    demand: "alta",
+    competition: "media",
+    exampleTopics: ["señal de estrés", "snack casero", "primer día con cachorro"],
+    formats: ["short"],
+  },
+  {
+    name: "Autos usados sin estafa",
+    query: "autos usados consejos",
+    why: "Intención comercial y CPM de research; un checklist por video.",
+    demand: "media",
+    competition: "media",
+    exampleTopics: ["qué revisar", "precio justo", "documentos"],
+    formats: ["short", "long"],
+  },
+  {
+    name: "Viajes baratos LATAM",
+    query: "viajes baratos latinoamérica",
+    why: "Temporadas claras y hooks de precio; fácil de clonar por ciudad.",
+    demand: "alta",
+    competition: "alta",
+    exampleTopics: ["vuelo error fare", "hostel vs airbnb", "ciudad 3 días"],
+    formats: ["short"],
+  },
+  {
+    name: "Psicología cotidiana",
+    query: "psicología cotidiana",
+    why: "Alto share si evitas diagnóstico y das un experimento de 24h.",
+    demand: "alta",
+    competition: "alta",
+    exampleTopics: ["sesgo de confirmación", "cómo decir no", "rumiación"],
+    formats: ["short"],
+  },
+  {
+    name: "DIY hogar / reparación",
+    query: "reparar casa bricolaje",
+    why: "Búsqueda con intención; un arreglo por short convierte bien.",
+    demand: "media",
+    competition: "media",
+    exampleTopics: ["fuga", "pintura", "organizar 1 cajón"],
+    formats: ["short"],
+  },
+  {
+    name: "Estafas digitales",
+    query: "estafas whatsapp criptomonedas",
+    why: "Urgencia real; un patrón de fraude por video y CTA de cuidado.",
+    demand: "alta",
+    competition: "media",
+    exampleTopics: ["falso soporte", "inversión milagro", "QR tramposo"],
+    formats: ["short"],
+  },
+  {
+    name: "Exámenes y becas",
+    query: "exámenes becas estudio",
+    why: "Ciclos escolares; audiencia joven con series de etapa.",
+    demand: "media",
+    competition: "media",
+    exampleTopics: ["truco de memoria", "calendario beca", "error en el examen"],
+    formats: ["short", "long"],
+  },
+  {
+    name: "Comedia de oficina LATAM",
+    query: "comedia oficina trabajo",
+    why: "Relatable y barato de producir; un gag por reunión.",
+    demand: "media",
+    competition: "media",
+    exampleTopics: ["lunes zoom", "jefe que no lee", "vacaciones denegadas"],
+    formats: ["short"],
+  },
+  {
+    name: "Nutrición sin milagros",
+    query: "nutrición hábitos comida",
+    why: "Demanda estable si evitas dietas milagro y das un swap por video.",
+    demand: "alta",
+    competition: "alta",
+    exampleTopics: ["azúcar escondida", "almuerzo oficina", "leer etiquetas"],
+    formats: ["short"],
+  },
+  {
+    name: "Cine y series explicados",
+    query: "películas explicadas finales",
+    why: "Picos con estrenos; un final o detalle por short.",
+    demand: "alta",
+    competition: "alta",
+    exampleTopics: ["final explicado", "easter egg", "obra vs libro"],
+    formats: ["short"],
+  },
+  {
+    name: "Padres primerizos",
+    query: "bebés padres primerizos",
+    why: "Búsqueda angustiada 3am; tono empático y un tip accionable.",
+    demand: "alta",
+    competition: "media",
+    exampleTopics: ["sueño", "cólicos", "primer viaje"],
+    formats: ["short"],
+  },
 ];
 
-export function curatedTopNiches(region = "LATAM"): TopNiches {
+function hashSalt(input: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function isoWeek(at: Date): number {
+  const d = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+}
+
+function seededShuffle<T>(items: T[], seed: number): T[] {
+  const arr = [...items];
+  let s = seed || 1;
+  for (let i = arr.length - 1; i > 0; i--) {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    const j = s % (i + 1);
+    const a = arr[i]!;
+    arr[i] = arr[j]!;
+    arr[j] = a;
+  }
+  return arr;
+}
+
+export function rotateCuratedSeeds(opts?: { at?: Date; salt?: string; count?: number }): NicheSeed[] {
+  const at = opts?.at ?? new Date();
+  const count = opts?.count ?? 10;
+  const seed = isoWeek(at) * 10_000 + at.getUTCFullYear() + hashSalt(opts?.salt ?? "");
+  return seededShuffle(CURATED_NICHE_SEEDS, seed).slice(0, Math.min(count, CURATED_NICHE_SEEDS.length));
+}
+
+export function curatedTopNiches(
+  region = "LATAM",
+  opts?: { at?: Date; salt?: string },
+): TopNiches {
+  const seeds = rotateCuratedSeeds(opts);
   return {
     region,
     source: "curated",
-    niches: CURATED_NICHE_SEEDS.map((seed, i) => ({
+    niches: seeds.map((seed, i) => ({
       rank: i + 1,
       ...seed,
       cpmLongformUsd: cpmFor(seed.query, false),
@@ -122,9 +289,10 @@ export function curatedTopNiches(region = "LATAM"): TopNiches {
 export async function generateTopNiches(opts?: {
   region?: string;
   seed?: string;
+  salt?: string;
 }): Promise<TopNiches> {
   const region = opts?.region?.trim() || "LATAM";
-  const fallback = curatedTopNiches(region);
+  const fallback = curatedTopNiches(region, { salt: opts?.salt ?? opts?.seed });
   if (!process.env["VIVI_LLM_API_KEY"]) return fallback;
 
   let web = "";
@@ -144,9 +312,11 @@ export async function generateTopNiches(opts?: {
       systemPrompt:
         "Eres analista de nichos YouTube/TikTok para creadores LATAM. Ranking original, no copies marcas. Español. JSON único. Exactamente 10 nichos, ranks 1..10. query debe servir para buscar en YouTube.",
       userMessage: [
-        `Región: ${region}. Año: 2026.`,
+        `Región: ${region}. Fecha: ${new Date().toISOString().slice(0, 10)}.`,
+        "Explora nichos EN TENDENCIA esta semana. No copies el top de siempre (finanzas/IA/historia).",
         opts?.seed?.trim() ? `Enfoque extra: ${opts.seed.trim()}` : "",
-        "Semilla (puedes reordenar, fusionar o sustituir 1–3 si hay mejor señal):",
+        opts?.salt?.trim() ? `Variación: ${opts.salt.trim()}` : "",
+        "Semilla rotada (reescribe 4–8 si hay mejor señal de tendencia):",
         fallback.niches
           .map((n) => `${n.rank}. ${n.name} (query: ${n.query}) — ${n.why}`)
           .join("\n"),
