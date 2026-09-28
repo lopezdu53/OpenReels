@@ -107,12 +107,68 @@
     );
   }
 
+  function composerBar() {
+    const p = promptEl();
+    let best = p;
+    let n = p;
+    for (let i = 0; i < 16 && n; i++) {
+      const b = n.getBoundingClientRect();
+      if (b.width > 300 && b.height >= 32 && b.height <= 260 && b.top > window.innerHeight * 0.35) {
+        best = n;
+      }
+      n = n.parentElement;
+    }
+    if (best) return best;
+    let score = 0;
+    for (const el of deepAll()) {
+      if (!visible(el)) continue;
+      const b = el.getBoundingClientRect();
+      if (b.top < window.innerHeight * 0.5 || b.width < 360 || b.height < 36 || b.height > 240) continue;
+      const s = b.width / Math.max(b.height, 1);
+      if (s > score) {
+        score = s;
+        best = el;
+      }
+    }
+    return best;
+  }
+
+  function firePointer(el, x, y) {
+    const opts = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: x,
+      clientY: y,
+      button: 0,
+      buttons: 1,
+      pointerId: 1,
+      pointerType: "mouse",
+      isPrimary: true,
+    };
+    for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
+      try {
+        if (type.startsWith("pointer")) el.dispatchEvent(new PointerEvent(type, opts));
+        else el.dispatchEvent(new MouseEvent(type, opts));
+      } catch {
+        /* ignore */
+      }
+    }
+    try {
+      el.click();
+    } catch {
+      /* ignore */
+    }
+  }
+
   function generateBtn() {
-    const nodes = deepAll().filter((el) => {
+    const bar = composerBar();
+    const pool = bar ? deepAll(bar) : deepAll();
+    const nodes = pool.filter((el) => {
       if (!visible(el)) return false;
       const tag = el.tagName;
       const role = el.getAttribute("role") || "";
-      return tag === "BUTTON" || role === "button";
+      return tag === "BUTTON" || tag === "A" || role === "button" || tag === "MAT-ICON-BUTTON";
     });
     for (const el of nodes) {
       const label = `${el.getAttribute("aria-label") || ""} ${el.getAttribute("title") || ""}`.toLowerCase();
@@ -121,25 +177,46 @@
       if (/generar|generate|create|submit|enviar|arrow_forward|send/.test(label)) return el;
       if (/^(generar|generate|create|arrow_forward|send)$/.test(t)) return el;
     }
-    const icons = nodes.filter((el) => {
-      const t = textOf(el).toLowerCase();
-      const html = (el.innerHTML || "").toLowerCase();
-      return /arrow_forward|arrow-forward|send/.test(t) || /arrow_forward|send/.test(html);
-    });
-    if (icons[0]) return icons[0];
-    const rounds = nodes.filter((el) => {
-      const t = textOf(el).replace(/\s+/g, "");
-      if (t.length > 8) return false;
-      if (/agente|agent|nano|banana|veo|omni|\+|x1|×/i.test(t)) return false;
+    const svgs = pool.filter((el) => el.tagName === "SVG" && visible(el));
+    for (const svg of svgs) {
+      const box = svg.getBoundingClientRect();
+      if (box.width > 48 || box.height > 48) continue;
+      let host = svg.parentElement;
+      for (let i = 0; i < 5 && host; i++) {
+        if (host.tagName === "BUTTON" || host.getAttribute("role") === "button") return host;
+        host = host.parentElement;
+      }
+    }
+    if (!bar) return null;
+    const br = bar.getBoundingClientRect();
+    const right = pool.filter((el) => {
       const b = el.getBoundingClientRect();
-      if (b.top < window.innerHeight * 0.5) return false;
-      if (b.width < 28 || b.height < 28 || b.width > 80 || b.height > 80) return false;
-      const radius = parseFloat(getComputedStyle(el).borderRadius) || 0;
-      const round = radius >= Math.min(b.width, b.height) * 0.3 || Math.abs(b.width - b.height) < 10;
-      return round;
+      if (b.left < br.right - 88 || b.right > br.right + 8) return false;
+      if (b.width < 18 || b.height < 18 || b.width > 72 || b.height > 72) return false;
+      const t = textOf(el).replace(/\s+/g, "");
+      return t.length < 10 && !/agente|agent|nano|x1|\+/i.test(t);
     });
-    rounds.sort((a, b) => b.getBoundingClientRect().left - a.getBoundingClientRect().left);
-    return rounds[0] || null;
+    right.sort((a, b) => b.getBoundingClientRect().left - a.getBoundingClientRect().left);
+    return right[0] || null;
+  }
+
+  function clickArrowByPoint() {
+    const bar = composerBar();
+    if (!bar) return false;
+    const b = bar.getBoundingClientRect();
+    const spots = [
+      [b.right - 24, b.top + b.height / 2],
+      [b.right - 36, b.top + b.height / 2],
+      [b.right - 20, b.bottom - 24],
+      [b.right - 48, b.top + b.height / 2],
+    ];
+    for (const [x, y] of spots) {
+      const el = document.elementFromPoint(x, y);
+      if (!el) continue;
+      firePointer(el, x, y);
+      return true;
+    }
+    return false;
   }
 
   function fileInput() {
@@ -282,19 +359,33 @@
 
   async function clickGenerate() {
     let btn = null;
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 16; i++) {
       btn = generateBtn();
-      if (btn && !btn.disabled) break;
-      await wait(0.5);
+      if (btn) break;
+      await wait(0.4);
     }
-    if (btn && !btn.disabled) {
-      btn.click();
-      await wait(1);
+    if (btn) {
+      const box = btn.getBoundingClientRect();
+      firePointer(btn, box.left + box.width / 2, box.top + box.height / 2);
+      await wait(1.2);
+      return;
+    }
+    if (clickArrowByPoint()) {
+      await wait(1.2);
       return;
     }
     const prompt = promptEl();
     if (prompt) {
       prompt.focus();
+      prompt.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          code: "Enter",
+          bubbles: true,
+          cancelable: true,
+          ctrlKey: true,
+        }),
+      );
       prompt.dispatchEvent(
         new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }),
       );
