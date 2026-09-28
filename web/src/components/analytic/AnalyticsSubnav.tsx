@@ -1,10 +1,10 @@
-import { BarChart3, CalendarDays } from "lucide-react";
+import { BarChart3, Tv } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const ITEMS = [
   { path: "/analytic", label: "Mercado", icon: BarChart3, exact: true },
-  { path: "/analytic/cronograma", label: "Cronograma", icon: CalendarDays, exact: false },
+  { path: "/canal", label: "Mi Canal", icon: Tv, exact: false },
 ];
 
 export function AnalyticsSubnav() {
@@ -12,7 +12,9 @@ export function AnalyticsSubnav() {
   return (
     <div className="mb-6 flex flex-wrap gap-2">
       {ITEMS.map((item) => {
-        const active = item.exact ? pathname === item.path : pathname.startsWith(item.path);
+        const active = item.exact
+          ? pathname === item.path
+          : pathname.startsWith(item.path) || pathname.startsWith("/analytic/cronograma");
         return (
           <Link
             key={item.path}
