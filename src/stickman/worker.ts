@@ -156,7 +156,11 @@ async function handleProduce(id: string, redis: IORedis): Promise<void> {
   const key = apiKeyOf(id);
   throwIfStickmanStopped(id);
   if (meta.config.muteCharacter === true) {
-    log("personaje mudo: sin TTS Atlas, sí efectos de Flow");
+    log(
+      meta.kind === "historia"
+        ? "sin TTS Atlas: SFX de Flow + el avatar habla en español latino"
+        : "personaje mudo: sin TTS Atlas, sí efectos de Flow",
+    );
   } else {
     setStatus(id, "producing", "tts", "Generando voz Atlas");
     await runTts(id, key, meta.config.atlasTtsModel || DEFAULT_STICKMAN_TTS_MODEL, log);

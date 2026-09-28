@@ -45,6 +45,19 @@ from server import (
     _is_duration_not_offered,
     _is_image_wire_miss,
     _is_hard_video_fail,
+    _is_unusual_activity,
+    _friendly_unusual_activity,
+    _friendly_image_error,
+    _is_host_migrated,
+    _flow_host_env,
+    _migrated_image_model,
+    _migrated_image_aspect,
+    _pace_between_jobs,
+    _note_unusual,
+    _raise_if_unusual_cooldown,
+    _unusual_cooldown_left,
+    JOB_GAP_S,
+    UNUSUAL_COOLDOWN_S,
 )
 
 
@@ -124,7 +137,7 @@ class VideoModeTests(unittest.TestCase):
         )
         self.assertNotIn("--duration", args)
 
-    def test_omni_flash_omits_duration(self):
+    def test_omni_flash_sends_max_duration(self):
         args = _video_cli_args(
             mode="t2v",
             prompt="pan",
@@ -134,8 +147,9 @@ class VideoModeTests(unittest.TestCase):
             dest="out.mp4",
             still_path=None,
         )
-        self.assertNotIn("--duration", args)
-        self.assertEqual(_duration_flag("omni-flash", 6), [])
+        self.assertIn("--duration", args)
+        self.assertIn("10", args)
+        self.assertEqual(_duration_flag("omni-flash", 6), ["--duration", "6"])
         self.assertEqual(
             _strip_duration_args(["video", "t2v", "x", "--duration", "6", "--aspect", "16:9"]),
             ["video", "t2v", "x", "--aspect", "16:9"],
@@ -149,6 +163,55 @@ class VideoModeTests(unittest.TestCase):
         self.assertTrue(
             _is_image_wire_miss("WireFormatError — migrated image submit returned no ogiZ0b frame")
         )
+        blocked = "UNUSUAL_ACTIVITY: Flow detectó actividad inusual y no generó. No se cobró."
+        self.assertTrue(_is_unusual_activity(blocked))
+        self.assertTrue(_is_unusual_activity("Detectamos actividad inusual. No se te cobró por esta generación."))
+        self.assertTrue(_is_unusual_activity("PUBLIC_ERROR_UNUSUAL_ACTIVITY"))
+        self.assertTrue(_is_unusual_activity("[gflow-bridge] Flow bloqueó: actividad inusual"))
+        self.assertTrue(_is_hard_video_fail(blocked))
+        self.assertFalse(_is_image_wire_miss(blocked))
+        self.assertIn("actividad inusual", _friendly_unusual_activity())
+        unexpected = _gflow_fail_message(
+            {"error": {"class": "UnexpectedError", "title": "Unexpected error"}},
+            "[gflow-bridge] Flow bloqueó: actividad inusual. No se cobró. No reintento.\n",
+            "",
+            1,
+        )
+        self.assertIn("actividad inusual", unexpected)
+        self.assertNotIn("UnexpectedError", unexpected)
+        import server as srv
+
+        srv._UNUSUAL_UNTIL = 0.0
+        _note_unusual()
+        self.assertGreater(_unusual_cooldown_left(), UNUSUAL_COOLDOWN_S - 5)
+        with self.assertRaises(RuntimeError) as cool:
+            _raise_if_unusual_cooldown()
+        self.assertIn("actividad inusual", str(cool.exception))
+        srv._UNUSUAL_UNTIL = 0.0
+        migrated = (
+            "FlowHostMigratedError — Flow handed this session to flow.google.com "
+            "— the origin Google is migrating accounts onto"
+        )
+        self.assertTrue(_is_host_migrated(migrated))
+        self.assertFalse(_is_image_wire_miss(migrated))
+        self.assertIn("flow.google.com", _friendly_image_error(migrated))
+        self.assertEqual(_migrated_image_model("image4"), "nano2")
+        self.assertEqual(_migrated_image_model("nano-lite"), "nano2")
+        self.assertEqual(_migrated_image_model("nano-pro"), "nano-pro")
+        self.assertEqual(_migrated_image_aspect("3:4"), "9:16")
+        self.assertEqual(_migrated_image_aspect("9:16"), "9:16")
+        import os
+        from unittest.mock import patch
+
+        with patch.dict(os.environ, {"GFLOW_CLI_FLOW_HOST": "labs.google"}, clear=False):
+            self.assertEqual(_flow_host_env(), "auto")
+        with patch.dict(os.environ, {"GFLOW_CLI_FLOW_HOST": "flow.google.com"}, clear=False):
+            self.assertEqual(_flow_host_env(), "flow.google.com")
+        import server as srv
+
+        srv._LAST_JOB_END = 0.0
+        _pace_between_jobs("image")
+        self.assertGreaterEqual(JOB_GAP_S, 30)
 
     def test_i2v_args_need_still(self):
         args = _video_cli_args(
@@ -588,7 +651,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
         self.assertEqual(classify_log("Flow status 4 después del video: falló el audio"), "i2v")
-        self.assertEqual(APP_VERSION, "1.7.3")
+        self.assertEqual(APP_VERSION, "1.8.0")
         self.assertEqual(
             classify_log(
                 "Flow no ofrece 'veo-lite-lp' en este Gmail. Reintento YA con veo-lite"
@@ -601,6 +664,11 @@ class BrandingAndDesktopTests(unittest.TestCase):
         )
         self.assertEqual(classify_log("catálogo: 3 videos, 1 de este job; aún no hay mp4, sigo 800s"), "i2v")
         self.assertEqual(classify_log("gflow fail: crash"), "err")
+        self.assertEqual(classify_log("Flow bloqueó: actividad inusual. No se cobró."), "err")
+        self.assertEqual(
+            classify_log("pulso la flecha curva (refresh) 1/2 — Flow reintenta (no cobró el toast)"),
+            "i2v",
+        )
         self.assertEqual(classify_log("LAN: escuchando listo"), "ok")
         self.assertEqual(classify_log("Cloudflare 404 aviso"), "warn")
         self.assertRegex(APP_VERSION, r"^\d+\.\d+\.\d+$")
@@ -610,6 +678,8 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertTrue(cfg["keepAwake"])
         self.assertIn("bridgeId", cfg)
         self.assertIn("bridgeName", cfg)
+        self.assertEqual(cfg.get("engine"), "gflow")
+        self.assertEqual(classify_log("extensión Flow: image abc modelo=nano2"), "i2v")
 
 
 class GflowPatchTests(unittest.TestCase):
@@ -645,6 +715,17 @@ class GflowPatchTests(unittest.TestCase):
         self.assertIn("ogiZ0b", RUNNER_SOURCE)
         self.assertIn("_select_soft_duration", RUNNER_SOURCE)
         self.assertIn("_harvest_page_images", RUNNER_SOURCE)
+        self.assertIn("_page_unusual_activity", RUNNER_SOURCE)
+        self.assertIn("_wire_unusual", RUNNER_SOURCE)
+        self.assertIn("_click_unusual_refresh", RUNNER_SOURCE)
+        self.assertIn("_retry_unusual_refresh", RUNNER_SOURCE)
+        self.assertIn("flecha curva", RUNNER_SOURCE)
+        self.assertIn('lig(el) === "refresh"', RUNNER_SOURCE)
+        self.assertIn("UNUSUAL_ACTIVITY", RUNNER_SOURCE)
+        self.assertIn("PUBLIC_ERROR_UNUSUAL_ACTIVITY", RUNNER_SOURCE)
+        self.assertIn("WafRejectionError", RUNNER_SOURCE)
+        self.assertIn("_pace_s", RUNNER_SOURCE)
+        self.assertIn("ritmo humano", RUNNER_SOURCE)
         from gflow_patch import generation_status_flags
 
         self.assertEqual(generation_status_flags(4, seen_running=False), (True, False))
@@ -664,6 +745,66 @@ class GflowPatchTests(unittest.TestCase):
         cmd = gflow_exec_command("/no/such/gflow.exe", ["video", "i2v", "prompt"])
         self.assertEqual(cmd[0], "/no/such/gflow.exe")
         self.assertIn("--json", cmd)
+
+
+class ExtEngineTests(unittest.TestCase):
+    def setUp(self):
+        import server as srv
+
+        srv.reset_ext_state()
+        srv.ENGINE = "gflow"
+        srv.ABORT_REQUESTED = False
+
+    def tearDown(self):
+        import server as srv
+
+        srv.reset_ext_state()
+        srv.ENGINE = "gflow"
+        srv.ABORT_REQUESTED = False
+
+    def test_resolve_engine(self):
+        from server import engine_is_ext, resolve_engine
+
+        self.assertEqual(resolve_engine("gflow-cli"), "gflow")
+        self.assertEqual(resolve_engine("extension"), "ext")
+        self.assertTrue(engine_is_ext("chrome-ext"))
+        self.assertFalse(engine_is_ext("gflow"))
+
+    def test_poll_complete_image_roundtrip(self):
+        import base64
+        import threading
+
+        import server as srv
+
+        png = base64.b64encode(b"\x89PNG\r\n" + b"x" * 1200).decode("ascii")
+        box: dict = {}
+
+        def worker() -> None:
+            box["r"] = srv.generate_via_extension("image", {"prompt": "hola mundo test"})
+
+        t = threading.Thread(target=worker)
+        t.start()
+        job = None
+        for _ in range(30):
+            job = srv.poll_ext_job(0.15)
+            if job:
+                break
+        self.assertIsNotNone(job)
+        assert job is not None
+        self.assertEqual(job["kind"], "image")
+        self.assertIn("hola mundo", job["prompt"])
+        ack = srv.complete_ext_job({"id": job["id"], "ok": True, "png": png})
+        self.assertTrue(ack["ok"])
+        t.join(5)
+        self.assertTrue(box["r"]["ok"])
+        self.assertGreaterEqual(box["r"]["bytes"], 1000)
+
+    def test_ext_status_online_after_poll(self):
+        import server as srv
+
+        self.assertFalse(srv.ext_status()["online"])
+        self.assertIsNone(srv.poll_ext_job(0.05))
+        self.assertTrue(srv.ext_status()["online"])
 
 
 if __name__ == "__main__":

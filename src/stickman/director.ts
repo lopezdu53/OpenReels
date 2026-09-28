@@ -20,6 +20,15 @@ export function isHistoriaConfig(config: StickmanJobConfig): boolean {
   return config.kind === "historia";
 }
 
+/** Casting avatar + solo SFX de Flow: the character speaks LATAM Spanish on camera. */
+export function historiaOnCameraSpeech(config: StickmanJobConfig): boolean {
+  return (
+    isHistoriaConfig(config) &&
+    config.muteCharacter === true &&
+    (config.castRoster?.length ?? config.characterIds?.length ?? 0) > 0
+  );
+}
+
 export function historiaCastLock(config: StickmanJobConfig): string {
   const roster = config.castRoster ?? [];
   if (!roster.length) return "";
@@ -158,9 +167,11 @@ Arc: ${config.arc} — ${arc}.
 Target duration ${config.durationSec}s → exactly ${beatCount} beats. Sum of durationSec ≈ ${config.durationSec}.
 Voiceover sits in a ${spokenSec.toFixed(1)}s window (${STICKMAN_VO_HEAD_SEC}s after picture-in, ${STICKMAN_VO_TAIL_SEC}s before picture-out) at speed ${config.voiceSpeed || 1}.
 ${
-  config.muteCharacter
-    ? "MUTE CHARACTER: the people on camera do NOT speak. Write short narration only for optional captions. Story lives in acting, props, and camera. Sound effects still exist in the picture because Flow audio is kept."
-    : "A narrator speaks the lines as voiceover over ducked Flow SFX. On-camera mouths stay closed unless the beat is clearly a talking head."
+  historiaOnCameraSpeech(config)
+    ? "ON-CAMERA SPEECH + FLOW SFX: there is NO Atlas voiceover. The locked Casting avatar IS the narrator. They speak every beat's narration out loud in español latinoamericano (neutral LATAM / Mexican Spanish, never Spain vosotros). Mouths MUST lip-sync. Flow native audio carries the voice plus SFX."
+    : config.muteCharacter
+      ? "MUTE CHARACTER: the people on camera do NOT speak. Write short narration only for optional captions. Story lives in acting, props, and camera. Sound effects still exist in the picture because Flow audio is kept."
+      : "A narrator speaks the lines as Atlas TTS voiceover over ducked Flow SFX. On-camera mouths stay closed. Video volume and TTS volume are mixed in assemble."
 }
 ${
   config.contentHook
@@ -190,9 +201,19 @@ Visual-density recipe (continuous I2V when animate=${config.animate === true}):
   }
 
 Voiceover:
-- ${config.language.startsWith("en") ? "Natural spoken English" : `Natural spoken ${config.language}`}.
+- ${
+    historiaOnCameraSpeech(config)
+      ? "Spoken ON CAMERA in español latinoamericano (LATAM). Each beat.narration is the dialogue the avatar says. Write full spoken lines, not caption stubs."
+      : config.language.startsWith("en")
+        ? "Natural spoken English"
+        : `Natural spoken ${config.language}`
+  }.
 - About ${Math.max(8, Math.round((spokenSec / beatCount) * wps))} words per beat. Total spoken words ≈ ${Math.round(spokenSec * wps)} so the voiceover FITS the ${spokenSec.toFixed(1)}s spoken window (do not overrun). Do not invent facts, stats, quotes, or product claims.
-- Narration is audio-only. Never put words, letters, numbers, captions, or UI text in the picture.
+- ${
+    historiaOnCameraSpeech(config)
+      ? "The avatar says the lines. Never put words, letters, numbers, captions, or UI text in the picture."
+      : "Narration is audio-only. Never put words, letters, numbers, captions, or UI text in the picture."
+  }
 
 Style lock: ${HISTORIA_STYLE_LOCK}
 

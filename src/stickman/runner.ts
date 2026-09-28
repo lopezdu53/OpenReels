@@ -256,9 +256,18 @@ export async function runMotion(
     script.beats.reduce((sum, beat) => sum + Math.max(1, beat.durationSec), 0),
     config.durationSec,
   );
-  const takes = planMotionTakes(video.supportedDurations, wanted);
+  const takePool =
+    config.visualProvider === "gflow"
+      ? [video.supportedDurations.at(-1) ?? 8]
+      : video.supportedDurations;
+  const takes = planMotionTakes(takePool, wanted);
   const dest = path.join(clipsDir, "continuous.mp4");
-  const label = config.visualProvider === "gflow" ? "gflow I2V" : "I2V";
+  const label =
+    config.visualProvider === "gflow"
+      ? "gflow I2V"
+      : config.visualProvider === "vivi"
+        ? "VIVI I2V"
+        : "I2V";
   log(
     `motion: ${takes.length} toma${takes.length === 1 ? "" : "s"} ${label} ${takes.join("+")}s (sin freeze, puente por último frame)`,
   );
@@ -312,7 +321,8 @@ export async function runAssemble(id: string, log: (line: string) => void): Prom
     stills,
     clips,
     voiceover: mute ? null : fs.existsSync(voice) ? voice : null,
-    videoVolume: meta?.config.videoVolume ?? DEFAULT_STICKMAN_VIDEO_VOLUME,
+    videoVolume: meta?.config.videoVolume ?? (mute ? 1 : DEFAULT_STICKMAN_VIDEO_VOLUME),
+    ttsVolume: meta?.config.ttsVolume ?? DEFAULT_STICKMAN_TTS_VOLUME,
     ttsVolume: meta?.config.ttsVolume ?? DEFAULT_STICKMAN_TTS_VOLUME,
   });
   log(`final → ${finalPath}`);

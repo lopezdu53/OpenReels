@@ -121,7 +121,7 @@ export function VoxPage() {
   ]);
   const [realPeople, setRealPeople] = useState(false);
   const [captions, setCaptions] = useState(true);
-  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("atlas");
+  const [visualProvider, setVisualProvider] = useState<"vivi" | "atlas" | "gflow">("atlas");
   const [gflowImageModel, setGflowImageModel] = useState("nano2");
   const [gflowVideoModel, setGflowVideoModel] = useState("veo-lite");
   const [gflowBridgeId, setGflowBridgeId] = useState(loadGflowBridgeId);

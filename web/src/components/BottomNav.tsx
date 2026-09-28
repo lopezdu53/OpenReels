@@ -1,11 +1,26 @@
-import { BarChart3, Clapperboard, Film, LayoutDashboard, LayoutGrid, Newspaper, PersonStanding, Sparkles, Users, Workflow } from "lucide-react";
+import {
+  BarChart3,
+  BookOpen,
+  Clapperboard,
+  Film,
+  LayoutDashboard,
+  LayoutGrid,
+  Newspaper,
+  PersonStanding,
+  Sparkles,
+  Tv,
+  Users,
+  Workflow,
+} from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { StatsResponse } from "@/hooks/useApi";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
-const NAV_ITEMS: { path: string; label: string; icon: typeof LayoutDashboard; cta?: boolean }[] = [
+const ADMIN_ITEMS: { path: string; label: string; icon: typeof LayoutDashboard; cta?: boolean }[] = [
   { path: "/dashboard", label: "Panel", icon: LayoutDashboard },
   { path: "/analytic", label: "Analítica", icon: BarChart3 },
+  { path: "/canal", label: "Canal", icon: Tv },
   { path: "/", label: "Short", icon: Sparkles, cta: true },
   { path: "/film", label: "Film", icon: Film },
   { path: "/flow", label: "Flow", icon: Workflow },
@@ -16,21 +31,36 @@ const NAV_ITEMS: { path: string; label: string; icon: typeof LayoutDashboard; ct
   { path: "/gallery", label: "Galería", icon: LayoutGrid },
 ];
 
+const CREATOR_ITEMS: { path: string; label: string; icon: typeof LayoutDashboard; cta?: boolean }[] = [
+  { path: "/dashboard", label: "Panel", icon: LayoutDashboard },
+  { path: "/analytic", label: "Analítica", icon: BarChart3 },
+  { path: "/historia", label: "Historia", icon: Clapperboard, cta: true },
+  { path: "/casting", label: "Casting", icon: Users },
+  { path: "/canal", label: "Canal", icon: Tv },
+  { path: "/learning", label: "Aprender", icon: BookOpen },
+];
+
 interface BottomNavProps {
   stats: StatsResponse | null;
 }
 
 export function BottomNav({ stats }: BottomNavProps) {
   const location = useLocation();
+  const { user } = useAuth();
+  const items = user?.role === "admin" ? ADMIN_ITEMS : CREATOR_ITEMS;
 
   const isActive = (path: string) => {
     if (path === "/") return location.pathname === "/";
-    return location.pathname.startsWith(path);
+    if (path === "/analytic") return location.pathname === "/analytic";
+    if (path === "/canal") {
+      return location.pathname.startsWith("/canal") || location.pathname.startsWith("/analytic/cronograma");
+    }
+    return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 flex h-16 items-center justify-around border-t border-white/8 bg-black/80 px-1 backdrop-blur-xl">
-      {NAV_ITEMS.map((item) => {
+      {items.map((item) => {
         const active = isActive(item.path);
         const cta = Boolean(item.cta);
         return (

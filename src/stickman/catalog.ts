@@ -334,6 +334,7 @@ export function isStickmanLlmId(id: string): boolean {
 /**
  * Split a long job into model-legal I2V takes.
  * Omni 20s → [10, 10]; Veo 20s → [8, 8, 8]; Seedance 30s → [15, 15].
+ * Always fill with the model's max clip (never a leftover 4s/6s take).
  */
 export function planMotionTakes(supported: readonly number[], wanted: number): number[] {
   const clean = [...new Set(supported.filter((d) => d > 0))].sort((a, b) => a - b);
@@ -341,26 +342,11 @@ export function planMotionTakes(supported: readonly number[], wanted: number): n
   if (!clean.length) {
     const chunk = Math.min(15, Math.max(4, target));
     const n = Math.max(1, Math.ceil(target / chunk));
-    return Array.from({ length: n }, (_, i) =>
-      i === n - 1 ? Math.max(1, target - chunk * (n - 1)) : chunk,
-    );
+    return Array.from({ length: n }, () => chunk);
   }
   const max = clean.at(-1) ?? 4;
-  if (target <= max) {
-    if (clean.includes(target)) return [target];
-    return [clean.find((d) => d >= target) ?? max];
-  }
-  const takes: number[] = [];
-  let remaining = target;
-  while (remaining > 0) {
-    if (remaining <= max) {
-      takes.push(clean.find((d) => d >= remaining) ?? max);
-      break;
-    }
-    takes.push(max);
-    remaining -= max;
-  }
-  return takes;
+  const n = Math.max(1, Math.ceil(target / max));
+  return Array.from({ length: n }, () => max);
 }
 
 /** Best gflow pair: Banana Pro (0 cr) + Omni, chained when the job is longer than 10s. */

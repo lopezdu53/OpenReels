@@ -4,31 +4,52 @@ import * as path from "node:path";
 import { createStudioImage } from "../studio/visual-provider.js";
 import { lookPrompt, STICKMAN_STYLE_LOCK } from "./catalog.js";
 import { llmUsageFromAtlas, type StickmanLlmUsage } from "./cost.js";
+import { HISTORIA_STYLE_LOCK, historiaCastLock, isHistoriaConfig } from "./director.js";
 import { jobDir, readMeta, readScript, stillFiles, writeMeta } from "./store.js";
 import type { StickmanJobConfig, StickmanYoutubePack } from "./types.js";
 
 export const YOUTUBE_THUMB_NAME = "youtube-thumb.png";
 
-export function fallbackYoutubePack(topic: string, language: string): StickmanYoutubePack {
+export function fallbackYoutubePack(
+  topic: string,
+  language: string,
+  kind?: string,
+): StickmanYoutubePack {
   const es = !language.startsWith("en");
+  const historia = kind === "historia";
   const title = es
     ? `${topic.slice(0, 70)} | Lo que nadie te dijo`
     : `${topic.slice(0, 70)} | Nobody told you this`;
   const description = es
-    ? `${topic}. Palitos 2D, un solo plano continuo. Mira hasta el final.`
-    : `${topic}. Stick-figure 2D, one continuous shot. Watch to the end.`;
+    ? historia
+      ? `${topic}. Historia con el elenco del Casting, un solo plano continuo. Mira hasta el final.`
+      : `${topic}. Palitos 2D, un solo plano continuo. Mira hasta el final.`
+    : historia
+      ? `${topic}. Casting-locked cinematic story, one continuous shot. Watch to the end.`
+      : `${topic}. Stick-figure 2D, one continuous shot. Watch to the end.`;
   const hashtags = es
-    ? ["#stickman", "#shorts", "#viral", "#youtube", "#animacion"]
-    : ["#stickman", "#shorts", "#viral", "#youtube", "#animation"];
+    ? historia
+      ? ["#historia", "#shorts", "#viral", "#youtube", "#casting"]
+      : ["#stickman", "#shorts", "#viral", "#youtube", "#animacion"]
+    : historia
+      ? ["#story", "#shorts", "#viral", "#youtube", "#casting"]
+      : ["#stickman", "#shorts", "#viral", "#youtube", "#animation"];
   const seo = es
-    ? `stickman, palitos, ${topic}, video viral, explicacion, youtube`
-    : `stickman, stick figures, ${topic}, viral video, explainer, youtube`;
+    ? historia
+      ? `historia, ${topic}, video viral, youtube`
+      : `stickman, palitos, ${topic}, video viral, explicacion, youtube`
+    : historia
+      ? `story, ${topic}, viral video, youtube`
+      : `stickman, stick figures, ${topic}, viral video, explainer, youtube`;
   return { title: title.slice(0, 100), description, hashtags, seo };
 }
 
 export function youtubePackPrompt(config: StickmanJobConfig, pack: StickmanYoutubePack): string {
   const lang = config.language.startsWith("en") ? "English" : "Spanish (LATAM)";
-  return `You write viral YouTube packaging for a 16:9 stickman video.
+  const product = isHistoriaConfig(config)
+    ? "a 16:9 cinematic Historia video starring the locked Casting character"
+    : "a 16:9 stickman video";
+  return `You write viral YouTube packaging for ${product}.
 Language: ${lang}. Topic: ${config.topic}. Duration: ${config.durationSec}s. Look: ${config.look}.
 Return ONLY JSON with keys: title, description, hashtags (array of 5-10 strings starting with #), seo (comma-separated keywords).
 Title: max 70 chars, curiosity + payoff, no clickbait lies, no ALL CAPS spam.
@@ -63,6 +84,19 @@ export function parseYoutubePack(text: string, fallback: StickmanYoutubePack): S
 }
 
 export function youtubeThumbPrompt(config: StickmanJobConfig, title: string): string {
+  if (isHistoriaConfig(config) || config.look === "casting") {
+    const cast = historiaCastLock(config);
+    return [
+      "YouTube thumbnail 16:9 landscape, high contrast, click-stopping, fill the frame edge to edge.",
+      `Huge readable title text: "${title.slice(0, 48)}". Big bold letters, high contrast, not tiny.`,
+      "Cinematic portrait of the LOCKED Casting character from the reference still. Same face, hair, wardrobe, and lighting.",
+      cast ? `Locked cast: ${cast}.` : "",
+      "No stick figures. No line-art palitos. No collage. No watermarks. No logos. No letterbox bars.",
+      HISTORIA_STYLE_LOCK,
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
   return [
     "YouTube thumbnail 16:9 landscape, high contrast, click-stopping, fill the frame edge to edge.",
     `Huge readable title text: "${title.slice(0, 48)}". Big bold letters, high contrast, not tiny.`,
@@ -142,7 +176,7 @@ async function writeYoutubeThumb(
   if (fs.existsSync(dest) && fs.statSync(dest).size > 800) return;
   try {
     const image = createStudioImage({
-      visualProvider: "gflow",
+      visualProvider: config.visualProvider || (isHistoriaConfig(config) ? "vivi" : "gflow"),
       gflowModel: config.gflowImageModel || "nano-pro",
       gflowBridgeId: config.gflowBridgeId,
       atlasKey: apiKey,
@@ -168,7 +202,7 @@ export async function runYoutubePack(
 ): Promise<StickmanLlmUsage | undefined> {
   const meta = readMeta(id);
   if (!meta || meta.config.aspect !== "16:9") return undefined;
-  const fallback = fallbackYoutubePack(meta.config.topic, meta.config.language);
+  const fallback = fallbackYoutubePack(meta.config.topic, meta.config.language, meta.config.kind);
   let pack = meta.youtubePack ?? fallback;
   let usage: StickmanLlmUsage | undefined;
   try {

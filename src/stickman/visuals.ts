@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { isGflowBridgeOfflineError } from "../providers/gflow/errors.js";
 import type { ImageProvider } from "../schema/providers.js";
 import { lookPrompt, STICKMAN_STYLE_LOCK } from "./catalog.js";
 import { HISTORIA_STYLE_LOCK } from "./director.js";
@@ -116,7 +117,11 @@ export function buildContinuousMotionPrompt(
       if (overlapEnd <= overlapStart) return null;
       const a = (overlapStart - startSec).toFixed(1);
       const b = (overlapEnd - startSec).toFixed(1);
-      return `[${a}–${b}s] ${beat.title}: ${beat.pose}. Environment morphs to: ${beat.scene}.`;
+      return `[${a}–${b}s] ${beat.title}: ${beat.pose}. Environment morphs to: ${beat.scene}.${
+        isHistoriaScript(script) && script.muteCharacter && beat.narration
+          ? ` SAYS (español latino, lip-sync): "${beat.narration}"`
+          : ""
+      }`;
     })
     .filter((line): line is string => Boolean(line));
   const bridge =
@@ -135,7 +140,10 @@ export function buildContinuousMotionPrompt(
       script.bible.locationLock ? `Locked location: ${script.bible.locationLock}.` : "",
       `World: ${script.bible.world}.`,
       ...timed,
-      "Same faces, wardrobe, and props for the whole take.",
+      script.muteCharacter
+        ? "ON-CAMERA SPEECH: the locked Casting avatar narrates in spoken Latin American Spanish. Mouths lip-sync. Flow audio is the voice + SFX. 720p."
+        : "ATLAS VOICEOVER: mouths stay closed. Do not speak on camera. Atlas TTS will be mixed over ducked Flow SFX. Output 720p.",
+      "Same faces, wardrobe, and props for the whole take. Output 720p.",
       HISTORIA_STYLE_LOCK,
     ]
       .filter(Boolean)
@@ -150,6 +158,7 @@ export function buildContinuousMotionPrompt(
     `World: ${script.bible.world}.`,
     ...timed,
     "Same stick figures, line weight, and wardrobe for the whole take.",
+    "Output 720p.",
     "Limbs move. Oversized props and line-art architecture may grow, shatter, or morph.",
     "Camera: pan or hold only. No push-in, no dolly-in, no crash zoom, no rack focus, no blur, no bokeh, no shallow depth of field. Every line stays razor-sharp.",
     STICKMAN_STYLE_LOCK,
@@ -199,7 +208,7 @@ export async function renderStills(
       }
     }
     if (!buf) {
-      if (previous) {
+      if (previous && !isGflowBridgeOfflineError(String(lastError))) {
         log(`beat ${beat.id} failed (${lastError}); holding previous stickman still`);
         buf = previous;
       } else {

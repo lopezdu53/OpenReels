@@ -133,6 +133,10 @@ export async function bridgeHealth(): Promise<{ ok: boolean; detail: string }> {
   return { ok: false, detail: "No se alcanzó el puente Windows" };
 }
 
+async function sleepMs(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function viaRelay(
   kind: "image" | "video" | "abort",
   body: Record<string, unknown>,
@@ -141,12 +145,27 @@ async function viaRelay(
 ): Promise<GflowRelayResult> {
   const id = normalizeGflowBridgeId(target);
   if (isPinnedRemoteBridge(id)) {
-    if (!(await isPeerOnline(id))) {
-      throw new GflowCliError(
-        `El puente «${id}» no está conectado. Ábrelo en OpenReels Puente → modo Remoto.`,
-        1,
-        true,
-      );
+    let online = await isPeerOnline(id);
+    if (kind !== "abort") {
+      for (let n = 0; n < 8 && !online; n++) {
+        await sleepMs(2000);
+        online = await isPeerOnline(id);
+      }
+    }
+    if (!online) {
+      const peers = await listOnlinePeers().catch(() => []);
+      const anyRemote = peers.length > 0 || (await isBridgeOnline().catch(() => false));
+      if (!anyRemote) {
+        throw new GflowCliError(
+          `El puente «${id}» no está conectado. Ábrelo en OpenReels Puente → modo Remoto.`,
+          1,
+          true,
+        );
+      }
+      if (!peers.some((peer) => peer.id === id)) {
+        const jobId = await enqueueBridgeJob(kind, body);
+        return waitForBridgeResult(jobId, timeoutSec);
+      }
     }
     const jobId = await enqueueBridgeJob(kind, body, id);
     return waitForBridgeResult(jobId, timeoutSec);
@@ -304,6 +323,7 @@ export async function bridgeGenerateVideo(opts: {
   mode?: "t2v" | "i2v";
   imagePng?: Buffer;
   bridgeId?: string;
+  resolution?: string;
 }): Promise<{ filePath: string; durationSeconds: number }> {
   return enqueueGflow(() => bridgeGenerateVideoNow(opts));
 }
@@ -316,6 +336,7 @@ async function bridgeGenerateVideoNow(opts: {
   mode?: "t2v" | "i2v";
   imagePng?: Buffer;
   bridgeId?: string;
+  resolution?: string;
 }): Promise<{ filePath: string; durationSeconds: number }> {
   const target = normalizeGflowBridgeId(opts.bridgeId);
   const tryLan = target === "auto" || target === "lan";
@@ -325,6 +346,7 @@ async function bridgeGenerateVideoNow(opts: {
     aspect: opts.aspect,
     model: opts.model,
     mode,
+    resolution: opts.resolution || "720p",
     ...(opts.durationSeconds != null ? { durationSeconds: opts.durationSeconds } : {}),
     ...(mode === "i2v" && opts.imagePng && opts.imagePng.length > 80
       ? { imagePng: opts.imagePng.toString("base64") }

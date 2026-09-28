@@ -62,6 +62,13 @@ import sys
 from pathlib import Path
 
 
+def _pace_s() -> float:
+    try:
+        return max(0.0, float(os.environ.get("GFLOW_BRIDGE_PACE_S") or "8"))
+    except ValueError:
+        return 8.0
+
+
 def _wait_s() -> float:
     return float(
         os.environ.get("GFLOW_CLI_TIMEOUT_SECONDS")
@@ -165,6 +172,143 @@ async def _harvest_video(page, media_id: str) -> str | None:
     return found[0] if found else None
 
 
+async def _page_unusual_activity(page) -> str | None:
+    try:
+        text = await page.evaluate("() => (document.body && document.body.innerText) || ''")
+    except Exception:
+        return None
+    compact = " ".join((text or "").lower().split())
+    for needle in (
+        "actividad inusual",
+        "unusual activity",
+        "no se te cobró",
+        "no se te cobro",
+        "you were not charged",
+        "not charged for this",
+        "no se pudo completar la acción",
+        "no se pudo completar la accion",
+        "couldn't complete the action",
+        "could not complete the action",
+    ):
+        if needle in compact:
+            return needle
+    return None
+
+
+def _wire_unusual(text: str) -> bool:
+    return "PUBLIC_ERROR_UNUSUAL_ACTIVITY" in (text or "")
+
+
+async def _click_unusual_refresh(page) -> bool:
+    """Click Flow's curved reload (mat-icon ligature `refresh`) on the error toast/tile."""
+    try:
+        clicked = await page.evaluate(
+            """() => {
+              const lig = (el) => (el.textContent || "").trim();
+              const icons = Array.from(document.querySelectorAll("mat-icon, .mat-icon"));
+              const refresh = icons.filter((el) => lig(el) === "refresh");
+              const toastSel =
+                "flow-error-tile, snack-bar, mat-snack-bar-container, [role='alert'], [class*='snack'], [class*='toast'], [class*='error']";
+              if (refresh.length) {
+                const prefer = refresh.find((el) => el.closest(toastSel)) || refresh[refresh.length - 1];
+                const btn = prefer.closest("button, [role='button']") || prefer;
+                btn.click();
+                return true;
+              }
+              const needles = [
+                "actividad inusual",
+                "unusual activity",
+                "no se te cobró",
+                "no se te cobro",
+                "you were not charged",
+                "no se pudo completar",
+              ];
+              const boxes = Array.from(document.querySelectorAll(toastSel)).filter((el) => {
+                const t = (el.innerText || "").toLowerCase();
+                return t.length > 12 && t.length < 900 && needles.some((n) => t.includes(n));
+              });
+              const box = boxes.sort((a, b) => (a.innerText || "").length - (b.innerText || "").length)[0];
+              if (!box) return false;
+              const btns = Array.from(box.querySelectorAll("button, [role='button']"));
+              if (!btns.length) return false;
+              btns[0].click();
+              return true;
+            }"""
+        )
+        return bool(clicked)
+    except Exception:
+        return False
+
+
+async def _retry_unusual_refresh(page, extra=None, *, tries: int = 2, wait_for_result: bool = True) -> bool:
+    """After unusual-activity toast: click reload and wait for Flow to actually generate."""
+    for n in range(1, tries + 1):
+        if not await _click_unusual_refresh(page):
+            print("[gflow-bridge] no encuentro la flecha refresh del toast", flush=True)
+            return False
+        print(
+            f"[gflow-bridge] pulso la flecha curva (refresh) {n}/{tries} — Flow reintenta (no cobró el toast)",
+            flush=True,
+        )
+        await asyncio.sleep(8)
+        if not wait_for_result:
+            return True
+        if extra is not None:
+            for _ in range(45):
+                if extra:
+                    print("[gflow-bridge] el refresh devolvió el still", flush=True)
+                    return True
+                urls = await _harvest_page_images(page)
+                if urls:
+                    extra.append(
+                        type("Rec", (), {"image_url": urls[0], "media_id": "refresh", "workflow_id": "refresh", "seed": 0, "prompt": "", "dimensions": (1080, 1920), "display_name": None})()
+                    )
+                    print("[gflow-bridge] el refresh devolvió el still (DOM)", flush=True)
+                    return True
+                await asyncio.sleep(2)
+        else:
+            url = await _harvest_video(page, "")
+            if url:
+                print("[gflow-bridge] el refresh devolvió el video", flush=True)
+                return True
+            for _ in range(24):
+                await asyncio.sleep(5)
+                url = await _harvest_video(page, "")
+                if url:
+                    print("[gflow-bridge] el refresh devolvió el video", flush=True)
+                    return True
+                if await _page_unusual_activity(page) and n < tries:
+                    break
+    return False
+
+
+def _unusual_activity_error():
+    # gflow 0.79 wraps bare RuntimeError as UnexpectedError (no detail).
+    # WafRejectionError is the class develop #909 uses for this same reason.
+    try:
+        from gflow_cli.errors import WafRejectionError
+
+        err = WafRejectionError(
+            detail=(
+                "UNUSUAL_ACTIVITY: Flow detectó actividad inusual y no generó. "
+                "No se cobró. Espera 20–30 min, abre Flow a mano y genera 1 still. "
+                "No lances varios jobs seguidos."
+            ),
+            remediation_hint=(
+                "Flow scored this profile as a bot (PUBLIC_ERROR_UNUSUAL_ACTIVITY). "
+                "The prompt is not the cause. Wait hours or use another Gmail."
+            ),
+        )
+        err.retryable = False
+        return err
+    except Exception:
+        return RuntimeError(
+            "UNUSUAL_ACTIVITY: Flow detectó actividad inusual y no generó. "
+            "No se cobró. Espera 20–30 min, abre Flow a mano y genera 1 still. "
+            "No lances varios jobs seguidos."
+        )
+
+
 async def _harvest_page_images(page) -> list[str]:
     try:
         raw = await page.evaluate(
@@ -228,7 +372,61 @@ def _patch() -> None:
             kwargs["poll_timeout_s"] = wait
             mc.SUBMIT_REPLY_BUDGET_S = wait
             print(f"[gflow-bridge] submit_and_observe wait={wait:.0f}s", flush=True)
-            rec = await orig_sub(self, page, *args, **kwargs)
+            pace = _pace_s()
+            if pace > 0:
+                print(
+                    f"[gflow-bridge] espero {pace:.0f}s antes de Generate video "
+                    "(ritmo humano; el CLI solo tarda 2s y Flow lo marca)",
+                    flush=True,
+                )
+                await asyncio.sleep(pace)
+            if await _page_unusual_activity(page):
+                print(
+                    "[gflow-bridge] toast de actividad inusual; pulso la flecha curva antes de Generate video.",
+                    flush=True,
+                )
+                await _retry_unusual_refresh(page, extra=None, tries=1, wait_for_result=False)
+            try:
+                rec = await orig_sub(self, page, *args, **kwargs)
+            except Exception as err:
+                if _wire_unusual(str(err)) or await _page_unusual_activity(page):
+                    print(
+                        "[gflow-bridge] Flow toast inusual en video. Reintento con la flecha curva…",
+                        flush=True,
+                    )
+                    if await _retry_unusual_refresh(page, extra=None):
+                        harvested = await _harvest_video(page, "")
+                        if harvested and harvested.startswith("blob:"):
+                            out_dir = Path(os.environ.get("GFLOW_CLI_OUTPUT_DIR") or os.getcwd())
+                            dest = out_dir / "out.mp4"
+                            if await _save_blob_mp4(page, harvested, dest):
+                                hold_chrome["value"] = False
+                                return be.GenerationRecord(
+                                    workflow_id="refresh",
+                                    project_id="",
+                                    media_id="refresh",
+                                    status=be.STATUS_DONE,
+                                    video_url=None,
+                                    poster_url=None,
+                                    size_bytes=dest.stat().st_size,
+                                )
+                        if harvested and harvested.startswith("https://"):
+                            hold_chrome["value"] = False
+                            return be.GenerationRecord(
+                                workflow_id="refresh",
+                                project_id="",
+                                media_id="refresh",
+                                status=be.STATUS_DONE,
+                                video_url=harvested,
+                                poster_url=None,
+                                size_bytes=None,
+                            )
+                    print(
+                        "[gflow-bridge] Flow bloqueó el video: actividad inusual. No se cobró.",
+                        flush=True,
+                    )
+                    raise _unusual_activity_error() from err
+                raise
             mid = getattr(rec, "media_id", "") or ""
             if rec is not None and rec.status == 4 and seen_run.get(mid):
                 print(
@@ -304,6 +502,7 @@ def _patch() -> None:
 
         async def _submit_images_flex(self, page, request, *args, **kwargs):
             extra: list = []
+            refused: dict = {}
 
             def on_any(resp) -> None:
                 url = str(getattr(resp, "url", "") or "")
@@ -313,6 +512,16 @@ def _patch() -> None:
                 async def _eat() -> None:
                     try:
                         text = await resp.text()
+                    except Exception:
+                        return
+                    if _wire_unusual(text):
+                        refused["unusual"] = True
+                        print(
+                            "[gflow-bridge] wire PUBLIC_ERROR_UNUSUAL_ACTIVITY (ogiZ0b vacío a propósito)",
+                            flush=True,
+                        )
+                        return
+                    try:
                         for rpcid, payload in be.parse_frames(text):
                             recs = be.image_records(rpcid, payload)
                             if recs:
@@ -328,9 +537,89 @@ def _patch() -> None:
 
             page.on("response", on_any)
             try:
+                pace = _pace_s()
+                if pace > 0:
+                    print(
+                        f"[gflow-bridge] espero {pace:.0f}s antes de Generate still "
+                        "(ritmo humano; el CLI solo tarda 2s y Flow lo marca)",
+                        flush=True,
+                    )
+                    await asyncio.sleep(pace)
+                if await _page_unusual_activity(page):
+                    print(
+                        "[gflow-bridge] toast de actividad inusual; pulso la flecha curva antes de Generate still.",
+                        flush=True,
+                    )
+                    await _retry_unusual_refresh(page, extra, tries=1, wait_for_result=False)
                 try:
-                    return await orig_img(self, page, request, *args, **kwargs)
+                    recs = await orig_img(self, page, request, *args, **kwargs)
+                    if refused.get("unusual"):
+                        print(
+                            "[gflow-bridge] Flow toast inusual en still. Reintento con la flecha curva…",
+                            flush=True,
+                        )
+                        refused["unusual"] = False
+                        if await _retry_unusual_refresh(page, extra):
+                            rec = extra[0] if extra else None
+                            url = rec.image_url if rec is not None else None
+                            if not url:
+                                urls = await _harvest_page_images(page)
+                                url = urls[0] if urls else None
+                            if url:
+                                from gflow_cli.api.dto import GeneratedImage
+
+                                return [
+                                    GeneratedImage(
+                                        media_name=getattr(rec, "media_id", None) or "refresh",
+                                        workflow_id=getattr(rec, "workflow_id", None) or "refresh",
+                                        seed=int(getattr(rec, "seed", 0) or 0),
+                                        prompt=getattr(rec, "prompt", None) or "",
+                                        model_name_type=None,
+                                        aspect_ratio=getattr(getattr(request, "aspect", None), "value", None)
+                                        or "IMAGE_ASPECT_RATIO_PORTRAIT",
+                                        fife_url=url,
+                                        dimensions=getattr(rec, "dimensions", None) or (1080, 1920),
+                                        display_name=getattr(rec, "display_name", None),
+                                    )
+                                ]
+                        raise _unusual_activity_error()
+                    return recs
                 except Exception as err:
+                    if refused.get("unusual") or _wire_unusual(str(err)) or await _page_unusual_activity(page):
+                        print(
+                            "[gflow-bridge] Flow toast inusual en still. Reintento con la flecha curva…",
+                            flush=True,
+                        )
+                        refused["unusual"] = False
+                        if await _retry_unusual_refresh(page, extra):
+                            rec = extra[0] if extra else None
+                            url = rec.image_url if rec is not None else None
+                            if not url:
+                                urls = await _harvest_page_images(page)
+                                url = urls[0] if urls else None
+                            if url:
+                                from gflow_cli.api.dto import GeneratedImage
+
+                                return [
+                                    GeneratedImage(
+                                        media_name=getattr(rec, "media_id", None) or "refresh",
+                                        workflow_id=getattr(rec, "workflow_id", None) or "refresh",
+                                        seed=int(getattr(rec, "seed", 0) or 0),
+                                        prompt=getattr(rec, "prompt", None) or "",
+                                        model_name_type=None,
+                                        aspect_ratio=getattr(getattr(request, "aspect", None), "value", None)
+                                        or "IMAGE_ASPECT_RATIO_PORTRAIT",
+                                        fife_url=url,
+                                        dimensions=getattr(rec, "dimensions", None) or (1080, 1920),
+                                        display_name=getattr(rec, "display_name", None),
+                                    )
+                                ]
+                        print(
+                            "[gflow-bridge] Flow bloqueó: actividad inusual. No se cobró. "
+                            "El refresh no devolvió imagen.",
+                            flush=True,
+                        )
+                        raise _unusual_activity_error() from err
                     msg = str(err).lower()
                     if "ogiz0b" not in msg and "wireformat" not in msg:
                         raise

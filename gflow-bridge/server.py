@@ -16,11 +16,12 @@ import subprocess
 import tempfile
 import threading
 import time
+from collections import deque
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from gflow_patch import ensure_gflow_wait_patch, gflow_exec_command
 from profiles import (
@@ -51,6 +52,11 @@ VIDEO_TIMEOUT_LP = int(os.environ.get("GFLOW_BRIDGE_VIDEO_TIMEOUT_LP", "3600"))
 QUEUE_WAIT = int(os.environ.get("GFLOW_BRIDGE_QUEUE_WAIT", "1200"))
 MAX_BODY = int(os.environ.get("GFLOW_BRIDGE_MAX_BODY", str(48 * 1024 * 1024)))
 SETTLE_SECONDS = int(os.environ.get("GFLOW_BRIDGE_SETTLE_SECONDS", "8"))
+JOB_GAP_S = float(os.environ.get("GFLOW_BRIDGE_JOB_GAP_S", "50"))
+PACE_S = float(os.environ.get("GFLOW_BRIDGE_PACE_S", "8"))
+UNUSUAL_COOLDOWN_S = float(os.environ.get("GFLOW_BRIDGE_UNUSUAL_COOLDOWN_S", "1800"))
+_LAST_JOB_END = 0.0
+_UNUSUAL_UNTIL = 0.0
 I2V_FALLBACK_T2V = os.environ.get("GFLOW_I2V_FALLBACK_T2V", "") == "1"
 # gflow 0.71 picks the library tile then waits for the picker to close. Migrated
 # Flow keeps it open until "Add to prompt" — the CLI never clicks that button.
@@ -99,6 +105,12 @@ PROC_LOCK = threading.Lock()
 CURRENT_PROC: subprocess.Popen[str] | None = None
 ABORT_REQUESTED = False
 KEPT_CHROME = False
+ENGINE = (os.environ.get("GFLOW_BRIDGE_ENGINE") or "gflow").strip() or "gflow"
+_EXT_CV = threading.Condition()
+_EXT_QUEUE: deque[dict[str, Any]] = deque()
+_EXT_WAITERS: dict[str, threading.Event] = {}
+_EXT_RESULTS: dict[str, dict[str, Any]] = {}
+_EXT_SEEN = 0.0
 
 
 def _is_lower_priority(model: str) -> bool:
@@ -207,11 +219,13 @@ def _resolve_video_mode(raw: object) -> str:
 
 
 def _duration_flag(model: str, duration: int | None) -> list[str]:
-    # gflow 0.79: most migrated Gmails (incl. Omni 1.1 Flash) have no duration
-    # row. Passing --duration raises ConfigurationError exit 11. Flow picks
-    # the default length; do not send the flag.
-    del model, duration
-    return []
+    # Veo migrated UI has no duration row. Omni 1.1 Flash does: send 10s (max).
+    # If Flow raises ConfigurationError, generate_video retries without the flag.
+    if duration is None:
+        return []
+    if str(model).strip().lower() != "omni-flash":
+        return []
+    return ["--duration", str(int(duration))]
 
 
 def _strip_duration_args(args: list[str]) -> list[str]:
@@ -233,23 +247,160 @@ def _is_duration_not_offered(msg: str) -> bool:
     return "duration control" in low or "drop --duration" in low or "no duration control offering" in low
 
 
+def _is_unusual_activity(msg: str) -> bool:
+    low = msg.lower()
+    return any(
+        n in low
+        for n in (
+            "unusual_activity",
+            "public_error_unusual_activity",
+            "actividad inusual",
+            "unusual activity",
+            "flow bloqueó",
+            "flow bloqueo",
+            "no se te cobró",
+            "no se te cobro",
+            "you were not charged",
+            "not charged for this",
+            "no se pudo completar la acción",
+            "no se pudo completar la accion",
+            "couldn't complete the action",
+            "could not complete the action",
+        )
+    )
+
+
 def _is_image_wire_miss(msg: str) -> bool:
+    if _is_unusual_activity(msg):
+        return False
     low = msg.lower()
     return "ogiz0b" in low or (
         "wireformaterror" in low and ("image" in low or "ogi" in low)
     )
 
 
+def _friendly_unusual_activity() -> str:
+    mins = max(1, int(UNUSUAL_COOLDOWN_S / 60))
+    return (
+        "Flow bloqueó la generación: detectó actividad inusual (bot check). "
+        "No se cobró; el prompt no es la causa. "
+        f"El puente no vuelve a abrir Chrome {mins} min. "
+        "Abre Flow a mano, genera 1 still, y no lances más jobs desde el estudio."
+    )
+
+
+def _note_unusual() -> None:
+    global _UNUSUAL_UNTIL
+    _UNUSUAL_UNTIL = time.time() + UNUSUAL_COOLDOWN_S
+    left = max(1, int(UNUSUAL_COOLDOWN_S / 60))
+    print(
+        f"[gflow-bridge] cuenta en cooldown {left} min: no abro Chrome ni Generate.",
+        flush=True,
+    )
+
+
+def _unusual_cooldown_left() -> float:
+    return max(0.0, _UNUSUAL_UNTIL - time.time())
+
+
+def _raise_if_unusual_cooldown() -> None:
+    left = _unusual_cooldown_left()
+    if left <= 0:
+        return
+    mins = max(1, int(left / 60) + (1 if left % 60 else 0))
+    raise RuntimeError(
+        f"{_friendly_unusual_activity()} Quedan ~{mins} min; "
+        "otro Generate empeora el bloqueo."
+    )
+
+
+def _is_host_migrated(msg: str) -> bool:
+    low = msg.lower()
+    return "flowhostmigrated" in low or "handed this session to flow.google.com" in low
+
+
+def _flow_host_env() -> str:
+    """Migrated Gmails live on flow.google.com. Never pin labs — the labs driver dies."""
+    raw = (os.environ.get("GFLOW_CLI_FLOW_HOST") or "auto").strip()
+    low = raw.lower()
+    if "labs" in low:
+        return "auto"
+    if low in {"auto", "flow.google.com"}:
+        return raw
+    return "auto"
+
+
+def _migrated_image_model(model: str) -> str:
+    """flow.google.com image menu is only nano2 (NARWHAL) and nano-pro (GEM_PIX_2)."""
+    raw = (model or "").strip()
+    low = raw.lower().replace("_", "-")
+    aliases = {
+        "nano2": "nano2",
+        "nano-2": "nano2",
+        "nano-banana-2": "nano2",
+        "nano-pro": "nano-pro",
+        "nano-banana-pro": "nano-pro",
+        "banana-pro": "nano-pro",
+        "gem-pix-2": "nano-pro",
+        "narwhal": "nano2",
+    }
+    if low in aliases:
+        return aliases[low]
+    if low in {
+        "image4",
+        "image-4",
+        "imagen4",
+        "imagen-4",
+        "nano-lite",
+        "nano-banana-2-lite",
+        "nano-banana-lite",
+    }:
+        print(
+            f"[gflow-bridge] Flow migrado no tiene {raw or 'image4'}; uso nano2",
+            flush=True,
+        )
+        return "nano2"
+    print(
+        f"[gflow-bridge] modelo de still desconocido {raw or '?'}; uso nano2",
+        flush=True,
+    )
+    return "nano2"
+
+
+def _migrated_image_aspect(aspect: str) -> str:
+    if aspect == "3:4":
+        print("[gflow-bridge] aspect 3:4 no está en Flow migrado; uso 9:16", flush=True)
+        return "9:16"
+    if aspect in {"9:16", "16:9", "1:1", "4:3"}:
+        return aspect
+    return "16:9"
+
+
 def _friendly_image_error(msg: str) -> str:
+    if _is_unusual_activity(msg):
+        return _friendly_unusual_activity()
+    if _is_host_migrated(msg):
+        return (
+            "Google movió esta cuenta a flow.google.com. "
+            "El puente ya no usa labs ni Imagen 4 (image4): stills van con Nano Banana 2. "
+            "Reintenta el job; no es un fallo de login."
+        )
     if _is_image_wire_miss(msg):
         return (
             "Flow no confirmó el still (respuesta ogiZ0b vacía). "
-            "El puente reintenta; si sigue fallando, abre Flow en Chrome y genera un still a mano."
+            "Si Flow mostró «actividad inusual», espera; no reintentes en cadena."
         )
     return msg
 
 
 def _friendly_video_error(msg: str) -> str:
+    if _is_unusual_activity(msg):
+        return _friendly_unusual_activity()
+    if _is_host_migrated(msg):
+        return (
+            "Google movió esta cuenta a flow.google.com. "
+            "El puente ya no fuerza labs.google. Reintenta el clip."
+        )
     if _is_duration_not_offered(msg):
         return (
             "Este Gmail no muestra duración 6s/10s en Omni. "
@@ -344,6 +495,8 @@ def _remember_model_fallback(requested: str, used: str) -> None:
 
 def _is_hard_video_fail(msg: str) -> bool:
     low = msg.lower()
+    if _is_unusual_activity(msg):
+        return True
     if _is_duration_not_offered(msg):
         return False
     if _is_model_not_offered(msg):
@@ -589,6 +742,14 @@ def _media_ids_from_text(*blobs: str) -> list[str]:
 
 
 def _gflow_fail_message(payload: dict[str, Any] | None, stdout: str, stderr: str, code: int) -> str:
+    blob = f"{stdout}\n{stderr}"
+    if payload and isinstance(payload.get("error"), dict):
+        err = payload["error"]
+        blob += " " + " ".join(
+            str(err.get(k) or "") for k in ("class", "detail", "title", "remediation_hint")
+        )
+    if _is_unusual_activity(blob):
+        return _friendly_unusual_activity()
     err = payload.get("error") if payload else None
     if isinstance(err, dict):
         detail = str(err.get("detail") or err.get("title") or "")
@@ -617,7 +778,7 @@ def _spawn_gflow(
     env["GFLOW_CLI_LOG_FORMAT"] = "json"
     env["NO_COLOR"] = "1"
     env["FORCE_COLOR"] = "0"
-    env.setdefault("GFLOW_CLI_FLOW_HOST", "auto")
+    env["GFLOW_CLI_FLOW_HOST"] = _flow_host_env()
     if PROFILE:
         env["GFLOW_CLI_PROFILE"] = PROFILE
     if GFLOW_HOME:
@@ -627,6 +788,7 @@ def _spawn_gflow(
     if keep:
         KEPT_CHROME = True
     env["GFLOW_BRIDGE_KEEP_CHROME"] = "1" if keep else "0"
+    env.setdefault("GFLOW_BRIDGE_PACE_S", str(PACE_S))
     if timeout:
         env["GFLOW_CLI_TIMEOUT_SECONDS"] = str(max(int(timeout), 600))
         env["GFLOW_BRIDGE_SUBMIT_REPLY_S"] = str(max(int(timeout), 600))
@@ -715,14 +877,201 @@ def _clear_abort() -> None:
     ABORT_REQUESTED = False
 
 
+def resolve_engine(raw: str | None = None) -> str:
+    text = str(raw if raw is not None else os.environ.get("GFLOW_BRIDGE_ENGINE") or ENGINE or "gflow")
+    key = text.strip().lower()
+    if key in {"ext", "extension", "flow-ext", "chrome", "chrome-ext"}:
+        return "ext"
+    return "gflow"
+
+
+def engine_is_ext(raw: str | None = None) -> bool:
+    return resolve_engine(raw) == "ext"
+
+
+def reset_ext_state() -> None:
+    global _EXT_SEEN
+    with _EXT_CV:
+        _EXT_QUEUE.clear()
+        _EXT_RESULTS.clear()
+        waiters = list(_EXT_WAITERS.values())
+        _EXT_WAITERS.clear()
+        _EXT_SEEN = 0.0
+        _EXT_CV.notify_all()
+    for ev in waiters:
+        ev.set()
+
+
+def ext_status() -> dict[str, Any]:
+    with _EXT_CV:
+        pending = len(_EXT_QUEUE)
+        waiting = len(_EXT_WAITERS)
+        seen = _EXT_SEEN
+    ago = (time.time() - seen) if seen else None
+    return {
+        "engine": resolve_engine(),
+        "pending": pending,
+        "waiting": waiting,
+        "lastSeenAgo": None if ago is None else round(ago, 1),
+        "online": ago is not None and ago < 45,
+    }
+
+
+def _ext_public_job(job: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": job["id"],
+        "kind": job["kind"],
+        "prompt": job["prompt"],
+        "model": job.get("model") or "",
+        "aspect": job.get("aspect") or "16:9",
+        "mode": job.get("mode") or "",
+        "durationSeconds": job.get("durationSeconds"),
+        "referencePng": job.get("referencePng") or "",
+        "imagePng": job.get("imagePng") or "",
+    }
+
+
+def poll_ext_job(wait_s: float = 20.0) -> dict[str, Any] | None:
+    global _EXT_SEEN
+    deadline = time.time() + max(0.2, min(float(wait_s), 60.0))
+    with _EXT_CV:
+        _EXT_SEEN = time.time()
+        while True:
+            if _EXT_QUEUE:
+                job = _EXT_QUEUE.popleft()
+                _EXT_SEEN = time.time()
+                return _ext_public_job(job)
+            left = deadline - time.time()
+            if left <= 0:
+                return None
+            _EXT_CV.wait(timeout=min(1.0, left))
+            _EXT_SEEN = time.time()
+
+
+def complete_ext_job(body: dict[str, Any]) -> dict[str, Any]:
+    job_id = str(body.get("id") or "").strip()
+    if not job_id:
+        raise ValueError("id requerido")
+    result = dict(body)
+    result["ok"] = bool(body.get("ok", True)) and not body.get("error")
+    with _EXT_CV:
+        _EXT_RESULTS[job_id] = result
+        ev = _EXT_WAITERS.get(job_id)
+    if ev is None:
+        return {"ok": False, "error": "job desconocido o ya cerrado", "id": job_id}
+    ev.set()
+    return {"ok": True, "id": job_id}
+
+
+def generate_via_extension(kind: str, body: dict[str, Any]) -> dict[str, Any]:
+    prompt = str(body.get("prompt") or "").strip()
+    if kind == "image":
+        style = str(body.get("style") or "").strip()
+        prompt = f"{prompt}. Style: {style}" if style else prompt
+        model = _migrated_image_model(str(body.get("model") or "nano2"))
+        aspect = _migrated_image_aspect(str(body.get("aspect") or "16:9"))
+        mode = "i2i" if str(body.get("referencePng") or "").strip() else "t2i"
+        duration = None
+        timeout = max(IMAGE_TIMEOUT, 420)
+    else:
+        prompt = _sanitize_prompt(prompt)
+        mode = _resolve_video_mode(body.get("mode"))
+        requested_model = str(body.get("model") or "veo-lite")
+        model = _cli_video_model(requested_model)
+        aspect = "9:16" if body.get("aspect") == "9:16" else "16:9"
+        duration = None
+        if str(model).strip().lower() == "omni-flash":
+            try:
+                duration = max(4, min(int(body.get("durationSeconds") or 10), 10))
+            except (TypeError, ValueError):
+                duration = 10
+        timeout = _video_timeout_for(model)
+    if len(prompt) < 2:
+        raise ValueError("prompt requerido")
+    job_id = secrets.token_hex(8)
+    job: dict[str, Any] = {
+        "id": job_id,
+        "kind": kind,
+        "prompt": prompt,
+        "model": model,
+        "aspect": aspect,
+        "mode": mode,
+        "durationSeconds": duration,
+        "referencePng": str(body.get("referencePng") or "") if kind == "image" else "",
+        "imagePng": str(body.get("imagePng") or "") if kind == "video" else "",
+    }
+    ev = threading.Event()
+    print(
+        f"[gflow-bridge] extensión Flow: {kind} {job_id} modelo={model} "
+        f"(abre Chrome en flow.google.com con OpenReels Flow)",
+        flush=True,
+    )
+    with _EXT_CV:
+        _EXT_WAITERS[job_id] = ev
+        _EXT_QUEUE.append(job)
+        _EXT_CV.notify_all()
+    deadline = time.time() + timeout
+    try:
+        while time.time() < deadline:
+            if ABORT_REQUESTED:
+                raise RuntimeError("detenido por el usuario")
+            if ev.wait(timeout=1.0):
+                break
+        else:
+            raise RuntimeError(
+                "La extensión Flow no contestó. Carga OpenReels Flow (carpeta ext-flow) "
+                "en chrome://extensions, abre flow.google.com con el Gmail Gemini y Agent OFF."
+            )
+        with _EXT_CV:
+            result = _EXT_RESULTS.pop(job_id, None)
+            _EXT_WAITERS.pop(job_id, None)
+        if not result:
+            raise RuntimeError("la extensión Flow cerró el job vacío")
+        if result.get("error") or not result.get("ok", True):
+            raise RuntimeError(str(result.get("error") or "extensión Flow falló"))
+        if kind == "image":
+            png = str(result.get("png") or "")
+            raw = _decode_b64(png) if png else b""
+            if not raw or len(raw) < 1000:
+                raise RuntimeError("la extensión Flow no devolvió un PNG")
+            return {"ok": True, "kind": "image", "png": base64.b64encode(raw).decode("ascii"), "bytes": len(raw)}
+        mp4 = str(result.get("mp4") or "")
+        raw = _decode_b64(mp4) if mp4 else b""
+        if not raw or len(raw) < 20_000:
+            raise RuntimeError("la extensión Flow no devolvió un mp4")
+        reported = duration if duration is not None else 8
+        return {
+            "ok": True,
+            "kind": "video",
+            "mp4": base64.b64encode(raw).decode("ascii"),
+            "bytes": len(raw),
+            "durationSeconds": reported,
+        }
+    finally:
+        with _EXT_CV:
+            _EXT_WAITERS.pop(job_id, None)
+            _EXT_RESULTS.pop(job_id, None)
+            leftover = [row for row in _EXT_QUEUE if row.get("id") != job_id]
+            _EXT_QUEUE.clear()
+            _EXT_QUEUE.extend(leftover)
+
+
 def abort_current_gflow() -> bool:
     """User hit Detener: kill the headed gflow and stop catalog recover."""
     global CURRENT_PROC, ABORT_REQUESTED
     ABORT_REQUESTED = True
+    with _EXT_CV:
+        had_ext = bool(_EXT_WAITERS or _EXT_QUEUE)
+        while _EXT_QUEUE:
+            job = _EXT_QUEUE.popleft()
+            _EXT_RESULTS[str(job.get("id") or "")] = {"ok": False, "error": "detenido por el usuario"}
+        for ev in list(_EXT_WAITERS.values()):
+            ev.set()
+        _EXT_CV.notify_all()
     with PROC_LOCK:
         proc = CURRENT_PROC
     if proc is None or proc.poll() is not None:
-        return False
+        return had_ext
     print("[gflow-bridge] abort: detengo gflow (no espero el clip)", flush=True)
     proc.terminate()
     try:
@@ -766,6 +1115,9 @@ def _run_gflow(args: list[str], timeout: int, output_dir: str | None = None) -> 
             mids.append(str(payload["media_id"]))
         if mids:
             msg = f"{msg} media_id={mids[-1]}"
+        if _is_unusual_activity(f"{msg}\n{combined}"):
+            _note_unusual()
+            msg = _friendly_unusual_activity()
         print(f"[gflow-bridge] gflow fail: {msg}", flush=True)
         raise RuntimeError(msg)
     if not payload:
@@ -1074,17 +1426,47 @@ def _recover_generated_mp4(
             slept += 1
 
 
+def _pace_between_jobs(kind: str) -> None:
+    """Flow flags Playwright if stills/videos fire a few seconds apart."""
+    global _LAST_JOB_END
+    if _LAST_JOB_END <= 0:
+        return
+    wait = JOB_GAP_S - (time.time() - _LAST_JOB_END)
+    if wait <= 0.5:
+        return
+    print(
+        f"[gflow-bridge] pausa {wait:.0f}s antes de {kind} "
+        "(el CLI va demasiado rápido y Flow marca actividad inusual)",
+        flush=True,
+    )
+    deadline = time.time() + wait
+    while time.time() < deadline:
+        if ABORT_REQUESTED:
+            raise RuntimeError("detenido por el usuario")
+        time.sleep(min(1.0, deadline - time.time()))
+
+
+def _mark_job_finished() -> None:
+    global _LAST_JOB_END
+    _LAST_JOB_END = time.time()
+
+
 def generate_image(body: dict[str, Any]) -> dict[str, Any]:
+    _raise_if_unusual_cooldown()
     _clear_abort()
+    _pace_between_jobs("image")
+    if engine_is_ext():
+        try:
+            return generate_via_extension("image", body)
+        finally:
+            _mark_job_finished()
     prompt = str(body.get("prompt") or "").strip()
     if len(prompt) < 2:
         raise ValueError("prompt requerido")
     style = str(body.get("style") or "").strip()
     full = f"{prompt}. Style: {style}" if style else prompt
-    model = str(body.get("model") or "nano2")
-    aspect = str(body.get("aspect") or "16:9")
-    if aspect not in {"9:16", "16:9", "1:1", "4:3", "3:4"}:
-        aspect = "16:9"
+    model = _migrated_image_model(str(body.get("model") or "nano2"))
+    aspect = _migrated_image_aspect(str(body.get("aspect") or "16:9"))
     ref = _decode_b64(body.get("referencePng") if isinstance(body.get("referencePng"), str) else None)
     work = Path(tempfile.mkdtemp(prefix="gflow-bridge-img-"))
     dest = work / "out.png"
@@ -1107,7 +1489,7 @@ def generate_image(body: dict[str, Any]) -> dict[str, Any]:
                 break
             except Exception as err:
                 last_err = err
-                if attempt == 0 and _is_image_wire_miss(str(err)):
+                if attempt == 0 and _is_image_wire_miss(str(err)) and not _is_host_migrated(str(err)):
                     print(
                         "[gflow-bridge] Flow no devolvió ogiZ0b. Reintento la imagen una vez…",
                         flush=True,
@@ -1130,11 +1512,14 @@ def generate_image(body: dict[str, Any]) -> dict[str, Any]:
             raise RuntimeError(f"gflow image too small ({len(data)} bytes)")
         return {"ok": True, "kind": "image", "png": base64.b64encode(data).decode("ascii"), "bytes": len(data)}
     finally:
+        _mark_job_finished()
         shutil.rmtree(work, ignore_errors=True)
 
 
 def generate_video(body: dict[str, Any]) -> dict[str, Any]:
+    _raise_if_unusual_cooldown()
     _clear_abort()
+    _pace_between_jobs("video")
     prompt = _sanitize_prompt(str(body.get("prompt") or ""))
     if len(prompt) < 2:
         raise ValueError("prompt requerido")
@@ -1142,6 +1527,11 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
     still = _decode_b64(body.get("imagePng") if isinstance(body.get("imagePng"), str) else None)
     if mode == "i2v" and (not still or len(still) < 80):
         raise ValueError("imagePng requerido (still PNG en base64)")
+    if engine_is_ext():
+        try:
+            return generate_via_extension("video", body)
+        finally:
+            _mark_job_finished()
     requested_model = str(body.get("model") or "veo-lite")
     model = _cli_video_model(requested_model)
     if model != requested_model:
@@ -1151,11 +1541,11 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
         )
     aspect = "9:16" if body.get("aspect") == "9:16" else "16:9"
     duration: int | None = None
-    if str(model).strip().lower() == "omni-flash" and body.get("durationSeconds") is not None:
+    if str(model).strip().lower() == "omni-flash":
         try:
-            duration = max(4, min(int(body.get("durationSeconds") or 8), 10))
+            duration = max(4, min(int(body.get("durationSeconds") or 10), 10))
         except (TypeError, ValueError):
-            duration = 8
+            duration = 10
     reported = duration if duration is not None else 8
     video_timeout = _video_timeout_for(model)
     recover_s = _recover_seconds_for(model)
@@ -1241,6 +1631,8 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                         break
                     if ABORT_REQUESTED:
                         raise RuntimeError("detenido por el usuario") from err
+                    if _is_unusual_activity(msg):
+                        raise RuntimeError(_friendly_unusual_activity()) from err
                     if mode != "i2v" or not _should_fallback_t2v(msg):
                         raise
                     print(
@@ -1295,7 +1687,9 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                         last_err = None
                         break
             if payload is None:
-                raise last_err or RuntimeError("gflow video no devolvió resultado")
+                raise RuntimeError(
+                    _friendly_video_error(str(last_err) if last_err else "gflow video no devolvió resultado")
+                ) from last_err
         local = dest if dest.exists() and dest.stat().st_size > 20_000 else None
         if local is None and isinstance(payload.get("local_path"), str):
             p = Path(str(payload["local_path"]))
@@ -1330,6 +1724,7 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
             "durationSeconds": reported,
         }
     finally:
+        _mark_job_finished()
         if mode == "i2v" and SETTLE_SECONDS > 0:
             time.sleep(SETTLE_SECONDS)
         shutil.rmtree(work, ignore_errors=True)
@@ -1352,11 +1747,27 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Access-Control-Allow-Origin", "*")
         if code >= 400:
             self.send_header("Connection", "close")
             self.close_connection = True
         self.end_headers()
         self.wfile.write(raw)
+
+    def _auth_ext(self) -> bool:
+        ip = self._client_ip()
+        if ip in {"127.0.0.1", "::1"}:
+            return True
+        return self._auth()
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+        self.send_header("Access-Control-Max-Age", "600")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def _read_body(self) -> bytes:
         """Always consume Content-Length so a 401 does not leave PNG/base64 as the next request line (HTTP 414)."""
@@ -1390,6 +1801,7 @@ class Handler(BaseHTTPRequestHandler):
         if path in {"/health", "/v1/health"}:
             if not self._auth():
                 return
+            extra = ext_status()
             self._json(
                 200,
                 {
@@ -1399,15 +1811,50 @@ class Handler(BaseHTTPRequestHandler):
                     "projectName": PROJECT_NAME or "",
                     "profile": bool(PROFILE),
                     "busy": LOCK.locked(),
+                    "engine": extra["engine"],
+                    "ext": extra,
                     "ts": int(time.time()),
                 },
             )
+            return
+        if path in {"/v1/ext/status"}:
+            if not self._auth_ext():
+                return
+            self._json(200, {"ok": True, **ext_status()})
             return
         self._json(404, {"ok": False, "error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
         raw = self._read_body()
+        if path in {"/v1/ext/poll", "/v1/ext/result"}:
+            if not self._auth_ext():
+                return
+            body: dict[str, Any] = {}
+            if raw:
+                try:
+                    parsed = json.loads(raw.decode("utf-8"))
+                    if isinstance(parsed, dict):
+                        body = parsed
+                except Exception:
+                    self._json(400, {"ok": False, "error": "JSON inválido"})
+                    return
+            if path == "/v1/ext/poll":
+                wait_raw = body.get("wait")
+                if wait_raw is None:
+                    wait_raw = parse_qs(urlparse(self.path).query).get("wait", ["20"])[0]
+                try:
+                    wait_s = float(wait_raw)
+                except (TypeError, ValueError):
+                    wait_s = 20.0
+                job = poll_ext_job(wait_s)
+                self._json(200, {"ok": True, "job": job})
+                return
+            try:
+                self._json(200, complete_ext_job(body))
+            except ValueError as err:
+                self._json(400, {"ok": False, "error": str(err)})
+            return
         if path == "/v1/abort":
             if not self._auth():
                 return
@@ -1456,8 +1903,9 @@ def apply_settings(
     port: int | None = None,
     profile: str = "",
     gflow_bin: str = "",
+    engine: str | None = None,
 ) -> None:
-    global TOKEN, ALLOW_IPS, PROJECT, PROJECT_NAME, HOST, PORT, PROFILE, GFLOW_HOME, GFLOW_BIN
+    global TOKEN, ALLOW_IPS, PROJECT, PROJECT_NAME, HOST, PORT, PROFILE, GFLOW_HOME, GFLOW_BIN, ENGINE
     TOKEN = (token or "").strip()
     ALLOW_IPS = {ip.strip() for ip in (allow_ips or "").split(",") if ip.strip()}
     PROJECT = (project or "").strip()
@@ -1496,6 +1944,9 @@ def apply_settings(
         os.environ.pop("GFLOW_CLI_HOME", None)
     if GFLOW_BIN:
         os.environ["GFLOW_CLI_BIN"] = GFLOW_BIN
+    if engine is not None:
+        ENGINE = resolve_engine(engine)
+    os.environ["GFLOW_BRIDGE_ENGINE"] = resolve_engine()
 
 
 def run_kind(kind: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -1515,7 +1966,7 @@ def serve_forever() -> ThreadingHTTPServer:
     if not TOKEN and not ALLOW_ANON:
         raise SystemExit("Define GFLOW_BRIDGE_TOKEN (el mismo valor que en el Xeon) o GFLOW_BRIDGE_ALLOW_ANON=1")
     print(
-        f"[gflow-bridge] {HOST}:{PORT} bin={GFLOW_BIN} token={'yes' if TOKEN else 'anon'} allow={','.join(sorted(ALLOW_IPS)) or '*'}",
+        f"[gflow-bridge] {HOST}:{PORT} engine={resolve_engine()} bin={GFLOW_BIN} token={'yes' if TOKEN else 'anon'} allow={','.join(sorted(ALLOW_IPS)) or '*'}",
         flush=True,
     )
     httpd = ThreadingHTTPServer((HOST, PORT), Handler)

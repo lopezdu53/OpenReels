@@ -65,17 +65,17 @@ export function estimateStickmanCost(opts: {
   if (config.animate && config.visualProvider === "gflow") {
     const model = config.gflowVideoModel || "omni-flash";
     const takes = planMotionTakes(
-      isVeoGflowModel(model) ? [4, 6, 8] : [4, 6, 8, 10],
+      isVeoGflowModel(model) ? [8] : [10],
       config.durationSec,
     );
     credits = takes.reduce(
       (sum, sec) => sum + gflowVideoCredits({ modelId: model, durationSec: sec }),
       0,
     );
-  } else if (config.animate && config.visualProvider !== "gflow") {
+  } else if (config.animate && config.visualProvider === "atlas") {
     usd += resolveAtlasVideoModel(config.videoModel).usdPerSecond * config.durationSec;
   }
-  if (config.visualProvider !== "gflow") {
+  if (config.visualProvider === "atlas") {
     const n = opts.script?.beats.length ?? 1;
     usd += resolveAtlasImageModel(config.imageModel).usd * n;
   }

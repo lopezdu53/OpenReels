@@ -208,7 +208,7 @@ export function StickmanPage() {
   const [videoVolume, setVideoVolume] = useState(0.5);
   const [ttsVolume, setTtsVolume] = useState(1);
   const [animate, setAnimate] = useState(true);
-  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("gflow");
+  const [visualProvider, setVisualProvider] = useState<"vivi" | "atlas" | "gflow">("gflow");
   const [gflowImageModel, setGflowImageModel] = useState("nano-pro");
   const [gflowVideoModel, setGflowVideoModel] = useState("omni-flash");
   const [gflowBridgeId, setGflowBridgeId] = useState(loadGflowBridgeId);
@@ -508,19 +508,27 @@ export function StickmanPage() {
           <StudioVisualFields
             catalog={catalog}
             visualProvider={visualProvider}
-            onVisualProvider={setVisualProvider}
+            onVisualProvider={(value) => {
+              setVisualProvider(value);
+              const next = durationsFor(value, gflowVideoModel, catalog);
+              setDurationSec(snapDuration(durationSec, next));
+            }}
             gflowImageModel={gflowImageModel}
             onGflowImageModel={setGflowImageModel}
             gflowVideoModel={gflowVideoModel}
-            onGflowVideoModel={setGflowVideoModel}
+            onGflowVideoModel={(value) => {
+              setGflowVideoModel(value);
+              const next = durationsFor(visualProvider, value, catalog);
+              setDurationSec(snapDuration(durationSec, next));
+            }}
             gflowBridgeId={gflowBridgeId}
             onGflowBridgeId={setGflowBridgeId}
             showVideo={animate}
             durationSec={durationSec}
             gflowHint={
               veoOn
-                ? "Veo 3.1: 8s, 16s, 24s, 16 min o 26 min (tomas de 8s encadenadas). Sin blur, DOF ni push-in en palitos. Audio Flow + TTS Atlas."
-                : "Omni: 10s a 15 min (tomas de 10s con cruce suave). Audio Flow agachado + TTS. Voz: Atlas."
+                ? "Veo 3.1: 8s, 16s, 24s, 16 min o 26 min (tomas de 8s encadenadas, 720p). Sin blur, DOF ni push-in en palitos. Audio Flow + TTS Atlas."
+                : "Omni: 10s a 15 min (tomas de 10s, 720p). Audio Flow agachado + TTS. Voz: Atlas."
             }
           />
 

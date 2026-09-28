@@ -17,6 +17,17 @@ App de **un clic** en Windows. El worker de EasyPanel llama aquí: en casa por L
 7. Pestaña **Flow**: project id de `gflow project list` y **Conectar**.
 8. Chrome: proyecto Flow abierto, chip **Agent en OFF**.
 
+## Motor: Extensión Flow (sin Playwright)
+
+Si Flow marca **actividad inusual** en el Chrome de gflow, usa tu Chrome de cada día:
+
+1. Pestaña **Flow** → motor **Extensión Flow**.
+2. `chrome://extensions` → Modo desarrollador → **Cargar descomprimida** → carpeta `gflow-bridge/ext-flow`.
+3. Abre [flow.google.com](https://flow.google.com) con el Gmail Gemini. Agent OFF. Deja la pestaña abierta.
+4. **Conectar** el puente. OpenReels sigue llamando `/v1/image` y `/v1/video` (LAN o remoto); la extensión hace poll a `http://127.0.0.1:8787/v1/ext/poll` y publica el PNG/mp4 en `/v1/ext/result`.
+
+No hace falta gflow-cli con este motor. El icono de la extensión pone `ok` / `GO`.
+
 **Sistema → Evitar suspensión y cierre de sesión** (activado por defecto) pide a Windows que no duerma, no apague la pantalla ni bloquee la sesión mientras el puente está abierto. Hace falta para los clips de 8s de Flow. **Inicio con Windows** deja el puente al encender el PC.
 
 Tras cada merge, vuelve a bajar `server.py` (y `app.py` si usas la carpeta, no el exe):
@@ -40,7 +51,7 @@ Desde la oficina elige **Fuera de casa**. Chrome + Flow van **en ese PC**. Cloud
 
 ## I2V (Nuevo Flow)
 
-gflow Imagen (0.73+) + Veo I2V en serie. El puente pulsa **Add to prompt**, nombra stills `or-i2v-*.png`, y **espera el mp4**. gflow 0.79 cierra Chrome al fallar el ACK (~24–26%) y Flow **cancela** el clip. El Puente lanza gflow con Python, espera el ACK 60 min y **no deja que Playwright cierre Chrome** mientras el clip sigue en cola (`keep_chrome=1`). Status **4 antes de generar** = cola LP; **4 después de status 2** = Flow falló el audio: busca el mp4 en Chrome y no espera 60+20 min. En el log: `status 4 = en cola solo ANTES de generar`. Si este Gmail **no tiene Lower Priority** en el menú de Flow (`is not offered`), el puente **reintenta al momento con Veo 3.1 Lite** y no espera el catálogo (no se envió el clip). En Veo y en Omni **no pases `--duration`**: este Gmail suele no tener fila 6s/10s y gflow 0.79 aborta. Si Flow cambia el RPC de stills (`ogiZ0b`), el puente reintenta y busca la imagen en Chrome.
+gflow Imagen (0.73+) + Veo I2V en serie. El puente pulsa **Add to prompt**, nombra stills `or-i2v-*.png`, y **espera el mp4**. gflow 0.79 cierra Chrome al fallar el ACK (~24–26%) y Flow **cancela** el clip. El Puente lanza gflow con Python, espera el ACK 60 min y **no deja que Playwright cierre Chrome** mientras el clip sigue en cola (`keep_chrome=1`). Status **4 antes de generar** = cola LP; **4 después de status 2** = Flow falló el audio: busca el mp4 en Chrome y no espera 60+20 min. En el log: `status 4 = en cola solo ANTES de generar`. Si este Gmail **no tiene Lower Priority** en el menú de Flow (`is not offered`), el puente **reintenta al momento con Veo 3.1 Lite** y no espera el catálogo (no se envió el clip). En Veo **no pases `--duration`**. En Omni 1.1 Flash el puente manda **`--duration 10`** (máximo); si Flow no tiene fila, reintenta sin el flag. Si Flow cambia el RPC de stills (`ogiZ0b`), el puente reintenta y busca la imagen en Chrome. Si Flow muestra **actividad inusual** (toast con flecha curva / `refresh`), no se cobró: el puente lee `PUBLIC_ERROR_UNUSUAL_ACTIVITY` (gflow develop #909), **pulsa esa flecha** (el mismo reload que a mano cumple el job) y espera el still o el mp4. Si el reload no devuelve media, **bloquea nuevos jobs ~30 min**. El CLI es demasiado rápido (modelo+prompt+Generate en ~2s); el puente espera 8s antes de Generate y ~50s entre jobs. Cuentas migradas a **flow.google.com** no aceptan Imagen 4 (`image4` / Nano Lite) ni labs.google: el puente manda Nano Banana 2 y `GFLOW_CLI_FLOW_HOST=auto`.
 
 Si no estás en casa y el puente está apagado, el job cae a fotos (Ken Burns) en vez de colgar 15 veces el I2V.
 

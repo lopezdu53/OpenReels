@@ -19,8 +19,9 @@ import {
 import { cn } from "@/lib/utils";
 
 const CASTING_PROVIDERS: ProviderOption[] = [
-  { key: "gflow", label: "gflow (Nano Banana)" },
   { key: "vivi", label: "VIVI" },
+  { key: "atlas", label: "ATLAS Cloud" },
+  { key: "gflow", label: "gflow (Nano Banana)" },
   { key: "gemini", label: "Google Gemini" },
   { key: "openai", label: "OpenAI" },
   { key: "grok", label: "Grok Imagine" },
@@ -180,7 +181,7 @@ function jobChips(job: StickmanJobMeta): string[] {
     (c.castRoster?.length ?? c.characterIds?.length)
       ? `${c.castRoster?.length ?? c.characterIds?.length} pers.`
       : "",
-    c.muteCharacter ? "Mudo + SFX" : "Con voz",
+    c.muteCharacter ? "SFX + avatar" : "Narración Atlas",
     c.contentHook ? "Gancho 10s" : "",
     c.captions ? "Subtítulos" : "Sin subtítulos",
     c.animate ? "I2V" : "Stills",
@@ -223,10 +224,10 @@ export function HistoriaPage() {
   const [captions, setCaptions] = useState(false);
   const [muteCharacter, setMuteCharacter] = useState(true);
   const [contentHook, setContentHook] = useState(false);
-  const [videoVolume, setVideoVolume] = useState(0.5);
+  const [videoVolume, setVideoVolume] = useState(1);
   const [ttsVolume, setTtsVolume] = useState(1);
   const [animate, setAnimate] = useState(true);
-  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("gflow");
+  const [visualProvider, setVisualProvider] = useState<"vivi" | "atlas" | "gflow">("vivi");
   const [gflowImageModel, setGflowImageModel] = useState("nano-pro");
   const [gflowVideoModel, setGflowVideoModel] = useState("omni-flash");
   const [gflowBridgeId, setGflowBridgeId] = useState(loadGflowBridgeId);
@@ -338,7 +339,7 @@ export function HistoriaPage() {
             selectedIds={characterIds}
             maxSelect={3}
             imageProviders={CASTING_PROVIDERS}
-            defaultSheetProvider="gflow"
+            defaultSheetProvider="vivi"
             onToggle={(id) => {
               setCharacterIds((prev) => {
                 if (prev.includes(id)) return prev.filter((x) => x !== id);
@@ -372,7 +373,7 @@ export function HistoriaPage() {
             selectedIds={objectIds}
             maxSelect={10}
             imageProviders={CASTING_PROVIDERS}
-            defaultSheetProvider="gflow"
+            defaultSheetProvider="vivi"
             onToggle={(id) => {
               setObjectIds((prev) => {
                 if (prev.includes(id)) return prev.filter((x) => x !== id);
@@ -406,7 +407,7 @@ export function HistoriaPage() {
             selectedIds={locationIds}
             maxSelect={3}
             imageProviders={CASTING_PROVIDERS}
-            defaultSheetProvider="gflow"
+            defaultSheetProvider="vivi"
             onToggle={(id) => {
               setLocationIds((prev) => {
                 if (prev.includes(id)) return prev.filter((x) => x !== id);
@@ -477,9 +478,11 @@ export function HistoriaPage() {
               <DarkSelect
                 aria-label="Voz"
                 value={voiceId}
+                disabled={muteCharacter}
                 onValueChange={(value) => {
                   setVoiceId(value);
                   setMuteCharacter(false);
+                  setVideoVolume(0.5);
                 }}
                 options={(catalog?.voices ?? FALLBACK_VOICES).map((v) => ({
                   value: v.id,
@@ -492,6 +495,7 @@ export function HistoriaPage() {
               <DarkSelect
                 aria-label="Velocidad de narración"
                 value={String(voiceSpeed)}
+                disabled={muteCharacter}
                 onValueChange={(value) => setVoiceSpeed(Number(value))}
                 options={[0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5].map((n) => ({
                   value: String(n),
@@ -524,18 +528,29 @@ export function HistoriaPage() {
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
-                checked={muteCharacter}
-                onChange={(e) => setMuteCharacter(e.target.checked)}
+                checked={!muteCharacter}
+                onChange={(e) => {
+                  const atlasOn = e.target.checked;
+                  setMuteCharacter(!atlasOn);
+                  if (atlasOn) {
+                    setVideoVolume(0.5);
+                    setTtsVolume(1);
+                  } else {
+                    setVideoVolume(1);
+                  }
+                }}
               />
-              Sin voz narrativa (solo SFX de Flow)
+              Narración Atlas
             </label>
-            {muteCharacter ? (
-              <p className="text-[11px] text-amber-400">
-                El video no llevará narración Atlas. Elige una voz para activarla.
+            {!muteCharacter ? (
+              <p className="text-[11px] text-muted-foreground">
+                TTS Atlas (xAI, Gemini Flash o MiniMax). Ajusta volumen de video (SFX de Flow) y
+                volumen TTS. El avatar no habla: la voz va encima del clip.
               </p>
             ) : (
-              <p className="text-[11px] text-muted-foreground">
-                TTS Atlas Cloud (xAI, Gemini Flash o MiniMax según la voz).
+              <p className="text-[11px] text-amber-400">
+                Sin Atlas: solo SFX de Flow y el avatar del Casting habla la narración en español
+                latino.
               </p>
             )}
             <label
@@ -598,19 +613,29 @@ export function HistoriaPage() {
           <StudioVisualFields
             catalog={catalog}
             visualProvider={visualProvider}
-            onVisualProvider={setVisualProvider}
+            onVisualProvider={(value) => {
+              setVisualProvider(value);
+              const next = durationsFor(value, gflowVideoModel, catalog);
+              setDurationSec(snapDuration(durationSec, next));
+            }}
             gflowImageModel={gflowImageModel}
             onGflowImageModel={setGflowImageModel}
             gflowVideoModel={gflowVideoModel}
-            onGflowVideoModel={setGflowVideoModel}
+            onGflowVideoModel={(value) => {
+              setGflowVideoModel(value);
+              const next = durationsFor(visualProvider, value, catalog);
+              setDurationSec(snapDuration(durationSec, next));
+            }}
             gflowBridgeId={gflowBridgeId}
             onGflowBridgeId={setGflowBridgeId}
             showVideo={animate}
             durationSec={durationSec}
             gflowHint={
               veoOn
-                ? "Veo 3.1: 8s, 16s, 24s, 16 min o 26 min (tomas de 8s encadenadas). El primer still usa la ficha gflow del Casting."
-                : "Omni: 10s a 15 min. El primer still usa la ficha gflow del Casting. Audio Flow agachado + TTS Atlas."
+                ? "Veo 3.1: 8s, 16s, 24s, 16 min o 26 min (tomas de 8s encadenadas, 720p). El primer still usa la ficha del Casting."
+                : visualProvider === "vivi"
+                  ? "Stills VIVI por defecto. Atlas y gflow están en la lista. I2V VIVI si está activo."
+                  : "Omni: 10s a 15 min (tomas de 10s, 720p). El primer still usa la ficha del Casting. Con SFX el avatar habla en español latino."
             }
           />
 

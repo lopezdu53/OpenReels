@@ -126,6 +126,36 @@ describe("stickman visuals", () => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
+  it("does not copy the first still onto later beats when the puente looks offline", async () => {
+    const script = draftScriptTemplate({ ...config, durationSec: 10 }, "wifi-10s");
+    script.beats = script.beats.slice(0, 2);
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "stickman-still-bridge-"));
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const fat = Buffer.concat([png, Buffer.alloc(1200)]);
+    let n = 0;
+    await expect(
+      renderStills(
+        root,
+        script,
+        {
+          generate: async () => {
+            n += 1;
+            if (n === 1) return fat;
+            throw new Error(
+              "El puente «a46ba334-19ae-4c51-b810-dcdd99a98da4» no está conectado. Ábrelo en OpenReels Puente → modo Remoto.",
+            );
+          },
+        },
+        () => {},
+      ),
+    ).rejects.toThrow(/no está conectado/);
+    expect(fs.existsSync(path.join(root, "stills", "beat-02.png"))).toBe(false);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
   it("writes a continuous I2V prompt with timed beats and no-cut language", () => {
     const script = draftScriptTemplate({ ...config, durationSec: 20, animate: true }, "wifi-20s");
     const prompt = buildContinuousMotionPrompt(script, 10);
@@ -163,12 +193,15 @@ describe("stickman visuals", () => {
         look: "casting",
         durationSec: 20,
         animate: true,
+        muteCharacter: true,
         castRoster: [{ id: "c1", name: "Rayitas", kind: "animal", appearance: "ocelos" }],
       },
       "rayitas-20s",
     );
     const historiaMotion = buildContinuousMotionPrompt(historia, 10);
     expect(historiaMotion.toLowerCase()).not.toContain("no push-in");
+    expect(historiaMotion).toContain("720p");
+    expect(historiaMotion.toLowerCase()).toContain("español latino");
     expect(motionNegativePrompt(historia).toLowerCase()).not.toContain("push-in");
   });
 

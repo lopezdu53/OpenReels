@@ -30,20 +30,29 @@ type GflowVideo = {
   creditPerSecond?: number;
 };
 
+type VisualKey = "vivi" | "atlas" | "gflow";
+
 type Catalog = {
   visualProviders?: { key: string; label: string }[];
   gflowImageModels?: GflowImage[];
   gflowVideoModels?: GflowVideo[];
   atlasReady?: boolean;
+  viviReady?: boolean;
   gflowBridge?: boolean;
   gflowBridges?: GflowBridgeChoice[];
   doctor?: { ok: boolean; detail: string };
 } | null;
 
 const FALLBACK = [
+  { key: "vivi", label: "VIVI" },
   { key: "atlas", label: "ATLAS Cloud" },
   { key: "gflow", label: "gflow (Nano Banana · Flow)" },
 ];
+
+function asVisual(value: string): VisualKey {
+  if (value === "gflow" || value === "vivi" || value === "atlas") return value;
+  return "atlas";
+}
 
 function planTakes(supported: number[], wanted: number): number[] {
   const clean = [...new Set(supported.filter((d) => d > 0))].sort((a, b) => a - b);
@@ -77,8 +86,8 @@ function videoCredits(model: GflowVideo | undefined, durationSec: number): numbe
 
 export function StudioVisualFields(props: {
   catalog: Catalog;
-  visualProvider: "atlas" | "gflow";
-  onVisualProvider: (value: "atlas" | "gflow") => void;
+  visualProvider: VisualKey;
+  onVisualProvider: (value: VisualKey) => void;
   gflowImageModel: string;
   onGflowImageModel: (value: string) => void;
   gflowVideoModel: string;
@@ -180,7 +189,7 @@ export function StudioVisualFields(props: {
           className="mt-1 h-10 w-full min-w-full"
           value={visualProvider}
           disabled={disabled}
-          onValueChange={(value) => onVisualProvider(value === "gflow" ? "gflow" : "atlas")}
+          onValueChange={(value) => onVisualProvider(asVisual(value))}
           options={(catalog?.visualProviders ?? FALLBACK).map((p) => ({
             value: p.key,
             label: p.label,
@@ -252,6 +261,14 @@ export function StudioVisualFields(props: {
                 : ""}
           </p>
         </div>
+      ) : !disabled && visualProvider === "vivi" ? (
+        <p className="text-[11px] text-muted-foreground">
+          VIVI genera los stills (y el I2V si está activo) con{" "}
+          <span className="font-medium text-foreground">VIVI_IMAGE_API_KEY</span>
+          {catalog?.viviReady === false
+            ? " — no está configurada en video / video-worker."
+            : " — no hace falta pegarla."}
+        </p>
       ) : !disabled ? (
         <p className="text-[11px] text-muted-foreground">
           Atlas Cloud usa <span className="font-medium text-foreground">ATLASCLOUD_API_KEY</span>{" "}

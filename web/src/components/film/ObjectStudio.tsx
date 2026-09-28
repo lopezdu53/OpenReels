@@ -7,8 +7,9 @@ import { api, type LibraryObject, type ProviderOption } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_PROVIDERS: ProviderOption[] = [
-  { key: "gflow", label: "gflow (Nano Banana)" },
   { key: "vivi", label: "VIVI" },
+  { key: "atlas", label: "ATLAS Cloud" },
+  { key: "gflow", label: "gflow (Nano Banana)" },
   { key: "gemini", label: "Google Gemini" },
   { key: "openai", label: "OpenAI" },
   { key: "grok", label: "Grok Imagine" },

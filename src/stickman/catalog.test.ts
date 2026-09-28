@@ -85,7 +85,7 @@ describe("stickman catalog", () => {
     expect(planMotionTakes([4, 6, 8, 10], 20)).toEqual([10, 10]);
     expect(planMotionTakes([4, 6, 8, 10], 10)).toEqual([10]);
     expect(planMotionTakes([4, 6, 8, 10], 30)).toEqual([10, 10, 10]);
-    expect(planMotionTakes([4, 6, 8], 20)).toEqual([8, 8, 4]);
+    expect(planMotionTakes([4, 6, 8], 20)).toEqual([8, 8, 8]);
     expect(planMotionTakes([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], 15)).toEqual([15]);
     expect(planMotionTakes([4, 6, 8, 10], 480)).toHaveLength(48);
     expect(recommendStickmanGflow(20)).toEqual({
@@ -94,7 +94,7 @@ describe("stickman catalog", () => {
       clipSeconds: 10,
       takes: [10, 10],
     });
-    expect(recommendStickmanGflow(8).takes).toEqual([8]);
+    expect(recommendStickmanGflow(8).takes).toEqual([10]);
   });
 
   it("knows stickman looks and never mentions collage or film hero", () => {

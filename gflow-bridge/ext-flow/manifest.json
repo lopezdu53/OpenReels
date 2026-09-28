@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "OpenReels Flow",
+  "version": "1.0.0",
+  "description": "Toma jobs del Puente OpenReels (127.0.0.1:8787) y los genera en flow.google.com.",
+  "permissions": ["storage", "tabs", "scripting"],
+  "host_permissions": [
+    "http://127.0.0.1:*/*",
+    "http://localhost:*/*",
+    "https://flow.google.com/*",
+    "https://*.flow.google.com/*",
+    "https://labs.google/*",
+    "https://*.labs.google/*",
+    "https://flow-content.google/*",
+    "https://*.googleusercontent.com/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_title": "OpenReels Flow",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://flow.google.com/*",
+        "https://*.flow.google.com/*",
+        "https://labs.google/*",
+        "https://*.labs.google/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

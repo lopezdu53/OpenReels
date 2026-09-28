@@ -11,7 +11,13 @@ export class GflowCliError extends Error {
 }
 
 export function isGflowBridgeUnreachable(message: string): boolean {
-  return /No se alcanzó el puente|Ningún Windows remoto|El Windows remoto no contestó|GFLOW_BRIDGE_URL/i.test(
+  return /No se alcanzó el puente|Ningún Windows remoto|El Windows remoto no contestó|GFLOW_BRIDGE_URL|no está conectado/i.test(
+    message,
+  );
+}
+
+export function isGflowBridgeOfflineError(message: string): boolean {
+  return /no está conectado|Ningún Windows remoto|No se alcanzó el puente|El Windows remoto no contestó/i.test(
     message,
   );
 }

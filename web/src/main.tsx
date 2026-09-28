@@ -43,6 +43,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/analytic" element={<AnalyticsPage />} />
             <Route path="/analytic/cronograma" element={<CronogramaPage />} />
+            <Route path="/canal" element={<CronogramaPage />} />
             <Route path="/learning" element={<LearningPage />} />
             <Route path="/jobs/:id" element={<JobPage />} />
             <Route path="/gallery" element={<GalleryPage />} />

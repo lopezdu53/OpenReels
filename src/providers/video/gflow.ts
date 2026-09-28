@@ -6,9 +6,11 @@ import { bridgeGenerateVideo, gflowBridgeUrl } from "../gflow/bridge.js";
 import { gflowRelayEnabled } from "../gflow/relay.js";
 import {
   GFLOW_DEFAULT_CLIP_SECONDS,
+  GFLOW_OUTPUT_RESOLUTION,
   gflowCliDuration,
   gflowI2vFallbackT2vEnabled,
   gflowI2vShouldFallbackT2v,
+  gflowMaxClipSeconds,
   gflowVideoBudgetSeconds,
   resolveGflowVideoMode,
   resolveGflowVideoModel,
@@ -37,18 +39,20 @@ export class GflowVideo implements VideoProvider {
     aspectRatio?: string;
   }): Promise<VideoResult> {
     const aspect = opts.aspectRatio === "9:16" ? "9:16" : "16:9";
-    const cliDuration = gflowCliDuration(this.modelId, opts.durationSeconds);
-    const reported = cliDuration ?? GFLOW_DEFAULT_CLIP_SECONDS;
+    const clip = gflowMaxClipSeconds(this.modelId);
+    const cliDuration = gflowCliDuration(this.modelId, clip);
+    const reported = cliDuration ?? clip ?? GFLOW_DEFAULT_CLIP_SECONDS;
     const useStill = this.mode === "i2v";
     if (gflowBridgeUrl() || gflowRelayEnabled()) {
       return bridgeGenerateVideo({
         prompt: opts.prompt,
         aspect,
         model: this.modelId,
-        durationSeconds: cliDuration,
+        durationSeconds: clip,
         mode: this.mode,
         imagePng: useStill ? opts.sourceImage : undefined,
         bridgeId: this.bridgeId,
+        resolution: GFLOW_OUTPUT_RESOLUTION,
       });
     }
 

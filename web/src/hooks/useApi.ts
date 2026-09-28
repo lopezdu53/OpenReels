@@ -1268,7 +1268,9 @@ export const api = {
         creditPerSecond?: number;
       }[];
       llms?: { id: string; label: string; note: string; recommended?: boolean }[];
+      defaultVisualProvider?: string;
       atlasReady?: boolean;
+      viviReady?: boolean;
       gflowBridge?: boolean;
       gflowBridges?: GflowBridgeChoice[];
       doctor?: { ok: boolean; detail: string };
