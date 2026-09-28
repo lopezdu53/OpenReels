@@ -195,12 +195,35 @@ async def _page_unusual_activity(page) -> str | None:
     return None
 
 
-def _unusual_activity_error() -> RuntimeError:
-    return RuntimeError(
-        "UNUSUAL_ACTIVITY: Flow detectó actividad inusual y no generó. "
-        "No se cobró. Espera 20–30 min, abre Flow a mano y genera 1 still. "
-        "No lances varios jobs seguidos."
-    )
+def _wire_unusual(text: str) -> bool:
+    return "PUBLIC_ERROR_UNUSUAL_ACTIVITY" in (text or "")
+
+
+def _unusual_activity_error():
+    # gflow 0.79 wraps bare RuntimeError as UnexpectedError (no detail).
+    # WafRejectionError is the class develop #909 uses for this same reason.
+    try:
+        from gflow_cli.errors import WafRejectionError
+
+        err = WafRejectionError(
+            detail=(
+                "UNUSUAL_ACTIVITY: Flow detectó actividad inusual y no generó. "
+                "No se cobró. Espera 20–30 min, abre Flow a mano y genera 1 still. "
+                "No lances varios jobs seguidos."
+            ),
+            remediation_hint=(
+                "Flow scored this profile as a bot (PUBLIC_ERROR_UNUSUAL_ACTIVITY). "
+                "The prompt is not the cause. Wait hours or use another Gmail."
+            ),
+        )
+        err.retryable = False
+        return err
+    except Exception:
+        return RuntimeError(
+            "UNUSUAL_ACTIVITY: Flow detectó actividad inusual y no generó. "
+            "No se cobró. Espera 20–30 min, abre Flow a mano y genera 1 still. "
+            "No lances varios jobs seguidos."
+        )
 
 
 async def _harvest_page_images(page) -> list[str]:
@@ -274,10 +297,16 @@ def _patch() -> None:
                     flush=True,
                 )
                 await asyncio.sleep(pace)
+            if await _page_unusual_activity(page):
+                print(
+                    "[gflow-bridge] toast de actividad inusual ya visible; no pulso Generate.",
+                    flush=True,
+                )
+                raise _unusual_activity_error()
             try:
                 rec = await orig_sub(self, page, *args, **kwargs)
             except Exception as err:
-                if await _page_unusual_activity(page):
+                if _wire_unusual(str(err)) or await _page_unusual_activity(page):
                     print(
                         "[gflow-bridge] Flow bloqueó el video: actividad inusual. No se cobró.",
                         flush=True,
@@ -359,6 +388,7 @@ def _patch() -> None:
 
         async def _submit_images_flex(self, page, request, *args, **kwargs):
             extra: list = []
+            refused: dict = {}
 
             def on_any(resp) -> None:
                 url = str(getattr(resp, "url", "") or "")
@@ -368,6 +398,16 @@ def _patch() -> None:
                 async def _eat() -> None:
                     try:
                         text = await resp.text()
+                    except Exception:
+                        return
+                    if _wire_unusual(text):
+                        refused["unusual"] = True
+                        print(
+                            "[gflow-bridge] wire PUBLIC_ERROR_UNUSUAL_ACTIVITY (ogiZ0b vacío a propósito)",
+                            flush=True,
+                        )
+                        return
+                    try:
                         for rpcid, payload in be.parse_frames(text):
                             recs = be.image_records(rpcid, payload)
                             if recs:
@@ -391,10 +431,19 @@ def _patch() -> None:
                         flush=True,
                     )
                     await asyncio.sleep(pace)
+                if await _page_unusual_activity(page):
+                    print(
+                        "[gflow-bridge] toast de actividad inusual ya visible; no pulso Generate.",
+                        flush=True,
+                    )
+                    raise _unusual_activity_error()
                 try:
-                    return await orig_img(self, page, request, *args, **kwargs)
+                    recs = await orig_img(self, page, request, *args, **kwargs)
+                    if refused.get("unusual"):
+                        raise _unusual_activity_error()
+                    return recs
                 except Exception as err:
-                    if await _page_unusual_activity(page):
+                    if refused.get("unusual") or _wire_unusual(str(err)) or await _page_unusual_activity(page):
                         print(
                             "[gflow-bridge] Flow bloqueó: actividad inusual. No se cobró. "
                             "No reintento.",

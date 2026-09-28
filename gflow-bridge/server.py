@@ -53,7 +53,9 @@ MAX_BODY = int(os.environ.get("GFLOW_BRIDGE_MAX_BODY", str(48 * 1024 * 1024)))
 SETTLE_SECONDS = int(os.environ.get("GFLOW_BRIDGE_SETTLE_SECONDS", "8"))
 JOB_GAP_S = float(os.environ.get("GFLOW_BRIDGE_JOB_GAP_S", "50"))
 PACE_S = float(os.environ.get("GFLOW_BRIDGE_PACE_S", "8"))
+UNUSUAL_COOLDOWN_S = float(os.environ.get("GFLOW_BRIDGE_UNUSUAL_COOLDOWN_S", "1800"))
 _LAST_JOB_END = 0.0
+_UNUSUAL_UNTIL = 0.0
 I2V_FALLBACK_T2V = os.environ.get("GFLOW_I2V_FALLBACK_T2V", "") == "1"
 # gflow 0.71 picks the library tile then waits for the picker to close. Migrated
 # Flow keeps it open until "Add to prompt" — the CLI never clicks that button.
@@ -242,8 +244,11 @@ def _is_unusual_activity(msg: str) -> bool:
         n in low
         for n in (
             "unusual_activity",
+            "public_error_unusual_activity",
             "actividad inusual",
             "unusual activity",
+            "flow bloqueó",
+            "flow bloqueo",
             "no se te cobró",
             "no se te cobro",
             "you were not charged",
@@ -266,10 +271,37 @@ def _is_image_wire_miss(msg: str) -> bool:
 
 
 def _friendly_unusual_activity() -> str:
+    mins = max(1, int(UNUSUAL_COOLDOWN_S / 60))
     return (
-        "Flow bloqueó la generación: detectó actividad inusual. No se cobró. "
-        "Espera 20–30 min, abre Flow a mano y genera 1 still. "
-        "No lances varios jobs seguidos desde el estudio."
+        "Flow bloqueó la generación: detectó actividad inusual (bot check). "
+        "No se cobró; el prompt no es la causa. "
+        f"El puente no vuelve a abrir Chrome {mins} min. "
+        "Abre Flow a mano, genera 1 still, y no lances más jobs desde el estudio."
+    )
+
+
+def _note_unusual() -> None:
+    global _UNUSUAL_UNTIL
+    _UNUSUAL_UNTIL = time.time() + UNUSUAL_COOLDOWN_S
+    left = max(1, int(UNUSUAL_COOLDOWN_S / 60))
+    print(
+        f"[gflow-bridge] cuenta en cooldown {left} min: no abro Chrome ni Generate.",
+        flush=True,
+    )
+
+
+def _unusual_cooldown_left() -> float:
+    return max(0.0, _UNUSUAL_UNTIL - time.time())
+
+
+def _raise_if_unusual_cooldown() -> None:
+    left = _unusual_cooldown_left()
+    if left <= 0:
+        return
+    mins = max(1, int(left / 60) + (1 if left % 60 else 0))
+    raise RuntimeError(
+        f"{_friendly_unusual_activity()} Quedan ~{mins} min; "
+        "otro Generate empeora el bloqueo."
     )
 
 
@@ -701,6 +733,14 @@ def _media_ids_from_text(*blobs: str) -> list[str]:
 
 
 def _gflow_fail_message(payload: dict[str, Any] | None, stdout: str, stderr: str, code: int) -> str:
+    blob = f"{stdout}\n{stderr}"
+    if payload and isinstance(payload.get("error"), dict):
+        err = payload["error"]
+        blob += " " + " ".join(
+            str(err.get(k) or "") for k in ("class", "detail", "title", "remediation_hint")
+        )
+    if _is_unusual_activity(blob):
+        return _friendly_unusual_activity()
     err = payload.get("error") if payload else None
     if isinstance(err, dict):
         detail = str(err.get("detail") or err.get("title") or "")
@@ -879,6 +919,9 @@ def _run_gflow(args: list[str], timeout: int, output_dir: str | None = None) -> 
             mids.append(str(payload["media_id"]))
         if mids:
             msg = f"{msg} media_id={mids[-1]}"
+        if _is_unusual_activity(f"{msg}\n{combined}"):
+            _note_unusual()
+            msg = _friendly_unusual_activity()
         print(f"[gflow-bridge] gflow fail: {msg}", flush=True)
         raise RuntimeError(msg)
     if not payload:
@@ -1213,6 +1256,7 @@ def _mark_job_finished() -> None:
 
 
 def generate_image(body: dict[str, Any]) -> dict[str, Any]:
+    _raise_if_unusual_cooldown()
     _clear_abort()
     _pace_between_jobs("image")
     prompt = str(body.get("prompt") or "").strip()
@@ -1272,6 +1316,7 @@ def generate_image(body: dict[str, Any]) -> dict[str, Any]:
 
 
 def generate_video(body: dict[str, Any]) -> dict[str, Any]:
+    _raise_if_unusual_cooldown()
     _clear_abort()
     _pace_between_jobs("video")
     prompt = _sanitize_prompt(str(body.get("prompt") or ""))

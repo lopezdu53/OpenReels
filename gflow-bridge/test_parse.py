@@ -53,7 +53,11 @@ from server import (
     _migrated_image_model,
     _migrated_image_aspect,
     _pace_between_jobs,
+    _note_unusual,
+    _raise_if_unusual_cooldown,
+    _unusual_cooldown_left,
     JOB_GAP_S,
+    UNUSUAL_COOLDOWN_S,
 )
 
 
@@ -161,9 +165,28 @@ class VideoModeTests(unittest.TestCase):
         blocked = "UNUSUAL_ACTIVITY: Flow detectó actividad inusual y no generó. No se cobró."
         self.assertTrue(_is_unusual_activity(blocked))
         self.assertTrue(_is_unusual_activity("Detectamos actividad inusual. No se te cobró por esta generación."))
+        self.assertTrue(_is_unusual_activity("PUBLIC_ERROR_UNUSUAL_ACTIVITY"))
+        self.assertTrue(_is_unusual_activity("[gflow-bridge] Flow bloqueó: actividad inusual"))
         self.assertTrue(_is_hard_video_fail(blocked))
         self.assertFalse(_is_image_wire_miss(blocked))
         self.assertIn("actividad inusual", _friendly_unusual_activity())
+        unexpected = _gflow_fail_message(
+            {"error": {"class": "UnexpectedError", "title": "Unexpected error"}},
+            "[gflow-bridge] Flow bloqueó: actividad inusual. No se cobró. No reintento.\n",
+            "",
+            1,
+        )
+        self.assertIn("actividad inusual", unexpected)
+        self.assertNotIn("UnexpectedError", unexpected)
+        import server as srv
+
+        srv._UNUSUAL_UNTIL = 0.0
+        _note_unusual()
+        self.assertGreater(_unusual_cooldown_left(), UNUSUAL_COOLDOWN_S - 5)
+        with self.assertRaises(RuntimeError) as cool:
+            _raise_if_unusual_cooldown()
+        self.assertIn("actividad inusual", str(cool.exception))
+        srv._UNUSUAL_UNTIL = 0.0
         migrated = (
             "FlowHostMigratedError — Flow handed this session to flow.google.com "
             "— the origin Google is migrating accounts onto"
@@ -627,7 +650,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
         self.assertEqual(classify_log("Flow status 4 después del video: falló el audio"), "i2v")
-        self.assertEqual(APP_VERSION, "1.7.6")
+        self.assertEqual(APP_VERSION, "1.7.7")
         self.assertEqual(
             classify_log(
                 "Flow no ofrece 'veo-lite-lp' en este Gmail. Reintento YA con veo-lite"
@@ -687,6 +710,9 @@ class GflowPatchTests(unittest.TestCase):
         self.assertIn("_harvest_page_images", RUNNER_SOURCE)
         self.assertIn("_page_unusual_activity", RUNNER_SOURCE)
         self.assertIn("UNUSUAL_ACTIVITY", RUNNER_SOURCE)
+        self.assertIn("PUBLIC_ERROR_UNUSUAL_ACTIVITY", RUNNER_SOURCE)
+        self.assertIn("WafRejectionError", RUNNER_SOURCE)
+        self.assertIn("no pulso Generate", RUNNER_SOURCE)
         self.assertIn("_pace_s", RUNNER_SOURCE)
         self.assertIn("ritmo humano", RUNNER_SOURCE)
         from gflow_patch import generation_status_flags
