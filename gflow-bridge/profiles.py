@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any
 
 FLOW_URL = "https://labs.google/fx/tools/flow"
+# gflow-cli 0.79 stores profiles via platformdirs (author=ffroliva).
+# Older builds used %LOCALAPPDATA%\gflow-cli. Scan both.
 
 
 def _local_app_data() -> Path:
@@ -123,22 +125,96 @@ def missing_gflow_message() -> str:
     )
 
 
-def list_gflow_profiles(home: Path | None = None) -> list[dict[str, str]]:
-    """gflow-cli sessions: folder profile_<name> + .gflow_account email."""
-    root = home or (_local_app_data() / "gflow-cli")
-    rows: list[dict[str, str]] = []
-    if not root.is_dir():
-        return rows
-    for acc in sorted(root.glob("profile_*/.gflow_account")):
+def gflow_home_dirs() -> list[Path]:
+    """Where gflow-cli may keep profile_* folders on this PC."""
+    env = (os.environ.get("GFLOW_CLI_HOME") or "").strip()
+    local = _local_app_data()
+    ordered = [
+        Path(env) if env else None,
+        local / "ffroliva" / "gflow-cli",
+        local / "gflow-cli",
+        _roaming_app_data() / "gflow-cli",
+        Path.home() / ".local" / "share" / "gflow-cli",
+    ]
+    seen: set[str] = set()
+    out: list[Path] = []
+    for path in ordered:
+        if path is None:
+            continue
+        key = str(path).replace("\\", "/").lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(path)
+    return out
+
+
+def preferred_gflow_home() -> Path:
+    for path in gflow_home_dirs():
+        if path.is_dir():
+            return path
+    return _local_app_data() / "ffroliva" / "gflow-cli"
+
+
+def sanitize_gflow_profile_name(name: str) -> str:
+    raw = (name or "").strip() or "default"
+    cleaned = "".join(ch if ch.isalnum() or ch in "-_." else "-" for ch in raw)
+    return cleaned.strip("-.") or "default"
+
+
+def login_user_data_dir(profile: str = "") -> Path:
+    return preferred_gflow_home() / f"profile_{sanitize_gflow_profile_name(profile)}"
+
+
+def _email_from_gflow_profile(folder: Path) -> str:
+    acc = folder / ".gflow_account"
+    if acc.is_file():
         try:
             email = acc.read_text(encoding="utf-8").strip()
-        except Exception:
+            if email and "@" in email:
+                return email
+        except OSError:
+            pass
+    prefs = folder / "Default" / "Preferences"
+    if not prefs.is_file():
+        return ""
+    try:
+        data = json.loads(prefs.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    account = data.get("account_info") if isinstance(data, dict) else None
+    if isinstance(account, list) and account and isinstance(account[0], dict):
+        email = str(account[0].get("email") or "").strip()
+        if email:
+            return email
+    return ""
+
+
+def _profile_has_cookies(folder: Path) -> bool:
+    default = folder / "Default"
+    return (default / "Network" / "Cookies").is_file() or (default / "Cookies").is_file()
+
+
+def list_gflow_profiles(home: Path | None = None) -> list[dict[str, str]]:
+    """gflow-cli sessions under ffroliva/gflow-cli and the older gflow-cli folder."""
+    roots = [home] if home is not None else [p for p in gflow_home_dirs() if p.is_dir()]
+    rows: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for root in roots:
+        if root is None or not root.is_dir():
             continue
-        if not email:
-            continue
-        folder = acc.parent.name
-        name = folder[8:] if folder.startswith("profile_") else folder
-        rows.append({"name": name, "email": email, "dir": str(acc.parent)})
+        for folder in sorted(root.glob("profile_*")):
+            if not folder.is_dir():
+                continue
+            email = _email_from_gflow_profile(folder)
+            if not email and not _profile_has_cookies(folder):
+                continue
+            name = folder.name[8:] if folder.name.startswith("profile_") else folder.name
+            key = name.lower()
+            if key in seen and not email:
+                continue
+            seen.add(key)
+            rows.append({"name": name, "email": email or name, "dir": str(folder)})
     return rows
 
 
@@ -182,13 +258,16 @@ def gflow_login_cmd(gflow_bin: str, profile: str = "") -> list[str]:
 
 
 def write_login_batch(gflow_bin: str, profile: str = "") -> Path:
-    """cmd.exe script that keeps a console open so gflow can show Chrome + prompts."""
+    """Open Chrome ourselves so gflow cannot auto-close it after 2–16s."""
     from install import app_home, find_uv, tool_env
 
     env = tool_env()
-    chrome = find_chrome() or ""
+    chrome = find_chrome() or "chrome"
     uv = find_uv() or ""
     dest = app_home() / "entrar-flow.cmd"
+    user_data = login_user_data_dir(profile)
+    user_data.mkdir(parents=True, exist_ok=True)
+    home = user_data.parent
     login = subprocess.list2cmdline(gflow_login_cmd(gflow_bin, profile))
     fallback = ""
     if uv:
@@ -196,6 +275,17 @@ def write_login_batch(gflow_bin: str, profile: str = "") -> Path:
         fallback = subprocess.list2cmdline(
             [uv, "tool", "run", "--from", "gflow-cli", "gflow", "auth", "login", "--browser", "chrome", *extra]
         )
+    open_chrome = subprocess.list2cmdline(
+        [
+            chrome,
+            f"--user-data-dir={user_data}",
+            "--profile-directory=Default",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--new-window",
+            FLOW_URL,
+        ]
+    )
     lines = [
         "@echo off",
         "title OpenReels — Entrar a Flow",
@@ -203,22 +293,28 @@ def write_login_batch(gflow_bin: str, profile: str = "") -> Path:
         f'set "UV_TOOL_BIN_DIR={env["UV_TOOL_BIN_DIR"]}"',
         f'set "UV_TOOL_DIR={env["UV_TOOL_DIR"]}"',
         f'set "PATH={env["UV_TOOL_BIN_DIR"]};%PATH%"',
+        f'set "GFLOW_CLI_HOME={home}"',
         'set "GFLOW_CLI_AUTH_BROWSER=chrome"',
+        'set "GFLOW_CLI_HEADLESS=false"',
+        'set "GFLOW_CLI_AUTH_LOGIN_TIMEOUT=3600"',
         'set "NO_COLOR=1"',
         'set "FORCE_COLOR=0"',
         'set "GFLOW_CLI_LOG_FORMAT=json"',
-    ]
-    if chrome:
-        lines.append(f'set "GFLOW_CHROME_BIN={chrome}"')
-        lines.append(f'set "CHROME_BIN={chrome}"')
-    lines += [
+        f'set "GFLOW_CHROME_BIN={chrome}"',
+        f'set "CHROME_BIN={chrome}"',
         "echo.",
-        "echo 1) Se abre Chrome de gflow (otro Chrome, no el de cada dia).",
-        "echo 2) Entra con el Gmail del plan Gemini.",
-        "echo 3) Cuando cargue Flow, CIERRA esa ventana de Chrome.",
-        "echo 4) Vuelve a ESTA ventana negra y pulsa una tecla.",
-        "echo    NO la cierres antes: si se cierra, no se guarda la sesion.",
+        "echo Chrome de Flow se abre y se QUEDA abierto (gflow no lo cierra).",
+        "echo 1) Entra con el Gmail del plan Gemini (el de Ultra/Pro).",
+        "echo 2) Espera a que cargue el editor de Flow. No pidas a gflow que lo cierre.",
+        "echo 3) Cuando veas Flow, CIERRA tu esa ventana de Chrome.",
+        "echo 4) Vuelve a ESTA ventana negra y pulsa una tecla para guardar la sesion.",
+        "echo    Si Chrome se cierra solo a los 2 segundos, pulsa una tecla: lo abrimos otra vez.",
         "echo.",
+        ":OPENCHROME",
+        f'start "OpenReels Flow" {open_chrome}',
+        "echo Chrome abierto. Entra a Flow. Esta ventana se queda esperando.",
+        "pause",
+        "echo Guardando la sesion (gflow puede abrir Chrome un segundo)...",
         login,
         "set ERR=%ERRORLEVEL%",
     ]
@@ -232,8 +328,11 @@ def write_login_batch(gflow_bin: str, profile: str = "") -> Path:
         ]
     lines += [
         "echo.",
-        "echo Codigo %ERR%. Si Chrome no abrio, deja esta ventana y copia el texto.",
-        "pause",
+        "echo Codigo %ERR%. Si no entro, pulsa una tecla y se abre Chrome otra vez.",
+        "choice /C SN /N /M \"Abrir Chrome otra vez? S=si N=no \"",
+        "if errorlevel 2 goto END",
+        "if errorlevel 1 goto OPENCHROME",
+        ":END",
         "exit /b %ERR%",
     ]
     dest.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
@@ -244,6 +343,9 @@ def run_gflow_login(gflow_bin: str, profile: str = "") -> int:
     if sys.platform != "win32":
         env = os.environ.copy()
         env["GFLOW_CLI_AUTH_BROWSER"] = "chrome"
+        env["GFLOW_CLI_HEADLESS"] = "false"
+        env["GFLOW_CLI_AUTH_LOGIN_TIMEOUT"] = "3600"
+        env.setdefault("GFLOW_CLI_HOME", str(preferred_gflow_home()))
         proc = subprocess.run(gflow_login_cmd(gflow_bin, profile), check=False, env=env)
         return int(proc.returncode)
     bat = write_login_batch(gflow_bin, profile)

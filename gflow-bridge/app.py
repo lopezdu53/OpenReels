@@ -375,7 +375,7 @@ class App(tk.Tk):
         self._grid_field(form, 5, "Ruta de gflow.exe", self.gflow_bin)
         tk.Label(
             form,
-            text="Abrir Flow usa tu Chrome. Entrar a Flow abre el Chrome de gflow — deja la ventana negra abierta.",
+            text="Abrir Flow usa tu Chrome de cada día. Entrar a Flow abre OTRO Chrome (el de gflow) y lo deja abierto hasta que tú lo cierres.",
             fg=MUTED,
             bg=CARD,
             wraplength=380,
@@ -700,8 +700,8 @@ class App(tk.Tk):
             messagebox.showerror("gflow-cli", missing_gflow_message())
             return
         self.gflow_bin.set(bin_path)
-        self._log("Se abre una ventana negra y Chrome de gflow. NO las cierres al instante.")
-        self._log("En Chrome: Gmail del plan Gemini. Cuando cargue Flow, cierra Chrome. Luego una tecla en la ventana negra.")
+        self._log("Se abre una ventana negra y Chrome de Flow. Chrome se queda abierto: gflow ya no lo cierra a los 2s.")
+        self._log("En Chrome: Gmail del plan Gemini. Cuando veas Flow, cierra TÚ esa ventana. Luego una tecla en la ventana negra.")
 
         def work() -> None:
             try:
@@ -721,8 +721,9 @@ class App(tk.Tk):
             messagebox.showinfo("Flow", f"Sesión lista: {row['email']}")
             return
         hint = (
-            "No se guardó ninguna sesión. La ventana negra tiene que quedarse abierta "
-            "hasta que Chrome de gflow muestre Flow y la cierres. Código "
+            "No se guardó ninguna sesión. Chrome de Flow tiene que quedarse abierto "
+            "mientras entras al Gmail Gemini. Cuando veas el editor, ciérralo tú "
+            "y pulsa una tecla en la ventana negra. Código "
             f"{code}."
         )
         self._log(hint, "err")
@@ -947,7 +948,7 @@ class App(tk.Tk):
             "1. Sistema → Evitar suspensión (déjalo marcado).\n"
             "2. Instalar todo si falta gflow.\n"
             "3. Pestaña Flow: perfil Chrome del Gmail Gemini → Entrar a Flow.\n"
-            "   Deja abierta la ventana negra hasta que cargue Flow.\n"
+            "   Chrome de Flow se queda abierto. Entra al Gmail; cuando veas Flow, ciérralo.\n"
             "4. Pestaña Conexión: token de EasyPanel. En casa, IP del Xeon.\n"
             "   Fuera de casa, URL del estudio.\n"
             "5. Conectar. Agent OFF en Flow.\n\n"
