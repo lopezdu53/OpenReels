@@ -442,7 +442,14 @@ class ChromeProfileTests(unittest.TestCase):
         import tempfile
         from pathlib import Path
 
-        from profiles import list_gflow_profiles, pick_gflow_profile, write_login_batch
+        from profiles import (
+            gflow_home_dirs,
+            list_gflow_profiles,
+            login_user_data_dir,
+            pick_gflow_profile,
+            preferred_gflow_home,
+            write_login_batch,
+        )
 
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp) / "gflow-cli"
@@ -458,13 +465,31 @@ class ChromeProfileTests(unittest.TestCase):
             self.assertEqual(picked["name"], "keepupwalking7")
 
             os.environ["LOCALAPPDATA"] = tmp
-            bat = write_login_batch(r"C:\Tools\gflow.exe", "")
+            homes = gflow_home_dirs()
+            self.assertTrue(any(p.name == "gflow-cli" and p.parent.name == "ffroliva" for p in homes))
+            self.assertTrue(any(p.name == "gflow-cli" and p.parent.name != "ffroliva" for p in homes))
+            ffroliva = Path(tmp) / "ffroliva" / "gflow-cli" / "profile_ventabot.cloud"
+            (ffroliva / "Default" / "Network").mkdir(parents=True)
+            (ffroliva / "Default" / "Network" / "Cookies").write_bytes(b"x")
+            (ffroliva / ".gflow_account").write_text("ventabot.cloud@gmail.com\n", encoding="utf-8")
+            found = list_gflow_profiles()
+            names = {row["name"] for row in found}
+            self.assertIn("keepupwalking7", names)
+            self.assertIn("ventabot.cloud", names)
+            self.assertEqual(preferred_gflow_home().name, "gflow-cli")
+            self.assertIn("ffroliva", str(login_user_data_dir("ventabot.cloud")))
+            bat = write_login_batch(r"C:\Tools\gflow.exe", "ventabot.cloud")
             text = bat.read_text(encoding="utf-8")
             self.assertIn("auth login", text)
             self.assertIn("--browser chrome", text)
             self.assertIn("pause", text)
             self.assertIn("GFLOW_CLI_AUTH_BROWSER", text)
+            self.assertIn("GFLOW_CLI_AUTH_LOGIN_TIMEOUT=3600", text)
+            self.assertIn("user-data-dir", text)
+            self.assertIn('start "OpenReels Flow"', text)
+            self.assertIn(":OPENCHROME", text)
             self.assertIn("NO_COLOR", text)
+            self.assertLess(text.find("start \"OpenReels Flow\""), text.find("auth login"))
 
 
 class InstallStatusTests(unittest.TestCase):
@@ -530,7 +555,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
         self.assertEqual(classify_log("Flow status 4 después del video: falló el audio"), "i2v")
-        self.assertEqual(APP_VERSION, "1.7.0")
+        self.assertEqual(APP_VERSION, "1.7.1")
         self.assertEqual(
             classify_log(
                 "Flow no ofrece 'veo-lite-lp' en este Gmail. Reintento YA con veo-lite"
