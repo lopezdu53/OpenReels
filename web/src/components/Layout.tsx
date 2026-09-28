@@ -1,8 +1,9 @@
 import { Loader2, LogOut, Settings, Shield } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Link, Outlet } from "react-router-dom";
+import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
 import { api, type StatsResponse } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
+import { canAccessPath } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { AuthPage } from "@/pages/AuthPage";
 import { BottomNav } from "./BottomNav";
@@ -28,6 +29,7 @@ function useMediaQuery(query: string): boolean {
 
 export function Layout() {
   const { user, ready, logout } = useAuth();
+  const location = useLocation();
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -76,6 +78,13 @@ export function Layout() {
 
   if (!user) return <AuthPage />;
 
+  if (location.pathname.startsWith("/analytic/cronograma")) {
+    return <Navigate to="/canal" replace />;
+  }
+  if (!canAccessPath(user.role, location.pathname)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   if (!isDesktop) {
     return (
       <div className="flex min-h-screen flex-col pb-16">
@@ -97,13 +106,15 @@ export function Layout() {
                 <Shield className="size-4" />
               </Link>
             ) : null}
-            <Link
-              to="/settings"
-              className="rounded-xl bg-secondary px-3 py-2 text-[12px] font-medium text-foreground"
-              aria-label="Ajustes"
-            >
-              <Settings className="size-4" />
-            </Link>
+            {user.role === "admin" ? (
+              <Link
+                to="/settings"
+                className="rounded-xl bg-secondary px-3 py-2 text-[12px] font-medium text-foreground"
+                aria-label="Ajustes"
+              >
+                <Settings className="size-4" />
+              </Link>
+            ) : null}
             <button
               type="button"
               onClick={() => void logout()}
