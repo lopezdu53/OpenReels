@@ -651,7 +651,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
         self.assertEqual(classify_log("Flow status 4 después del video: falló el audio"), "i2v")
-        self.assertEqual(APP_VERSION, "1.8.2")
+        self.assertEqual(APP_VERSION, "1.8.3")
         self.assertEqual(
             classify_log(
                 "Flow no ofrece 'veo-lite-lp' en este Gmail. Reintento YA con veo-lite"
@@ -798,6 +798,7 @@ class ExtEngineTests(unittest.TestCase):
         assert job is not None
         self.assertEqual(job["kind"], "image")
         self.assertIn("hola mundo", job["prompt"])
+        self.assertIn("project", job)
         ack = srv.complete_ext_job({"id": job["id"], "ok": True, "png": png})
         self.assertTrue(ack["ok"])
         t.join(5)

@@ -928,6 +928,8 @@ def _ext_public_job(job: dict[str, Any]) -> dict[str, Any]:
         "durationSeconds": job.get("durationSeconds"),
         "referencePng": job.get("referencePng") or "",
         "imagePng": job.get("imagePng") or "",
+        "project": job.get("project") or PROJECT or "",
+        "projectName": job.get("projectName") or PROJECT_NAME or "",
     }
 
 
@@ -999,6 +1001,8 @@ def generate_via_extension(kind: str, body: dict[str, Any]) -> dict[str, Any]:
         "durationSeconds": duration,
         "referencePng": str(body.get("referencePng") or "") if kind == "image" else "",
         "imagePng": str(body.get("imagePng") or "") if kind == "video" else "",
+        "project": PROJECT,
+        "projectName": PROJECT_NAME,
     }
     ev = threading.Event()
     print(

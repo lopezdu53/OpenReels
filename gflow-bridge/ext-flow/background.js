@@ -113,21 +113,31 @@ async function setBadge(text, color) {
   if (color) await chrome.action.setBadgeBackgroundColor({ color });
 }
 
-async function ensureFlowTab() {
+async function ensureFlowTab(job) {
+  const project = String((job && job.project) || "").trim();
+  const dest = project
+    ? "https://flow.google.com/project/" + encodeURIComponent(project)
+    : "https://flow.google.com/";
   const tabs = await chrome.tabs.query({
     url: ["https://flow.google.com/*", "https://*.flow.google.com/*", "https://labs.google/*"],
   });
   const live = tabs.find((t) => t.id && !t.discarded);
   if (live?.id) {
-    try {
-      await chrome.tabs.update(live.id, { active: true });
-    } catch {
-      /* ignore */
+    const url = String(live.url || "");
+    if (project && !url.includes(project)) {
+      await chrome.tabs.update(live.id, { url: dest, active: true });
+      await new Promise((r) => setTimeout(r, 5000));
+    } else {
+      try {
+        await chrome.tabs.update(live.id, { active: true });
+      } catch {
+        /* ignore */
+      }
     }
     return live.id;
   }
-  const created = await chrome.tabs.create({ url: "https://flow.google.com/", active: true });
-  await new Promise((r) => setTimeout(r, 4000));
+  const created = await chrome.tabs.create({ url: dest, active: true });
+  await new Promise((r) => setTimeout(r, 5000));
   return created.id;
 }
 
@@ -158,7 +168,7 @@ async function harvestUrl(url) {
 }
 
 async function runJob(job) {
-  const tabId = await ensureFlowTab();
+  const tabId = await ensureFlowTab(job);
   let reply;
   try {
     reply = await sendJob(tabId, job);

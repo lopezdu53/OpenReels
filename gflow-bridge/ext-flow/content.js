@@ -5,11 +5,36 @@
   const wait = (s) => new Promise((r) => setTimeout(r, s * 1000));
 
   function visible(el) {
-    if (!el) return false;
+    if (!el || !(el instanceof Element)) return false;
     const st = getComputedStyle(el);
-    if (st.display === "none" || st.visibility === "hidden") return false;
+    if (st.display === "none" || st.visibility === "hidden" || Number(st.opacity) === 0) return false;
     const box = el.getBoundingClientRect();
-    return box.width > 2 && box.height > 2;
+    return box.width > 4 && box.height > 8;
+  }
+
+  function deepAll(root) {
+    const out = [];
+    const walk = (node) => {
+      if (!node) return;
+      const kids = node.querySelectorAll ? node.querySelectorAll("*") : [];
+      for (const el of kids) {
+        out.push(el);
+        if (el.shadowRoot) walk(el.shadowRoot);
+      }
+    };
+    walk(root || document);
+    try {
+      for (const frame of document.querySelectorAll("iframe")) {
+        try {
+          if (frame.contentDocument) walk(frame.contentDocument);
+        } catch {
+          /* cross-origin */
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    return out;
   }
 
   function setNative(el, value) {
@@ -17,48 +42,88 @@
     const desc = Object.getOwnPropertyDescriptor(proto, "value");
     if (desc && desc.set) desc.set.call(el, value);
     else el.value = value;
-    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new InputEvent("input", { bubbles: true, data: value, inputType: "insertText" }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
-  function promptEl() {
-    const nodes = [
-      ...document.querySelectorAll("textarea"),
-      ...document.querySelectorAll('[contenteditable="true"]'),
-      ...document.querySelectorAll('[role="textbox"]'),
-    ];
-    return nodes.find((n) => visible(n) && n.offsetHeight > 24) || null;
+  function promptScore(el) {
+    const label = `${el.getAttribute("aria-label") || ""} ${el.getAttribute("placeholder") || ""} ${el.getAttribute("data-placeholder") || ""}`.toLowerCase();
+    const box = el.getBoundingClientRect();
+    let n = box.width * box.height;
+    if (/prompt|describe|instrucci|imagen|image|video|idea/.test(label)) n += 40000;
+    if (el.tagName === "TEXTAREA") n += 20000;
+    if (el.getAttribute("contenteditable") === "true" || el.getAttribute("contenteditable") === "plaintext-only") n += 12000;
+    if (box.top > window.innerHeight * 0.45) n += 8000;
+    if (box.height < 10 || box.width < 80) return 0;
+    return n;
   }
 
-  function clickable(labelNeedles) {
+  function promptEl() {
+    const cands = [];
+    for (const n of deepAll()) {
+      const ce = (n.getAttribute("contenteditable") || "").toLowerCase();
+      const role = (n.getAttribute("role") || "").toLowerCase();
+      if (
+        n.tagName === "TEXTAREA" ||
+        n.tagName === "INPUT" ||
+        ce === "true" ||
+        ce === "plaintext-only" ||
+        role === "textbox" ||
+        role === "searchbox"
+      ) {
+        if (visible(n) && promptScore(n) > 0) cands.push(n);
+      }
+    }
+    cands.sort((a, b) => promptScore(b) - promptScore(a));
+    return cands[0] || null;
+  }
+
+  function textOf(el) {
+    return (el.getAttribute("aria-label") || el.innerText || el.textContent || "").trim();
+  }
+
+  function clickable(labelNeedles, opts) {
+    const exact = Boolean(opts && opts.exact);
+    const maxLen = (opts && opts.maxLen) || 48;
     const needles = labelNeedles.map((s) => s.toLowerCase());
-    const nodes = [...document.querySelectorAll("button, [role='button'], mat-chip, span, div")];
+    const nodes = deepAll().filter((el) => {
+      const tag = el.tagName;
+      return (
+        tag === "BUTTON" ||
+        tag === "A" ||
+        el.getAttribute("role") === "button" ||
+        el.getAttribute("role") === "tab" ||
+        tag === "SPAN" ||
+        tag === "DIV"
+      );
+    });
     return (
       nodes.find((el) => {
         if (!visible(el)) return false;
-        const t = (el.innerText || el.textContent || "").trim().toLowerCase();
-        return t.length > 0 && t.length < 80 && needles.some((n) => t === n || t.includes(n));
+        const t = textOf(el).toLowerCase().replace(/\s+/g, " ");
+        if (!t || t.length > maxLen) return false;
+        return needles.some((n) => (exact ? t === n : t === n || t.includes(n)));
       }) || null
     );
   }
 
   function generateBtn() {
-    const byText = clickable(["generar", "generate", "create"]);
-    if (byText) return byText;
-    const icons = [...document.querySelectorAll("button, [role='button']")].filter(visible);
-    return (
-      icons.find((el) => /arrow_forward|send|create/i.test(el.innerText || el.textContent || "")) ||
-      null
-    );
+    const labeled = deepAll().find((el) => {
+      if (!visible(el)) return false;
+      const a = `${el.getAttribute("aria-label") || ""} ${textOf(el)}`.toLowerCase();
+      return /^(generar|generate|create)$/i.test(textOf(el).trim()) || /generar|generate|create/i.test(el.getAttribute("aria-label") || "");
+    });
+    if (labeled) return labeled;
+    return clickable(["generar", "generate", "create"], { exact: true, maxLen: 24 });
   }
 
   function fileInput() {
-    return document.querySelector('input[type="file"]');
+    return deepAll().find((el) => el.tagName === "INPUT" && el.type === "file") || null;
   }
 
   function mediaUrls() {
     const out = [];
-    document.querySelectorAll("img, video, source, a").forEach((el) => {
+    deepAll().forEach((el) => {
       const u = el.currentSrc || el.src || el.href || "";
       if (!u) return;
       if (/avatar|icon|favicon|sprite|logo/i.test(u)) return;
@@ -68,12 +133,10 @@
   }
 
   function clickRefreshIfUnusual() {
-    const toast = [...document.querySelectorAll("div, span, button")].find((el) =>
-      /actividad inusual|unusual activity|no se te cobr/i.test(el.innerText || ""),
-    );
+    const toast = deepAll().find((el) => /actividad inusual|unusual activity|no se te cobr/i.test(textOf(el)));
     if (!toast) return false;
-    const refresh = [...document.querySelectorAll("button, [role='button'], span, i")].find((el) => {
-      const t = (el.innerText || el.textContent || "").trim().toLowerCase();
+    const refresh = deepAll().find((el) => {
+      const t = textOf(el).toLowerCase();
       return visible(el) && (t === "refresh" || t === "replay" || t === "autorenew");
     });
     if (refresh) {
@@ -83,21 +146,55 @@
     return false;
   }
 
+  async function typePrompt(el, text) {
+    el.scrollIntoView({ block: "center", inline: "nearest" });
+    el.focus();
+    try {
+      document.execCommand("selectAll", false, undefined);
+      document.execCommand("delete", false, undefined);
+    } catch {
+      /* ignore */
+    }
+    if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") setNative(el, text);
+    else {
+      try {
+        document.execCommand("insertText", false, text);
+      } catch {
+        el.textContent = text;
+      }
+      el.dispatchEvent(new InputEvent("input", { bubbles: true, data: text, inputType: "insertText" }));
+    }
+    await wait(0.3);
+  }
+
+  async function revealComposer() {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await wait(0.3);
+    await clickNeedles(["new image", "nueva imagen", "text to image", "texto a imagen", "imagen", "image"], {
+      exact: false,
+      maxLen: 32,
+    });
+    const agentOn = clickable(["agent on", "agente: on", "agente activado"], { maxLen: 40 });
+    if (agentOn) {
+      agentOn.click();
+      await wait(0.4);
+    }
+  }
+
   async function injectPrompt(text) {
     let el = null;
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 24; i++) {
+      if (i === 2 || i === 8) await revealComposer();
       el = promptEl();
       if (el) break;
       await wait(0.5);
     }
-    if (!el) throw new Error("no encuentro el cuadro de prompt en Flow");
-    el.focus();
-    if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") setNative(el, text);
-    else {
-      el.textContent = text;
-      el.dispatchEvent(new Event("input", { bubbles: true }));
+    if (!el) {
+      throw new Error(
+        "no encuentro el cuadro de prompt. Entra al proyecto de Flow (no la home), Agent OFF, y deja visible el compositor de Imagen.",
+      );
     }
-    await wait(0.4);
+    await typePrompt(el, text);
   }
 
   function fileFromB64(b64, name, mime) {
@@ -124,8 +221,8 @@
     await wait(1.5);
   }
 
-  async function clickNeedles(needles) {
-    const el = clickable(needles);
+  async function clickNeedles(needles, opts) {
+    const el = clickable(needles, opts);
     if (!el) return false;
     el.click();
     await wait(0.4);
@@ -133,29 +230,29 @@
   }
 
   const MODEL_CLICK = {
-    "nano-pro": ["nano banana pro", "gem_pix", "pro"],
-    nano2: ["nano banana 2", "nano banana", "narwhal"],
-    "omni-flash": ["omni 1.1", "omni"],
-    "veo-lite": ["veo 3.1 - lite", "veo 3.1 lite", "lite"],
+    "nano-pro": ["nano banana pro", "banana pro"],
+    nano2: ["nano banana 2", "nano banana"],
+    "omni-flash": ["omni 1.1 flash", "omni 1.1"],
+    "veo-lite": ["veo 3.1 - lite", "veo 3.1 lite"],
     "veo-lite-lp": ["lower priority", "low priority"],
-    "veo-fast": ["fast"],
-    "veo-quality": ["quality"],
+    "veo-fast": ["veo 3.1 - fast", "veo 3.1 fast"],
+    "veo-quality": ["veo 3.1 - quality", "veo 3.1 quality"],
   };
 
   async function pickModel(model) {
     const needles = MODEL_CLICK[String(model || "").toLowerCase()];
     if (!needles) return;
-    await clickNeedles(needles);
+    await clickNeedles(needles, { maxLen: 40 });
   }
 
   async function pickAspect(aspect) {
-    if (aspect === "9:16") await clickNeedles(["9:16", "portrait", "vertical"]);
-    else await clickNeedles(["16:9", "landscape", "horizontal"]);
+    if (aspect === "9:16") await clickNeedles(["9:16"], { exact: true, maxLen: 12 });
+    else await clickNeedles(["16:9"], { exact: true, maxLen: 12 });
   }
 
   async function pickDuration(seconds) {
     if (!seconds) return;
-    await clickNeedles([String(seconds) + "s", String(seconds) + " s"]);
+    await clickNeedles([String(seconds) + "s", String(seconds) + " s"], { maxLen: 8 });
   }
 
   async function clickGenerate() {
@@ -178,7 +275,7 @@
       const fresh = now.filter((u) => !before.includes(u));
       const hit = fresh.find((u) => (kind === "video" ? /video|\.mp4|blob:/i.test(u) : true));
       if (hit) return hit;
-      const videos = [...document.querySelectorAll("video")].filter(visible);
+      const videos = deepAll().filter((el) => el.tagName === "VIDEO" && visible(el));
       if (kind === "video" && videos.length) {
         const src = videos[videos.length - 1].currentSrc || videos[videos.length - 1].src;
         if (src && !before.includes(src)) return src;
@@ -202,6 +299,7 @@
 
   async function runJob(job) {
     const before = mediaUrls();
+    await revealComposer();
     await pickModel(job.model);
     await pickAspect(job.aspect);
     await pickDuration(job.durationSeconds);
