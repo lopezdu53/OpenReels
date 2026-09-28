@@ -167,7 +167,7 @@ const FALLBACK = {
 const FALLBACK_GFLOW_IMAGE = [
   { id: "nano2", label: "Imagen Nano 2" },
   { id: "nano-pro", label: "Imagen Nano Pro" },
-  { id: "image4", label: "Imagen 4" },
+  { id: "nano-lite", label: "Nano Banana 2 Lite (→ Nano 2)" },
 ];
 
 const FALLBACK_GFLOW_VIDEO = [

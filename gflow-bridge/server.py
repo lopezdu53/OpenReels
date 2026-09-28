@@ -273,9 +273,77 @@ def _friendly_unusual_activity() -> str:
     )
 
 
+def _is_host_migrated(msg: str) -> bool:
+    low = msg.lower()
+    return "flowhostmigrated" in low or "handed this session to flow.google.com" in low
+
+
+def _flow_host_env() -> str:
+    """Migrated Gmails live on flow.google.com. Never pin labs — the labs driver dies."""
+    raw = (os.environ.get("GFLOW_CLI_FLOW_HOST") or "auto").strip()
+    low = raw.lower()
+    if "labs" in low:
+        return "auto"
+    if low in {"auto", "flow.google.com"}:
+        return raw
+    return "auto"
+
+
+def _migrated_image_model(model: str) -> str:
+    """flow.google.com image menu is only nano2 (NARWHAL) and nano-pro (GEM_PIX_2)."""
+    raw = (model or "").strip()
+    low = raw.lower().replace("_", "-")
+    aliases = {
+        "nano2": "nano2",
+        "nano-2": "nano2",
+        "nano-banana-2": "nano2",
+        "nano-pro": "nano-pro",
+        "nano-banana-pro": "nano-pro",
+        "banana-pro": "nano-pro",
+        "gem-pix-2": "nano-pro",
+        "narwhal": "nano2",
+    }
+    if low in aliases:
+        return aliases[low]
+    if low in {
+        "image4",
+        "image-4",
+        "imagen4",
+        "imagen-4",
+        "nano-lite",
+        "nano-banana-2-lite",
+        "nano-banana-lite",
+    }:
+        print(
+            f"[gflow-bridge] Flow migrado no tiene {raw or 'image4'}; uso nano2",
+            flush=True,
+        )
+        return "nano2"
+    print(
+        f"[gflow-bridge] modelo de still desconocido {raw or '?'}; uso nano2",
+        flush=True,
+    )
+    return "nano2"
+
+
+def _migrated_image_aspect(aspect: str) -> str:
+    if aspect == "3:4":
+        print("[gflow-bridge] aspect 3:4 no está en Flow migrado; uso 9:16", flush=True)
+        return "9:16"
+    if aspect in {"9:16", "16:9", "1:1", "4:3"}:
+        return aspect
+    return "16:9"
+
+
 def _friendly_image_error(msg: str) -> str:
     if _is_unusual_activity(msg):
         return _friendly_unusual_activity()
+    if _is_host_migrated(msg):
+        return (
+            "Google movió esta cuenta a flow.google.com. "
+            "El puente ya no usa labs ni Imagen 4 (image4): stills van con Nano Banana 2. "
+            "Reintenta el job; no es un fallo de login."
+        )
     if _is_image_wire_miss(msg):
         return (
             "Flow no confirmó el still (respuesta ogiZ0b vacía). "
@@ -287,6 +355,11 @@ def _friendly_image_error(msg: str) -> str:
 def _friendly_video_error(msg: str) -> str:
     if _is_unusual_activity(msg):
         return _friendly_unusual_activity()
+    if _is_host_migrated(msg):
+        return (
+            "Google movió esta cuenta a flow.google.com. "
+            "El puente ya no fuerza labs.google. Reintenta el clip."
+        )
     if _is_duration_not_offered(msg):
         return (
             "Este Gmail no muestra duración 6s/10s en Omni. "
@@ -656,7 +729,7 @@ def _spawn_gflow(
     env["GFLOW_CLI_LOG_FORMAT"] = "json"
     env["NO_COLOR"] = "1"
     env["FORCE_COLOR"] = "0"
-    env.setdefault("GFLOW_CLI_FLOW_HOST", "auto")
+    env["GFLOW_CLI_FLOW_HOST"] = _flow_host_env()
     if PROFILE:
         env["GFLOW_CLI_PROFILE"] = PROFILE
     if GFLOW_HOME:
@@ -1147,10 +1220,8 @@ def generate_image(body: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("prompt requerido")
     style = str(body.get("style") or "").strip()
     full = f"{prompt}. Style: {style}" if style else prompt
-    model = str(body.get("model") or "nano2")
-    aspect = str(body.get("aspect") or "16:9")
-    if aspect not in {"9:16", "16:9", "1:1", "4:3", "3:4"}:
-        aspect = "16:9"
+    model = _migrated_image_model(str(body.get("model") or "nano2"))
+    aspect = _migrated_image_aspect(str(body.get("aspect") or "16:9"))
     ref = _decode_b64(body.get("referencePng") if isinstance(body.get("referencePng"), str) else None)
     work = Path(tempfile.mkdtemp(prefix="gflow-bridge-img-"))
     dest = work / "out.png"
@@ -1173,7 +1244,7 @@ def generate_image(body: dict[str, Any]) -> dict[str, Any]:
                 break
             except Exception as err:
                 last_err = err
-                if attempt == 0 and _is_image_wire_miss(str(err)):
+                if attempt == 0 and _is_image_wire_miss(str(err)) and not _is_host_migrated(str(err)):
                     print(
                         "[gflow-bridge] Flow no devolvió ogiZ0b. Reintento la imagen una vez…",
                         flush=True,

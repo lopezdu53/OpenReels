@@ -598,7 +598,7 @@ export function LabPage() {
                     {(providers?.gflowImageModels ?? [
                       { id: "nano2", label: "Imagen Nano 2" },
                       { id: "nano-pro", label: "Imagen Nano Pro" },
-                      { id: "image4", label: "Imagen 4" },
+                      { id: "nano-lite", label: "Nano Banana 2 Lite (→ Nano 2)" },
                     ]).map((m) => (
                       <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
                     ))}

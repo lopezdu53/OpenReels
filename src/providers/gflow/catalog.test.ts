@@ -23,7 +23,8 @@ describe("gflow catalog", () => {
   it("defaults unknown image models to nano2 and aliases Banana / Imagen 4", () => {
     expect(resolveGflowImageModel("nope")).toBe("nano2");
     expect(resolveGflowImageModel("image4")).toBe("nano-lite");
-    expect(gflowImageCliId("nano-lite")).toBe("image4");
+    expect(gflowImageCliId("nano-lite")).toBe("nano2");
+    expect(gflowImageCliId("image4")).toBe("nano2");
     expect(gflowImageCredits("nano-pro")).toBe(0);
   });
 
