@@ -244,8 +244,49 @@ async function loop() {
 
 chrome.runtime.onInstalled.addListener(() => loop());
 chrome.runtime.onStartup.addListener(() => loop());
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (!msg || msg.type !== "OR_PING") return;
+async function pressEnterOnTab(tabId) {
+  const target = { tabId };
+  await chrome.debugger.attach(target, "1.3");
+  try {
+    const key = {
+      key: "Enter",
+      code: "Enter",
+      windowsVirtualKeyCode: 13,
+      nativeVirtualKeyCode: 13,
+      text: "\r",
+      unmodifiedText: "\r",
+    };
+    await chrome.debugger.sendCommand(target, "Input.dispatchKeyEvent", { type: "keyDown", ...key });
+    await chrome.debugger.sendCommand(target, "Input.dispatchKeyEvent", {
+      type: "keyUp",
+      key: "Enter",
+      code: "Enter",
+      windowsVirtualKeyCode: 13,
+      nativeVirtualKeyCode: 13,
+    });
+  } finally {
+    try {
+      await chrome.debugger.detach(target);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (!msg) return;
+  if (msg.type === "OR_PRESS_ENTER") {
+    const tabId = sender.tab && sender.tab.id;
+    if (!tabId) {
+      sendResponse({ ok: false, error: "sin pestaña Flow" });
+      return;
+    }
+    pressEnterOnTab(tabId)
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => sendResponse({ ok: false, error: String(err && err.message ? err.message : err) }));
+    return true;
+  }
+  if (msg.type !== "OR_PING") return;
   ping()
     .then((data) => sendResponse({ ok: true, data }))
     .catch((err) => sendResponse({ ok: false, error: String(err && err.message ? err.message : err) }));

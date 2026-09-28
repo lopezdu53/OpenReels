@@ -16,6 +16,7 @@
     const out = [];
     const walk = (node) => {
       if (!node) return;
+      if (node.shadowRoot) walk(node.shadowRoot);
       const kids = node.querySelectorAll ? node.querySelectorAll("*") : [];
       for (const el of kids) {
         out.push(el);
@@ -357,42 +358,40 @@
     await clickNeedles([String(seconds) + "s", String(seconds) + " s"], { maxLen: 8 });
   }
 
+  function pressEnter(el) {
+    if (el) el.focus();
+    const target = el || document.activeElement || document.body;
+    const base = {
+      key: "Enter",
+      code: "Enter",
+      keyCode: 13,
+      which: 13,
+      charCode: 13,
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      view: window,
+    };
+    for (const type of ["keydown", "keypress", "keyup"]) {
+      const ev = new KeyboardEvent(type, base);
+      target.dispatchEvent(ev);
+      if (target !== document) document.dispatchEvent(new KeyboardEvent(type, base));
+    }
+  }
+
   async function clickGenerate() {
-    let btn = null;
-    for (let i = 0; i < 16; i++) {
-      btn = generateBtn();
-      if (btn) break;
-      await wait(0.4);
-    }
-    if (btn) {
-      const box = btn.getBoundingClientRect();
-      firePointer(btn, box.left + box.width / 2, box.top + box.height / 2);
-      await wait(1.2);
-      return;
-    }
-    if (clickArrowByPoint()) {
-      await wait(1.2);
-      return;
-    }
     const prompt = promptEl();
-    if (prompt) {
-      prompt.focus();
-      prompt.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          key: "Enter",
-          code: "Enter",
-          bubbles: true,
-          cancelable: true,
-          ctrlKey: true,
-        }),
-      );
-      prompt.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }),
-      );
-      await wait(1);
-      return;
+    if (!prompt) throw new Error("el prompt está escrito, pero no lo tengo enfocado para pulsar Enter");
+    prompt.focus();
+    await wait(0.4);
+    pressEnter(prompt);
+    try {
+      const reply = await chrome.runtime.sendMessage({ type: "OR_PRESS_ENTER" });
+      if (reply && reply.error) console.warn("[OpenReels Flow] Enter:", reply.error);
+    } catch (err) {
+      console.warn("[OpenReels Flow] Enter CDP:", err);
     }
-    throw new Error("no encuentro el botón de flecha (Generar) en Flow");
+    await wait(0.6);
   }
 
   async function waitMedia(kind, before, timeoutS) {
