@@ -258,7 +258,12 @@ export async function runMotion(
   );
   const takes = planMotionTakes(video.supportedDurations, wanted);
   const dest = path.join(clipsDir, "continuous.mp4");
-  const label = config.visualProvider === "gflow" ? "gflow I2V" : "I2V";
+  const label =
+    config.visualProvider === "gflow"
+      ? "gflow I2V"
+      : config.visualProvider === "vivi"
+        ? "VIVI I2V"
+        : "I2V";
   log(
     `motion: ${takes.length} toma${takes.length === 1 ? "" : "s"} ${label} ${takes.join("+")}s (sin freeze, puente por último frame)`,
   );

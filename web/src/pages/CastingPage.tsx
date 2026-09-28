@@ -14,8 +14,9 @@ import {
 import { cn } from "@/lib/utils";
 
 const CASTING_PROVIDERS: ProviderOption[] = [
-  { key: "gflow", label: "gflow (Nano Banana)" },
   { key: "vivi", label: "VIVI" },
+  { key: "atlas", label: "ATLAS Cloud" },
+  { key: "gflow", label: "gflow (Nano Banana)" },
   { key: "gemini", label: "Google Gemini" },
   { key: "openai", label: "OpenAI" },
   { key: "grok", label: "Grok Imagine" },
@@ -117,7 +118,7 @@ export function CastingPage() {
             title="Personajes"
             subtitle="Fichas 16:9 generadas con gflow. Reutilízalas en Nueva Historia y Nuevo Film."
             imageProviders={CASTING_PROVIDERS}
-            defaultSheetProvider="gflow"
+            defaultSheetProvider="vivi"
             onToggle={(id) => {
               setCharacterIds((prev) =>
                 prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
@@ -148,7 +149,7 @@ export function CastingPage() {
             title="Objetos"
             subtitle="Tableros de props generados con gflow. Nueva Historia los carga en el plano."
             imageProviders={CASTING_PROVIDERS}
-            defaultSheetProvider="gflow"
+            defaultSheetProvider="vivi"
             onToggle={(id) => {
               setObjectIds((prev) =>
                 prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
@@ -179,7 +180,7 @@ export function CastingPage() {
             title="Entornos"
             subtitle="Tableros de locación generados con gflow. Un lugar por plano."
             imageProviders={CASTING_PROVIDERS}
-            defaultSheetProvider="gflow"
+            defaultSheetProvider="vivi"
             onToggle={(id) => {
               setLocationIds((prev) =>
                 prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],

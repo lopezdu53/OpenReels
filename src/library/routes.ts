@@ -5,6 +5,7 @@ import { requireUser } from "../auth/plugin.js";
 import { AliCloudImage } from "../providers/image/alicloud.js";
 import { FalImage } from "../providers/image/fal.js";
 import { GeminiImage } from "../providers/image/gemini.js";
+import { AtlasImage } from "../providers/image/atlas.js";
 import { GflowImage } from "../providers/image/gflow.js";
 import { GrokImage } from "../providers/image/grok.js";
 import { OpenAIImage } from "../providers/image/openai.js";
@@ -304,6 +305,8 @@ function createSheetImageGen(provider: string, model?: string) {
   switch (provider) {
     case "gflow":
       return new GflowImage(model || DEFAULT_CASTING_GFLOW_IMAGE);
+    case "atlas":
+      return new AtlasImage(model);
     case "openai":
       return new OpenAIImage();
     case "grok":

@@ -35,6 +35,7 @@ describe("concept sheets", () => {
     expect(normalizeSheetProvider(undefined)).toBe("vivi");
     expect(normalizeSheetProvider("gemini")).toBe("gemini");
     expect(normalizeSheetProvider("gflow")).toBe("gflow");
+    expect(normalizeSheetProvider("atlas")).toBe("atlas");
     expect(normalizeSheetProvider(undefined, "gflow")).toBe("gflow");
   });
 

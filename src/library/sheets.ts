@@ -1,7 +1,8 @@
 export type CharacterKind = "human" | "animal" | "fictional";
 export type SheetImageProvider =
-  | "gflow"
   | "vivi"
+  | "atlas"
+  | "gflow"
   | "gemini"
   | "openai"
   | "grok"
@@ -10,8 +11,9 @@ export type SheetImageProvider =
   | "alicloud";
 
 export const SHEET_IMAGE_PROVIDERS: { key: SheetImageProvider; label: string }[] = [
-  { key: "gflow", label: "gflow (Nano Banana)" },
   { key: "vivi", label: "VIVI" },
+  { key: "atlas", label: "ATLAS Cloud" },
+  { key: "gflow", label: "gflow (Nano Banana)" },
   { key: "gemini", label: "Google Gemini" },
   { key: "openai", label: "OpenAI" },
   { key: "grok", label: "Grok Imagine" },
@@ -21,8 +23,9 @@ export const SHEET_IMAGE_PROVIDERS: { key: SheetImageProvider; label: string }[]
 ];
 
 export const CASTING_SHEET_PROVIDERS: { key: SheetImageProvider; label: string }[] = [
-  { key: "gflow", label: "gflow (Nano Banana)" },
   { key: "vivi", label: "VIVI" },
+  { key: "atlas", label: "ATLAS Cloud" },
+  { key: "gflow", label: "gflow (Nano Banana)" },
   { key: "gemini", label: "Google Gemini" },
   { key: "openai", label: "OpenAI" },
   { key: "grok", label: "Grok Imagine" },
@@ -31,7 +34,7 @@ export const CASTING_SHEET_PROVIDERS: { key: SheetImageProvider; label: string }
   { key: "alicloud", label: "Alibaba Cloud" },
 ];
 
-export const DEFAULT_CASTING_SHEET_PROVIDER: SheetImageProvider = "gflow";
+export const DEFAULT_CASTING_SHEET_PROVIDER: SheetImageProvider = "vivi";
 export const DEFAULT_CASTING_GFLOW_IMAGE = "nano-pro";
 
 export function normalizeCharacterKind(v: unknown): CharacterKind {
@@ -45,6 +48,7 @@ export function normalizeSheetProvider(
 ): SheetImageProvider {
   if (
     v === "gflow" ||
+    v === "atlas" ||
     v === "vivi" ||
     v === "gemini" ||
     v === "openai" ||
