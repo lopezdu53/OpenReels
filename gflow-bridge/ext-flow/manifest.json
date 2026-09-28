@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "OpenReels Flow",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Toma jobs del Puente OpenReels (127.0.0.1:8787) y los genera en flow.google.com.",
-  "permissions": ["storage", "tabs", "scripting"],
+  "permissions": ["storage", "tabs", "scripting", "alarms"],
   "host_permissions": [
-    "http://127.0.0.1:*/*",
-    "http://localhost:*/*",
+    "http://127.0.0.1:8787/*",
+    "http://localhost:8787/*",
+    "http://[::1]:8787/*",
     "https://flow.google.com/*",
     "https://*.flow.google.com/*",
     "https://labs.google/*",

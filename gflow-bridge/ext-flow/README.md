@@ -14,3 +14,5 @@ No usa Playwright: Flow ve clics en la pestaña real.
 El icono de la extensión muestra `ok` cuando está pollando el puente, `GO` mientras genera.
 
 Inspirado en [Shivanshu85/Google-Flow-Automation](https://github.com/Shivanshu85/Google-Flow-Automation) (MIT), reescrito para `flow.google.com` y el contrato del Puente.
+
+Si el popup dice **Failed to fetch**, Chrome no ve el puerto 8787: el Puente no está en **Conectar**, o hay que **Recargar** la extensión tras actualizar `ext-flow`. El permiso tiene que ser `http://127.0.0.1:8787/*` (puerto concreto; `:*` Chrome lo ignora).

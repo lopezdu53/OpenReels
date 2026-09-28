@@ -1,25 +1,38 @@
-const DEFAULT_BRIDGE = "http://127.0.0.1:8787";
+const DEFAULTS = ["http://127.0.0.1:8787", "http://localhost:8787"];
 
 async function settings() {
   const stored = await chrome.storage.local.get(["bridgeUrl", "token"]);
   return {
-    bridgeUrl: String(stored.bridgeUrl || DEFAULT_BRIDGE).replace(/\/$/, ""),
+    bridgeUrl: String(stored.bridgeUrl || DEFAULTS[0]).replace(/\/$/, ""),
     token: String(stored.token || ""),
   };
 }
 
-async function api(path, body, waitMs) {
-  const { bridgeUrl, token } = await settings();
-  const headers = { "Content-Type": "application/json" };
+function explainFetch(err, url) {
+  const raw = String((err && err.message) || err || "Failed to fetch");
+  if (/abort/i.test(raw)) return "timeout al hablar con el puente";
+  return (
+    "Chrome no alcanza " +
+    url +
+    " (" +
+    raw +
+    "). Abre OpenReels Puente 1.8.1, motor Extensión Flow, pulsa Conectar " +
+    "y espera «escuchando 0.0.0.0:8787». Luego recarga esta extensión."
+  );
+}
+
+async function postJson(base, path, body, token, waitMs) {
+  const headers = { "Content-Type": "application/json", Accept: "application/json" };
   if (token) headers.Authorization = "Bearer " + token;
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), waitMs || 35000);
   try {
-    const res = await fetch(bridgeUrl + path, {
+    const res = await fetch(base + path, {
       method: "POST",
       headers,
       body: JSON.stringify(body || {}),
       signal: ctrl.signal,
+      cache: "no-store",
     });
     const text = await res.text();
     try {
@@ -30,6 +43,69 @@ async function api(path, body, waitMs) {
   } finally {
     clearTimeout(t);
   }
+}
+
+async function getJson(base, path, token) {
+  const headers = { Accept: "application/json" };
+  if (token) headers.Authorization = "Bearer " + token;
+  const res = await fetch(base + path, { method: "GET", headers, cache: "no-store" });
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { ok: false, error: text.slice(0, 200) };
+  }
+}
+
+async function bases() {
+  const { bridgeUrl } = await settings();
+  const out = [];
+  for (const u of [bridgeUrl, ...DEFAULTS]) {
+    const n = String(u || "").replace(/\/$/, "");
+    if (n && !out.includes(n)) out.push(n);
+  }
+  return out;
+}
+
+async function api(path, body, waitMs) {
+  const { token } = await settings();
+  const urls = await bases();
+  let lastErr = null;
+  for (const base of urls) {
+    try {
+      const data = await postJson(base, path, body, token, waitMs);
+      await chrome.storage.local.set({ liveUrl: base });
+      return data;
+    } catch (err) {
+      lastErr = err;
+      await chrome.storage.local.set({ lastError: explainFetch(err, base) });
+    }
+  }
+  throw lastErr || new Error("Failed to fetch");
+}
+
+async function ping() {
+  const { token } = await settings();
+  const urls = await bases();
+  let lastErr = null;
+  for (const base of urls) {
+    try {
+      const data = await getJson(base, "/v1/ext/status", token);
+      if (data && data.ok) {
+        await chrome.storage.local.set({
+          liveUrl: base,
+          lastPoll: Date.now(),
+          lastError: "",
+        });
+        return data;
+      }
+      lastErr = new Error(data && data.error ? data.error : "status no ok");
+    } catch (err) {
+      lastErr = err;
+      await chrome.storage.local.set({ lastError: explainFetch(err, base) });
+    }
+  }
+  throw lastErr || new Error("Failed to fetch");
 }
 
 async function setBadge(text, color) {
@@ -108,49 +184,68 @@ async function loop() {
   if (looping) return;
   looping = true;
   await setBadge("…", "#8e8e93");
-  while (true) {
-    try {
-      const data = await api("/v1/ext/poll", { wait: 20 }, 28000);
-      const job = data && data.job;
-      if (!job || !job.id) {
-        await setBadge("ok", "#30d158");
-        await chrome.storage.local.set({ lastPoll: Date.now(), lastError: "" });
-        continue;
-      }
-      await setBadge("GO", "#d8ff00");
-      await chrome.storage.local.set({ lastJob: job.id, lastKind: job.kind, lastError: "" });
-      let result;
+  try {
+    while (true) {
       try {
-        result = await runJob(job);
+        const data = await api("/v1/ext/poll", { wait: 20 }, 28000);
+        const job = data && data.job;
+        if (!job || !job.id) {
+          await setBadge("ok", "#30d158");
+          await chrome.storage.local.set({ lastPoll: Date.now(), lastError: "" });
+          continue;
+        }
+        await setBadge("GO", "#d8ff00");
+        await chrome.storage.local.set({ lastJob: job.id, lastKind: job.kind, lastError: "" });
+        let result;
+        try {
+          result = await runJob(job);
+        } catch (err) {
+          result = { ok: false, error: String(err && err.message ? err.message : err) };
+        }
+        await api(
+          "/v1/ext/result",
+          {
+            id: job.id,
+            ok: Boolean(result && result.ok !== false && (result.png || result.mp4) && !result.error),
+            png: result?.png || "",
+            mp4: result?.mp4 || "",
+            error: result?.error || "",
+          },
+          120000,
+        );
+        await chrome.storage.local.set({
+          lastDone: job.id,
+          lastError: result?.error || "",
+        });
+        await setBadge(result?.error ? "err" : "ok", result?.error ? "#ff453a" : "#30d158");
       } catch (err) {
-        result = { ok: false, error: String(err && err.message ? err.message : err) };
+        await setBadge("off", "#ff453a");
+        const { liveUrl, bridgeUrl } = await chrome.storage.local.get(["liveUrl", "bridgeUrl"]);
+        await chrome.storage.local.set({
+          lastError: explainFetch(err, liveUrl || bridgeUrl || DEFAULTS[0]),
+        });
+        await new Promise((r) => setTimeout(r, 4000));
       }
-      await api(
-        "/v1/ext/result",
-        {
-          id: job.id,
-          ok: Boolean(result && result.ok !== false && (result.png || result.mp4) && !result.error),
-          png: result?.png || "",
-          mp4: result?.mp4 || "",
-          error: result?.error || "",
-        },
-        120000,
-      );
-      await chrome.storage.local.set({
-        lastDone: job.id,
-        lastError: result?.error || "",
-      });
-      await setBadge(result?.error ? "err" : "ok", result?.error ? "#ff453a" : "#30d158");
-    } catch (err) {
-      await setBadge("off", "#ff453a");
-      await chrome.storage.local.set({
-        lastError: String(err && err.message ? err.message : err),
-      });
-      await new Promise((r) => setTimeout(r, 4000));
     }
+  } finally {
+    looping = false;
   }
 }
 
 chrome.runtime.onInstalled.addListener(() => loop());
 chrome.runtime.onStartup.addListener(() => loop());
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (!msg || msg.type !== "OR_PING") return;
+  ping()
+    .then((data) => sendResponse({ ok: true, data }))
+    .catch((err) => sendResponse({ ok: false, error: String(err && err.message ? err.message : err) }));
+  loop();
+  return true;
+});
+try {
+  chrome.alarms.create("or-poll", { periodInMinutes: 0.5 });
+} catch {
+  /* ignore */
+}
+chrome.alarms.onAlarm.addListener(() => loop());
 loop();
