@@ -181,7 +181,7 @@ function jobChips(job: StickmanJobMeta): string[] {
     (c.castRoster?.length ?? c.characterIds?.length)
       ? `${c.castRoster?.length ?? c.characterIds?.length} pers.`
       : "",
-    c.muteCharacter ? "Mudo + SFX" : "Con voz",
+    c.muteCharacter ? "SFX + avatar" : "Narración Atlas",
     c.contentHook ? "Gancho 10s" : "",
     c.captions ? "Subtítulos" : "Sin subtítulos",
     c.animate ? "I2V" : "Stills",
@@ -478,9 +478,11 @@ export function HistoriaPage() {
               <DarkSelect
                 aria-label="Voz"
                 value={voiceId}
+                disabled={muteCharacter}
                 onValueChange={(value) => {
                   setVoiceId(value);
                   setMuteCharacter(false);
+                  setVideoVolume(0.5);
                 }}
                 options={(catalog?.voices ?? FALLBACK_VOICES).map((v) => ({
                   value: v.id,
@@ -493,6 +495,7 @@ export function HistoriaPage() {
               <DarkSelect
                 aria-label="Velocidad de narración"
                 value={String(voiceSpeed)}
+                disabled={muteCharacter}
                 onValueChange={(value) => setVoiceSpeed(Number(value))}
                 options={[0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5].map((n) => ({
                   value: String(n),
@@ -525,23 +528,29 @@ export function HistoriaPage() {
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
-                checked={muteCharacter}
+                checked={!muteCharacter}
                 onChange={(e) => {
-                  const on = e.target.checked;
-                  setMuteCharacter(on);
-                  if (on) setVideoVolume(1);
+                  const atlasOn = e.target.checked;
+                  setMuteCharacter(!atlasOn);
+                  if (atlasOn) {
+                    setVideoVolume(0.5);
+                    setTtsVolume(1);
+                  } else {
+                    setVideoVolume(1);
+                  }
                 }}
               />
-              Sin voz narrativa (solo SFX de Flow)
+              Narración Atlas
             </label>
-            {muteCharacter ? (
-              <p className="text-[11px] text-amber-400">
-                Sin TTS Atlas: el personaje del Casting habla la narración en español latino (audio
-                de Flow + SFX).
+            {!muteCharacter ? (
+              <p className="text-[11px] text-muted-foreground">
+                TTS Atlas (xAI, Gemini Flash o MiniMax). Ajusta volumen de video (SFX de Flow) y
+                volumen TTS. El avatar no habla: la voz va encima del clip.
               </p>
             ) : (
-              <p className="text-[11px] text-muted-foreground">
-                TTS Atlas Cloud (xAI, Gemini Flash o MiniMax según la voz).
+              <p className="text-[11px] text-amber-400">
+                Sin Atlas: solo SFX de Flow y el avatar del Casting habla la narración en español
+                latino.
               </p>
             )}
             <label

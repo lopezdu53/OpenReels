@@ -104,4 +104,28 @@ describe("historia director prompt", () => {
     expect(prompt).toContain("Profe Angie");
     expect(prompt).not.toContain("MUTE CHARACTER");
   });
+
+  it("keeps Atlas voiceover and closed mouths when narration Atlas is on", () => {
+    const prompt = historiaDirectorPrompt(
+      {
+        ...config,
+        kind: "historia",
+        look: "casting",
+        muteCharacter: false,
+        castRoster: [
+          {
+            id: "c1",
+            name: "Profe Angie",
+            kind: "fictional",
+            appearance: "lentes y camisa blanca",
+          },
+        ],
+      },
+      3,
+      "{}",
+    );
+    expect(prompt).toContain("Atlas TTS");
+    expect(prompt).toContain("mouths stay closed");
+    expect(prompt).not.toContain("ON-CAMERA SPEECH");
+  });
 });

@@ -142,7 +142,7 @@ export function buildContinuousMotionPrompt(
       ...timed,
       script.muteCharacter
         ? "ON-CAMERA SPEECH: the locked Casting avatar narrates in spoken Latin American Spanish. Mouths lip-sync. Flow audio is the voice + SFX. 720p."
-        : "Same faces, wardrobe, and props for the whole take.",
+        : "ATLAS VOICEOVER: mouths stay closed. Do not speak on camera. Atlas TTS will be mixed over ducked Flow SFX. Output 720p.",
       "Same faces, wardrobe, and props for the whole take. Output 720p.",
       HISTORIA_STYLE_LOCK,
     ]

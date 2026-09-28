@@ -171,7 +171,7 @@ ${
     ? "ON-CAMERA SPEECH + FLOW SFX: there is NO Atlas voiceover. The locked Casting avatar IS the narrator. They speak every beat's narration out loud in español latinoamericano (neutral LATAM / Mexican Spanish, never Spain vosotros). Mouths MUST lip-sync. Flow native audio carries the voice plus SFX."
     : config.muteCharacter
       ? "MUTE CHARACTER: the people on camera do NOT speak. Write short narration only for optional captions. Story lives in acting, props, and camera. Sound effects still exist in the picture because Flow audio is kept."
-      : "A narrator speaks the lines as voiceover over ducked Flow SFX. On-camera mouths stay closed unless the beat is clearly a talking head."
+      : "A narrator speaks the lines as Atlas TTS voiceover over ducked Flow SFX. On-camera mouths stay closed. Video volume and TTS volume are mixed in assemble."
 }
 ${
   config.contentHook

@@ -315,16 +315,14 @@ export async function runAssemble(id: string, log: (line: string) => void): Prom
   const voice = path.join(root, "voiceover.wav");
   const meta = readMeta(id);
   const mute = meta?.config.muteCharacter === true;
-  const onCamera = meta?.kind === "historia" && mute;
   const finalPath = assembleStickman({
     root,
     script,
     stills,
     clips,
     voiceover: mute ? null : fs.existsSync(voice) ? voice : null,
-    videoVolume: onCamera
-      ? Math.max(meta?.config.videoVolume ?? 1, 0.85)
-      : (meta?.config.videoVolume ?? DEFAULT_STICKMAN_VIDEO_VOLUME),
+    videoVolume: meta?.config.videoVolume ?? (mute ? 1 : DEFAULT_STICKMAN_VIDEO_VOLUME),
+    ttsVolume: meta?.config.ttsVolume ?? DEFAULT_STICKMAN_TTS_VOLUME,
     ttsVolume: meta?.config.ttsVolume ?? DEFAULT_STICKMAN_TTS_VOLUME,
   });
   log(`final → ${finalPath}`);

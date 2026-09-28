@@ -398,8 +398,10 @@ export function StickmanJobPage() {
             <h2 className="text-sm font-medium">Voz narrativa Atlas</h2>
             <p className="text-xs text-muted-foreground">
               {job.config?.muteCharacter
-                ? "Este video se produjo sin TTS Atlas (solo SFX de Flow). Elige una voz y mézclala sin volver a gastar I2V."
-                : "Puedes volver a sintetizar la voz Atlas y mezclarla sobre el mismo clip."}
+                ? historia
+                  ? "Se produjo con SFX de Flow y el avatar hablando. Puedes mezclar narración Atlas encima (volúmenes) sin repetir el I2V."
+                  : "Este video se produjo sin TTS Atlas (solo SFX de Flow). Elige una voz y mézclala sin volver a gastar I2V."
+                : "Puedes volver a sintetizar la voz Atlas y mezclarla sobre el mismo clip. Ajusta volúmenes en el ensamble."}
             </p>
             <VoiceFields
               voiceId={voiceId}
