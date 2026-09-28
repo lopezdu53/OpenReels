@@ -193,12 +193,15 @@ describe("stickman visuals", () => {
         look: "casting",
         durationSec: 20,
         animate: true,
+        muteCharacter: true,
         castRoster: [{ id: "c1", name: "Rayitas", kind: "animal", appearance: "ocelos" }],
       },
       "rayitas-20s",
     );
     const historiaMotion = buildContinuousMotionPrompt(historia, 10);
     expect(historiaMotion.toLowerCase()).not.toContain("no push-in");
+    expect(historiaMotion).toContain("720p");
+    expect(historiaMotion.toLowerCase()).toContain("español latino");
     expect(motionNegativePrompt(historia).toLowerCase()).not.toContain("push-in");
   });
 

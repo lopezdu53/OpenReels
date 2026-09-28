@@ -137,7 +137,7 @@ class VideoModeTests(unittest.TestCase):
         )
         self.assertNotIn("--duration", args)
 
-    def test_omni_flash_omits_duration(self):
+    def test_omni_flash_sends_max_duration(self):
         args = _video_cli_args(
             mode="t2v",
             prompt="pan",
@@ -147,8 +147,9 @@ class VideoModeTests(unittest.TestCase):
             dest="out.mp4",
             still_path=None,
         )
-        self.assertNotIn("--duration", args)
-        self.assertEqual(_duration_flag("omni-flash", 6), [])
+        self.assertIn("--duration", args)
+        self.assertIn("10", args)
+        self.assertEqual(_duration_flag("omni-flash", 6), ["--duration", "6"])
         self.assertEqual(
             _strip_duration_args(["video", "t2v", "x", "--duration", "6", "--aspect", "16:9"]),
             ["video", "t2v", "x", "--aspect", "16:9"],
@@ -650,7 +651,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
         self.assertEqual(classify_log("Flow status 4 después del video: falló el audio"), "i2v")
-        self.assertEqual(APP_VERSION, "1.7.8")
+        self.assertEqual(APP_VERSION, "1.7.9")
         self.assertEqual(
             classify_log(
                 "Flow no ofrece 'veo-lite-lp' en este Gmail. Reintento YA con veo-lite"

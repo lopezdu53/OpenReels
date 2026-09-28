@@ -65,7 +65,7 @@ export function estimateStickmanCost(opts: {
   if (config.animate && config.visualProvider === "gflow") {
     const model = config.gflowVideoModel || "omni-flash";
     const takes = planMotionTakes(
-      isVeoGflowModel(model) ? [4, 6, 8] : [4, 6, 8, 10],
+      isVeoGflowModel(model) ? [8] : [10],
       config.durationSec,
     );
     credits = takes.reduce(

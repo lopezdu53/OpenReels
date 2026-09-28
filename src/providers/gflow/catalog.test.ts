@@ -12,6 +12,7 @@ import {
   gflowVideoCredits,
   gflowVideoWaitSeconds,
   isGflowLowerPriority,
+  gflowMaxClipSeconds,
   pickGflowDuration,
   resolveGflowImageModel,
   resolveGflowVideoMode,
@@ -32,6 +33,9 @@ describe("gflow catalog", () => {
     expect(pickGflowDuration("veo-lite", 10)).toBe(8);
     expect(pickGflowDuration("omni-flash", 10)).toBe(10);
     expect(pickGflowDuration("veo-lite", 6)).toBe(6);
+    expect(gflowMaxClipSeconds("omni-flash")).toBe(10);
+    expect(gflowMaxClipSeconds("veo-lite")).toBe(8);
+    expect(gflowMaxClipSeconds("veo-quality")).toBe(8);
   });
 
   it("resolves video models", () => {

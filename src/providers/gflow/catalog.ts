@@ -96,11 +96,17 @@ export function resolveGflowVideoModel(id?: string): (typeof GFLOW_VIDEO_MODELS)
   );
 }
 
+export function gflowMaxClipSeconds(modelId?: string): number {
+  const spec = resolveGflowVideoModel(modelId);
+  return spec.durations[spec.durations.length - 1] ?? 8;
+}
+
 export function pickGflowDuration(modelId: string, wanted?: number): number {
   const spec = resolveGflowVideoModel(modelId);
-  const target = wanted ?? 6;
+  const max = gflowMaxClipSeconds(modelId);
+  const target = wanted ?? max;
   if (spec.durations.includes(target as (typeof spec.durations)[number])) return target;
-  return spec.durations.find((d) => d >= target) ?? spec.durations[spec.durations.length - 1] ?? 6;
+  return spec.durations.find((d) => d >= target) ?? max;
 }
 
 /** gflow 0.71: `--duration` only exists on Omni Flash. Veo has no duration row. */
@@ -115,6 +121,7 @@ export function gflowCliDuration(modelId?: string, wanted?: number): number | un
 }
 
 export const GFLOW_DEFAULT_CLIP_SECONDS = 8;
+export const GFLOW_OUTPUT_RESOLUTION = "720p";
 
 /** Wall-clock seconds Puente keeps headed Chrome open for one clip. */
 export const GFLOW_VIDEO_WAIT_SEC = 900;

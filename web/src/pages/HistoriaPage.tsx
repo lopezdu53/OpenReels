@@ -224,7 +224,7 @@ export function HistoriaPage() {
   const [captions, setCaptions] = useState(false);
   const [muteCharacter, setMuteCharacter] = useState(true);
   const [contentHook, setContentHook] = useState(false);
-  const [videoVolume, setVideoVolume] = useState(0.5);
+  const [videoVolume, setVideoVolume] = useState(1);
   const [ttsVolume, setTtsVolume] = useState(1);
   const [animate, setAnimate] = useState(true);
   const [visualProvider, setVisualProvider] = useState<"vivi" | "atlas" | "gflow">("vivi");
@@ -526,13 +526,18 @@ export function HistoriaPage() {
               <input
                 type="checkbox"
                 checked={muteCharacter}
-                onChange={(e) => setMuteCharacter(e.target.checked)}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setMuteCharacter(on);
+                  if (on) setVideoVolume(1);
+                }}
               />
               Sin voz narrativa (solo SFX de Flow)
             </label>
             {muteCharacter ? (
               <p className="text-[11px] text-amber-400">
-                El video no llevará narración Atlas. Elige una voz para activarla.
+                Sin TTS Atlas: el personaje del Casting habla la narración en español latino (audio
+                de Flow + SFX).
               </p>
             ) : (
               <p className="text-[11px] text-muted-foreground">
@@ -599,21 +604,29 @@ export function HistoriaPage() {
           <StudioVisualFields
             catalog={catalog}
             visualProvider={visualProvider}
-            onVisualProvider={setVisualProvider}
+            onVisualProvider={(value) => {
+              setVisualProvider(value);
+              const next = durationsFor(value, gflowVideoModel, catalog);
+              setDurationSec(snapDuration(durationSec, next));
+            }}
             gflowImageModel={gflowImageModel}
             onGflowImageModel={setGflowImageModel}
             gflowVideoModel={gflowVideoModel}
-            onGflowVideoModel={setGflowVideoModel}
+            onGflowVideoModel={(value) => {
+              setGflowVideoModel(value);
+              const next = durationsFor(visualProvider, value, catalog);
+              setDurationSec(snapDuration(durationSec, next));
+            }}
             gflowBridgeId={gflowBridgeId}
             onGflowBridgeId={setGflowBridgeId}
             showVideo={animate}
             durationSec={durationSec}
             gflowHint={
               veoOn
-                ? "Veo 3.1: 8s, 16s, 24s, 16 min o 26 min (tomas de 8s encadenadas). El primer still usa la ficha del Casting."
+                ? "Veo 3.1: 8s, 16s, 24s, 16 min o 26 min (tomas de 8s encadenadas, 720p). El primer still usa la ficha del Casting."
                 : visualProvider === "vivi"
                   ? "Stills VIVI por defecto. Atlas y gflow están en la lista. I2V VIVI si está activo."
-                  : "Omni: 10s a 15 min. El primer still usa la ficha del Casting. Audio Flow agachado + TTS Atlas."
+                  : "Omni: 10s a 15 min (tomas de 10s, 720p). El primer still usa la ficha del Casting. Con SFX el avatar habla en español latino."
             }
           />
 

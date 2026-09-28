@@ -323,6 +323,7 @@ export async function bridgeGenerateVideo(opts: {
   mode?: "t2v" | "i2v";
   imagePng?: Buffer;
   bridgeId?: string;
+  resolution?: string;
 }): Promise<{ filePath: string; durationSeconds: number }> {
   return enqueueGflow(() => bridgeGenerateVideoNow(opts));
 }
@@ -335,6 +336,7 @@ async function bridgeGenerateVideoNow(opts: {
   mode?: "t2v" | "i2v";
   imagePng?: Buffer;
   bridgeId?: string;
+  resolution?: string;
 }): Promise<{ filePath: string; durationSeconds: number }> {
   const target = normalizeGflowBridgeId(opts.bridgeId);
   const tryLan = target === "auto" || target === "lan";
@@ -344,6 +346,7 @@ async function bridgeGenerateVideoNow(opts: {
     aspect: opts.aspect,
     model: opts.model,
     mode,
+    resolution: opts.resolution || "720p",
     ...(opts.durationSeconds != null ? { durationSeconds: opts.durationSeconds } : {}),
     ...(mode === "i2v" && opts.imagePng && opts.imagePng.length > 80
       ? { imagePng: opts.imagePng.toString("base64") }

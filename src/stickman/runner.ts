@@ -256,7 +256,11 @@ export async function runMotion(
     script.beats.reduce((sum, beat) => sum + Math.max(1, beat.durationSec), 0),
     config.durationSec,
   );
-  const takes = planMotionTakes(video.supportedDurations, wanted);
+  const takePool =
+    config.visualProvider === "gflow"
+      ? [video.supportedDurations.at(-1) ?? 8]
+      : video.supportedDurations;
+  const takes = planMotionTakes(takePool, wanted);
   const dest = path.join(clipsDir, "continuous.mp4");
   const label =
     config.visualProvider === "gflow"
@@ -311,13 +315,16 @@ export async function runAssemble(id: string, log: (line: string) => void): Prom
   const voice = path.join(root, "voiceover.wav");
   const meta = readMeta(id);
   const mute = meta?.config.muteCharacter === true;
+  const onCamera = meta?.kind === "historia" && mute;
   const finalPath = assembleStickman({
     root,
     script,
     stills,
     clips,
     voiceover: mute ? null : fs.existsSync(voice) ? voice : null,
-    videoVolume: meta?.config.videoVolume ?? DEFAULT_STICKMAN_VIDEO_VOLUME,
+    videoVolume: onCamera
+      ? Math.max(meta?.config.videoVolume ?? 1, 0.85)
+      : (meta?.config.videoVolume ?? DEFAULT_STICKMAN_VIDEO_VOLUME),
     ttsVolume: meta?.config.ttsVolume ?? DEFAULT_STICKMAN_TTS_VOLUME,
   });
   log(`final → ${finalPath}`);

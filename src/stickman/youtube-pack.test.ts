@@ -42,6 +42,23 @@ describe("stickman youtube pack", () => {
     const prompt = youtubeThumbPrompt(config, "El wifi te miente");
     expect(prompt).toContain("16:9");
     expect(prompt).toContain("El wifi te miente");
+    expect(prompt.toLowerCase()).toContain("stickman");
+    const historia = youtubeThumbPrompt(
+      {
+        ...config,
+        kind: "historia",
+        look: "casting",
+        castRoster: [{ id: "c1", name: "Profe Angie", appearance: "lentes" }],
+      },
+      "Ingresos extras",
+    );
+    expect(historia).toContain("Ingresos extras");
+    expect(historia).toContain("Profe Angie");
+    expect(historia.toLowerCase()).toContain("no stick figures");
+    expect(historia).not.toContain("STICKMAN");
+    expect(fallbackYoutubePack(config.topic, "es", "historia").hashtags.join(" ")).not.toContain(
+      "#stickman",
+    );
     expect(youtubePackPrompt(config, fallbackYoutubePack(config.topic, "es"))).toContain(
       "hashtags",
     );

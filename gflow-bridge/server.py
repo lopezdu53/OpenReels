@@ -212,11 +212,13 @@ def _resolve_video_mode(raw: object) -> str:
 
 
 def _duration_flag(model: str, duration: int | None) -> list[str]:
-    # gflow 0.79: most migrated Gmails (incl. Omni 1.1 Flash) have no duration
-    # row. Passing --duration raises ConfigurationError exit 11. Flow picks
-    # the default length; do not send the flag.
-    del model, duration
-    return []
+    # Veo migrated UI has no duration row. Omni 1.1 Flash does: send 10s (max).
+    # If Flow raises ConfigurationError, generate_video retries without the flag.
+    if duration is None:
+        return []
+    if str(model).strip().lower() != "omni-flash":
+        return []
+    return ["--duration", str(int(duration))]
 
 
 def _strip_duration_args(args: list[str]) -> list[str]:
@@ -1335,11 +1337,11 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
         )
     aspect = "9:16" if body.get("aspect") == "9:16" else "16:9"
     duration: int | None = None
-    if str(model).strip().lower() == "omni-flash" and body.get("durationSeconds") is not None:
+    if str(model).strip().lower() == "omni-flash":
         try:
-            duration = max(4, min(int(body.get("durationSeconds") or 8), 10))
+            duration = max(4, min(int(body.get("durationSeconds") or 10), 10))
         except (TypeError, ValueError):
-            duration = 8
+            duration = 10
     reported = duration if duration is not None else 8
     video_timeout = _video_timeout_for(model)
     recover_s = _recover_seconds_for(model)

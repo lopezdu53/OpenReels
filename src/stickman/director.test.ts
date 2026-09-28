@@ -79,4 +79,29 @@ describe("historia director prompt", () => {
     expect(prompt).not.toContain("STICKMAN_STYLE");
     expect(prompt).toContain("Camera may push/pull/pan/orbit");
   });
+
+  it("asks the Casting avatar to speak LATAM Spanish when only Flow SFX is on", () => {
+    const prompt = historiaDirectorPrompt(
+      {
+        ...config,
+        kind: "historia",
+        look: "casting",
+        muteCharacter: true,
+        castRoster: [
+          {
+            id: "c1",
+            name: "Profe Angie",
+            kind: "fictional",
+            appearance: "lentes y camisa blanca",
+          },
+        ],
+      },
+      3,
+      "{}",
+    );
+    expect(prompt).toContain("ON-CAMERA SPEECH");
+    expect(prompt.toLowerCase()).toContain("latino");
+    expect(prompt).toContain("Profe Angie");
+    expect(prompt).not.toContain("MUTE CHARACTER");
+  });
 });
