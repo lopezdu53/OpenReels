@@ -59,6 +59,11 @@ def load_config() -> dict:
     return cfg
 
 
+def needs_local_http(mode: str, engine: str) -> bool:
+    """Chrome extension always talks to 127.0.0.1 even if the studio uses remote relay."""
+    return str(mode or "") in {"local", "both"} or str(engine or "") == "ext"
+
+
 def save_config(cfg: dict) -> None:
     APP_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")

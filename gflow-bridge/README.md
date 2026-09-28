@@ -26,7 +26,7 @@ Si Flow marca **actividad inusual** en el Chrome de gflow, usa tu Chrome de cada
 3. Abre [flow.google.com](https://flow.google.com) con el Gmail Gemini. Agent OFF. Deja la pestaña abierta.
 4. **Conectar** el puente. OpenReels sigue llamando `/v1/image` y `/v1/video` (LAN o remoto); la extensión hace poll a `http://127.0.0.1:8787/v1/ext/poll` y publica el PNG/mp4 en `/v1/ext/result`.
 
-Si el popup dice **Failed to fetch** / poll nunca: el Puente no está escuchando o Chrome ignoró el permiso. En el Puente pulsa **Conectar** (log: `escuchando 0.0.0.0:8787`). Recarga la extensión. El `manifest` pide `http://127.0.0.1:8787/*` (el puerto tiene que ir escrito; `127.0.0.1:*` Chrome no lo aplica).
+Si el popup dice **Failed to fetch** / poll nunca: el Puente no está escuchando en este PC. En **1.8.2** el motor Extensión Flow abre `127.0.0.1:8787` aunque el modo sea solo **Fuera de casa** (antes el remoto no levantaba HTTP y Chrome no tenía a quién preguntar). Pulsa **Conectar** y en el log debe salir `extensión http://127.0.0.1:8787`. Recarga la extensión. El `manifest` pide `http://127.0.0.1:8787/*`.
 
 **Sistema → Evitar suspensión y cierre de sesión** (activado por defecto) pide a Windows que no duerma, no apague la pantalla ni bloquee la sesión mientras el puente está abierto. Hace falta para los clips de 8s de Flow. **Inicio con Windows** deja el puente al encender el PC.
 

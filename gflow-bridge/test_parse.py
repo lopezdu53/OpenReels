@@ -651,7 +651,7 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertEqual(classify_log("keep Chrome: no cierro Playwright"), "i2v")
         self.assertEqual(classify_log("status 4/1/5 = en cola (sigo esperando)"), "i2v")
         self.assertEqual(classify_log("Flow status 4 después del video: falló el audio"), "i2v")
-        self.assertEqual(APP_VERSION, "1.8.1")
+        self.assertEqual(APP_VERSION, "1.8.2")
         self.assertEqual(
             classify_log(
                 "Flow no ofrece 'veo-lite-lp' en este Gmail. Reintento YA con veo-lite"
@@ -680,6 +680,11 @@ class BrandingAndDesktopTests(unittest.TestCase):
         self.assertIn("bridgeName", cfg)
         self.assertEqual(cfg.get("engine"), "gflow")
         self.assertEqual(classify_log("extensión Flow: image abc modelo=nano2"), "i2v")
+        from config import needs_local_http
+
+        self.assertTrue(needs_local_http("remote", "ext"))
+        self.assertFalse(needs_local_http("remote", "gflow"))
+        self.assertTrue(needs_local_http("both", "gflow"))
 
 
 class GflowPatchTests(unittest.TestCase):

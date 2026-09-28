@@ -23,7 +23,7 @@ except ImportError as err:  # pragma: no cover
 
 import server
 from branding import render_icon_png, write_ico
-from config import APP_DIR, DEFAULT_SIZE, classify_log, load_config, save_config
+from config import APP_DIR, DEFAULT_SIZE, classify_log, load_config, needs_local_http, save_config
 from install import format_gflow_status, inspect_gflow, install_gflow_stack, version_newer
 from power import KeepAwake, toplevel_hwnd
 from profiles import (
@@ -928,7 +928,8 @@ class App(tk.Tk):
         self.stop_relay.clear()
         self.running = True
         self.go.configure(text="Desconectar")
-        if mode in {"local", "both"}:
+        need_http = needs_local_http(mode, self.engine.get())
+        if need_http:
             try:
                 self.httpd = server.serve_forever()
             except Exception as err:
@@ -938,8 +939,11 @@ class App(tk.Tk):
                 return
             self.http_thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
             self.http_thread.start()
+            why = f"Xeon {allow or '*'}"
+            if self.engine.get() == "ext":
+                why += f" · extensión http://127.0.0.1:{port}"
             self._log(
-                f"LAN: escuchando 0.0.0.0:{port} (Xeon {allow or '*'}) · {self.bridge_name.get().strip() or socket.gethostname()}",
+                f"LAN: escuchando 0.0.0.0:{port} ({why}) · {self.bridge_name.get().strip() or socket.gethostname()}",
                 "ok",
             )
         if mode in {"remote", "both"}:
@@ -955,11 +959,15 @@ class App(tk.Tk):
                 daemon=True,
             )
             self.relay_thread.start()
-        self.status.set("Conectado · " + {"local": "red local", "remote": "remoto", "both": "local + remoto"}[mode])
+        label = {"local": "red local", "remote": "remoto", "both": "local + remoto"}[mode]
+        if self.engine.get() == "ext" and mode == "remote":
+            label = "remoto + 127.0.0.1 (extensión)"
+        self.status.set("Conectado · " + label)
         if self.engine.get() == "ext":
             self._log(
                 "Motor extensión Flow: deja chrome://extensions cargada (carpeta ext-flow) "
-                "y flow.google.com abierto. Agent OFF.",
+                f"y flow.google.com abierto. Agent OFF. La extensión habla con http://127.0.0.1:{port} "
+                "(ese puerto se abre aunque el modo sea solo remoto).",
                 "ok",
             )
         self._log(
