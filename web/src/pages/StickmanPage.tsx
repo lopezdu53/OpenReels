@@ -157,7 +157,7 @@ export function StickmanPage() {
   );
   const [jobs, setJobs] = useState<StickmanJobMeta[]>([]);
   const [topic, setTopic] = useState("");
-  const [durationSec, setDurationSec] = useState(10);
+  const [durationSec, setDurationSec] = useState(8);
   const [aspect, setAspect] = useState("9:16");
   const [language, setLanguage] = useState("es");
   const [look, setLook] = useState("classic");
@@ -240,7 +240,7 @@ export function StickmanPage() {
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
             Videos de palitos 2D. Historia: director de stickman (no OpenReels). Visuales baratos:
-            gflow Nano Banana (0 créditos) + Omni 1.1 Flash en tomas de 10s (20s = 2 tomas). Audio
+            gflow Nano Banana (0 créditos) + Omni 1.1 Flash en tomas de 8s (16s = 2 tomas). Audio
             de Flow agachado + TTS Atlas encima. Atlas visual sigue disponible.
           </p>
         </div>
@@ -304,7 +304,7 @@ export function StickmanPage() {
                 aria-label="Duración"
                 value={String(durationSec)}
                 onValueChange={(value) => setDurationSec(Number(value))}
-                options={(catalog?.durations ?? [10, 20, 30, 60, 120, 300, 480, 900]).map((d) => ({
+                options={(catalog?.durations ?? [8, 16, 24, 32, 64, 120, 300, 480, 900]).map((d) => ({
                   value: String(d),
                   label: formatStickmanDuration(d),
                 }))}
@@ -467,7 +467,7 @@ export function StickmanPage() {
             onGflowVideoModel={setGflowVideoModel}
             showVideo={animate}
             durationSec={durationSec}
-            gflowHint="Omni 10s. 20s/30s/… son tomas de 10s con cruce suave (último frame). Audio Flow agachado + TTS. Voz: Atlas."
+            gflowHint="Omni 8s (4/6/8s). 16s/24s/… son tomas de 8s con cruce suave (último frame). Audio Flow agachado + TTS. Voz: Atlas."
           />
 
           {error && <p className="text-sm text-destructive">{error}</p>}

@@ -3,6 +3,7 @@ import {
   DEFAULT_STICKMAN_IMAGE_MODEL,
   DEFAULT_STICKMAN_LLM,
   DEFAULT_STICKMAN_VIDEO_MODEL,
+  omniClipSeconds,
   recommendArc,
 } from "./catalog.js";
 import { llmUsageFromAtlas, type StickmanLlmUsage } from "./cost.js";
@@ -112,7 +113,8 @@ function beatNarration(i: number, n: number, topic: string, language: string, hi
 function templateBeats(config: StickmanJobConfig): StickmanBeat[] {
   const n = beatCountForDuration(config.durationSec);
   const hook = config.contentHook === true;
-  const remaining = hook ? Math.max(2, config.durationSec - 10) : config.durationSec;
+  const hookSec = omniClipSeconds();
+  const remaining = hook ? Math.max(2, config.durationSec - hookSec) : config.durationSec;
   const storyBeats = hook ? Math.max(1, n - 1) : n;
   const dur = Math.max(2, Math.round(remaining / storyBeats));
   const look = config.look || (isHistoriaConfig(config) ? "casting" : "classic");
@@ -135,7 +137,7 @@ function templateBeats(config: StickmanJobConfig): StickmanBeat[] {
       narration: isHook
         ? hookNarration(config.topic, config.language)
         : beatNarration(storyIndex, storyBeats, config.topic, config.language, historia),
-      durationSec: isHook ? 10 : dur,
+      durationSec: isHook ? hookSec : dur,
     });
   }
   return beats;

@@ -167,9 +167,15 @@ def _resolve_video_mode(raw: object) -> str:
     return mode if mode in {"t2v", "i2v"} else "t2v"
 
 
+# Keep in sync with src/providers/gflow/catalog.ts OMNI_10S_SUPPORTED.
+# gflow 0.82.1 cannot pick 10s on migrated Flow.
+OMNI_10S_SUPPORTED = False
+
+
 def _duration_flag(model: str, duration: int | None) -> list[str]:
-    # gflow 0.71: only Omni Flash has a duration row on migrated Flow.
     if duration is None or str(model).strip().lower() != "omni-flash":
+        return []
+    if not OMNI_10S_SUPPORTED:
         return []
     return ["--duration", str(duration)]
 
@@ -190,6 +196,25 @@ def _video_cli_args(
             raise ValueError("imagePng requerido (still PNG en base64)")
         return ["video", "i2v", "--initial-frame", still_path, prompt, *common]
     return ["video", "t2v", prompt, *common]
+
+
+def _is_duration_control_error(msg: str) -> bool:
+    low = (msg or "").lower()
+    return "configurationerror" in low and "duration control" in low
+
+
+def _args_without_duration(args: list[str]) -> list[str]:
+    out: list[str] = []
+    skip = False
+    for item in args:
+        if skip:
+            skip = False
+            continue
+        if item == "--duration":
+            skip = True
+            continue
+        out.append(item)
+    return out
 
 
 def _should_fallback_t2v(msg: str) -> bool:
@@ -675,7 +700,11 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
     model = str(body.get("model") or "veo-lite")
     aspect = "9:16" if body.get("aspect") == "9:16" else "16:9"
     duration: int | None = None
-    if str(model).strip().lower() == "omni-flash" and body.get("durationSeconds") is not None:
+    if (
+        OMNI_10S_SUPPORTED
+        and str(model).strip().lower() == "omni-flash"
+        and body.get("durationSeconds") is not None
+    ):
         try:
             duration = max(4, min(int(body.get("durationSeconds") or 8), 10))
         except (TypeError, ValueError):
@@ -716,7 +745,17 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
                 msg = str(err)
                 out = err.output if isinstance(err, GflowRunError) else msg
                 code = err.code if isinstance(err, GflowRunError) else 1
-                if code == WAF_CODE or is_fail_fast(code, out):
+                if "--duration" in args and _is_duration_control_error(f"{msg}\n{out}"):
+                    print(
+                        "[gflow-bridge] gflow no pudo fijar la duración; se usó la duración por defecto de Flow",
+                        flush=True,
+                    )
+                    payload = _run_gflow(
+                        _args_without_duration(args),
+                        video_timeout,
+                        output_dir=str(work),
+                    )
+                elif code == WAF_CODE or is_fail_fast(code, out):
                     if code == WAF_CODE:
                         note_waf()
                     raise

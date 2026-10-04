@@ -72,7 +72,7 @@ function parseHistoriaCreateBody(
   if (topic.length < 4) return { error: "Escribe un tema (mín. 4 caracteres)" };
   const durationSec = Number(body.durationSec ?? 30);
   if (!STICKMAN_DURATIONS.includes(durationSec as (typeof STICKMAN_DURATIONS)[number])) {
-    return { error: "Duración: 10s, 20s, 30s, 1 min, 2 min, 5 min, 8 min o 15 min" };
+    return { error: "Duración: 8s, 16s, 24s, 32s, 1 min, 2 min, 5 min, 8 min o 15 min" };
   }
   const aspect = String(body.aspect ?? "9:16");
   if (!STICKMAN_ASPECTS.includes(aspect as (typeof STICKMAN_ASPECTS)[number])) {

@@ -1,4 +1,5 @@
 import * as fs from "node:fs";
+import { getVideoDuration } from "../../pipeline/utils.js";
 import * as os from "node:os";
 import * as path from "node:path";
 import { GflowCliError, isGflowBridgeUnreachable } from "./errors.js";
@@ -239,8 +240,13 @@ async function bridgeGenerateVideoNow(opts: {
     if (buf.length < 20_000) throw new GflowCliError(`Puente gflow: video demasiado pequeño (${buf.length})`);
     const dest = path.join(os.tmpdir(), `openreels-gflow-bridge-${Date.now()}.mp4`);
     fs.writeFileSync(dest, buf);
+    const probed = getVideoDuration(dest);
     const durationSeconds =
-      typeof duration === "number" ? duration : opts.durationSeconds;
+      probed && probed > 0.4
+        ? probed
+        : typeof duration === "number"
+          ? duration
+          : opts.durationSeconds;
     return { filePath: dest, durationSeconds };
   };
 
