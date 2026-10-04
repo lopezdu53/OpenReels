@@ -6,6 +6,8 @@ import {
   gflowImageCliId,
   gflowImageCredits,
   gflowSupportsDurationFlag,
+  gflowRelayPayloadTtlSeconds,
+  gflowVideoBudgetSeconds,
   gflowVideoCredits,
   pickGflowDuration,
   resolveGflowImageModel,
@@ -68,6 +70,13 @@ describe("gflow catalog", () => {
     expect(gflowCliDuration("veo-lite", 4)).toBeUndefined();
     expect(gflowSupportsDurationFlag("omni-flash")).toBe(true);
     expect(gflowCliDuration("omni-flash", 10)).toBe(10);
+  });
+
+  it("keeps LP video budget at 60+20 min and Redis video TTL at 90 min", () => {
+    expect(gflowVideoBudgetSeconds("veo-lite")).toBe(900 + 240 + 60);
+    expect(gflowVideoBudgetSeconds("veo-lite-lp")).toBe(3600 + 1200 + 60);
+    expect(gflowRelayPayloadTtlSeconds("video")).toBe(5400);
+    expect(gflowRelayPayloadTtlSeconds("image")).toBe(900);
   });
 
   it("prices Flow video credits at 720p x1 and images at 0", () => {

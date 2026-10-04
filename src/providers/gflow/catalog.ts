@@ -36,7 +36,7 @@ export const GFLOW_VIDEO_MODELS = [
   {
     id: "veo-lite-lp",
     label: "Veo 3.1 Lite LP",
-    note: "low-power · 4–8s",
+    note: "Ultra · 0 créditos · cola lenta (hasta ~60 min) · no cierres Chrome · 4–8s",
     durations: [4, 6, 8],
     creditPerSecond: 3,
   },
@@ -99,6 +99,28 @@ export function gflowCliDuration(modelId?: string, wanted?: number): number | un
 }
 
 export const GFLOW_DEFAULT_CLIP_SECONDS = 8;
+export const GFLOW_VIDEO_WAIT_SEC = 900;
+export const GFLOW_VIDEO_WAIT_LP_SEC = 3600;
+export const GFLOW_VIDEO_RECOVER_SEC = 240;
+export const GFLOW_VIDEO_RECOVER_LP_SEC = 1200;
+export const GFLOW_RELAY_VIDEO_TTL_SEC = 5400;
+
+export function isGflowLowerPriority(modelId?: string): boolean {
+  const key = resolveGflowVideoModel(modelId).id;
+  return key === "veo-lite-lp" || key.endsWith("-lp") || key.includes("low-priority");
+}
+
+/** LAN/relay budget so EasyPanel does not abort while Chrome is still on LP. */
+export function gflowVideoBudgetSeconds(modelId?: string): number {
+  if (isGflowLowerPriority(modelId)) {
+    return GFLOW_VIDEO_WAIT_LP_SEC + GFLOW_VIDEO_RECOVER_LP_SEC + 60;
+  }
+  return GFLOW_VIDEO_WAIT_SEC + GFLOW_VIDEO_RECOVER_SEC + 60;
+}
+
+export function gflowRelayPayloadTtlSeconds(kind: "image" | "video"): number {
+  return kind === "video" ? GFLOW_RELAY_VIDEO_TTL_SEC : 900;
+}
 
 export function gflowVideoCredits(opts: {
   modelId: string;

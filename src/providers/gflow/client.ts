@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { bridgeHealth, gflowBridgeUrl } from "./bridge.js";
-import { GflowCliError } from "./errors.js";
+import { GflowCliError, gflowFriendlyExit, isGflowFailFast } from "./errors.js";
 export { GflowCliError } from "./errors.js";
 
 export function gflowBin(): string {
@@ -83,23 +83,26 @@ export async function runGflowJson(args: string[], timeoutMs?: number): Promise<
   }
   if (payload?.["status"] === "fail") {
     const err = (payload["error"] ?? {}) as Record<string, unknown>;
+    const code = Number(err["exit_code"] ?? result.code) || 1;
+    const raw = String(err["detail"] ?? err["title"] ?? payload["error"] ?? "gflow falló");
     throw new GflowCliError(
-      String(err["detail"] ?? err["title"] ?? payload["error"] ?? "gflow falló"),
-      Number(err["exit_code"] ?? result.code) || 1,
-      err["retryable"] === true,
+      isGflowFailFast(code) ? gflowFriendlyExit(code, raw) : raw,
+      code,
+      isGflowFailFast(code) ? false : err["retryable"] === true,
     );
   }
   if (result.code !== 0) {
+    const raw = payload
+      ? String(
+          (payload["error"] as Record<string, unknown> | undefined)?.["detail"] ??
+            result.stderr.slice(0, 240) ??
+            `gflow exit ${result.code}`,
+        )
+      : result.stderr.slice(0, 280) || result.stdout.slice(0, 280) || `gflow exit ${result.code}`;
     throw new GflowCliError(
-        payload
-        ? String(
-            (payload["error"] as Record<string, unknown> | undefined)?.["detail"] ??
-              result.stderr.slice(0, 240) ??
-              `gflow exit ${result.code}`,
-          )
-        : result.stderr.slice(0, 280) || result.stdout.slice(0, 280) || `gflow exit ${result.code}`,
+      isGflowFailFast(result.code) ? gflowFriendlyExit(result.code, raw) : raw,
       result.code,
-      result.code === 11 || result.code === 37 ? false : true,
+      isGflowFailFast(result.code) || result.code === 11 || result.code === 37 ? false : true,
     );
   }
   if (!payload) throw new GflowCliError(`gflow no devolvió JSON: ${result.stdout.slice(0, 240)}`);

@@ -21,6 +21,21 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from gflow_codes import (
+    BROWSER_WINDOW_POSITION,
+    GflowRunError,
+    WAF_CODE,
+    WIRE_DOWNLOAD_CODE,
+    exit_code_from_payload,
+    friendly_exit,
+    is_fail_fast,
+    mark_job_finished,
+    media_ids_from_text,
+    note_waf,
+    pace_between_jobs,
+    raise_if_waf_cooldown,
+    submit_was_observed,
+)
 from profiles import find_gflow, missing_gflow_message
 
 HOST = os.environ.get("GFLOW_BRIDGE_HOST", "0.0.0.0")
@@ -38,6 +53,7 @@ PROJECT = os.environ.get("GFLOW_CLI_PROJECT") or ""
 PROJECT_NAME = os.environ.get("GFLOW_CLI_PROJECT_NAME") or ("OpenReels" if PROJECT else "")
 IMAGE_TIMEOUT = int(os.environ.get("GFLOW_BRIDGE_IMAGE_TIMEOUT", "240"))
 VIDEO_TIMEOUT = int(os.environ.get("GFLOW_BRIDGE_VIDEO_TIMEOUT", "900"))
+VIDEO_TIMEOUT_LP = int(os.environ.get("GFLOW_BRIDGE_VIDEO_TIMEOUT_LP", "3600"))
 QUEUE_WAIT = int(os.environ.get("GFLOW_BRIDGE_QUEUE_WAIT", "1200"))
 MAX_BODY = int(os.environ.get("GFLOW_BRIDGE_MAX_BODY", str(48 * 1024 * 1024)))
 SETTLE_SECONDS = int(os.environ.get("GFLOW_BRIDGE_SETTLE_SECONDS", "8"))
@@ -46,6 +62,13 @@ I2V_FALLBACK_T2V = os.environ.get("GFLOW_I2V_FALLBACK_T2V", "") == "1"
 # Flow keeps it open until "Add to prompt" — the CLI never clicks that button.
 CLICK_ADD_TO_PROMPT = os.environ.get("GFLOW_BRIDGE_CLICK_ADD_TO_PROMPT", "1") != "0"
 RECOVER_SECONDS = int(os.environ.get("GFLOW_BRIDGE_RECOVER_SECONDS", "240"))
+RECOVER_SECONDS_LP = int(os.environ.get("GFLOW_BRIDGE_RECOVER_SECONDS_LP", "1200"))
+_LP_MODELS = {
+    "veo-lite-lp",
+    "veo-3.1-lite-low-priority",
+    "veo-lite-low-priority",
+    "veo-lp",
+}
 STILL_PREFIX = "or-i2v-"
 ADD_TO_PROMPT_NEEDLES = (
     "add to prompt",
@@ -60,6 +83,27 @@ ADD_TO_PROMPT_NEEDLES = (
 LOCK = threading.Lock()
 
 
+def _is_lower_priority(model: str) -> bool:
+    key = str(model or "").strip().lower()
+    return key in _LP_MODELS or key.endswith("-lp") or "low-priority" in key or "lower priority" in key
+
+
+def _video_timeout_for(model: str) -> int:
+    return VIDEO_TIMEOUT_LP if _is_lower_priority(model) else VIDEO_TIMEOUT
+
+
+def _recover_seconds_for(model: str) -> int:
+    return RECOVER_SECONDS_LP if _is_lower_priority(model) else RECOVER_SECONDS
+
+
+def _lock_wait_for(kind: str, body: dict[str, Any] | None = None) -> int:
+    wait = QUEUE_WAIT
+    if kind == "video":
+        model = str((body or {}).get("model") or "")
+        wait = max(QUEUE_WAIT, _video_timeout_for(model))
+    return max(30, wait)
+
+
 def _decode_b64(raw: str | None) -> bytes | None:
     if not raw:
         return None
@@ -68,12 +112,49 @@ def _decode_b64(raw: str | None) -> bytes | None:
     return buf if buf else None
 
 
+def _iter_json_objects(text: str) -> list[dict[str, Any]]:
+    """gflow 0.79 prints JSON logs and the --json result on the same stream."""
+    blobs: list[dict[str, Any]] = []
+    decoder = json.JSONDecoder()
+    i = 0
+    while i < len(text):
+        start = text.find("{", i)
+        if start < 0:
+            break
+        try:
+            obj, end = decoder.raw_decode(text, start)
+        except json.JSONDecodeError:
+            i = start + 1
+            continue
+        if isinstance(obj, dict):
+            blobs.append(obj)
+        i = end
+    return blobs
+
+
+def _is_gflow_log_event(obj: dict[str, Any]) -> bool:
+    event = str(obj.get("event") or "")
+    if not event:
+        return False
+    return "status" not in obj and "local_path" not in obj and "images" not in obj
+
+
+def _is_progress_noise(msg: str) -> bool:
+    """Info logs (browser_engine_selected) are not a terminal Flow error."""
+    low = msg.lower()
+    compact = low.replace(" ", "")
+    return "browser_engine_selected" in low or ('"level":"info"' in compact and "event" in low)
+
+
 def _parse_gflow_json(stdout: str) -> dict[str, Any]:
-    start = stdout.find("{")
-    end = stdout.rfind("}")
-    if start < 0 or end <= start:
+    objs = _iter_json_objects(stdout)
+    if not objs:
         raise RuntimeError(f"gflow no devolvió JSON: {stdout[:240] or '(vacío)'}")
-    return json.loads(stdout[start : end + 1])
+    results = [obj for obj in objs if not _is_gflow_log_event(obj)]
+    for obj in reversed(results or objs):
+        if obj.get("status") in {"ok", "fail"} or obj.get("local_path") or obj.get("images"):
+            return obj
+    return (results or objs)[-1]
 
 
 def _sanitize_prompt(prompt: str) -> str:
@@ -126,8 +207,30 @@ def _should_fallback_t2v(msg: str) -> bool:
     )
 
 
-def _is_submit_miss(msg: str) -> bool:
-    """gflow clicked submit; Flow queued the clip; the observer missed the ACK."""
+def _is_hard_video_fail(msg: str) -> bool:
+    low = msg.lower()
+    return any(
+        n in low
+        for n in (
+            "token inválido",
+            "token invalido",
+            "authexpired",
+            "auth expired",
+            "401",
+            "browserengineunavailable",
+            "no se encontró gflow",
+            "prompt requerido",
+        )
+    )
+
+
+def _is_submit_miss(msg: str, output: str = "") -> bool:
+    """Only a miss if Flow actually accepted the submit (migrated.submit_observed)."""
+    blob = f"{output}\n{msg}"
+    if is_fail_fast(0, blob):
+        return False
+    if not submit_was_observed(blob):
+        return False
     low = msg.lower()
     if "frame picker" in low:
         return False
@@ -142,8 +245,22 @@ def _is_submit_miss(msg: str) -> bool:
             "not terminal within",
             "gflow timeout",
             "no escribió el mp4",
+            "gflow exit",
+            "no result json",
         )
     )
+
+
+def _should_wait_for_clip(msg: str, model: str, mode: str, output: str = "") -> bool:
+    """Wait for mp4 only when submit was observed. Crash-before-submit is not a miss."""
+    blob = f"{output}\n{msg}"
+    if is_fail_fast(0, blob) or _is_hard_video_fail(msg):
+        return False
+    if not submit_was_observed(blob):
+        return False
+    if _is_lower_priority(model):
+        return True
+    return mode == "i2v" and _is_submit_miss(msg, blob)
 
 
 def _unique_still_name() -> str:
@@ -330,6 +447,8 @@ def _run_gflow(args: list[str], timeout: int, output_dir: str | None = None) -> 
     env["NO_COLOR"] = "1"
     env["FORCE_COLOR"] = "0"
     env.setdefault("GFLOW_CLI_FLOW_HOST", "auto")
+    # Documented in gflow-cli .env.template: X,Y. Default parks headed Chrome off-screen.
+    env.setdefault("GFLOW_CLI_BROWSER_WINDOW_POSITION", BROWSER_WINDOW_POSITION)
     env["GFLOW_CLI_TIMEOUT_SECONDS"] = str(max(timeout, 600))
     if output_dir:
         env["GFLOW_CLI_OUTPUT_DIR"] = output_dir
@@ -349,21 +468,38 @@ def _run_gflow(args: list[str], timeout: int, output_dir: str | None = None) -> 
     except FileNotFoundError as err:
         raise RuntimeError(missing_gflow_message()) from err
     except subprocess.TimeoutExpired as err:
-        raise RuntimeError(
+        raise GflowRunError(
             f"TransportTimeoutError — gflow timeout {timeout}s (not terminal within). "
-            "Flow puede seguir renderizando el clip de 8s."
+            "Flow puede seguir renderizando el clip de 8s.",
+            code=9,
+            output=str(getattr(err, "stdout", "") or "") + str(getattr(err, "stderr", "") or ""),
         ) from err
+    combined = f"{proc.stdout or ''}\n{proc.stderr or ''}"
     payload: dict[str, Any] | None = None
     try:
-        payload = _parse_gflow_json(proc.stdout or "")
+        payload = _parse_gflow_json(combined)
     except Exception:
         payload = None
+    if payload and _is_gflow_log_event(payload):
+        payload = None
     if (payload and payload.get("status") == "fail") or proc.returncode != 0:
-        msg = _gflow_fail_message(payload, proc.stdout or "", proc.stderr or "", proc.returncode)
+        code = exit_code_from_payload(payload, proc.returncode)
+        msg = _gflow_fail_message(payload, proc.stdout or "", proc.stderr or "", code)
+        if is_fail_fast(code, combined):
+            msg = friendly_exit(code, msg)
+        elif not msg.strip() or _is_progress_noise(msg):
+            msg = (
+                f"gflow exit {proc.returncode} after progress log (no result JSON). "
+                "Flow puede seguir en cola Lower Priority."
+            )
         print(f"[gflow-bridge] gflow fail: {msg}", flush=True)
-        raise RuntimeError(msg)
+        raise GflowRunError(msg, code=code, output=combined, payload=payload)
     if not payload:
-        raise RuntimeError(f"gflow no devolvió JSON: {(proc.stdout or '')[:240]}")
+        raise GflowRunError(
+            f"gflow no devolvió JSON: {(proc.stdout or '')[:240]}",
+            code=proc.returncode or 1,
+            output=combined,
+        )
     return payload
 
 
@@ -442,9 +578,35 @@ def _wait_for_clip(dest: Path, since: float, seconds: int) -> Path | None:
         time.sleep(4)
 
 
-def _recover_generated_mp4(dest: Path, since: float) -> Path | None:
-    print(f"[gflow-bridge] esperando hasta {RECOVER_SECONDS}s a que Flow termine el clip de 8s (no se sube la siguiente still)", flush=True)
-    found = _wait_for_clip(dest, since, RECOVER_SECONDS)
+def _try_data_download(output: str, dest: Path) -> Path | None:
+    """Exit 7: clip may already be charged — pull it with `gflow data download` (video only)."""
+    ids = media_ids_from_text(output)
+    if not ids:
+        return None
+    for media_id in ids[:3]:
+        print(f"[gflow-bridge] exit 7: gflow data download {media_id}", flush=True)
+        try:
+            payload = _run_gflow(["data", "download", media_id, "-o", str(dest)], 180)
+        except Exception as err:
+            print(f"[gflow-bridge] data download {media_id}: {err}", flush=True)
+            continue
+        local = dest if dest.exists() and dest.stat().st_size > 20_000 else None
+        if local is None and isinstance(payload.get("local_path"), str):
+            p = Path(str(payload["local_path"]))
+            if p.exists() and p.stat().st_size > 20_000:
+                local = p
+        if local is not None:
+            return local
+    return None
+
+
+def _recover_generated_mp4(dest: Path, since: float, seconds: int | None = None) -> Path | None:
+    wait = RECOVER_SECONDS if seconds is None else max(0, int(seconds))
+    print(
+        f"[gflow-bridge] esperando hasta {wait}s a que Flow termine el clip (no se sube la siguiente still)",
+        flush=True,
+    )
+    found = _wait_for_clip(dest, since, wait)
     if found is not None:
         return found
     print("[gflow-bridge] no mp4 in this I2V work dir (not scanning Lab/Videos/catalog)", flush=True)
@@ -466,6 +628,8 @@ def generate_image(body: dict[str, Any]) -> dict[str, Any]:
     dest = work / "out.png"
     ref_path = None
     try:
+        raise_if_waf_cooldown()
+        pace_between_jobs()
         args = ["image"]
         if ref and len(ref) > 80:
             ref_path = work / "ref.png"
@@ -474,7 +638,14 @@ def generate_image(body: dict[str, Any]) -> dict[str, Any]:
         else:
             args += ["t2i", full]
         args += ["--model", model, "--aspect", aspect, "-o", str(dest)]
-        payload = _run_gflow(args, IMAGE_TIMEOUT)
+        try:
+            payload = _run_gflow(args, IMAGE_TIMEOUT)
+        except GflowRunError as err:
+            if err.code == WAF_CODE or is_fail_fast(err.code, err.output):
+                if err.code == WAF_CODE or is_fail_fast(10, err.output):
+                    note_waf()
+                raise
+            raise
         local = dest if dest.exists() else None
         if local is None:
             images = payload.get("images")
@@ -489,6 +660,7 @@ def generate_image(body: dict[str, Any]) -> dict[str, Any]:
             raise RuntimeError(f"gflow image too small ({len(data)} bytes)")
         return {"ok": True, "kind": "image", "png": base64.b64encode(data).decode("ascii"), "bytes": len(data)}
     finally:
+        mark_job_finished()
         shutil.rmtree(work, ignore_errors=True)
 
 
@@ -509,6 +681,8 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
         except (TypeError, ValueError):
             duration = 8
     reported = duration if duration is not None else 8
+    video_timeout = _video_timeout_for(model)
+    recover_s = _recover_seconds_for(model)
     work = Path(tempfile.mkdtemp(prefix="gflow-bridge-vid-"))
     dest = work / "out.mp4"
     still_path = work / _unique_still_name()
@@ -525,55 +699,101 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
             still_path=str(still_path) if mode == "i2v" else None,
         )
         started = time.time()
+        raise_if_waf_cooldown()
+        pace_between_jobs()
+        if _is_lower_priority(model):
+            print(
+                f"[gflow-bridge] Lower Priority Veo: Chrome se queda abierto hasta {video_timeout}s "
+                f"(+{recover_s}s si Flow sigue en cola)",
+                flush=True,
+            )
         if mode == "i2v":
             _dismiss_stale_frame_picker()
         with PickerConfirmWatch(still_path.name, enabled=mode == "i2v"):
             try:
-                payload = _run_gflow(args, VIDEO_TIMEOUT, output_dir=str(work))
+                payload = _run_gflow(args, video_timeout, output_dir=str(work))
             except Exception as err:
                 msg = str(err)
-                recovered = _recover_generated_mp4(dest, started) if mode == "i2v" and _is_submit_miss(msg) else None
-                if recovered is not None:
-                    payload = {"status": "ok", "local_path": str(recovered)}
-                elif mode != "i2v" or not _should_fallback_t2v(msg):
+                out = err.output if isinstance(err, GflowRunError) else msg
+                code = err.code if isinstance(err, GflowRunError) else 1
+                if code == WAF_CODE or is_fail_fast(code, out):
+                    if code == WAF_CODE:
+                        note_waf()
                     raise
+                if code == WIRE_DOWNLOAD_CODE:
+                    pulled = _try_data_download(out, dest)
+                    if pulled is not None:
+                        payload = {"status": "ok", "local_path": str(pulled)}
+                    else:
+                        raise
                 else:
-                    print(f"[gflow-bridge] I2V picker stuck; wait {SETTLE_SECONDS}s and retry I2V: {err}", flush=True)
-                    _dismiss_stale_frame_picker()
-                    if SETTLE_SECONDS > 0:
-                        time.sleep(SETTLE_SECONDS)
-                    try:
-                        payload = _run_gflow(args, VIDEO_TIMEOUT, output_dir=str(work))
-                    except Exception as err2:
-                        miss2 = str(err2)
-                        recovered2 = _recover_generated_mp4(dest, started) if _is_submit_miss(miss2) else None
-                        if recovered2 is not None:
-                            payload = {"status": "ok", "local_path": str(recovered2)}
-                        elif not I2V_FALLBACK_T2V:
-                            raise
-                        else:
-                            print(f"[gflow-bridge] I2V retry failed; t2v fallback (credits): {err2}", flush=True)
-                            payload = _run_gflow(
-                                _video_cli_args(
-                                    mode="t2v",
-                                    prompt=prompt,
-                                    model=model,
-                                    duration=duration,
-                                    aspect=aspect,
-                                    dest=str(dest),
-                                    still_path=None,
-                                ),
-                                VIDEO_TIMEOUT,
-                                output_dir=str(work),
-                            )
+                    recovered = (
+                        _recover_generated_mp4(dest, started, recover_s)
+                        if _should_wait_for_clip(msg, model, mode, out)
+                        else None
+                    )
+                    if recovered is not None:
+                        payload = {"status": "ok", "local_path": str(recovered)}
+                    elif mode != "i2v" or not _should_fallback_t2v(msg) or is_fail_fast(code, out):
+                        raise
+                    else:
+                        print(f"[gflow-bridge] I2V picker stuck; wait {SETTLE_SECONDS}s and retry I2V: {err}", flush=True)
+                        _dismiss_stale_frame_picker()
+                        if SETTLE_SECONDS > 0:
+                            time.sleep(SETTLE_SECONDS)
+                        try:
+                            payload = _run_gflow(args, video_timeout, output_dir=str(work))
+                        except Exception as err2:
+                            miss2 = str(err2)
+                            out2 = err2.output if isinstance(err2, GflowRunError) else miss2
+                            code2 = err2.code if isinstance(err2, GflowRunError) else 1
+                            if code2 == WAF_CODE or is_fail_fast(code2, out2):
+                                if code2 == WAF_CODE:
+                                    note_waf()
+                                raise
+                            if code2 == WIRE_DOWNLOAD_CODE:
+                                pulled2 = _try_data_download(out2, dest)
+                                if pulled2 is not None:
+                                    payload = {"status": "ok", "local_path": str(pulled2)}
+                                else:
+                                    raise
+                            else:
+                                recovered2 = (
+                                    _recover_generated_mp4(dest, started, recover_s)
+                                    if _should_wait_for_clip(miss2, model, mode, out2)
+                                    else None
+                                )
+                                if recovered2 is not None:
+                                    payload = {"status": "ok", "local_path": str(recovered2)}
+                                elif not I2V_FALLBACK_T2V:
+                                    raise
+                                else:
+                                    print(f"[gflow-bridge] I2V retry failed; t2v fallback (credits): {err2}", flush=True)
+                                    payload = _run_gflow(
+                                        _video_cli_args(
+                                            mode="t2v",
+                                            prompt=prompt,
+                                            model=model,
+                                            duration=duration,
+                                            aspect=aspect,
+                                            dest=str(dest),
+                                            still_path=None,
+                                        ),
+                                        video_timeout,
+                                        output_dir=str(work),
+                                    )
         local = dest if dest.exists() and dest.stat().st_size > 20_000 else None
         if local is None and isinstance(payload.get("local_path"), str):
             p = Path(str(payload["local_path"]))
             if p.exists() and p.stat().st_size > 20_000:
                 local = p
-        if local is None and mode == "i2v":
-            print("[gflow-bridge] I2V: gflow volvió sin mp4; espero el clip de 8s. No subo la siguiente still.", flush=True)
-            waited = _wait_for_clip(dest, started, RECOVER_SECONDS)
+        if local is None and (mode == "i2v" or _is_lower_priority(model)):
+            print(
+                "[gflow-bridge] gflow volvió sin mp4; espero el clip (Lower Priority no corta a 1 min). "
+                "No subo la siguiente still.",
+                flush=True,
+            )
+            waited = _wait_for_clip(dest, started, recover_s)
             if waited is not None:
                 local = waited
         if local is None:
@@ -589,6 +809,7 @@ def generate_video(body: dict[str, Any]) -> dict[str, Any]:
             "durationSeconds": reported,
         }
     finally:
+        mark_job_finished()
         if mode == "i2v" and SETTLE_SECONDS > 0:
             time.sleep(SETTLE_SECONDS)
         shutil.rmtree(work, ignore_errors=True)
@@ -683,7 +904,7 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(body, dict):
             self._json(400, {"ok": False, "error": "JSON inválido"})
             return
-        if not LOCK.acquire(timeout=max(30, QUEUE_WAIT)):
+        if not LOCK.acquire(timeout=_lock_wait_for("image" if path == "/v1/image" else "video", body)):
             self._json(429, {"ok": False, "error": "gflow ocupado (un Chrome, una generación a la vez)"})
             return
         try:
@@ -693,6 +914,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json(400, {"ok": False, "error": str(err)})
         except subprocess.TimeoutExpired:
             self._json(504, {"ok": False, "error": "gflow timeout"})
+        except GflowRunError as err:
+            code = 422 if is_fail_fast(err.code, err.output) else 500
+            self._json(code, {"ok": False, "error": str(err)[:500], "exitCode": err.code})
         except Exception as err:
             self._json(500, {"ok": False, "error": str(err)[:500]})
         finally:
@@ -738,7 +962,7 @@ def apply_settings(
 def run_kind(kind: str, body: dict[str, Any]) -> dict[str, Any]:
     if kind not in {"image", "video"}:
         raise ValueError(f"kind inválido: {kind}")
-    if not LOCK.acquire(timeout=max(30, QUEUE_WAIT)):
+    if not LOCK.acquire(timeout=_lock_wait_for(kind, body)):
         raise RuntimeError("gflow ocupado (un Chrome, una generación a la vez)")
     try:
         return generate_image(body) if kind == "image" else generate_video(body)

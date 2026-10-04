@@ -1,0 +1,3 @@
+{"engine":"playwright","event":"browser_engine_selected","cli_version":"0.82.1","level":"info","command":"video i2v"}
+{"event":"migrated.submit_observed","level":"info","media_id":"d54717be-e35b-49d3-920f-009e4ef71b22"}
+{"status":"fail","command":"video i2v","error":{"class":"WireFormatError","title":"download failed","detail":"signed URL missing after charge","exit_code":7,"retryable":true,"media_id":"d54717be-e35b-49d3-920f-009e4ef71b22"}}

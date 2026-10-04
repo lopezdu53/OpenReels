@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import socket
+import uuid
 from pathlib import Path
 
 APP_DIR = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming") / "OpenReelsPuente"
@@ -26,6 +28,8 @@ def default_config() -> dict:
         "gflowProfile": "",
         "gflowBin": "",
         "geometry": DEFAULT_SIZE,
+        "bridgeId": "",
+        "bridgeName": "",
     }
 
 
@@ -39,6 +43,18 @@ def load_config() -> dict:
                 cfg.update(stored)
         except Exception:
             pass
+    dirty = False
+    if not str(cfg.get("bridgeId") or "").strip():
+        cfg["bridgeId"] = str(uuid.uuid4())
+        dirty = True
+    if not str(cfg.get("bridgeName") or "").strip():
+        cfg["bridgeName"] = socket.gethostname() or "Windows"
+        dirty = True
+    if dirty:
+        try:
+            save_config(cfg)
+        except Exception:
+            pass
     return cfg
 
 
@@ -49,9 +65,24 @@ def save_config(cfg: dict) -> None:
 
 def classify_log(line: str) -> str:
     text = line.lower()
-    if any(w in text for w in ("error", "fail", "falló", "fallo", "401", "crash", "traceback", "inválido")):
+    if any(
+        w in text
+        for w in (
+            "error",
+            "fail",
+            "falló",
+            "fallo",
+            "401",
+            "crash",
+            "traceback",
+            "inválido",
+            "actividad inusual",
+            "wafrejection",
+            "exit 10",
+        )
+    ):
         return "err"
-    if any(w in text for w in ("i2v", "veo", "clip de 8", "esperando")):
+    if any(w in text for w in ("i2v", "veo", "clip de 8", "esperando", "lower priority")):
         return "i2v"
     if any(w in text for w in ("warn", "aviso", "404", "sin mp4", "no se guardó")):
         return "warn"

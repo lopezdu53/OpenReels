@@ -3,6 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { GflowCliError, isGflowBridgeUnreachable } from "./errors.js";
 import { enqueueGflow } from "./queue.js";
+import { gflowVideoBudgetSeconds } from "./catalog.js";
 import {
   enqueueBridgeJob,
   gflowRelayEnabled,
@@ -248,7 +249,7 @@ async function bridgeGenerateVideoNow(opts: {
       const res = await bridgeFetch(
         "/v1/video",
         { method: "POST", body: JSON.stringify(body) },
-        960_000,
+        gflowVideoBudgetSeconds(opts.model) * 1000,
       );
       const payload = await readBridgeJson(res);
       return writeMp4(payload["mp4"], payload["durationSeconds"]);
@@ -267,6 +268,6 @@ async function bridgeGenerateVideoNow(opts: {
   if (!gflowRelayEnabled()) {
     throw new GflowCliError("Falta GFLOW_BRIDGE_URL o GFLOW_BRIDGE_TOKEN para el puente remoto", 1, true);
   }
-  const payload = await viaRelay("video", body, 960);
+  const payload = await viaRelay("video", body, gflowVideoBudgetSeconds(opts.model));
   return writeMp4(payload.mp4, payload.durationSeconds);
 }
