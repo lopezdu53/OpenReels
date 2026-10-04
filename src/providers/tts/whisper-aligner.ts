@@ -3,14 +3,21 @@ import type { WordTimestamp } from "../../schema/providers.js";
 
 type TranscriberPipeline = (
   audio: Float32Array,
-  opts: { return_timestamps: "word"; chunk_length_s: number; stride_length_s: number },
+  opts: {
+    return_timestamps: "word";
+    chunk_length_s: number;
+    stride_length_s: number;
+    language?: string;
+  },
 ) => Promise<{ chunks: { text: string; timestamp: [number, number] }[] }>;
 
 /**
  * Extracts word-level timestamps from audio using Whisper forced alignment.
  *
  * Lazy-loads the Whisper model on first call and caches the pipeline instance.
- * Uses whisper-small.en_timestamped for best accuracy (98.9% coverage in staging tests).
+ * Uses whisper-small_timestamped (multilingual + cross-attentions).
+ * Plain `whisper-small` ONNX is not exported with output_attentions, so
+ * `return_timestamps: "word"` throws and kills Kokoro/Gemini TTS jobs.
  *
  *   audio (WAV/PCM) ──► resample 16kHz ──► Whisper ASR ──► raw words
  *                                                              │
@@ -19,7 +26,8 @@ type TranscriberPipeline = (
  *                                                        WordTimestamp[]
  */
 export class WhisperAligner {
-  private static MODEL_ID = "onnx-community/whisper-small.en_timestamped";
+  /** Multilingual small model exported with cross-attentions for word timestamps. */
+  static readonly MODEL_ID = "onnx-community/whisper-small_timestamped";
   private transcriber: TranscriberPipeline | null = null;
   private loadingPromise: Promise<TranscriberPipeline> | null = null;
 
@@ -58,12 +66,26 @@ export class WhisperAligner {
     // Derive actual audio duration from the resampled float32 (always 16kHz after conversion).
     const audioDurationSeconds = float32.length / 16000;
     const transcriber = await this.getTranscriber();
+    const language = detectWhisperLanguage(text);
 
-    const result = await transcriber(float32, {
-      return_timestamps: "word",
-      chunk_length_s: 30,
-      stride_length_s: 5,
-    });
+    let result: { chunks: { text: string; timestamp: [number, number] }[] };
+    try {
+      result = await transcriber(float32, {
+        return_timestamps: "word",
+        chunk_length_s: 30,
+        stride_length_s: 5,
+        ...(language ? { language } : {}),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("cross attentions") || msg.includes("output_attentions")) {
+        console.warn(
+          `[whisper-aligner] ${msg} Falling back to duration-based caption timestamps.`,
+        );
+        return estimateTimestampsFromDuration(text, audioDurationSeconds);
+      }
+      throw err;
+    }
 
     const whisperWords: WordTimestamp[] = (result.chunks ?? []).map((c) => ({
       word: c.text.trim(),
@@ -108,7 +130,12 @@ export class WhisperAligner {
    * for missed words.
    */
   alignToTranscript(text: string, hyp: WordTimestamp[]): WordTimestamp[] {
-    const norm = (w: string) => w.toLowerCase().replace(/[^a-z0-9']/g, "");
+    const norm = (w: string) =>
+      w
+        .normalize("NFD")
+        .replace(/\p{M}/gu, "")
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}']/gu, "");
     const refWords = text.split(/\s+/).filter((w) => norm(w).length > 0);
     const result: WordTimestamp[] = [];
     let hi = 0;
@@ -161,4 +188,23 @@ export class WhisperAligner {
 
     return new Float32Array(samples);
   }
+}
+
+function detectWhisperLanguage(text: string): string | undefined {
+  if (/[áéíóúñü¿¡]/i.test(text)) return "spanish";
+  return undefined;
+}
+
+function estimateTimestampsFromDuration(text: string, durationSeconds: number): WordTimestamp[] {
+  const words = text.split(/\s+/).filter((w) => w.length > 0);
+  if (words.length === 0) return [];
+  const totalChars = words.reduce((sum, w) => sum + Math.max(1, w.length), 0);
+  const span = Math.max(durationSeconds, words.length * 0.12);
+  let t = 0;
+  return words.map((word) => {
+    const dur = span * (Math.max(1, word.length) / totalChars);
+    const start = t;
+    t += dur;
+    return { word, start, end: t };
+  });
 }

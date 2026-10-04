@@ -114,4 +114,29 @@ describe("CLIOptions type", () => {
     };
     expect(opts.pacing).toBeUndefined();
   });
+
+  it("accepts vivi and alicloud as LLM providers", () => {
+    const opts: CLIOptions = {
+      topic: "test",
+      provider: "vivi",
+      imageProvider: "alicloud",
+      ttsProvider: "elevenlabs",
+      videoProvider: "vidu",
+      platform: "youtube",
+      dryRun: false,
+      preview: false,
+      output: "./output",
+      yes: false,
+      musicProvider: "bundled",
+      noMusic: false,
+      stockVerify: true,
+      stockConfidence: 0.6,
+      stockMaxAttempts: 4,
+      noVideo: false,
+      usage: false,
+    };
+    expect(opts.provider).toBe("vivi");
+    expect(opts.imageProvider).toBe("alicloud");
+    expect(opts.videoProvider).toBe("vidu");
+  });
 });

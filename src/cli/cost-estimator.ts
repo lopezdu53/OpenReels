@@ -7,6 +7,14 @@ import type {
   TTSProviderKey,
   VideoProviderKey,
 } from "../schema/providers.js";
+import { sharpiiImageUsd, sharpiiVideoPerSecondUsd } from "../providers/sharpii/catalog.js";
+import {
+  ATLAS_TTS_PER_1K_CHARS,
+  atlasImageUsd,
+  atlasLlmPricing,
+  atlasLipSyncPerSecondUsd,
+  atlasVideoPerSecondUsd,
+} from "../providers/atlas/catalog.js";
 
 export interface CostBreakdown {
   llmCost: number;
@@ -64,6 +72,11 @@ const LLM_PRICING = {
     perInputToken: 0.1 / 1_000_000, // $0.10 per 1M input tokens (Gemini 2.5 Flash)
     perOutputToken: 0.4 / 1_000_000, // $0.40 per 1M output tokens (Gemini 2.5 Flash)
   },
+  grok: {
+    perInputToken: 3 / 1_000_000, // $3 per 1M input tokens (Grok 4)
+    perOutputToken: 15 / 1_000_000, // $15 per 1M output tokens
+  },
+  atlas: atlasLlmPricing(),
 };
 
 const PRICING = {
@@ -73,7 +86,8 @@ const PRICING = {
     kokoro: 0, // Free — local inference
     "gemini-tts": 0.00002, // ~$0.02/1K chars (Gemini 2.5 Flash TTS: $0.50/1M text in + $10/1M audio out, ~2 audio tokens per char)
     "openai-tts": 0.00005, // ~$0.05 per 1K chars (gpt-4o-mini-tts: $0.60/1M text tokens in + $12/1M audio tokens out)
-    "grok-tts": 0.00005, // ~$0.05 per 1K chars (estimate)
+    "grok-tts": 0.000015, // $15 per 1M chars (x.ai/voice/text-to-speech)
+    "atlas-tts": ATLAS_TTS_PER_1K_CHARS / 1000, // $0.015 per 1K chars (xai/tts-v1)
   } satisfies Record<TTSProviderKey, number>,
   // Gemini 3.1 Flash Image Preview: $60/M output tokens
   // 1080x1920 (>1024px, <=2048px) = 1680 tokens = $0.101/image
@@ -82,12 +96,32 @@ const PRICING = {
   // GPT Image 1.5 (high quality, 1024x1536): $0.167/image
   // Source: platform.openai.com/docs/pricing — high quality portrait
   openaiPerImage: 0.167,
+  grokPerImage: 0.04, // grok-imagine-image-2.0 ~$0.04/img
   // Video generation pricing (per second of generated video)
   veoLitePerSecond: 0.05, // Veo 3.1 Lite ($0.30 for 6s clip)
   falKlingPerSecond: 0.07, // Kling v2.6 Pro via fal.ai ($0.35 for 5s clip)
+  grokImaginePerSecond: 0.08, // grok-imagine-video-1.5 from $0.08/sec
   // Music generation pricing
   lyriaPerTrack: 0.08, // Lyria 3 Pro: $0.08 per song (ai.google.dev/gemini-api/docs/music-generation)
 };
+
+function perImageCost(imageProvider: ImageProviderKey): number {
+  if (imageProvider === "openai") return PRICING.openaiPerImage;
+  if (imageProvider === "grok") return PRICING.grokPerImage;
+  if (imageProvider === "runpod") return 0.0025;
+  if (imageProvider === "sharpii") return sharpiiImageUsd();
+  if (imageProvider === "atlas") return atlasImageUsd();
+  return PRICING.geminiPerImage;
+}
+
+function videoPerSecondCost(videoProvider?: VideoProviderKey): number {
+  if (videoProvider === "fal") return PRICING.falKlingPerSecond;
+  if (videoProvider === "grok") return PRICING.grokImaginePerSecond;
+  if (videoProvider === "runpod") return 0.02;
+  if (videoProvider === "sharpii") return sharpiiVideoPerSecondUsd();
+  if (videoProvider === "atlas") return atlasVideoPerSecondUsd() + atlasLipSyncPerSecondUsd();
+  return PRICING.veoLitePerSecond;
+}
 
 // Per-call-type token estimates for pre-run cost prediction
 const TOKEN_ESTIMATES = {
@@ -138,12 +172,11 @@ export function estimateCost(
     revisionRounds * callCost(TOKEN_ESTIMATES.creativeDirector);
   const ttsPerChar = PRICING.ttsPerChar[ttsProvider];
   const ttsCost = ttsCharacters * ttsPerChar;
-  const perImage = imageProvider === "openai" ? PRICING.openaiPerImage : PRICING.geminiPerImage;
+  const perImage = perImageCost(imageProvider);
   const imageCost = aiImages * perImage;
 
   // Video generation cost: ~6 seconds per clip at provider rate
-  const videoPerSecond =
-    videoProvider === "fal" ? PRICING.falKlingPerSecond : PRICING.veoLitePerSecond;
+  const videoPerSecond = videoPerSecondCost(videoProvider);
   const videoCost = aiVideoScenes * 6 * videoPerSecond;
 
   // Music generation cost: Lyria $0.08/track + ~1 LLM call for prompter
@@ -199,7 +232,7 @@ export function formatCostEstimate(
   imageProvider: ImageProviderKey = "gemini",
   stockSceneCount?: number,
 ): string {
-  const perImage = imageProvider === "openai" ? PRICING.openaiPerImage : PRICING.geminiPerImage;
+  const perImage = perImageCost(imageProvider);
   const lines = [
     `Estimated cost: $${breakdown.totalCost.toFixed(3)}`,
     `  LLM:    $${breakdown.llmCost.toFixed(4)} (${breakdown.details.llmCalls} calls)`,
@@ -263,10 +296,9 @@ export function computeActualLLMCost(
   const llmCost = totalInputTokens * p.perInputToken + totalOutputTokens * p.perOutputToken;
   const ttsPerChar = PRICING.ttsPerChar[ttsProvider];
   const ttsCost = nonLlm.ttsCharacters * ttsPerChar;
-  const perImage = imageProvider === "openai" ? PRICING.openaiPerImage : PRICING.geminiPerImage;
+  const perImage = perImageCost(imageProvider);
   const imageCost = nonLlm.aiImages * perImage;
-  const videoPerSecond =
-    videoProvider === "fal" ? PRICING.falKlingPerSecond : PRICING.veoLitePerSecond;
+  const videoPerSecond = videoPerSecondCost(videoProvider);
   const aiVideos = nonLlm.aiVideos ?? 0;
   const videoCost = aiVideos * 6 * videoPerSecond;
   const musicCost = nonLlm.musicGenerated && musicProvider === "lyria" ? PRICING.lyriaPerTrack : 0;

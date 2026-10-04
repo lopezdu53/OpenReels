@@ -179,7 +179,20 @@ The critic evaluates each Short across 7 dimensions using this concrete rubric. 
 - **7-8**: Matches content type from CTA Pattern Library.
 - **9-10**: Creates urgency and matches psychology triggers.
 
+### Identity Lock (Weight: hard cap, not a soft 10%)
+- **1-3**: Species/markings change across scenes, or a human replaces an animal hero.
+- **4-6**: Lock mentioned but some prompts omit coat/eyes/species.
+- **7-8**: Every AI prompt restates the locked individual.
+- **9-10**: Same individual, same markings, supporting characters stay the same species.
+
+If a character lock exists and any AI scene drops it or swaps species, overall score MUST be <= 6.
+
+### Long-form / Film (youtube_horizontal)
+Do not apply the Short 210-265 word budget or the 15-word hook cap. Target ~150 words/minute. CTA 20-40 words is correct. Prompts must request 16:9 landscape. A locked producer script is the word budget.
+
 ### Scoring Formula
 Overall score = round(Hook*0.20 + Arc*0.20 + Pacing*0.15 + Variety*0.15 + Sync*0.10 + Style*0.10 + CTA*0.10)
+
+Then apply Identity / Slideshow / Production hard caps.
 
 Pass threshold: 7

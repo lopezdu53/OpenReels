@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process";
 import * as readline from "node:readline";
+import type { LanguageModel } from "ai";
 import type { ActualCostBreakdown, CostBreakdown } from "../cli/cost-estimator.js";
 import type { DirectorScore } from "../schema/director-score.js";
-import type { LanguageModel } from "ai";
 import type {
   ImageProvider,
   ImageProviderKey,
@@ -34,7 +34,11 @@ export interface PipelineCallbacks {
   onStageSkip?(stage: StageName, reason: string): void;
   onStageError?(stage: StageName, error: string): void;
   onProgress?(stage: StageName, data: Record<string, unknown>): void;
-  onCostEstimate?(estimate: CostBreakdown, imageProvider: ImageProviderKey, stockSceneCount?: number): Promise<boolean>;
+  onCostEstimate?(
+    estimate: CostBreakdown,
+    imageProvider: ImageProviderKey,
+    stockSceneCount?: number,
+  ): Promise<boolean>;
   onActualCost?(cost: ActualCostBreakdown): void;
   onLog?(message: string): void;
   /** Called once the run directory is created, before any stage runs. */
@@ -67,8 +71,15 @@ export interface PipelineOptions {
   verifyModel?: LanguageModel;
   videoProviders?: VideoProvider[];
   videoProvider?: VideoProviderKey;
+  gflowVideoMode?: string;
   noVideo?: boolean;
   noSubtitles?: boolean;
+  /** Skip Atlas/TTS narration; keep I2V bed audio (Stickman mute). */
+  muteCharacter?: boolean;
+  /** I2V / scene video bed volume 0–1. Undefined keeps clips muted (Shorts). */
+  videoVolume?: number;
+  /** Voiceover volume 0–1. */
+  ttsVolume?: number;
   allowedVisualTypes?: string[];
   direction?: string;
   replayScore?: DirectorScore;
@@ -76,10 +87,26 @@ export interface PipelineOptions {
   videoSceneMode?: string;
   /** Image used as a global style reference — every scene's AI image generation is conditioned on it. */
   styleReferenceImage?: Buffer;
-  /** Atelier chain-of-reference mode: scene 1's generated image becomes the reference for all subsequent scenes. */
+  /** Approved character model sheet — preferred identity anchor for every still. */
+  characterReferenceImage?: Buffer;
+  /** Atelier chain-of-reference. Default ON unless explicitly false. */
   atelierMode?: boolean;
   /** Overrides archetype.artStyle in the image-prompter style bible. */
   artStyleOverride?: string;
+  /** Locked character appearance injected into every AI visual prompt. */
+  characterLock?: string;
+  /** Nuevo Film look catalog id (clay, anime, 3d-toon…). Ignored on Shorts. */
+  lookId?: string;
+  /** Nuevo Film narrative arc id (joke_punchline, origin…). Ignored on Shorts. */
+  narrativeArc?: string;
+  /** scene = only who the VO names; hero = follow-cam: first CAST member is the optical axis of one continuous take. */
+  castMode?: string;
+  /** Locked location roster; each scene uses exactly one named place. */
+  locationLock?: string;
+  /** Named props; may appear together when the scene needs them. */
+  objectLock?: string;
+  /** Approved location bible board — per-scene when the roster has 2–3 places. */
+  locationReferenceImage?: Buffer;
 }
 
 export interface PipelineResult {
@@ -98,7 +125,10 @@ export function shouldSkipPreview(): boolean {
   return !process.stdin.isTTY;
 }
 
-export function splitWordsIntoScenes(score: DirectorScore, allWords: WordTimestamp[]): WordTimestamp[][] {
+export function splitWordsIntoScenes(
+  score: DirectorScore,
+  allWords: WordTimestamp[],
+): WordTimestamp[][] {
   // Split word timestamps into per-scene groups for duration calculation.
   // Uses ReelMistri's proportional scaling approach to handle ElevenLabs
   // text normalization (numbers/abbreviations expand into different word counts).

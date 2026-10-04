@@ -30,10 +30,10 @@ export class GeminiImage implements ImageProvider {
   async generate(prompt: string, style?: string, referenceImage?: Buffer, aspectRatio?: string): Promise<Buffer> {
     const isLandscape = aspectRatio === "16:9";
     const orientationHint = isLandscape
-      ? "WIDE HORIZONTAL LANDSCAPE image ONLY. 16:9 widescreen aspect ratio, wider than tall. CRITICAL: Do NOT generate portrait or vertical orientation. Compose as a cinematic widescreen scene filling the full horizontal frame. 1920x1080 pixels"
+      ? "WIDE HORIZONTAL LANDSCAPE image ONLY. 16:9 widescreen aspect ratio, wider than tall. CRITICAL: Do NOT generate portrait or vertical orientation. Fill the full 1920x1080 frame edge to edge. No black bars, no letterboxing."
       : "Vertical 9:16 aspect ratio, 1080x1920 pixels";
     const styleRefHint = referenceImage
-      ? " Match the art style, color palette, lighting and overall visual mood of the reference image exactly — render this new scene as if it belongs to the same set of images."
+      ? " Keep the SAME individual as the reference: same species, markings, age and face. Match art style, palette and lighting. Do not morph into a similar animal."
       : "";
     const fullPrompt = isLandscape
       ? `${orientationHint}. ${prompt}.${styleRefHint}${style ? ` Style: ${style}.` : ""} No text, no watermarks.`
@@ -61,6 +61,9 @@ export class GeminiImage implements ImageProvider {
           contents,
           config: {
             responseModalities: ["image", "text"],
+            imageConfig: {
+              aspectRatio: aspectRatio === "16:9" ? "16:9" : aspectRatio === "1:1" ? "1:1" : "9:16",
+            },
           },
         });
 
