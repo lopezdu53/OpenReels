@@ -3,19 +3,30 @@ import unittest
 
 from server import (
     I2V_FALLBACK_T2V,
+    RECOVER_SECONDS,
+    RECOVER_SECONDS_LP,
     STILL_PREFIX,
+    VIDEO_TIMEOUT,
+    VIDEO_TIMEOUT_LP,
     _catalog_paths_from_list,
     _flow_picker_script,
+    _is_gflow_log_event,
+    _is_lower_priority,
+    _is_progress_noise,
+    _lock_wait_for,
     _mp4_search_roots,
     _gflow_fail_message,
     _is_add_to_prompt_label,
     _is_submit_miss,
     _parse_gflow_json,
+    _should_wait_for_clip,
+    _recover_seconds_for,
     _resolve_video_mode,
     _sanitize_prompt,
     _should_fallback_t2v,
     _unique_still_name,
     _video_cli_args,
+    _video_timeout_for,
 )
 
 
@@ -30,6 +41,24 @@ class ParseTests(unittest.TestCase):
     def test_missing_json(self):
         with self.assertRaises(RuntimeError):
             _parse_gflow_json("no json here")
+
+    def test_skips_browser_engine_selected_info_log(self):
+        info = (
+            '{"engine":"playwright","event":"browser_engine_selected","cli_version":"0.79.1",'
+            '"level":"info","command":"video i2v"}'
+        )
+        ok = '{"status":"ok","local_path":"C:/tmp/clip.mp4"}'
+        payload = _parse_gflow_json(f"{info}\n{ok}\n")
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["local_path"], "C:/tmp/clip.mp4")
+        self.assertTrue(_is_gflow_log_event(json.loads(info)))
+        self.assertTrue(_is_progress_noise(info))
+        self.assertFalse(_is_submit_miss(info))
+        self.assertFalse(_should_wait_for_clip(info, "veo-lite-lp", "i2v"))
+        self.assertFalse(_should_wait_for_clip("gflow exit 1 after progress log", "veo-lite", "i2v"))
+        self.assertFalse(_should_wait_for_clip("Token inválido", "veo-lite-lp", "i2v"))
+        observed = 'event":"migrated.submit_observed"\nTransportTimeoutError — gflow timeout'
+        self.assertTrue(_should_wait_for_clip(observed, "veo-lite-lp", "i2v", observed))
 
 
 class PromptTests(unittest.TestCase):
@@ -135,13 +164,32 @@ class VideoModeTests(unittest.TestCase):
         self.assertIn("or-i2v-demo.png", script)
         self.assertIn("$action = 'click'", script)
 
+    def test_lower_priority_waits_an_hour_so_chrome_stays_open(self):
+        self.assertTrue(_is_lower_priority("veo-lite-lp"))
+        self.assertTrue(_is_lower_priority("veo-lp"))
+        self.assertTrue(_is_lower_priority("veo-3.1-lite-low-priority"))
+        self.assertFalse(_is_lower_priority("veo-lite"))
+        self.assertEqual(_video_timeout_for("veo-lite"), VIDEO_TIMEOUT)
+        self.assertEqual(_video_timeout_for("veo-lite-lp"), VIDEO_TIMEOUT_LP)
+        self.assertGreaterEqual(VIDEO_TIMEOUT_LP, 3600)
+        self.assertGreaterEqual(RECOVER_SECONDS_LP, 1200)
+        self.assertEqual(_recover_seconds_for("veo-lite"), RECOVER_SECONDS)
+        self.assertEqual(_recover_seconds_for("veo-lite-lp"), RECOVER_SECONDS_LP)
+        self.assertGreaterEqual(_lock_wait_for("video", {"model": "veo-lite-lp"}), VIDEO_TIMEOUT_LP)
+        self.assertLess(_lock_wait_for("image", {}), VIDEO_TIMEOUT_LP)
+
     def test_submit_miss_is_not_picker_retry(self):
         miss = (
-            "TransportTimeoutError — migrated host: no YhhmEf/eb1hJf/MZZA6b "
-            "reply within 60s of clicking submit"
+            "migrated.submit_observed TransportTimeoutError — migrated host: "
+            "no YhhmEf/eb1hJf/MZZA6b reply within 60s of clicking submit"
         )
         self.assertTrue(_is_submit_miss(miss))
         self.assertTrue(
+            _is_submit_miss(
+                "migrated.submit_observed TransportTimeoutError — gflow timeout 900s (not terminal within)."
+            )
+        )
+        self.assertFalse(
             _is_submit_miss("TransportTimeoutError — gflow timeout 900s (not terminal within).")
         )
         self.assertFalse(_should_fallback_t2v(miss))
@@ -346,8 +394,10 @@ class BrandingAndDesktopTests(unittest.TestCase):
         from config import classify_log, default_config
         from version import APP_NAME, APP_VERSION
 
-        self.assertEqual(classify_log("I2V: gflow volvió sin mp4; espero el clip de 8s"), "i2v")
+        self.assertEqual(classify_log("gflow volvió sin mp4; espero el clip (Lower Priority no corta a 1 min)."), "i2v")
+        self.assertEqual(classify_log("Lower Priority Veo: Chrome se queda abierto hasta 3600s"), "i2v")
         self.assertEqual(classify_log("gflow fail: crash"), "err")
+        self.assertEqual(classify_log("actividad inusual (exit 10). Cola en pausa"), "err")
         self.assertEqual(classify_log("LAN: escuchando listo"), "ok")
         self.assertEqual(classify_log("Cloudflare 404 aviso"), "warn")
         self.assertRegex(APP_VERSION, r"^\d+\.\d+\.\d+$")
@@ -355,6 +405,56 @@ class BrandingAndDesktopTests(unittest.TestCase):
         cfg = default_config()
         self.assertIn("keepAwake", cfg)
         self.assertTrue(cfg["keepAwake"])
+        self.assertIn("bridgeId", cfg)
+        self.assertIn("bridgeName", cfg)
+
+
+class ExitCodeFixturesTests(unittest.TestCase):
+    def _fixture(self, name: str) -> str:
+        from pathlib import Path
+
+        return (Path(__file__).parent / "fixtures" / name).read_text(encoding="utf-8")
+
+    def test_exit_10_waf_fails_fast(self):
+        from gflow_codes import (
+            exit_code_from_payload,
+            friendly_exit,
+            is_fail_fast,
+            submit_was_observed,
+        )
+
+        raw = self._fixture("gflow-exit-10.txt")
+        payload = _parse_gflow_json(raw)
+        code = exit_code_from_payload(payload, 10)
+        self.assertEqual(code, 10)
+        self.assertTrue(is_fail_fast(code, raw))
+        self.assertFalse(submit_was_observed(raw))
+        self.assertFalse(_should_wait_for_clip("WafRejectionError", "veo-lite-lp", "i2v", raw))
+        self.assertIn("actividad inusual", friendly_exit(10).lower())
+
+    def test_success_has_submit_observed(self):
+        from gflow_codes import submit_was_observed
+
+        raw = self._fixture("gflow-ok-video.txt")
+        payload = _parse_gflow_json(raw)
+        self.assertEqual(payload["status"], "ok")
+        self.assertTrue(submit_was_observed(raw))
+        self.assertEqual(payload["local_path"], "C:/tmp/clip.mp4")
+
+    def test_exit_7_download_has_media_id(self):
+        from gflow_codes import media_ids_from_text, is_fail_fast
+
+        raw = self._fixture("gflow-exit-7-download.txt")
+        payload = _parse_gflow_json(raw)
+        self.assertEqual(payload["error"]["exit_code"], 7)
+        self.assertFalse(is_fail_fast(7, raw))
+        self.assertIn("d54717be-e35b-49d3-920f-009e4ef71b22", media_ids_from_text(raw))
+
+    def test_old_gflow_status_warns(self):
+        from install import format_gflow_status
+
+        self.assertIn("0.82.1", format_gflow_status("0.72.0", "0.82.1", "0.4.6", "0.4.6"))
+        self.assertNotIn("aviso", format_gflow_status("0.82.1", "0.82.1", "0.4.6", "0.4.6"))
 
 
 if __name__ == "__main__":

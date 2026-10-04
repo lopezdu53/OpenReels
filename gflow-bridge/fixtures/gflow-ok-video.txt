@@ -1,0 +1,3 @@
+{"engine":"playwright","event":"browser_engine_selected","cli_version":"0.82.1","level":"info","command":"video i2v"}
+{"event":"migrated.submit_observed","level":"info","command":"video i2v"}
+{"status":"ok","command":"video i2v","local_path":"C:/tmp/clip.mp4"}

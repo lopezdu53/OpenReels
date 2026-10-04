@@ -66,6 +66,9 @@ def version_newer(latest: str, installed: str) -> bool:
     return version_tuple(latest) > version_tuple(installed)
 
 
+MIN_GFLOW_VERSION = "0.82.1"
+
+
 def format_gflow_status(
     installed: str | None,
     latest: str | None,
@@ -76,12 +79,15 @@ def format_gflow_status(
         if latest:
             return f"gflow: no instalado · última en PyPI {latest} — pulsa Instalar todo"
         return "gflow: no instalado — pulsa Instalar todo"
+    old = version_newer(MIN_GFLOW_VERSION, installed)
     if latest and version_newer(latest, installed):
         gflow = f"gflow-cli {installed} · hay {latest}"
     elif latest:
         gflow = f"gflow-cli {installed} · al día"
     else:
         gflow = f"gflow-cli {installed}"
+    if old:
+        gflow += f" · aviso: {installed} < {MIN_GFLOW_VERSION} (exit 10 / WAF necesita 0.82.1+)"
     if not colorama_installed:
         return f"{gflow} · colorama no instalado — pulsa Instalar todo"
     if colorama_latest and version_newer(colorama_latest, colorama_installed):
@@ -301,11 +307,53 @@ def ensure_colorama(log: LogFn) -> str | None:
     return ver
 
 
+def stop_gflow_locks(log: LogFn) -> None:
+    """Windows locks gflow.exe / MCP while they run; kill them before uv upgrade."""
+    if sys.platform != "win32":
+        return
+    log("Cerrando gflow y MCP para no bloquear archivos…")
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    names = ("gflow.exe", "gflow", "gflow-mcp.exe")
+    for name in names:
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/IM", name, "/T"],
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+                creationflags=flags,
+            )
+        except Exception as err:
+            log(f"taskkill {name}: {err}")
+    # MCP is often `gflow mcp run` under the same exe; also drop leftover python hosts.
+    try:
+        subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Get-CimInstance Win32_Process | "
+                "Where-Object { $_.Name -match 'gflow|mcp' -and $_.CommandLine -match 'gflow|mcp' } | "
+                "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=25,
+            check=False,
+            creationflags=flags,
+        )
+    except Exception as err:
+        log(f"stop MCP: {err}")
+
+
 def install_gflow_stack(log: LogFn, *, upgrade: bool = False) -> str:
     from profiles import find_gflow
 
     env = tool_env()
     uv = ensure_uv(log)
+    stop_gflow_locks(log)
     log("Instalando Python 3.12 (uv, una vez)…")
     try:
         _run([uv, "python", "install", "3.12"], env=env, timeout=300, log=log)

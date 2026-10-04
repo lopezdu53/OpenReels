@@ -26,6 +26,10 @@ https://raw.githubusercontent.com/lopezdu53/OpenReels/cursor/grok-providers-fixe
 
 (o el branch que esté desplegado en EasyPanel).
 
+## Fallos rápidos (gflow ≥ 0.82.1)
+
+El CLI con `--json` sale con códigos propios (`gflow docs` / DEBUGGING.md). El Puente **no espera el mp4** si el envío no se observó (`migrated.submit_observed`) o si el código es 10 (WAF / actividad inusual), 36 (host migrado), 5 (política), 3 (sesión), 23 (selector) o 31 (`/about`). Tras un 10 la cola pausa 3 / 10 / 30 min. Un 7 (descarga, clip cobrado) usa `gflow data download <media_id>`.
+
 ## EasyPanel (`video` + `video-worker`)
 
 ```

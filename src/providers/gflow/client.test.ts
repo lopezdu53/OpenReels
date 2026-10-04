@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GflowCliError, parseGflowJson } from "./client.js";
+import { gflowFriendlyExit, isGflowFailFast } from "./errors.js";
 
 describe("gflow json contract", () => {
   it("reads the --json image payload", () => {
@@ -25,5 +26,12 @@ describe("gflow json contract", () => {
 
   it("throws when stdout has no JSON", () => {
     expect(() => parseGflowJson("no json here")).toThrow(GflowCliError);
+  });
+
+  it("maps official fail-fast exit codes", () => {
+    expect(isGflowFailFast(10)).toBe(true);
+    expect(isGflowFailFast(36)).toBe(true);
+    expect(isGflowFailFast(7)).toBe(false);
+    expect(gflowFriendlyExit(10)).toMatch(/actividad inusual/);
   });
 });

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import IORedis from "ioredis";
+import { gflowRelayPayloadTtlSeconds } from "./catalog.js";
 import { GflowCliError } from "./errors.js";
 
 const JOBS_KEY = "gflow:bridge:jobs";
@@ -67,7 +68,7 @@ export async function enqueueBridgeJob(
   const id = randomUUID();
   const job: GflowRelayJob = { id, kind, body };
   const r = getGflowRelayRedis();
-  await r.set(payloadKey(id), JSON.stringify(job), "EX", 900);
+  await r.set(payloadKey(id), JSON.stringify(job), "EX", gflowRelayPayloadTtlSeconds(kind));
   await r.lpush(JOBS_KEY, id);
   return id;
 }
@@ -112,5 +113,5 @@ export async function pollBridgeJob(waitSec: number): Promise<GflowRelayJob | nu
 export async function completeBridgeJob(id: string, result: GflowRelayResult): Promise<void> {
   if (!id.trim()) throw new Error("id requerido");
   await getGflowRelayRedis().lpush(resultKey(id), JSON.stringify(result));
-  await getGflowRelayRedis().expire(resultKey(id), 900);
+  await getGflowRelayRedis().expire(resultKey(id), gflowRelayPayloadTtlSeconds("video"));
 }
