@@ -4,6 +4,7 @@ import {
   resolveAtlasTtsModel,
   resolveAtlasVideoModel,
 } from "../providers/atlas/catalog.js";
+import { isFlowCreditsVisual } from "../studio/visual-provider.js";
 import { gflowVideoCredits, planOmniTakes, resolveGflowVideoModel } from "../providers/gflow/catalog.js";
 import { planMotionTakes } from "./catalog.js";
 import type { StickmanCost, StickmanJobConfig, StickmanJobMeta, StickmanScript } from "./types.js";
@@ -62,8 +63,11 @@ export function estimateStickmanCost(opts: {
   usd += ttsUsd(config.atlasTtsModel, narration);
 
   let credits = 0;
-  if (config.animate && config.visualProvider === "gflow") {
-    const model = config.gflowVideoModel || "omni-flash";
+  if (config.animate && isFlowCreditsVisual(config.visualProvider)) {
+    const model =
+      config.visualProvider === "toby"
+        ? config.tobyVideoModel || "omni-flash"
+        : config.gflowVideoModel || "omni-flash";
     const takes =
       resolveGflowVideoModel(model).id === "omni-flash"
         ? planOmniTakes(config.durationSec)
@@ -72,10 +76,10 @@ export function estimateStickmanCost(opts: {
       (sum, sec) => sum + gflowVideoCredits({ modelId: model, durationSec: sec }),
       0,
     );
-  } else if (config.animate && config.visualProvider !== "gflow") {
+  } else if (config.animate && !isFlowCreditsVisual(config.visualProvider)) {
     usd += resolveAtlasVideoModel(config.videoModel).usdPerSecond * config.durationSec;
   }
-  if (config.visualProvider !== "gflow") {
+  if (!isFlowCreditsVisual(config.visualProvider)) {
     const n = opts.script?.beats.length ?? 1;
     usd += resolveAtlasImageModel(config.imageModel).usd * n;
   }

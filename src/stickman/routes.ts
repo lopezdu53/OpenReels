@@ -7,9 +7,13 @@ import { requireUser } from "../auth/plugin.js";
 import { sendArtifact } from "../http/send-artifact.js";
 import { resolveAtlasApiKey } from "../providers/atlas/client.js";
 import { gflowBridgeUrl } from "../providers/gflow/bridge.js";
-import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "../providers/gflow/catalog.js";
 import { gflowDoctor } from "../providers/gflow/client.js";
-import { resolveStudioVisualProvider, STUDIO_VISUAL_PROVIDERS } from "../studio/visual-provider.js";
+import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "../providers/gflow/catalog.js";
+import { TOBY_IMAGE_MODELS, TOBY_VIDEO_MODELS, tobyReady } from "../providers/toby/catalog.js";
+import {
+  resolveStickmanVisualProvider,
+  STICKMAN_VISUAL_PROVIDERS,
+} from "../studio/visual-provider.js";
 import {
   clampStickmanVoiceSpeed,
   clampStickmanVolume,
@@ -107,12 +111,15 @@ function parseStickmanCreateBody(
         voiceId,
         String(body.atlasTtsModel ?? DEFAULT_STICKMAN_TTS_MODEL),
       ),
-      visualProvider: resolveStudioVisualProvider(
+      visualProvider: resolveStickmanVisualProvider(
         typeof body.visualProvider === "string" ? body.visualProvider : undefined,
       ),
       gflowImageModel: body.gflowImageModel ? String(body.gflowImageModel) : undefined,
       gflowVideoModel: body.gflowVideoModel ? String(body.gflowVideoModel) : undefined,
       gflowVideoMode: body.gflowVideoMode ? String(body.gflowVideoMode) : undefined,
+      tobyImageModel: body.tobyImageModel ? String(body.tobyImageModel) : undefined,
+      tobyVideoModel: body.tobyVideoModel ? String(body.tobyVideoModel) : undefined,
+      tobyVideoMode: body.tobyVideoMode ? String(body.tobyVideoMode) : undefined,
       llmModel: isStickmanLlmId(String(body.llmModel ?? ""))
         ? String(body.llmModel)
         : DEFAULT_STICKMAN_LLM,
@@ -151,14 +158,20 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     defaultTtsModel: DEFAULT_STICKMAN_TTS_MODEL,
     defaultLlm: DEFAULT_STICKMAN_LLM,
     llms: STICKMAN_LLMS,
-    visualProviders: [...STUDIO_VISUAL_PROVIDERS],
+    visualProviders: [...STICKMAN_VISUAL_PROVIDERS],
     gflowImageModels: GFLOW_IMAGE_MODELS,
     gflowVideoModels: GFLOW_VIDEO_MODELS.filter((m) => m.id !== "veo-lite-lp"),
+    tobyImageModels: TOBY_IMAGE_MODELS,
+    tobyVideoModels: TOBY_VIDEO_MODELS.filter((m) => m.id !== "veo-lite-lp"),
     recommendedGflow: recommendStickmanGflow(20),
     defaultGflowImage: DEFAULT_STICKMAN_GFLOW_IMAGE,
     defaultGflowVideo: DEFAULT_STICKMAN_GFLOW_VIDEO,
+    defaultTobyImage: DEFAULT_STICKMAN_GFLOW_IMAGE,
+    defaultTobyVideo: DEFAULT_STICKMAN_GFLOW_VIDEO,
+    defaultVisualProvider: tobyReady() ? "toby" : "gflow",
     atlasReady: Boolean(resolveAtlasApiKey()),
     gflowBridge: Boolean(gflowBridgeUrl()),
+    tobyReady: tobyReady(),
     doctor: await gflowDoctor(),
   }));
 

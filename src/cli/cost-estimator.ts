@@ -111,6 +111,7 @@ function perImageCost(imageProvider: ImageProviderKey): number {
   if (imageProvider === "runpod") return 0.0025;
   if (imageProvider === "sharpii") return sharpiiImageUsd();
   if (imageProvider === "atlas") return atlasImageUsd();
+  if (imageProvider === "gflow" || imageProvider === "toby") return 0;
   return PRICING.geminiPerImage;
 }
 
@@ -120,6 +121,7 @@ function videoPerSecondCost(videoProvider?: VideoProviderKey): number {
   if (videoProvider === "runpod") return 0.02;
   if (videoProvider === "sharpii") return sharpiiVideoPerSecondUsd();
   if (videoProvider === "atlas") return atlasVideoPerSecondUsd() + atlasLipSyncPerSecondUsd();
+  if (videoProvider === "gflow" || videoProvider === "toby") return 0;
   return PRICING.veoLitePerSecond;
 }
 

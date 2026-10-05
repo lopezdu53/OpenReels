@@ -7,8 +7,10 @@ import { GrokImage } from "../providers/image/grok.js";
 import { OpenAIImage } from "../providers/image/openai.js";
 import { RunPodImage } from "../providers/image/runpod.js";
 import { SharpiiImage } from "../providers/image/sharpii.js";
+import { TobyImage } from "../providers/image/toby.js";
 import { ViviImage } from "../providers/image/vivi.js";
 import { resolveGflowVideoMode } from "../providers/gflow/catalog.js";
+import { resolveTobyVideoMode } from "../providers/toby/catalog.js";
 import { AtlasVideo } from "../providers/video/atlas.js";
 import { FalVideo } from "../providers/video/fal.js";
 import { GeminiVideo } from "../providers/video/gemini.js";
@@ -16,6 +18,7 @@ import { GflowVideo } from "../providers/video/gflow.js";
 import { GrokVideo } from "../providers/video/grok.js";
 import { RunPodVideo } from "../providers/video/runpod.js";
 import { SharpiiVideo } from "../providers/video/sharpii.js";
+import { TobyVideo } from "../providers/video/toby.js";
 import { ViviVideo } from "../providers/video/vivi.js";
 import type { ImageProvider, VideoProvider } from "../schema/providers.js";
 
@@ -26,6 +29,8 @@ export function createLabImageProvider(opts: {
   guidance?: number;
 }): ImageProvider {
   switch (opts.provider) {
+    case "toby":
+      return new TobyImage(opts.model);
     case "gflow":
       return new GflowImage(opts.model);
     case "openai":
@@ -57,6 +62,8 @@ export function createLabVideoProvider(opts: {
   lipSyncModel?: string | null;
 }): VideoProvider {
   switch (opts.provider) {
+    case "toby":
+      return new TobyVideo(opts.model, resolveTobyVideoMode(opts.mode));
     case "gflow":
       return new GflowVideo(opts.model, resolveGflowVideoMode(opts.mode));
     case "grok":
@@ -77,5 +84,6 @@ export function createLabVideoProvider(opts: {
 }
 
 export function labVideoRequiresStill(provider?: string, mode?: string): boolean {
+  if (provider === "toby") return resolveTobyVideoMode(mode) === "i2v";
   return provider !== "gflow" || resolveGflowVideoMode(mode) === "i2v";
 }

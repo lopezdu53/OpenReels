@@ -128,10 +128,13 @@ export interface StickmanJobConfig {
   imageModel: string;
   videoModel: string;
   atlasTtsModel: string;
-  visualProvider?: "atlas" | "gflow";
+  visualProvider?: "atlas" | "gflow" | "toby";
   gflowImageModel?: string;
   gflowVideoModel?: string;
   gflowVideoMode?: string;
+  tobyImageModel?: string;
+  tobyVideoModel?: string;
+  tobyVideoMode?: string;
   llmModel?: string;
   atlasKey?: string;
 }

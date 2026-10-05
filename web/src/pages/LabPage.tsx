@@ -49,10 +49,12 @@ export const DEFAULT_PRICES: ApiPrices = {
     sharpii:  { perImage: 0.036 },
     atlas:    { perImage: 0.04 },
     gflow:    { perImage: 0 },
+    toby:     { perImage: 0 },
   },
   video: {
     gemini: { perSecond: 0.05 },
     gflow:  { perSecond: 0 },
+    toby:   { perSecond: 0 },
     grok:   { perSecond: 0.08 },
     vivi:   { perSecond: yuanToUsd(VIVI_VIDEO_CNY.perClip) / VIVI_VIDEO_CLIP_SECONDS },
     fal:    { perSecond: 0.12 },
@@ -162,6 +164,9 @@ export function LabPage() {
   const [gflowImgModel, setGflowImgModel] = useState("nano2");
   const [gflowVidModel, setGflowVidModel] = useState("veo-lite");
   const [gflowVidMode, setGflowVidMode] = useState("t2v");
+  const [tobyImgModel, setTobyImgModel] = useState("nano-pro");
+  const [tobyVidModel, setTobyVidModel] = useState("omni-flash");
+  const [tobyVidMode, setTobyVidMode] = useState("t2v");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Image
@@ -245,6 +250,7 @@ export function LabPage() {
         ...(imgProvider === "sharpii" ? { model: sharpiiImgModel } : {}),
         ...(imgProvider === "atlas" ? { model: atlasImgModel } : {}),
         ...(imgProvider === "gflow" ? { model: gflowImgModel } : {}),
+        ...(imgProvider === "toby" ? { model: tobyImgModel } : {}),
       });
       setImgResult(r);
     } catch (e) {
@@ -268,8 +274,10 @@ export function LabPage() {
   };
 
   const gflowT2v = vidProvider === "gflow" && gflowVidMode !== "i2v";
+  const tobyT2v = vidProvider === "toby" && tobyVidMode !== "i2v";
+  const textToVideo = gflowT2v || tobyT2v;
   const runVideo = async () => {
-    if (!gflowT2v && !vidImage) { setVidError("Por favor sube una imagen primero"); return; }
+    if (!textToVideo && !vidImage) { setVidError("Por favor sube una imagen primero"); return; }
     setVidLoading(true); setVidError(""); setVidResult(null);
     try {
       const r = await api.testVideo({
@@ -284,8 +292,13 @@ export function LabPage() {
           ? {
               model: gflowVidModel,
               mode: gflowVidMode,
-              ...(gflowVidModel === "omni-flash" ? {} : {}),
             }
+          : vidProvider === "toby"
+            ? {
+                model: tobyVidModel,
+                mode: tobyVidMode,
+                ...(tobyVidModel === "omni-flash" ? { durationSeconds: vidDuration } : {}),
+              }
           : { durationSeconds: vidDuration }),
       });
       setVidResult(r);
@@ -298,8 +311,16 @@ export function LabPage() {
 
   const llmProviders = providers?.llm ?? [{ key: "anthropic", label: "Anthropic" }];
   const ttsProviders = providers?.tts ?? [{ key: "elevenlabs", label: "ElevenLabs" }];
-  const imgProviders = providers?.image ?? [{ key: "gemini", label: "Gemini" }];
-  const vidProviders = providers?.video?.filter(p => !p.key.startsWith("vidu")) ?? [{ key: "gemini", label: "Gemini" }];
+  const imgProviders = [
+    { key: "toby", label: "Toby (Flow MCP)" },
+    ...(providers?.image ?? [{ key: "gemini", label: "Gemini" }]).filter((p) => p.key !== "toby"),
+  ];
+  const vidProviders = [
+    { key: "toby", label: "Toby (Flow MCP)" },
+    ...(providers?.video?.filter((p) => !p.key.startsWith("vidu") && p.key !== "toby") ?? [
+      { key: "gemini", label: "Gemini" },
+    ]),
+  ];
 
   return (
     <div className="py-8 px-4 sm:px-10 max-w-[720px]">
@@ -586,6 +607,28 @@ export function LabPage() {
               </div>
             </div>
           )}
+          {imgProvider === "toby" && (
+            <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-2">
+              <p className="text-[11px] text-muted-foreground">
+                Toby Flow MCP. Modelos listados como Toby_nano-pro, Toby_nano2, Toby_nano-lite.
+              </p>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo Imagen</label>
+                <Select value={tobyImgModel} onValueChange={(v) => v && setTobyImgModel(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.tobyImageModels ?? [
+                      { id: "nano-pro", label: "Toby_nano-pro" },
+                      { id: "nano2", label: "Toby_nano2" },
+                      { id: "nano-lite", label: "Toby_nano-lite" },
+                    ]).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
           {imgProvider === "atlas" && (
             <div>
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo ATLAS</label>
@@ -701,6 +744,7 @@ export function LabPage() {
                 if (!v) return;
                 setVidProvider(v);
                 if (v === "gflow" && ![4, 6, 8, 10].includes(vidDuration)) setVidDuration(6);
+                if (v === "toby" && ![4, 6, 8].includes(vidDuration)) setVidDuration(8);
               }}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -718,7 +762,8 @@ export function LabPage() {
                 </SelectContent>
               </Select>
             </div>
-            {vidProvider === "gflow" && gflowVidModel !== "omni-flash" ? (
+            {(vidProvider === "gflow" && gflowVidModel !== "omni-flash") ||
+            (vidProvider === "toby" && tobyVidModel !== "omni-flash") ? (
               <div className="w-36">
                 <label className="mb-1.5 block text-[12px] text-muted-foreground">Duración</label>
                 <div className="flex h-9 items-center rounded-md border border-input px-3 text-[12px] text-muted-foreground">
@@ -737,6 +782,8 @@ export function LabPage() {
                     ? (providers?.runpodVideoModels?.find((m) => m.id === vidModel)?.durations ?? [5, 8, 10])
                     : vidProvider === "gflow"
                     ? (providers?.gflowVideoModels?.find((m) => m.id === gflowVidModel)?.durations ?? [4, 6, 8, 10])
+                    : vidProvider === "toby"
+                    ? (providers?.tobyVideoModels?.find((m) => m.id === tobyVidModel)?.durations ?? [4, 6, 8])
                     : [3, 5, 8]
                   ).map(s => <SelectItem key={s} value={String(s)}>{s}s</SelectItem>)}
                 </SelectContent>
@@ -744,6 +791,48 @@ export function LabPage() {
             </div>
             )}
           </div>
+          {vidProvider === "toby" && (
+            <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
+              <p className="text-[11px] text-muted-foreground">
+                Toby Flow MCP. Chrome abierto en Flow + extension Premium. I2V usa URL publica del still (APP_PUBLIC_URL).
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo</label>
+                  <Select
+                    value={tobyVidModel}
+                    onValueChange={(v) => {
+                      if (!v) return;
+                      setTobyVidModel(v);
+                      const spec = providers?.tobyVideoModels?.find((m) => m.id === v);
+                      if (spec?.durations?.length && !spec.durations.includes(vidDuration)) {
+                        setVidDuration(spec.durations[0]!);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(providers?.tobyVideoModels ?? [
+                        { id: "omni-flash", label: "Toby_omni-flash", durations: [4, 6, 8] },
+                      ]).map((m) => (
+                        <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-[12px] text-muted-foreground">Modo</label>
+                  <Select value={tobyVidMode} onValueChange={(v) => v && setTobyVidMode(v)}>
+                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="t2v">Texto → video (t2v)</SelectItem>
+                      <SelectItem value="i2v">Foto → video (I2V)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
           {vidProvider === "gflow" && (
             <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-3">
               <p className="text-[11px] text-muted-foreground">
@@ -892,7 +981,7 @@ export function LabPage() {
 
           <div>
             <label className="mb-1.5 block text-[12px] text-muted-foreground">
-              {gflowT2v ? "Imagen fuente (opcional · t2v no la usa)" : "Imagen fuente"}
+              {textToVideo ? "Imagen fuente (opcional · t2v no la usa)" : "Imagen fuente"}
             </label>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageFile} className="hidden" />
             <div
@@ -928,10 +1017,10 @@ export function LabPage() {
               onChange={e => setVidPrompt(e.target.value)}
             />
           </div>
-          <Button onClick={runVideo} disabled={vidLoading || !vidPrompt.trim() || (!gflowT2v && !vidImage)} className="w-full">
+          <Button onClick={runVideo} disabled={vidLoading || !vidPrompt.trim() || (!textToVideo && !vidImage)} className="w-full">
             {vidLoading
               ? <><Loader2 className="size-4 mr-2 animate-spin" />Generando video ({vidDuration}s)...</>
-              : gflowT2v
+              : textToVideo
                 ? "Generar video t2v"
                 : "Generar video I2V"}
           </Button>

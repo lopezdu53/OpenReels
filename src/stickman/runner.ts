@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { getVideoDuration } from "../pipeline/utils.js";
 import { AtlasTTS } from "../providers/tts/atlas.js";
-import { createStudioImage, createStudioVideo } from "../studio/visual-provider.js";
+import { createStudioImage, createStudioVideo, isFlowCreditsVisual } from "../studio/visual-provider.js";
 import { assembleStickman, concatMotionTakes, extractLastFrame } from "./assemble.js";
 import {
   DEFAULT_STICKMAN_TTS_VOLUME,
@@ -60,6 +60,7 @@ export async function runVisuals(
     atlasModel: script.image_model,
     atlasKey: apiKey,
     gflowModel: config.gflowImageModel,
+    tobyModel: config.tobyImageModel,
   });
   const paths = await renderStills(jobDir(id), script, image, log, readCastRef(id));
   writeScript(id, script);
@@ -241,6 +242,8 @@ export async function runMotion(
     atlasKey: apiKey,
     gflowModel: config.gflowVideoModel,
     gflowMode: config.gflowVideoMode,
+    tobyModel: config.tobyVideoModel,
+    tobyMode: config.tobyVideoMode || "i2v",
   });
   const firstStillRel = script.beats.find((beat) => beat.stillPath)?.stillPath;
   const firstStill = firstStillRel ? path.join(jobDir(id), firstStillRel) : "";
@@ -253,12 +256,19 @@ export async function runMotion(
     config.durationSec,
   );
   const takes =
-    config.visualProvider === "gflow" &&
-    (config.gflowVideoModel || "omni-flash") === "omni-flash"
+    isFlowCreditsVisual(config.visualProvider) &&
+    (config.visualProvider === "toby"
+      ? config.tobyVideoModel || "omni-flash"
+      : config.gflowVideoModel || "omni-flash") === "omni-flash"
       ? planOmniTakes(wanted)
       : planMotionTakes(video.supportedDurations, wanted);
   const dest = path.join(clipsDir, "continuous.mp4");
-  const label = config.visualProvider === "gflow" ? "gflow I2V" : "I2V";
+  const label =
+    config.visualProvider === "toby"
+      ? "Toby I2V"
+      : config.visualProvider === "gflow"
+        ? "gflow I2V"
+        : "I2V";
   log(
     `motion: ${takes.length} toma${takes.length === 1 ? "" : "s"} ${label} ${takes.join("+")}s (sin freeze, puente por último frame)`,
   );

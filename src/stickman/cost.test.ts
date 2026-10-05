@@ -68,4 +68,12 @@ describe("stickman cost", () => {
     expect(cost.credits).toBeGreaterThan(0);
     expect(cost.usd).toBe(0);
   });
+
+  it("counts Flow credits for Toby Omni", () => {
+    const cost = estimateStickmanCost({
+      config: { ...config, visualProvider: "toby", tobyVideoModel: "omni-flash" },
+    });
+    expect(cost.credits).toBeGreaterThan(0);
+    expect(cost.usd).toBe(0);
+  });
 });
