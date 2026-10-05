@@ -110,7 +110,7 @@ export function resolveGflowVideoModel(id?: string): (typeof GFLOW_VIDEO_MODELS)
 export function pickGflowDuration(modelId: string, wanted?: number): number {
   const spec = resolveGflowVideoModel(modelId);
   const target = wanted ?? 6;
-  if (spec.durations.includes(target as (typeof spec.durations)[number])) return target;
+  if ((spec.durations as readonly number[]).includes(target)) return target;
   return spec.durations.find((d) => d >= target) ?? spec.durations[spec.durations.length - 1] ?? 6;
 }
 

@@ -6,7 +6,6 @@ import type { VideoProvider, VideoResult } from "../../schema/providers.js";
 const VIVI_BASE_URL = "https://api.viviai.cc";
 const DEFAULT_MODEL = "grok-video-3";
 const TIMEOUT_MS = 300_000; // 5 min
-const POLL_INTERVAL_MS = 6_000;
 
 interface ChatResponse {
   choices?: Array<{

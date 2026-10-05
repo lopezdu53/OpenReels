@@ -63,7 +63,7 @@ describe("applyVideoSceneMode", () => {
       "stock_image",
       "ai_image",
     ]);
-    expect(next[0]!.motion).toBe("static");
+    expect((next[0] as { motion?: string }).motion).toBe("static");
   });
 
   it("makes the first three convertible scenes video (skips text_card/stock)", () => {

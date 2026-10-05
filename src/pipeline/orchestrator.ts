@@ -701,7 +701,7 @@ function buildPipelineWorkflow(
       const resolvedVideoMode = resolveVideoSceneMode({
         requested: opts.videoSceneMode,
         heroFollowCam,
-        videoAllowed: videoEnabled && allowedVisualTypes.includes("ai_video"),
+        videoAllowed: videoEnabled && (allowedVisualTypes?.includes("ai_video") ?? false),
       });
       const directorOpts = {
         archetype:

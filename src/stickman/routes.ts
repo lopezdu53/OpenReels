@@ -68,6 +68,14 @@ import {
 import type { StickmanJobConfig, StickmanScript } from "./types.js";
 import { createStickmanQueue, getStickmanQueueStats } from "./worker.js";
 
+function jobParam(request: AuthedRequest): string {
+  return String((request.params as { id?: string }).id ?? "");
+}
+
+function splatParam(request: AuthedRequest): string {
+  return String((request.params as { "*"?: string })["*"] ?? "");
+}
+
 function parseStickmanCreateBody(
   body: Record<string, unknown>,
 ): { error: string } | { config: StickmanJobConfig } {
@@ -219,7 +227,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       const queueStats = await getStickmanQueueStats(redis);
@@ -238,7 +246,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       if (meta.status !== "awaiting_script") {
@@ -262,7 +270,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       const body = (request.body ?? {}) as {
@@ -338,7 +346,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       reply.hijack();
@@ -348,7 +356,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
         Connection: "keep-alive",
       });
       const send = () => {
-        const cur = readMeta(request.params.id);
+        const cur = readMeta(jobParam(request));
         if (!cur) return;
         reply.raw.write(
           `data: ${JSON.stringify({ ...cur, stills: stillFiles(cur.id), hasFinal: Boolean(finalPath(cur.id)) })}\n\n`,
@@ -367,12 +375,12 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      if (!isStickmanJobId(request.params.id))
+      if (!isStickmanJobId(jobParam(request)))
         return reply.status(400).send({ error: "id inválido" });
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
-      const rel = request.params["*"];
+      const rel = splatParam(request);
       const full = path.resolve(jobDir(meta.id), rel);
       if (
         !full.startsWith(path.resolve(jobDir(meta.id)) + path.sep) &&
@@ -390,7 +398,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       setStatus(meta.id, "cancelled", "cancelled", "Cancelado");
