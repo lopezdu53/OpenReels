@@ -1,4 +1,4 @@
-import { AlertTriangle, Download, Plus } from "lucide-react";
+import { AlertTriangle, Copy, Download, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { CompletedPanel } from "@/components/pipeline/CompletedPanel";
@@ -13,12 +13,14 @@ import {
   type CostBreakdown,
   type CriticReview,
   type DirectorScore,
+  type JobConfig,
   type JobSummary,
   type ResearchData,
 } from "@/hooks/useApi";
 import type { SceneFallbacks } from "@/lib/scene-assets";
 import { useSSE } from "@/hooks/useSSE";
 import { formatArchetypeName } from "@/lib/utils";
+import { VIDEO_SCENE_MODE_LABELS } from "@/lib/video-scene-modes";
 
 const STAGES = ["research", "director", "tts", "visuals", "assembly", "critic"] as const;
 
@@ -199,7 +201,7 @@ export function JobPage() {
           .then(setJob)
           .catch(() => {});
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Cancel failed");
+      setError(err instanceof Error ? err.message : "No se pudo cancelar");
     }
     setCancelling(false);
   };
@@ -293,7 +295,7 @@ export function JobPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg sm:text-xl font-semibold tracking-tight">{job.topic}</h1>
-          <div className="mt-1.5 flex flex-wrap items-center gap-3">
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
             {job.archetype && (
               <Badge
                 variant="secondary"
@@ -302,41 +304,42 @@ export function JobPage() {
                 {formatArchetypeName(job.archetype)}
               </Badge>
             )}
-            <span className="text-xs text-muted-foreground">YouTube Shorts</span>
+            <span className="text-xs text-muted-foreground">{PLATFORM_LABELS[job.config?.platform ?? "youtube"] ?? job.config?.platform ?? "YouTube Shorts"}</span>
             {totalCost != null && (
               <>
                 <span className="text-xs text-text-faint">&middot;</span>
                 <span className="text-xs text-muted-foreground">
-                  ~${totalCost.toFixed(2)} {job.actualCost ? "total" : "estimated"}
+                  ~${totalCost.toFixed(2)} {job.actualCost ? "total" : "estimado"}
                 </span>
               </>
             )}
           </div>
+          {job.config && <ConfigBadges config={job.config} />}
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {isRunning && (
             <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-1.5">
               <div className="size-2 rounded-full bg-status-info animate-pulse" />
-              <span className="text-xs font-medium text-status-info">Generating...</span>
+              <span className="text-xs font-medium text-status-info">Generando…</span>
             </div>
           )}
           {isCompleted && (
             <div className="flex items-center gap-1.5 rounded-lg bg-status-success/12 px-3.5 py-1.5">
               <div className="size-2 rounded-full bg-status-success" />
-              <span className="text-xs font-medium text-status-success">Complete</span>
+              <span className="text-xs font-medium text-status-success">Completado</span>
             </div>
           )}
           {isFailed && (
             <div className="flex items-center gap-1.5 rounded-lg bg-destructive/12 px-3.5 py-1.5">
               <div className="size-2 rounded-full bg-destructive" />
-              <span className="text-xs font-medium text-destructive">Failed</span>
+              <span className="text-xs font-medium text-destructive">Fallido</span>
             </div>
           )}
           {isCancelled && (
             <div className="flex items-center gap-1.5 rounded-lg bg-status-warning/12 px-3.5 py-1.5">
               <div className="size-2 rounded-full bg-status-warning" />
-              <span className="text-xs font-medium text-status-warning">Cancelled</span>
+              <span className="text-xs font-medium text-status-warning">Cancelado</span>
             </div>
           )}
 
@@ -348,14 +351,14 @@ export function JobPage() {
               onClick={handleCancel}
               disabled={cancelling}
             >
-              {cancelling ? "Cancelling..." : "Cancel"}
+              {cancelling ? "Cancelando…" : "Cancelar"}
             </Button>
           )}
           {isCompleted && videoUrl && (
             <a href={videoUrl} download>
               <Button size="sm" className="gap-2 rounded-lg px-4 py-2">
                 <Download className="size-3.5" />
-                Download
+                Descargar
               </Button>
             </a>
           )}
@@ -367,7 +370,7 @@ export function JobPage() {
               onClick={() => navigate("/")}
             >
               <Plus className="size-3.5" />
-              New Short
+              Nuevo Short
             </Button>
           )}
         </div>
@@ -426,10 +429,34 @@ export function JobPage() {
                   ? "Pipeline"
                   : failedStage
                     ? (STAGE_LABELS[failedStage] ?? failedStage)
-                    : "Unknown Stage"
+                    : "Etapa desconocida"
               }
-              failedDetail={isCancelled ? "Job was cancelled by user" : failedDetail}
+              failedDetail={isCancelled ? "El trabajo fue cancelado" : failedDetail}
             />
+          )}
+
+          {/* TikTok caption — shown when platform is tiktok and caption is ready */}
+          {isCompleted && job.tiktokCaption && (
+            <div className="rounded-[10px] border border-border bg-card p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
+                  TIKTOK CAPTION
+                </span>
+                <button
+                  onClick={() => navigator.clipboard.writeText(job.tiktokCaption!.caption)}
+                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  title="Copiar caption"
+                >
+                  <Copy className="size-3" /> Copiar
+                </button>
+              </div>
+              <p className="text-sm font-semibold text-foreground mb-2">{job.tiktokCaption.title}</p>
+              <p className="text-xs text-muted-foreground flex flex-wrap gap-1">
+                {job.tiktokCaption.hashtags.map((tag) => (
+                  <span key={tag} className="rounded-full bg-primary/10 px-2 py-0.5 text-primary font-medium">{tag}</span>
+                ))}
+              </p>
+            </div>
           )}
 
           {/* Research card — always visible once available */}
@@ -463,12 +490,12 @@ export function JobPage() {
           {assetFailures.length > 0 && !isCompleted && (
             <div className="rounded-[10px] border border-status-warning/20 bg-status-warning/6 p-4">
               <span className="text-[10px] font-semibold uppercase tracking-[1.5px] text-status-warning">
-                ASSET WARNINGS
+                AVISOS DE RECURSOS
               </span>
               <div className="mt-2 flex flex-col gap-1">
                 {assetFailures.map((f, i) => (
                   <p key={i} className="text-xs text-status-warning/90">
-                    Scene {f.scene}: {f.error}
+                    Escena {f.scene}: {f.error}
                   </p>
                 ))}
               </div>
@@ -479,7 +506,7 @@ export function JobPage() {
           {job.stages?.tts?.status === "done" && job.stages.tts.detail && !isCompleted && (
             <div className="rounded-lg border border-border/60 bg-card/60 px-4 py-2.5">
               <span className="text-[11px] text-text-subtle">
-                Voice synthesis: {job.stages.tts.detail}
+                Síntesis de voz: {job.stages.tts.detail}
               </span>
             </div>
           )}
@@ -488,7 +515,7 @@ export function JobPage() {
           {!researchData && !score && !costEstimate && isRunning && (
             <div className="flex h-64 items-center justify-center">
               <p className="text-sm text-muted-foreground">
-                Pipeline output will appear here as stages complete...
+                La salida del pipeline aparecerá aquí al completar cada etapa…
               </p>
             </div>
           )}
@@ -498,7 +525,103 @@ export function JobPage() {
   );
 }
 
+/* ─── Constants ─── */
+
+const PLATFORM_LABELS: Record<string, string> = {
+  youtube: "YouTube Shorts",
+  tiktok: "TikTok",
+  instagram: "Instagram Reels",
+  youtube_horizontal: "YouTube Horizontal",
+};
+
+const PROVIDER_LABELS: Record<string, string> = {
+  // LLM
+  anthropic: "Claude",
+  openai: "OpenAI",
+  gemini: "Gemini",
+  openrouter: "OpenRouter",
+  vivi: "VIVI",
+  alicloud: "AliCloud",
+  "openai-compatible": "Custom LLM",
+  atlas: "ATLAS",
+  "atlas-tts": "ATLAS",
+  // TTS
+  elevenlabs: "ElevenLabs",
+  inworld: "Inworld",
+  kokoro: "Kokoro",
+  "gemini-tts": "Gemini TTS",
+  "openai-tts": "OpenAI TTS",
+  "grok-tts": "Grok TTS",
+  // Image
+  runpod: "RunPod",
+  fal: "fal.ai FLUX",
+  // Video
+  fal_video: "Kling 2.6",
+  grok: "Grok",
+  vidu: "VIDU",
+  "vidu-q2-fast": "VIDU Q2 Fast",
+  "vidu-q3-fast": "VIDU Q3 Fast",
+  "vidu-q3-pro": "VIDU Q3 Pro",
+  "alicloud-wan-turbo": "Wan Turbo",
+  "alicloud-wan-plus": "Wan Plus",
+  // Music
+  bundled: "Bundled",
+  lyria: "Lyria 3",
+};
+
+function providerLabel(key: string | undefined): string {
+  if (!key) return "";
+  return PROVIDER_LABELS[key] ?? key;
+}
+
 /* ─── Inline sub-components ─── */
+
+function ConfigBadges({ config }: { config: JobConfig }) {
+  const items: { label: string; value: string; color?: string }[] = [];
+
+  if (config.llm) items.push({ label: "LLM", value: providerLabel(config.llm), color: "lime" });
+  if (config.tts) items.push({ label: "TTS", value: providerLabel(config.tts), color: "blue" });
+  if (config.image) items.push({ label: "Imagen", value: providerLabel(config.image), color: "emerald" });
+  if (config.video && !config.noVideo) items.push({ label: "Video", value: providerLabel(config.video), color: "orange" });
+  if (config.music) items.push({ label: "Música", value: providerLabel(config.music), color: "pink" });
+  if (config.videoSceneMode && config.videoSceneMode !== "all" && !config.noVideo) {
+    items.push({ label: "Escenas", value: VIDEO_SCENE_MODE_LABELS[config.videoSceneMode] ?? config.videoSceneMode, color: "yellow" });
+  }
+  if (config.pacing) items.push({ label: "Ritmo", value: config.pacing });
+  if (config.noSubtitles) items.push({ label: "Subtítulos", value: "Off" });
+  if (config.styleReference) items.push({ label: "Estilo", value: "Imagen propia", color: "lime" });
+  if (config.atelierMode) items.push({ label: "Modo", value: "Atelier", color: "lime" });
+  if (config.artStyleOverride) items.push({ label: "Art", value: config.artStyleOverride.split(",")[0]?.trim() ?? "Atelier", color: "emerald" });
+  if (config.lookId) items.push({ label: "Look", value: config.lookId, color: "emerald" });
+  if (config.narrativeArc) items.push({ label: "Arco", value: config.narrativeArc.replace(/_/g, " ") });
+  if (config.castMode === "hero") items.push({ label: "Cámara", value: "Héroe", color: "orange" });
+
+  if (items.length === 0) return null;
+
+  const colorMap: Record<string, string> = {
+    lime: "bg-primary/10 text-primary border-primary/25",
+    blue: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    emerald: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    orange: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+    pink: "bg-pink-500/10 text-pink-400 border-pink-500/20",
+    yellow: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+    default: "bg-muted/60 text-muted-foreground border-border",
+  };
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {items.map(({ label, value, color }) => (
+        <span
+          key={label}
+          className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium ${colorMap[color ?? "default"] ?? colorMap.default}`}
+        >
+          <span className="opacity-60">{label}</span>
+          <span>{value}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 function ResearchCard({ data }: { data: ResearchData }) {
   const [expanded, setExpanded] = useState(false);
@@ -509,7 +632,7 @@ function ResearchCard({ data }: { data: ResearchData }) {
       <div className="mb-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-[1.5px] text-muted-foreground">
-            RESEARCH SUMMARY
+            RESEARCH
           </span>
           {data.mood && (
             <span className="rounded-full bg-surface-inset px-2 py-0.5 text-[10px] text-text-subtle">
@@ -518,7 +641,7 @@ function ResearchCard({ data }: { data: ResearchData }) {
           )}
         </div>
         <span className="text-xs font-medium text-status-success">
-          {data.key_facts.length} facts
+          {data.key_facts.length} datos
         </span>
       </div>
       <p className="mb-3 text-xs leading-relaxed text-secondary-foreground">
@@ -540,7 +663,7 @@ function ResearchCard({ data }: { data: ResearchData }) {
               onClick={() => setExpanded(!expanded)}
               className="rounded-md bg-surface-inset px-2 py-1 text-[11px] text-primary hover:text-primary/80"
             >
-              {expanded ? "Show less" : `+${data.key_facts.length - 5} more`}
+              {expanded ? "Ver menos" : `+${data.key_facts.length - 5} más`}
             </button>
           )}
         </div>
@@ -561,7 +684,7 @@ function MusicStatusCard({ info }: { info: MusicInfo }) {
         <>
           <div className="size-3 animate-spin rounded-full border-2 border-border border-t-primary" />
           <span className="text-[11px] text-text-subtle">
-            Generating music via {providerLabel}...
+            Generando música con {providerLabel}…
           </span>
         </>
       )}
@@ -569,7 +692,7 @@ function MusicStatusCard({ info }: { info: MusicInfo }) {
         <>
           <span className="size-2 rounded-full bg-status-success" />
           <span className="text-[11px] text-text-subtle">
-            Music generated via {providerLabel}
+            Música generada con {providerLabel}
           </span>
         </>
       )}
@@ -577,7 +700,7 @@ function MusicStatusCard({ info }: { info: MusicInfo }) {
         <>
           <span className="size-2 rounded-full bg-status-warning" />
           <span className="text-[11px] text-text-subtle">
-            Using bundled track{info.reason ? ` (${info.reason})` : ""}
+            Usando pista bundled{info.reason ? ` (${info.reason})` : ""}
           </span>
         </>
       )}

@@ -6,16 +6,99 @@
  * passed as argv[2], generates audio, writes a WAV file, then exits.
  *
  * IPC protocol:
- *   Input:  JSON file at argv[2] → { text: string, voice: string, outputPath: string }
+ *   Input:  JSON file at argv[2] → { text: string, voice: string, speed?: number, outputPath: string }
  *   Output: WAV file written to outputPath
  *   Exit:   0 = success, 1 = error (message on stderr)
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import { phonemizeForKokoro } from "./kokoro-espeak.js";
+import {
+  isKokoroEnglishVoice,
+  KOKORO_LANG_TO_PHONEME,
+  mixVoiceEmbeddings,
+  parseKokoroVoiceSpec,
+} from "./kokoro-voices.js";
+
+const VOICE_BIN_URL =
+  "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/voices";
+
+const voiceBinCache = new Map<string, Float32Array>();
 
 interface KokoroConfig {
   text: string;
   voice: string;
+  speed?: number;
   outputPath: string;
+}
+
+async function loadVoiceBin(id: string): Promise<Float32Array> {
+  const cached = voiceBinCache.get(id);
+  if (cached) return cached;
+  const res = await fetch(`${VOICE_BIN_URL}/${id}.bin`);
+  if (!res.ok) throw new Error(`Failed to download Kokoro voice "${id}": ${res.status}`);
+  const data = new Float32Array(await res.arrayBuffer());
+  voiceBinCache.set(id, data);
+  return data;
+}
+
+async function resolveVoiceData(spec: string): Promise<Float32Array | null> {
+  const blend = parseKokoroVoiceSpec(spec);
+  if (blend.parts.length <= 1) return null;
+  const loaded = await Promise.all(
+    blend.parts.map(async (p) => ({ data: await loadVoiceBin(p.id), weight: p.weight })),
+  );
+  return mixVoiceEmbeddings(loaded);
+}
+
+type KokoroTensor = new (type: string, data: Float32Array | number[], dims: number[]) => unknown;
+
+/**
+ * transformers.js checks `instanceof Tensor` from its own module.
+ * A Tensor imported via CJS/createRequire is a different class, so style/speed
+ * were dropped as "missing inputs". Reuse the constructor of tokenizer input_ids.
+ */
+function tensorCtorOf(inputIds: { dims: number[] }): KokoroTensor {
+  const ctor = (inputIds as { constructor: KokoroTensor }).constructor;
+  if (typeof ctor !== "function") {
+    throw new Error("Kokoro input_ids is not a Tensor");
+  }
+  return ctor;
+}
+
+type KokoroRuntime = {
+  generate_from_ids: (
+    ids: { dims: number[] },
+    opts?: { voice?: string; speed?: number },
+  ) => Promise<{ toWav: () => ArrayBuffer }>;
+  model: (inputs: unknown) => Promise<{ waveform: { data: Float32Array } }>;
+};
+
+async function generateWavFromIds(
+  tts: KokoroRuntime,
+  inputIds: { dims: number[] },
+  voiceSpec: string,
+  mixedData: Float32Array | null,
+  speed: number,
+): Promise<Uint8Array> {
+  if (!mixedData) {
+    const audio = await tts.generate_from_ids(inputIds, { voice: voiceSpec, speed });
+    return new Uint8Array(audio.toWav());
+  }
+
+  // Reuse tokenizer Tensor class so `instanceof Tensor` inside kokoro-js passes.
+  const Tensor = tensorCtorOf(inputIds);
+  const seq = Number(inputIds.dims.at(-1) ?? 0);
+  const offset = 256 * Math.min(Math.max(seq - 2, 0), 509);
+  const style = mixedData.slice(offset, offset + 256);
+  const { waveform } = (await tts.model({
+    input_ids: inputIds,
+    style: new Tensor("float32", style, [1, 256]),
+    speed: new Tensor("float32", [speed], [1]),
+  })) as { waveform: { data: Float32Array } };
+
+  const pcm = Buffer.from(waveform.data.buffer, waveform.data.byteOffset, waveform.data.byteLength);
+  const header = buildWavHeader(pcm.length, 24000, 1, 32, 3);
+  return new Uint8Array(Buffer.concat([header, pcm]));
 }
 
 async function main() {
@@ -32,25 +115,38 @@ async function main() {
     dtype: "q8",
   });
 
+  const voice = config.voice;
+  const speed = config.speed ?? 1;
+  const blend = parseKokoroVoiceSpec(voice);
+  const primaryId = blend.primaryId;
+  const mixedData = await resolveVoiceData(voice);
+
   // Use stream() instead of generate() to avoid 511-token truncation.
   // generate() silently truncates at ~511 tokens via tokenizer({truncation:true}).
   // stream() splits by sentence and generates each chunk within the token limit.
   const splitter = new TextSplitterStream();
-  const stream = tts.stream(splitter, { voice: config.voice as "af_heart" });
-
-  // Push text and signal no more input
-  splitter.push(config.text);
-  splitter.close();
-
-  // Collect all audio chunks and concatenate raw PCM
   const wavChunks: Uint8Array[] = [];
-  for await (const { audio } of stream) {
-    // Each chunk is a RawAudio with toWav() — extract just the first chunk's
-    // WAV as the base, then we'll concatenate all chunks differently.
-    // Actually, the simplest correct approach: save each chunk as WAV,
-    // we'll write the last one and concat using raw approach below.
-    const wavBytes = audio.toWav();
-    wavChunks.push(new Uint8Array(wavBytes));
+
+  if (isKokoroEnglishVoice(primaryId) && !mixedData) {
+    const stream = tts.stream(splitter, { voice: primaryId as "af_heart", speed });
+    splitter.push(config.text);
+    splitter.close();
+    for await (const { audio } of stream) {
+      wavChunks.push(new Uint8Array(audio.toWav()));
+    }
+  } else {
+    // kokoro-js 1.2.1 only catalogs en-US/en-GB and its phonemizer.js WASM is
+    // English-only ("es" throws). Use multilingual espeak-ng, then skip the
+    // frozen VOICES check via generate_from_ids (ONNX ships ef_dora.bin etc.).
+    const lang = KOKORO_LANG_TO_PHONEME[primaryId.at(0) ?? "e"] ?? "es";
+    splitter.push(config.text);
+    splitter.close();
+    for await (const sentence of splitter) {
+      const clause = /[.!?…]\s*$/.test(sentence) ? sentence : `${sentence.trimEnd()}.`;
+      const phonemeStr = await phonemizeForKokoro(clause, lang);
+      const { input_ids } = tts.tokenizer(phonemeStr, { truncation: true });
+      wavChunks.push(await generateWavFromIds(tts as unknown as KokoroRuntime, input_ids, primaryId, mixedData, speed));
+    }
   }
 
   if (wavChunks.length === 0) {

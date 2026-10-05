@@ -1,6 +1,21 @@
 import { GoogleGenAI } from "@google/genai";
 import type { ImageProvider } from "../../schema/providers.js";
 
+const MAX_RETRIES = 2;
+const BASE_DELAY_MS = 1000;
+
+function isRetryable(err: unknown): boolean {
+  const msg = String(err);
+  return (
+    msg.includes("503") ||
+    msg.includes("UNAVAILABLE") ||
+    msg.includes("429") ||
+    msg.includes("RESOURCE_EXHAUSTED") ||
+    msg.includes("fetch failed") ||
+    msg.includes("ECONNRESET")
+  );
+}
+
 export class GeminiImage implements ImageProvider {
   private client: GoogleGenAI;
   private model: string;
@@ -12,31 +27,65 @@ export class GeminiImage implements ImageProvider {
     this.model = model;
   }
 
-  async generate(prompt: string, style?: string): Promise<Buffer> {
-    const fullPrompt = style
-      ? `${prompt}. Style: ${style}. Vertical 9:16 aspect ratio, 1080x1920 pixels. No text, no watermarks.`
-      : `${prompt}. Vertical 9:16 aspect ratio, 1080x1920 pixels. No text, no watermarks.`;
+  async generate(prompt: string, style?: string, referenceImage?: Buffer, aspectRatio?: string): Promise<Buffer> {
+    const isLandscape = aspectRatio === "16:9";
+    const orientationHint = isLandscape
+      ? "WIDE HORIZONTAL LANDSCAPE image ONLY. 16:9 widescreen aspect ratio, wider than tall. CRITICAL: Do NOT generate portrait or vertical orientation. Fill the full 1920x1080 frame edge to edge. No black bars, no letterboxing."
+      : "Vertical 9:16 aspect ratio, 1080x1920 pixels";
+    const styleRefHint = referenceImage
+      ? " Keep the SAME individual as the reference: same species, markings, age and face. Match art style, palette and lighting. Do not morph into a similar animal."
+      : "";
+    const fullPrompt = isLandscape
+      ? `${orientationHint}. ${prompt}.${styleRefHint}${style ? ` Style: ${style}.` : ""} No text, no watermarks.`
+      : style
+        ? `${prompt}. Style: ${style}.${styleRefHint} ${orientationHint}. No text, no watermarks.`
+        : `${prompt}.${styleRefHint} ${orientationHint}. No text, no watermarks.`;
 
-    const response = await this.client.models.generateContent({
-      model: this.model,
-      contents: fullPrompt,
-      config: {
-        responseModalities: ["image", "text"],
-      },
-    });
+    const contents = referenceImage
+      ? [
+          {
+            role: "user",
+            parts: [
+              { inlineData: { mimeType: "image/png", data: referenceImage.toString("base64") } },
+              { text: fullPrompt },
+            ],
+          },
+        ]
+      : fullPrompt;
 
-    // Extract image from response
-    const parts = response.candidates?.[0]?.content?.parts;
-    if (!parts) {
-      throw new Error("Gemini returned no content");
-    }
+    let lastError: unknown;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const response = await this.client.models.generateContent({
+          model: this.model,
+          contents,
+          config: {
+            responseModalities: ["image", "text"],
+            imageConfig: {
+              aspectRatio: aspectRatio === "16:9" ? "16:9" : aspectRatio === "1:1" ? "1:1" : "9:16",
+            },
+          },
+        });
 
-    for (const part of parts) {
-      if (part.inlineData?.data) {
-        return Buffer.from(part.inlineData.data, "base64");
+        const parts = response.candidates?.[0]?.content?.parts;
+        if (!parts) throw new Error("Gemini returned no content");
+
+        for (const part of parts) {
+          if (part.inlineData?.data) {
+            return Buffer.from(part.inlineData.data, "base64");
+          }
+        }
+
+        throw new Error("Gemini returned no image data");
+      } catch (err) {
+        lastError = err;
+        if (!isRetryable(err) || attempt === MAX_RETRIES - 1) break;
+        const delayMs = BASE_DELAY_MS * Math.pow(2, attempt);
+        console.warn(`[image/gemini] Attempt ${attempt + 1} failed (${err}), retrying in ${delayMs / 1000}s...`);
+        await new Promise((r) => setTimeout(r, delayMs));
       }
     }
 
-    throw new Error("Gemini returned no image data");
+    throw lastError;
   }
 }

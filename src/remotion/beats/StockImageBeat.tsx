@@ -1,42 +1,18 @@
 import type React from "react";
-import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Img, useCurrentFrame } from "remotion";
+import { kenBurnsTransform } from "../lib/motion";
 import type { SceneProps } from "../lib/score-to-props";
 
 export const StockImageBeat: React.FC<SceneProps> = ({
   assetSrc,
   motion,
   motionIntensity = 1.2,
+  durationInFrames: sceneFrames,
 }) => {
   const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
-  const progress = frame / durationInFrames;
-
-  const scale = (() => {
-    const intensity = motionIntensity;
-    switch (motion) {
-      case "zoom_in":
-        return interpolate(progress, [0, 1], [1, 1 + 0.15 * intensity]);
-      case "zoom_out":
-        return interpolate(progress, [0, 1], [1 + 0.15 * intensity, 1]);
-      case "pan_left":
-      case "pan_right":
-        return 1.15;
-      default:
-        return 1;
-    }
-  })();
-
-  const translateX = (() => {
-    const intensity = motionIntensity;
-    switch (motion) {
-      case "pan_right":
-        return interpolate(progress, [0, 1], [0, 50 * intensity]);
-      case "pan_left":
-        return interpolate(progress, [0, 1], [0, -50 * intensity]);
-      default:
-        return 0;
-    }
-  })();
+  const duration = Math.max(1, sceneFrames || 1);
+  const progress = Math.min(1, frame / duration);
+  const { scale, translateX } = kenBurnsTransform({ progress, motion, intensity: motionIntensity });
 
   return (
     <AbsoluteFill>

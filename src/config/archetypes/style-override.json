@@ -1,0 +1,23 @@
+{
+  "label": "Realism Ani Illustration",
+  "scenePacing": "moderate",
+  "defaultTransition": "slide_left",
+  "transitionDurationFrames": 10,
+  "captionStyle": "bold_outline",
+  "captionChunkSize": 4,
+  "captionLingerS": 0.5,
+  "colorPalette": {
+    "background": "#0a0a12",
+    "accent": "#ff4060",
+    "text": "#ffffff"
+  },
+  "textCardFont": "Inter",
+  "motionIntensity": 1.3,
+  "artStyle": "Hyper-realistic photography fused with anime color grading and dramatic stylization. Subjects are photographically real — genuine skin texture, authentic materials, true-to-life anatomy — but lit and graded with the saturated intensity of anime key visuals. Think: a real photograph run through a high-end anime color pipeline. No cel-shading or linework, but vivid complementary color contrasts, deep crushed shadows, and luminous highlights that feel hand-crafted.",
+  "lighting": "Professional photography lighting elevated with anime-grade color drama. Softbox key light with strongly colored rim or backlight — deep magenta, electric cyan, or vivid amber. Shadows crushed to near-black. Highlights blown to pure luminous white or saturated color. Atmospheric haze, god rays, or lens bloom where thematically appropriate.",
+  "compositionRules": "Photography-quality depth of field and subject placement, with anime compositional energy. Rule of thirds for anchor, but characters or subjects leaning into dynamic diagonals. Backgrounds sharp or softly bokeh'd based on emotional weight of scene. Close crops on expressive faces. Environmental shots use leading lines and dramatic negative space.",
+  "culturalMarkers": "Real-world environments and people rendered with photographic accuracy, but color-graded and lit to heighten emotional contrast. No stylistic distortion of anatomy or setting — the realism is the anchor; the color and light are the drama.",
+  "mood": "Cinematic, vivid, emotionally charged, grounded yet electric.",
+  "antiArtifactGuidance": "Maintain photorealistic skin, hair, and material fidelity — no cel-shading, no linework, no anime facial proportions. The anime influence is purely in color grading and lighting intensity. No plastic smoothing of skin. No uncanny symmetry. Hair should have natural weight and movement, lit with vivid color. Fabric and materials must have realistic texture with saturated color treatment.",
+  "visualColorPalette": ["deep crimson", "electric cyan", "near-black", "luminous white", "vivid amber"]
+}

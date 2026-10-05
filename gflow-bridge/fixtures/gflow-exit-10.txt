@@ -1,0 +1,3 @@
+{"engine":"playwright","event":"browser_engine_selected","cli_version":"0.82.1","level":"info","command":"video i2v"}
+{"event":"ui_automation.batch_403_body","level":"error","route":"batchGenerateImages","body_prefix":"{'message': 'reCAPTCHA evaluation failed', 'reason': 'PUBLIC_ERROR_UNUSUAL_ACTIVITY'}"}
+{"status":"fail","command":"video i2v","error":{"class":"WafRejectionError","title":"WAF rejection","detail":"batchGenerateImages HTTP 403 — PUBLIC_ERROR_UNUSUAL_ACTIVITY","exit_code":10,"retryable":false}}

@@ -9,6 +9,7 @@ import infographic from "./archetypes/infographic.json" with { type: "json" };
 import moodyCinematic from "./archetypes/moody-cinematic.json" with { type: "json" };
 import pastoralWatercolor from "./archetypes/pastoral-watercolor.json" with { type: "json" };
 import studioRealism from "./archetypes/studio-realism.json" with { type: "json" };
+import styleOverride from "./archetypes/style-override.json" with { type: "json" };
 import surrealDreamscape from "./archetypes/surreal-dreamscape.json" with { type: "json" };
 import vintageSnapshot from "./archetypes/vintage-snapshot.json" with { type: "json" };
 import warmEditorial from "./archetypes/warm-editorial.json" with { type: "json" };
@@ -18,6 +19,7 @@ const ARCHETYPES: Record<string, ArchetypeConfig> = {
   editorial_caricature: editorialCaricature as ArchetypeConfig,
   warm_narrative: warmNarrative as ArchetypeConfig,
   studio_realism: studioRealism as ArchetypeConfig,
+  style_override: styleOverride as ArchetypeConfig,
   infographic: infographic as ArchetypeConfig,
   anime_illustration: animeIllustration as ArchetypeConfig,
   pastoral_watercolor: pastoralWatercolor as ArchetypeConfig,

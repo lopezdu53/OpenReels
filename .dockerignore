@@ -10,4 +10,5 @@ output
 .vscode
 .biome
 fixtures
-docs
+docs/**
+!docs/package.json

@@ -1,12 +1,12 @@
 import type { z } from "zod";
 import type { MusicMood } from "./director-score.js";
 
-export type LLMProviderKey = "anthropic" | "openai" | "gemini" | "openrouter" | "openai-compatible";
+export type LLMProviderKey = "anthropic" | "openai" | "gemini" | "openrouter" | "openai-compatible" | "vivi" | "alicloud" | "grok" | "atlas";
 export type SearchProviderKey = "native" | "tavily" | "none";
-export type TTSProviderKey = "elevenlabs" | "inworld" | "kokoro" | "gemini-tts" | "openai-tts";
-export type ImageProviderKey = "gemini" | "openai";
+export type TTSProviderKey = "elevenlabs" | "inworld" | "kokoro" | "gemini-tts" | "openai-tts" | "grok-tts" | "atlas-tts";
+export type ImageProviderKey = "gemini" | "openai" | "vivi" | "alicloud" | "runpod" | "fal" | "grok" | "sharpii" | "atlas" | "gflow";
 export type StockProviderKey = "pexels" | "pixabay";
-export type VideoProviderKey = "gemini" | "fal";
+export type VideoProviderKey = "gemini" | "fal" | "vivi" | "grok" | "runpod" | "sharpii" | "vidu" | "vidu-q3-pro" | "vidu-q3-fast" | "vidu-q3-turbo" | "vidu-q2-pro" | "vidu-q2-fast" | "vidu-q2-turbo" | "vidu-q1" | "vidu-q1-classic" | "vidu-2.0" | "alicloud-wan-turbo" | "alicloud-wan-plus" | "atlas" | "gflow";
 export type MusicProviderKey = "bundled" | "lyria";
 
 export interface LLMUsage {
@@ -45,7 +45,18 @@ export interface WordTimestamp {
 }
 
 export interface ImageProvider {
-  generate(prompt: string, style?: string): Promise<Buffer>;
+  /**
+   * @param referenceImage Optional previous-scene image used as a visual anchor
+   * for style/character continuity. Providers that don't support reference
+   * images should ignore it.
+   */
+  generate(
+    prompt: string,
+    style?: string,
+    referenceImage?: Buffer,
+    aspectRatio?: string,
+    referenceImageUrl?: string,
+  ): Promise<Buffer>;
 }
 
 export interface StockCandidate {
@@ -77,12 +88,18 @@ export interface VideoProvider {
     durationSeconds?: number;
     aspectRatio?: string;
     negativePrompt?: string;
+    /** Hosted HTTPS still from the image job. Required by RunPod p-video I2V. */
+    imageUrl?: string;
+    /** Scene VO slice — Atlas I2V uses this for optional lip-sync / InfiniteTalk. */
+    audio?: Buffer;
   }): Promise<VideoResult>;
 }
 
 export interface VideoResult {
   filePath: string;
   durationSeconds: number;
+  /** gflow dropped --duration after ConfigurationError. */
+  usedDefaultDuration?: boolean;
 }
 
 export interface MusicProvider {

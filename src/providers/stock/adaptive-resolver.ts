@@ -263,7 +263,31 @@ export async function resolveStockAdaptive(
       console.warn(`[stock] AI fallback prompt optimization failed, using original: ${err}`);
     }
 
-    const imageBuffer = await config.imageGen.generate(prompt);
+    // Retry image generation with exponential backoff for transient network errors
+    const MAX_IMAGE_RETRIES = 3;
+    let imageBuffer: Buffer | null = null;
+    let lastImageError: unknown = null;
+    for (let attempt = 0; attempt < MAX_IMAGE_RETRIES; attempt++) {
+      try {
+        imageBuffer = await config.imageGen.generate(prompt);
+        break;
+      } catch (err) {
+        lastImageError = err;
+        const isTransient =
+          String(err).includes("fetch failed") ||
+          String(err).includes("ECONNRESET") ||
+          String(err).includes("ETIMEDOUT") ||
+          String(err).includes("503") ||
+          String(err).includes("429");
+        if (!isTransient || attempt === MAX_IMAGE_RETRIES - 1) break;
+        const delayMs = 2000 * Math.pow(2, attempt);
+        console.warn(`[stock] AI fallback image attempt ${attempt + 1} failed, retrying in ${delayMs}ms: ${err}`);
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+
+    if (!imageBuffer) throw lastImageError;
+
     const filePath = path.join(assetsDir, `scene-${sceneIndex}-ai.png`);
     fs.writeFileSync(filePath, imageBuffer);
 
@@ -279,7 +303,11 @@ export async function resolveStockAdaptive(
     };
   } catch (err) {
     console.error(`[stock] AI fallback failed for scene ${sceneIndex}: ${err}`);
-    console.error(`[stock] Full attempt history:`, JSON.stringify(attempts, null, 2));
+    if (attempts.length === 0) {
+      console.warn(`[stock] No stock providers were tried for scene ${sceneIndex} (stocks array may be empty or unconfigured).`);
+    } else {
+      console.error(`[stock] Full attempt history:`, JSON.stringify(attempts, null, 2));
+    }
     return {
       path: null,
       usage: sumUsages(llmUsages),

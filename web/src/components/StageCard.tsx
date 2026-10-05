@@ -19,21 +19,21 @@ export interface StageCardProps {
 }
 
 export const STAGE_LABELS: Record<string, string> = {
-  research: "Research",
-  director: "Creative Director",
-  tts: "Voice Synthesis",
-  visuals: "Visual Assets",
-  assembly: "Assembly & Render",
-  critic: "Quality Review",
+  research: "Investigación",
+  director: "Director creativo",
+  tts: "Síntesis de voz",
+  visuals: "Recursos visuales",
+  assembly: "Ensamblaje y render",
+  critic: "Revisión de calidad",
 };
 
 const STAGE_RUNNING_TEXT: Record<string, string> = {
-  research: "Researching topic...",
-  director: "Writing script...",
-  tts: "Synthesizing voiceover...",
-  visuals: "Generating visuals...",
-  assembly: "Rendering video...",
-  critic: "Reviewing quality...",
+  research: "Investigando el tema…",
+  director: "Escribiendo el guion…",
+  tts: "Sintetizando la locución…",
+  visuals: "Generando visuales…",
+  assembly: "Renderizando el video…",
+  critic: "Revisando calidad…",
 };
 
 /* ------------------------------------------------------------------ */
@@ -152,16 +152,16 @@ export function StageCard({
 
   const statusText =
     status === "done" && durationSec != null
-      ? `Completed · ${durationSec.toFixed(1)}s`
+      ? `Completado · ${durationSec.toFixed(1)}s`
       : status === "done"
-        ? "Completed"
+        ? "Completado"
         : status === "running"
-          ? subStatus || detail || STAGE_RUNNING_TEXT[name] || "Processing..."
+          ? subStatus || detail || STAGE_RUNNING_TEXT[name] || "Procesando…"
           : status === "error"
-            ? "Failed"
+            ? "Fallido"
             : status === "skipped"
-              ? "Skipped"
-              : "Pending";
+              ? "Omitido"
+              : "Pendiente";
 
   const isActive = status === "running" || status === "done" || status === "error";
 

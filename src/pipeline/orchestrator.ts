@@ -4,13 +4,14 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { Mastra } from "@mastra/core";
 import { createStep, createWorkflow } from "@mastra/core/workflows";
+import { bundle } from "@remotion/bundler";
+import { renderMedia, selectComposition } from "@remotion/renderer";
 import { z } from "zod";
 import { generateDirectorScore, reviseDirectorScore } from "../agents/creative-director.js";
-import { evaluate } from "../agents/critic.js";
+import { type CriticEvalOptions, evaluate } from "../agents/critic.js";
+import { summarizeVideoFallbacks } from "../agents/critic-audit.js";
 import { optimizeImagePrompt } from "../agents/image-prompter.js";
 import { research } from "../agents/research.js";
-import { resolveStockAdaptive, type StockResolution } from "../providers/stock/adaptive-resolver.js";
-import { resolveAIVideo, type VideoResolution } from "../providers/video/video-resolver.js";
 import type { CostBreakdown } from "../cli/cost-estimator.js";
 import {
   computeActualLLMCost,
@@ -20,42 +21,73 @@ import {
 } from "../cli/cost-estimator.js";
 import { ProgressDisplay } from "../cli/progress.js";
 import { getArchetype } from "../config/archetype-registry.js";
-import { getPlatformConfig } from "../config/platforms.js";
-import { resolveMusic, type MusicResolution } from "./music-resolver.js";
-import { bundle } from "@remotion/bundler";
-import { renderMedia, selectComposition } from "@remotion/renderer";
+import { normalizeFilmMinutes } from "../config/film-duration.js";
+import { getPlatformAspectRatio, getPlatformConfig } from "../config/platforms.js";
+import { filmLookArchetype, filmLookPrompt } from "../film/director-kit.js";
+import {
+  applyVisualIdentity,
+  characterSheetFitsScene,
+  identityLockLead,
+  locationSheetFitsScene,
+  normalizeCastMode,
+  parseCastMembers,
+  parseLocationMembers,
+  planSceneCastFocus,
+  planSceneLocationFocus,
+  planSceneObjectFocus,
+} from "../library/identity.js";
+import { buildShotContext } from "../library/prompt-context.js";
+import { shouldSerializeGflowI2v } from "../providers/gflow/catalog.js";
+import { generateOrientedImage } from "../providers/image/dimensions.js";
+import { lookupRemoteUrl } from "../providers/runpod/client.js";
+import {
+  resolveStockAdaptive,
+  type StockResolution,
+} from "../providers/stock/adaptive-resolver.js";
+import { resolveAIVideo, type VideoResolution } from "../providers/video/video-resolver.js";
 import { getTotalDurationInFrames, mapScoreToProps } from "../remotion/lib/score-to-props.js";
 import type { ArchetypeConfig } from "../schema/archetype.js";
 import type { DirectorScore } from "../schema/director-score.js";
-import type {
-  LLMUsage,
-  WordTimestamp,
-} from "../schema/providers.js";
+import type { LLMUsage, WordTimestamp } from "../schema/providers.js";
+import { writeHeldStill } from "./hold-frame.js";
+import { extractLastFrame } from "./last-frame.js";
+import { type MusicResolution, resolveMusic } from "./music-resolver.js";
+import { sliceSceneAudio } from "./scene-audio.js";
+import { applyVideoSceneMode, resolveVideoSceneMode } from "./video-scene-mode.js";
+import {
+  imageProviderChainsIdentity,
+  imageProviderClonesLayout,
+  planVisualReferences,
+  type SheetReference,
+  sheetToSceneHint,
+} from "./visual-refs.js";
+import { resolveAllowedVisualTypes } from "./visual-types.js";
 
 // Re-export types and utilities from utils.ts for backward compatibility
 export {
-  STAGE_NAMES,
-  type StageName,
+  confirm,
+  getVideoDuration,
   type PipelineCallbacks,
   type PipelineOptions,
   type PipelineResult,
+  STAGE_NAMES,
+  type StageName,
   shouldAutoConfirm,
   shouldSkipPreview,
   splitWordsIntoScenes,
-  getVideoDuration,
-  confirm,
 } from "./utils.js";
 
 import {
-  type StageName,
+  confirm,
+  getVideoDuration,
   type PipelineCallbacks,
   type PipelineOptions,
   type PipelineResult,
   STAGE_NAMES,
+  type StageName,
   shouldAutoConfirm,
   shouldSkipPreview,
   splitWordsIntoScenes,
-  confirm,
 } from "./utils.js";
 
 /** Create CLI callbacks that wrap ProgressDisplay for terminal output */
@@ -119,7 +151,12 @@ interface RunLog {
   totalCost?: { estimated: number; actual?: number };
   stockResolutions?: StockResolution[];
   videoResolutions?: VideoResolution[];
-  musicResolution?: { provider: string; prompt?: string; metadata?: Record<string, unknown>; fallback: boolean };
+  musicResolution?: {
+    provider: string;
+    prompt?: string;
+    metadata?: Record<string, unknown>;
+    fallback: boolean;
+  };
   direction?: string;
   replay?: boolean;
 }
@@ -135,6 +172,8 @@ interface VisualAssetResult {
   stockResolution?: StockResolution;
   videoResolution?: VideoResolution;
   prompterUsage?: LLMUsage | null;
+  /** Hosted HTTPS URL from RunPod image job, used for p-video I2V. */
+  remoteUrl?: string;
 }
 
 /** Generate an AI image with optional rejection context from failed stock searches */
@@ -146,9 +185,45 @@ async function generateAIImage(
   totalScenes: number,
   archetype: ArchetypeConfig,
   assetsDir: string,
+  referenceImage?: Buffer,
+  aspectRatio?: string,
+  shot?: {
+    shotType?: string;
+    cameraMove?: string;
+    location?: string;
+    previousVisualPrompt?: string;
+    sheetReference?: SheetReference;
+    sceneLock?: string;
+    locationLock?: string;
+    objectLock?: string;
+  },
+  referenceImageUrl?: string,
 ): Promise<VisualAssetResult> {
   let prompt = visualPrompt;
   let usage: LLMUsage | null = null;
+  const sceneLock = shot?.sceneLock?.trim() || opts.characterLock;
+  const sceneLocationLock = shot?.locationLock?.trim() || opts.locationLock;
+  const sceneObjectLock = shot?.objectLock?.trim() || opts.objectLock;
+  const shotContext = buildShotContext({
+    characterLock: sceneLock,
+    locationLock: sceneLocationLock,
+    objectLock: sceneObjectLock,
+    artStyle: opts.artStyleOverride,
+    shotType: shot?.shotType,
+    cameraMove: shot?.cameraMove,
+    location: shot?.location,
+    previousVisualPrompt: shot?.previousVisualPrompt,
+  });
+  const sheetHint = sheetToSceneHint(shot?.sheetReference ?? null);
+  const imagePromptOpts = {
+    ...(opts.artStyleOverride ? { artStyleOverride: opts.artStyleOverride } : {}),
+    ...(sceneLock ? { characterLock: sceneLock } : {}),
+    ...(sceneLocationLock ? { locationLock: sceneLocationLock } : {}),
+    ...(sceneObjectLock ? { objectLock: sceneObjectLock } : {}),
+    ...(aspectRatio ? { aspectRatio } : {}),
+    ...(shotContext ? { shotContext } : {}),
+  };
+
   try {
     const optimized = await optimizeImagePrompt(
       opts.llm,
@@ -157,23 +232,59 @@ async function generateAIImage(
       sceneIndex,
       totalScenes,
       archetype,
+      imagePromptOpts,
     );
     prompt = optimized.prompt;
     usage = optimized.usage;
   } catch (err) {
-    console.warn(`[visuals] Scene ${sceneIndex} prompt optimization failed, using original: ${err}`);
+    console.warn(
+      `[visuals] Scene ${sceneIndex} prompt optimization failed, using original: ${err}`,
+    );
+    if (aspectRatio === "16:9") {
+      prompt = `16:9 landscape widescreen cinematic still, fill the full frame edge to edge, no letterbox bars. ${prompt}`;
+    }
+    if (opts.artStyleOverride?.trim()) {
+      prompt = `${prompt}. Art style LOCKED: ${opts.artStyleOverride.trim()}`;
+    }
+  }
+
+  if (referenceImage && referenceImage.length > 80) {
+    prompt =
+      "CONTINUITY LOCK: same person, same wardrobe, SAME ROOM as the reference still " +
+      "(walls, furniture, window, lighting). Change only pose, hands, or the named prop for this beat. " +
+      "Do not teleport, do not redesign the set. " +
+      prompt;
+  }
+  if (sceneLock?.trim()) {
+    prompt = `${identityLockLead(sceneLock)} Not a fox, raccoon, cat, or tiger unless the lock says so. ${sceneLock.trim()} Scene: ${prompt}`;
+  }
+  if (sceneLocationLock?.trim()) {
+    prompt = `LOCATION LOCK — one named place only, never collage two roster locations. ${sceneLocationLock.trim()} ${prompt}`;
+  }
+  if (sheetHint) {
+    prompt = `${sheetHint} ${prompt}`;
+  }
+  if (shotContext) {
+    prompt = `${prompt}\n${shotContext}`;
   }
 
   try {
-    const imageBuffer = await opts.imageGen.generate(prompt);
+    const imageBuffer = await generateOrientedImage(
+      (p, s, r, a, u) => opts.imageGen.generate(p, s, r, a, u),
+      { prompt, referenceImage, referenceImageUrl, aspectRatio },
+    );
     const filePath = path.join(assetsDir, `scene-${sceneIndex}-ai.png`);
     fs.writeFileSync(filePath, imageBuffer);
-    return { path: filePath, usage, durationSeconds: null };
+    const remoteUrl = lookupRemoteUrl(imageBuffer);
+    if (remoteUrl) fs.writeFileSync(`${filePath}.url`, remoteUrl);
+    return { path: filePath, usage, durationSeconds: null, remoteUrl };
   } catch (err) {
     if (!isSafetyRejection(err)) throw err;
 
     // Safety rejection: retry once with a sanitized prompt
-    console.warn(`[visuals] Scene ${sceneIndex} image rejected by safety filter, retrying with softened prompt`);
+    console.warn(
+      `[visuals] Scene ${sceneIndex} image rejected by safety filter, retrying with softened prompt`,
+    );
     try {
       const sanitized = await optimizeImagePrompt(
         opts.llm,
@@ -183,11 +294,12 @@ async function generateAIImage(
         totalScenes,
         archetype,
         {
+          ...imagePromptOpts,
           rejectionContext:
             `The previous prompt was rejected by the image provider's safety filter (${String(err).slice(0, 200)}). ` +
             `Rewrite the prompt to convey the same scene mood and composition through atmosphere, lighting, and implication. ` +
             `Remove ALL references to violence, blood, gore, weapons in use, suffering, nudity, or graphic content. ` +
-            `Keep the archetype style and emotional tone intact.`,
+            `Keep the archetype style and emotional tone intact. Keep the IDENTITY LOCK character unchanged.`,
         },
       );
       prompt = sanitized.prompt;
@@ -197,10 +309,28 @@ async function generateAIImage(
       throw err;
     }
 
-    const imageBuffer = await opts.imageGen.generate(prompt);
+    if (sceneLock?.trim()) {
+      prompt = `${identityLockLead(sceneLock)} ${sceneLock.trim()} Scene: ${prompt}`;
+    }
+    if (sceneLocationLock?.trim()) {
+      prompt = `LOCATION LOCK — one named place only. ${sceneLocationLock.trim()} ${prompt}`;
+    }
+    if (sheetHint) {
+      prompt = `${sheetHint} ${prompt}`;
+    }
+    if (shotContext) {
+      prompt = `${prompt}\n${shotContext}`;
+    }
+
+    const imageBuffer = await generateOrientedImage(
+      (p, s, r, a, u) => opts.imageGen.generate(p, s, r, a, u),
+      { prompt, referenceImage, referenceImageUrl, aspectRatio },
+    );
     const filePath = path.join(assetsDir, `scene-${sceneIndex}-ai.png`);
     fs.writeFileSync(filePath, imageBuffer);
-    return { path: filePath, usage, durationSeconds: null };
+    const remoteUrl = lookupRemoteUrl(imageBuffer);
+    if (remoteUrl) fs.writeFileSync(`${filePath}.url`, remoteUrl);
+    return { path: filePath, usage, durationSeconds: null, remoteUrl };
   }
 }
 
@@ -225,10 +355,43 @@ async function resolveVisualAsset(
   archetype: ArchetypeConfig,
   cb: PipelineCallbacks,
   sceneDurationSeconds?: number,
+  referenceImage?: Buffer,
+  aspectRatio?: string,
+  shot?: {
+    previousVisualPrompt?: string;
+    sheetReference?: SheetReference;
+    sceneLock?: string;
+    locationLock?: string;
+    objectLock?: string;
+  },
+  referenceImageUrl?: string,
+  sceneAudio?: Buffer,
 ): Promise<VisualAssetResult> {
+  const shotBag = {
+    shotType: scene.shot_type,
+    cameraMove: scene.camera_move,
+    location: scene.location,
+    previousVisualPrompt: shot?.previousVisualPrompt,
+    sheetReference: shot?.sheetReference,
+    sceneLock: shot?.sceneLock,
+    locationLock: shot?.locationLock,
+    objectLock: shot?.objectLock,
+  };
   switch (scene.visual_type) {
     case "ai_image":
-      return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir);
+      return generateAIImage(
+        opts,
+        scene.visual_prompt,
+        scene.script_line,
+        index,
+        totalScenes,
+        archetype,
+        assetsDir,
+        referenceImage,
+        aspectRatio,
+        shotBag,
+        referenceImageUrl,
+      );
 
     case "stock_image":
     case "stock_video": {
@@ -262,31 +425,106 @@ async function resolveVisualAsset(
     case "ai_video": {
       // If no video providers available, fall back to ai_image silently
       if (!opts.videoProviders?.length) {
-        return generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir);
+        return generateAIImage(
+          opts,
+          scene.visual_prompt,
+          scene.script_line,
+          index,
+          totalScenes,
+          archetype,
+          assetsDir,
+          referenceImage,
+          aspectRatio,
+          shotBag,
+          referenceImageUrl,
+        );
       }
-      // Phase 1: Generate AI image (first frame)
+      const heroFollowCam = normalizeCastMode(opts.castMode) === "hero";
+      // Stickman-style hero: take 2+ starts from the last frame of the previous
+      // I2V — no new still, no freeze hold. Scene 0 still paints the first frame.
+      const continuation =
+        heroFollowCam && index > 0 && Boolean(referenceImage && referenceImage.length > 80);
       const imageStart = Date.now();
-      const imgResult = await generateAIImage(opts, scene.visual_prompt, scene.script_line, index, totalScenes, archetype, assetsDir);
+      let imgResult: VisualAssetResult;
+      if (continuation) {
+        imgResult = {
+          path: writeHeldStill(assetsDir, index, referenceImage!),
+          usage: null,
+          durationSeconds: null,
+        };
+      } else {
+        try {
+          imgResult = await generateAIImage(
+            opts,
+            scene.visual_prompt,
+            scene.script_line,
+            index,
+            totalScenes,
+            archetype,
+            assetsDir,
+            referenceImage,
+            aspectRatio,
+            shotBag,
+            referenceImageUrl,
+          );
+        } catch (err) {
+          if (!(referenceImage && referenceImage.length > 80)) throw err;
+          console.warn(`[visuals] Scene ${index} still failed, holding previous frame: ${err}`);
+          imgResult = {
+            path: writeHeldStill(assetsDir, index, referenceImage),
+            usage: null,
+            durationSeconds: null,
+          };
+        }
+      }
       const imageGenTimeMs = Date.now() - imageStart;
       const imageBuffer = fs.readFileSync(imgResult.path!);
 
       // Phase 2: Animate with video provider via resolver
-      const videoResult = await resolveAIVideo(scene, {
-        path: imgResult.path!,
-        buffer: imageBuffer,
-        usage: imgResult.usage,
-      }, index, assetsDir, {
-        videoProviders: opts.videoProviders,
-        llm: opts.llm,
-        archetype,
-        callbacks: cb,
-        totalScenes,
-        sceneDurationSeconds,
-      });
+      const videoResult = await resolveAIVideo(
+        scene,
+        {
+          path: imgResult.path!,
+          buffer: imageBuffer,
+          usage: imgResult.usage,
+          remoteUrl: imgResult.remoteUrl,
+        },
+        index,
+        assetsDir,
+        {
+          videoProviders: opts.videoProviders,
+          llm: opts.llm,
+          archetype,
+          callbacks: cb,
+          totalScenes,
+          sceneDurationSeconds,
+          aspectRatio,
+          sceneAudio,
+          characterLock: shot?.sceneLock ?? opts.characterLock,
+          locationLock: shot?.locationLock ?? opts.locationLock,
+          objectLock: shot?.objectLock ?? opts.objectLock,
+          shotContext: buildShotContext({
+            characterLock: shot?.sceneLock ?? opts.characterLock,
+            locationLock: shot?.locationLock ?? opts.locationLock,
+            objectLock: shot?.objectLock ?? opts.objectLock,
+            artStyle: opts.artStyleOverride,
+            shotType: scene.shot_type,
+            cameraMove: scene.camera_move,
+            location: scene.location,
+            previousVisualPrompt: shot?.previousVisualPrompt,
+          }),
+          heroFollowCam,
+          continuation,
+        },
+      );
 
       // Adjust imageGenTimeMs in the resolution metadata
       if (videoResult.videoResolution) {
         videoResult.videoResolution.imageGenTimeMs = imageGenTimeMs;
+      }
+
+      if (videoResult.path && videoResult.path.endsWith(".mp4")) {
+        extractLastFrame(videoResult.path, path.join(assetsDir, `scene-${index}-last.png`));
       }
 
       return {
@@ -320,6 +558,21 @@ async function resolveVisualAsset(
  * Data flows between steps via Mastra's input/output chaining (.then()).
  * Shared mutable state (llmUsages, log) lives in the runPipeline scope.
  */
+function criticOptions(
+  opts: PipelineOptions,
+  extra: Partial<CriticEvalOptions> = {},
+): CriticEvalOptions {
+  return {
+    pacing: opts.pacing,
+    platform: opts.platform,
+    targetDurationMinutes: opts.targetDurationMinutes,
+    characterLock: opts.characterLock,
+    direction: opts.direction,
+    castMode: opts.castMode,
+    ...extra,
+  };
+}
+
 function buildPipelineWorkflow(
   opts: PipelineOptions,
   cb: PipelineCallbacks,
@@ -346,13 +599,19 @@ function buildPipelineWorkflow(
     words?: WordTimestamp[];
     voiceoverPath?: string;
     sceneWords?: WordTimestamp[][];
+    voiceoverDurationSeconds?: number;
   } = {};
 
   const visualsResult: {
     sceneAssets: (string | null)[];
     sceneSourceDurations: (number | null)[];
     musicFilePath?: string | null;
-    musicSelection?: { trackId: string; mood: string; requestedMood: string; fallback: boolean } | null;
+    musicSelection?: {
+      trackId: string;
+      mood: string;
+      requestedMood: string;
+      fallback: boolean;
+    } | null;
     musicResolution?: MusicResolution | null;
   } = { sceneAssets: [], sceneSourceDurations: [] };
 
@@ -398,7 +657,10 @@ function buildPipelineWorkflow(
         return output.data;
       } catch (err) {
         const dur = (Date.now() - start) / 1000;
-        cb.onStageSkip?.("research", "web search failed");
+        cb.onStageSkip?.(
+          "research",
+          `research failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
         log.stages.push({ name: "research", duration: dur, status: "skipped", error: String(err) });
         return {
           summary: `Topic: ${inputData.topic}`,
@@ -426,11 +688,51 @@ function buildPipelineWorkflow(
       cb.onStageStart?.("director");
       const start = Date.now();
       const videoEnabled = !opts.noVideo && (opts.videoProviders?.length ?? 0) > 0;
-      const directorOpts = { archetype: opts.archetype, pacing: opts.pacing, videoEnabled, direction: opts.direction };
+      const stockEnabled = opts.stock.length > 0;
+      // Drop stock/ai_video when the corresponding providers are missing so the
+      // director cannot request scenes that would render as blank frames.
+      const allowedVisualTypes = resolveAllowedVisualTypes({
+        requested: opts.allowedVisualTypes,
+        videoEnabled,
+        stockEnabled,
+        forbidTextCard: opts.platform === "youtube_horizontal",
+      });
+      const heroFollowCam = normalizeCastMode(opts.castMode) === "hero";
+      const resolvedVideoMode = resolveVideoSceneMode({
+        requested: opts.videoSceneMode,
+        heroFollowCam,
+        videoAllowed: videoEnabled && allowedVisualTypes.includes("ai_video"),
+      });
+      const directorOpts = {
+        archetype:
+          opts.archetype ??
+          filmLookArchetype(opts.lookId) ??
+          (opts.artStyleOverride ? "cinematic_documentary" : undefined),
+        pacing: opts.pacing,
+        videoEnabled,
+        allowedVisualTypes,
+        direction: opts.direction,
+        targetDurationMinutes: opts.targetDurationMinutes,
+        platform: opts.platform,
+        characterLock: opts.characterLock,
+        locationLock: opts.locationLock,
+        objectLock: opts.objectLock,
+        artStyleOverride: opts.artStyleOverride?.trim() || filmLookPrompt(opts.lookId) || undefined,
+        videoSceneMode: resolvedVideoMode,
+        castMode: opts.castMode,
+        lookId: opts.lookId,
+        narrativeArc: opts.narrativeArc,
+      };
 
       // ── Replay mode: use provided score, skip generation + revision ──
       if (opts.replayScore) {
-        const score = opts.replayScore;
+        const score = applyVisualIdentity(
+          opts.replayScore,
+          opts.characterLock,
+          opts.locationLock,
+          opts.objectLock,
+          normalizeCastMode(opts.castMode),
+        );
         directorResult.score = score;
         directorResult.config = getArchetype(score.archetype);
 
@@ -453,7 +755,17 @@ function buildPipelineWorkflow(
         }
 
         // Cost estimation with replay flag (omits research/director/critic LLM costs)
-        const costBreakdown = estimateCost(score, opts.imageProvider, opts.ttsProvider, opts.videoProvider, opts.llm.id, opts.musicProviderKey, 0, 0, { replay: true });
+        const costBreakdown = estimateCost(
+          score,
+          opts.imageProvider,
+          opts.ttsProvider,
+          opts.videoProvider,
+          opts.llm.id,
+          opts.musicProviderKey,
+          0,
+          0,
+          { replay: true },
+        );
         directorResult.costBreakdown = costBreakdown;
         log.totalCost = { estimated: costBreakdown.totalCost };
 
@@ -461,7 +773,11 @@ function buildPipelineWorkflow(
           const stockSceneCount = score.scenes.filter(
             (s) => s.visual_type === "stock_image" || s.visual_type === "stock_video",
           ).length;
-          const proceed = await cb.onCostEstimate(costBreakdown, opts.imageProvider, stockSceneCount);
+          const proceed = await cb.onCostEstimate(
+            costBreakdown,
+            opts.imageProvider,
+            stockSceneCount,
+          );
           if (!proceed) {
             directorResult.costRejected = true;
             return { done: true };
@@ -469,7 +785,11 @@ function buildPipelineWorkflow(
         }
 
         const dur = (Date.now() - start) / 1000;
-        cb.onStageComplete?.("director", `Replayed: ${score.scenes.length} scenes, ${score.archetype}`, dur);
+        cb.onStageComplete?.(
+          "director",
+          `Replayed: ${score.scenes.length} scenes, ${score.archetype}`,
+          dur,
+        );
         log.stages.push({ name: "creative-director", duration: dur, status: "done" });
         return { done: true };
       }
@@ -497,7 +817,7 @@ function buildPipelineWorkflow(
 
       for (let round = 0; round < MAX_REVISION_ROUNDS; round++) {
         try {
-          const critiqueOutput = await evaluate(opts.llm, score, opts.topic, opts.pacing);
+          const critiqueOutput = await evaluate(opts.llm, score, opts.topic, criticOptions(opts));
           llmUsages.push(critiqueOutput.usage);
           evaluationsCompleted++;
           const critique = critiqueOutput.data;
@@ -510,10 +830,23 @@ function buildPipelineWorkflow(
 
           if (critique.score >= 7 || !critique.revision_needed) break;
 
-          cb.onProgress?.("director", { type: "revision", round: round + 1, critiqueScore: critique.score });
-          cb.onLog?.(`\n[director] Critic score: ${critique.score}/10 (round ${round + 1}), revising...`);
+          cb.onProgress?.("director", {
+            type: "revision",
+            round: round + 1,
+            critiqueScore: critique.score,
+          });
+          cb.onLog?.(
+            `\n[director] Critic score: ${critique.score}/10 (round ${round + 1}), revising...`,
+          );
 
-          const revised = await reviseDirectorScore(opts.llm, opts.topic, inputData, score, critique, directorOpts);
+          const revised = await reviseDirectorScore(
+            opts.llm,
+            opts.topic,
+            inputData,
+            score,
+            critique,
+            directorOpts,
+          );
           llmUsages.push(revised.usage);
           score = revised.data;
           revisionRoundsCompleted++;
@@ -528,7 +861,7 @@ function buildPipelineWorkflow(
       // give it a chance to compete with bestScore
       if (revisionRoundsCompleted > 0 && score !== bestScore) {
         try {
-          const finalCritique = await evaluate(opts.llm, score, opts.topic, opts.pacing);
+          const finalCritique = await evaluate(opts.llm, score, opts.topic, criticOptions(opts));
           llmUsages.push(finalCritique.usage);
           evaluationsCompleted++;
           if (finalCritique.data.score > bestCritiqueScore) {
@@ -543,16 +876,43 @@ function buildPipelineWorkflow(
       // Use the highest-scoring revision
       score = bestScore;
 
+      // VIDU credits are expensive: when the producer left the mix to the director, keep one clip.
+      const leaveDirectorMix =
+        !resolvedVideoMode || resolvedVideoMode === "all" || resolvedVideoMode === "auto";
+      if (leaveDirectorMix && opts.videoProvider?.startsWith("vidu")) {
+        let firstVideoSeen = false;
+        score = {
+          ...score,
+          scenes: score.scenes.map((s) => {
+            if (s.visual_type !== "ai_video") return s;
+            if (!firstVideoSeen) {
+              firstVideoSeen = true;
+              return s;
+            }
+            return { ...s, visual_type: "ai_image" as const };
+          }),
+        };
+      }
+
+      score = {
+        ...score,
+        scenes: applyVideoSceneMode(score.scenes, resolvedVideoMode),
+      };
+
+      score = applyVisualIdentity(
+        score,
+        opts.characterLock,
+        opts.locationLock,
+        opts.objectLock,
+        normalizeCastMode(opts.castMode),
+      );
+
       // ── Store final score on shared closure state ──
       directorResult.score = score;
       directorResult.config = getArchetype(score.archetype);
 
       const dur = (Date.now() - start) / 1000;
-      cb.onStageComplete?.(
-        "director",
-        `${score.scenes.length} scenes, ${score.archetype}`,
-        dur,
-      );
+      cb.onStageComplete?.("director", `${score.scenes.length} scenes, ${score.archetype}`, dur);
       log.stages.push({ name: "creative-director", duration: dur, status: "done" });
 
       // Write score.json and emit progress AFTER the revision loop
@@ -574,7 +934,16 @@ function buildPipelineWorkflow(
       // Cost estimation (uses the final revised score for accurate scene counts)
       // Pass evaluations and revisions separately: evaluations count critic calls,
       // revisions count director calls (evaluations >= revisions since gate always evaluates)
-      const costBreakdown = estimateCost(score, opts.imageProvider, opts.ttsProvider, opts.videoProvider, opts.llm.id, opts.musicProviderKey, evaluationsCompleted, revisionRoundsCompleted);
+      const costBreakdown = estimateCost(
+        score,
+        opts.imageProvider,
+        opts.ttsProvider,
+        opts.videoProvider,
+        opts.llm.id,
+        opts.musicProviderKey,
+        evaluationsCompleted,
+        revisionRoundsCompleted,
+      );
       directorResult.costBreakdown = costBreakdown;
       log.totalCost = { estimated: costBreakdown.totalCost };
 
@@ -605,6 +974,15 @@ function buildPipelineWorkflow(
 
       const score = directorResult.score!;
       cb.onStageStart?.("tts");
+      if (opts.muteCharacter === true) {
+        ttsResult.words = [];
+        ttsResult.sceneWords = score.scenes.map(() => []);
+        ttsResult.voiceoverPath = undefined;
+        ttsResult.voiceoverDurationSeconds = undefined;
+        cb.onStageSkip?.("tts", "mute character — I2V bed only");
+        log.stages.push({ name: "tts", duration: 0, status: "skipped" });
+        return { done: true };
+      }
       const start = Date.now();
       const fullScript = score.scenes.map((s) => s.script_line).join(" ");
       const result = await opts.tts.generate(fullScript);
@@ -616,6 +994,8 @@ function buildPipelineWorkflow(
       ttsResult.words = result.words;
       ttsResult.voiceoverPath = voiceoverPath;
       ttsResult.sceneWords = splitWordsIntoScenes(score, result.words);
+      // Get actual audio duration so Remotion doesn't clip trailing silence
+      ttsResult.voiceoverDurationSeconds = getVideoDuration(voiceoverPath) ?? undefined;
 
       cb.onStageComplete?.("tts", `${result.words.length} words`, dur);
       log.stages.push({ name: "tts", duration: dur, status: "done" });
@@ -640,24 +1020,329 @@ function buildPipelineWorkflow(
       const totalScenes = score.scenes.length;
 
       // Compute scene durations from TTS word timings for visual assets and music
-      const sceneDurations = (ttsResult.sceneWords ?? []).map((words) => {
+      const targetSec = (normalizeFilmMinutes(opts.targetDurationMinutes) ?? 0) * 60;
+      const evenSceneSec =
+        targetSec > 0 && totalScenes > 0 ? Math.max(2, targetSec / totalScenes) : 3;
+      const sceneDurations = score.scenes.map((_, i) => {
+        const words = ttsResult.sceneWords?.[i];
         const first = words?.[0];
         const last = words?.[words.length - 1];
-        return first && last ? last.end - first.start + 0.5 : 3;
+        return first && last ? last.end - first.start + 0.5 : evenSceneSec;
       });
 
-      // Run visual asset resolution and music generation in parallel
-      const scenePromise = Promise.all(
-        score.scenes.map(async (scene, i) => {
-          try {
-            const sceneDuration = sceneDurations[i];
-            return await resolveVisualAsset(scene, i, totalScenes, assetsDir, opts, archetype, cb, sceneDuration);
-          } catch (err) {
-            cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
-            return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
-          }
-        }),
+      const aspectRatio = getPlatformAspectRatio(opts.platform);
+      const sceneAudioFor = (i: number) =>
+        ttsResult.voiceoverPath
+          ? sliceSceneAudio(ttsResult.voiceoverPath, ttsResult.sceneWords?.[i])
+          : undefined;
+
+      const sceneCast = planSceneCastFocus(
+        score.scenes,
+        opts.characterLock,
+        normalizeCastMode(opts.castMode),
       );
+      const roster = parseCastMembers(opts.characterLock);
+      const sheetOwner = roster[0]?.name;
+      const characterSheet =
+        opts.characterReferenceImage && opts.characterReferenceImage.length > 100
+          ? opts.characterReferenceImage
+          : undefined;
+      const sceneLoc = planSceneLocationFocus(score.scenes, opts.locationLock);
+      const sceneObj = planSceneObjectFocus(score.scenes, opts.objectLock);
+      const locRoster = parseLocationMembers(opts.locationLock);
+      const locSheetOwner = locRoster[0]?.name;
+      const locationSheet =
+        opts.locationReferenceImage && opts.locationReferenceImage.length > 100
+          ? opts.locationReferenceImage
+          : undefined;
+
+      const heroFollowCam = normalizeCastMode(opts.castMode) === "hero";
+      const refPlan = planVisualReferences({
+        characterReferenceImage: opts.characterReferenceImage,
+        styleReferenceImage: opts.styleReferenceImage,
+        locationReferenceImage: opts.locationReferenceImage,
+        atelierMode: opts.atelierMode,
+        imageProvider: opts.imageProvider,
+        characterLock: opts.characterLock,
+        locationLock: opts.locationLock,
+        castMode: normalizeCastMode(opts.castMode),
+      });
+      const globalReference = refPlan.globalReference;
+      const atelierMode = refPlan.useAtelier;
+      const sheetReference = refPlan.sheetReference;
+      const multiCast = roster.length >= 2;
+      const multiLocation = locRoster.length >= 2;
+
+      // Long-form platforms using VIVI benefit from sequential generation with a
+      // reference image fed forward so characters/setting/style stay consistent.
+      // Hero follow-cam always chains the previous frame (pose → pose), even with
+      // guests or a location change — that is the match-cut seed.
+      const runpodIdentityLock = opts.imageProvider === "runpod" && atelierMode;
+      const atlasIdentityLock =
+        imageProviderChainsIdentity(opts.imageProvider) && Boolean(opts.characterLock?.trim());
+      const continuityEnabled =
+        heroFollowCam ||
+        atlasIdentityLock ||
+        shouldSerializeGflowI2v(opts.videoProvider, opts.gflowVideoMode) ||
+        (!multiCast &&
+          !multiLocation &&
+          (runpodIdentityLock ||
+            (!globalReference &&
+              !atelierMode &&
+              opts.platform !== "youtube" &&
+              opts.platform !== "tiktok" &&
+              opts.platform !== "instagram" &&
+              opts.imageProvider === "vivi")));
+
+      const shotFor = (i: number, useSheet: boolean) => {
+        const charNames = sceneCast[i]?.names ?? [];
+        const locName = sceneLoc[i]?.name ?? "";
+        const charFits =
+          Boolean(characterSheet) && characterSheetFitsScene(roster.length, sheetOwner, charNames);
+        const locFits =
+          Boolean(locationSheet) &&
+          locationSheetFitsScene(locRoster.length, locSheetOwner, locName);
+        let sheet: typeof sheetReference = sheetReference;
+        if (useSheet) {
+          if (multiCast && charFits) sheet = "character";
+          else if (multiLocation && locFits) sheet = "location";
+          else if (characterSheet) sheet = "character";
+          else if (locationSheet) sheet = "location";
+        }
+        return {
+          previousVisualPrompt: i > 0 ? score.scenes[i - 1]?.visual_prompt : undefined,
+          sheetReference: sheet,
+          sceneLock: sceneCast[i]?.lock,
+          locationLock: sceneLoc[i]?.lock,
+          objectLock: sceneObj[i]?.lock,
+          location: sceneLoc[i]?.name || score.scenes[i]?.location,
+        };
+      };
+
+      const refForScene = (i: number, fallback?: Buffer) => {
+        const charNames = sceneCast[i]?.names ?? [];
+        const locName = sceneLoc[i]?.name ?? "";
+        if (
+          multiCast &&
+          characterSheetFitsScene(roster.length, sheetOwner, charNames) &&
+          characterSheet
+        ) {
+          return characterSheet;
+        }
+        if (
+          multiLocation &&
+          locationSheetFitsScene(locRoster.length, locSheetOwner, locName) &&
+          locationSheet
+        ) {
+          return locationSheet;
+        }
+        if (multiCast || multiLocation) return undefined;
+        return fallback;
+      };
+
+      const scenePromise = continuityEnabled
+        ? (async () => {
+            const results: VisualAssetResult[] = [];
+            let previousImage: Buffer | undefined =
+              (heroFollowCam || atlasIdentityLock) &&
+              characterSheet &&
+              !imageProviderClonesLayout(opts.imageProvider)
+                ? characterSheet
+                : globalReference;
+            let previousImageUrl: string | undefined;
+            for (let i = 0; i < score.scenes.length; i++) {
+              const scene = score.scenes[i]!;
+              try {
+                const sceneDuration = sceneDurations[i];
+                const result = await resolveVisualAsset(
+                  scene,
+                  i,
+                  totalScenes,
+                  assetsDir,
+                  opts,
+                  archetype,
+                  cb,
+                  sceneDuration,
+                  previousImage,
+                  aspectRatio,
+                  shotFor(i, false),
+                  previousImageUrl,
+                  sceneAudioFor(i),
+                );
+                results.push(result);
+                try {
+                  const lastFrame = path.join(assetsDir, `scene-${i}-last.png`);
+                  const still = path.join(assetsDir, `scene-${i}-ai.png`);
+                  if (fs.existsSync(lastFrame)) {
+                    previousImage = fs.readFileSync(lastFrame);
+                    previousImageUrl = undefined;
+                  } else {
+                    previousImage = fs.readFileSync(still);
+                    const urlFile = path.join(assetsDir, `scene-${i}-ai.png.url`);
+                    previousImageUrl = fs.existsSync(urlFile)
+                      ? fs.readFileSync(urlFile, "utf-8").trim()
+                      : result.remoteUrl;
+                  }
+                } catch {
+                  // No AI-generated frame for this scene (stock/text card) — keep the prior reference
+                }
+              } catch (err) {
+                cb.onProgress?.("visuals", { type: "asset_failed", scene: i, error: String(err) });
+                if (previousImage && previousImage.length > 80) {
+                  const held = writeHeldStill(assetsDir, i, previousImage);
+                  console.warn(
+                    `[visuals] Scene ${i} failed, holding previous still so the thread continues: ${err}`,
+                  );
+                  results.push({ path: held, usage: null, durationSeconds: null });
+                } else {
+                  results.push({ path: null, usage: null, durationSeconds: null });
+                }
+              }
+            }
+            return results;
+          })()
+        : globalReference
+          ? Promise.all(
+              score.scenes.map(async (scene, i) => {
+                try {
+                  const sceneDuration = sceneDurations[i];
+                  return await resolveVisualAsset(
+                    scene,
+                    i,
+                    totalScenes,
+                    assetsDir,
+                    opts,
+                    archetype,
+                    cb,
+                    sceneDuration,
+                    globalReference,
+                    aspectRatio,
+                    shotFor(i, false),
+                    undefined,
+                    sceneAudioFor(i),
+                  );
+                } catch (err) {
+                  cb.onProgress?.("visuals", {
+                    type: "asset_failed",
+                    scene: i,
+                    error: String(err),
+                  });
+                  return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
+                }
+              }),
+            )
+          : atelierMode && !runpodIdentityLock
+            ? (async () => {
+                // Step 1: generate scene 0 without reference
+                const firstScene = score.scenes[0]!;
+                let firstResult: VisualAssetResult;
+                try {
+                  firstResult = await resolveVisualAsset(
+                    firstScene,
+                    0,
+                    totalScenes,
+                    assetsDir,
+                    opts,
+                    archetype,
+                    cb,
+                    sceneDurations[0],
+                    undefined,
+                    aspectRatio,
+                    shotFor(0, false),
+                    undefined,
+                    sceneAudioFor(0),
+                  );
+                } catch (err) {
+                  cb.onProgress?.("visuals", {
+                    type: "asset_failed",
+                    scene: 0,
+                    error: String(err),
+                  });
+                  firstResult = { path: null, usage: null, durationSeconds: null };
+                }
+                // Step 2: read scene 0's image as the Atelier reference
+                let atelierRef: Buffer | undefined;
+                let atelierUrl: string | undefined = firstResult.remoteUrl;
+                try {
+                  const firstAi = [
+                    "scene-0-ai.png",
+                    ...score.scenes.map((_, i) => `scene-${i}-ai.png`),
+                  ].find((name) => fs.existsSync(path.join(assetsDir, name)));
+                  if (firstAi) {
+                    atelierRef = fs.readFileSync(path.join(assetsDir, firstAi));
+                    const urlFile = path.join(assetsDir, `${firstAi}.url`);
+                    if (fs.existsSync(urlFile))
+                      atelierUrl = fs.readFileSync(urlFile, "utf-8").trim();
+                  }
+                } catch {
+                  /* no ai image yet — proceed without ref */
+                }
+                // Step 3: scenes 1+ in parallel, all receiving scene 0's image as reference
+                const restResults = await Promise.all(
+                  score.scenes.slice(1).map(async (scene, idx) => {
+                    const i = idx + 1;
+                    try {
+                      return await resolveVisualAsset(
+                        scene,
+                        i,
+                        totalScenes,
+                        assetsDir,
+                        opts,
+                        archetype,
+                        cb,
+                        sceneDurations[i],
+                        atelierRef,
+                        aspectRatio,
+                        shotFor(i, false),
+                        atelierUrl,
+                        sceneAudioFor(i),
+                      );
+                    } catch (err) {
+                      cb.onProgress?.("visuals", {
+                        type: "asset_failed",
+                        scene: i,
+                        error: String(err),
+                      });
+                      return {
+                        path: null,
+                        usage: null,
+                        durationSeconds: null,
+                      } as VisualAssetResult;
+                    }
+                  }),
+                );
+                return [firstResult, ...restResults];
+              })()
+            : Promise.all(
+                score.scenes.map(async (scene, i) => {
+                  try {
+                    const sceneDuration = sceneDurations[i];
+                    const useSheet = Boolean(refForScene(i));
+                    return await resolveVisualAsset(
+                      scene,
+                      i,
+                      totalScenes,
+                      assetsDir,
+                      opts,
+                      archetype,
+                      cb,
+                      sceneDuration,
+                      refForScene(i),
+                      aspectRatio,
+                      shotFor(i, useSheet),
+                      undefined,
+                      sceneAudioFor(i),
+                    );
+                  } catch (err) {
+                    cb.onProgress?.("visuals", {
+                      type: "asset_failed",
+                      scene: i,
+                      error: String(err),
+                    });
+                    return { path: null, usage: null, durationSeconds: null } as VisualAssetResult;
+                  }
+                }),
+              );
 
       const musicPromise = resolveMusic(score, sceneDurations, {
         musicProvider: opts.musicProvider!,
@@ -770,7 +1455,9 @@ function buildPipelineWorkflow(
       if (fs.existsSync(assetsLink)) fs.rmSync(assetsLink, { recursive: true });
       fs.symlinkSync(path.resolve(assetsDir), assetsLink);
 
-      fs.copyFileSync(ttsResult.voiceoverPath!, path.join(publicDir, "voiceover.mp3"));
+      if (ttsResult.voiceoverPath) {
+        fs.copyFileSync(ttsResult.voiceoverPath, path.join(publicDir, "voiceover.mp3"));
+      }
 
       let musicFilePath = visualsResult.musicFilePath;
       if (musicFilePath) {
@@ -778,14 +1465,21 @@ function buildPipelineWorkflow(
           fs.copyFileSync(musicFilePath, path.join(publicDir, "music.mp3"));
           // Clean up temp file from Lyria to prevent /tmp disk fill on servers
           if (musicFilePath.includes(os.tmpdir())) {
-            try { fs.unlinkSync(musicFilePath); } catch { /* ignore cleanup error */ }
+            try {
+              fs.unlinkSync(musicFilePath);
+            } catch {
+              /* ignore cleanup error */
+            }
           }
         } catch (err) {
-          console.warn(`[orchestrator] Failed to copy music file, proceeding without music: ${err}`);
+          console.warn(
+            `[orchestrator] Failed to copy music file, proceeding without music: ${err}`,
+          );
           musicFilePath = null;
         }
       }
 
+      const filmMinutes = normalizeFilmMinutes(opts.targetDurationMinutes);
       const compositionProps = mapScoreToProps(
         score,
         {
@@ -793,16 +1487,29 @@ function buildPipelineWorkflow(
             if (!a) return null;
             return `assets/${path.basename(a)}`;
           }),
-          voiceoverPath: "voiceover.mp3",
+          voiceoverPath: ttsResult.voiceoverPath ? "voiceover.mp3" : null,
           musicPath: musicFilePath ? "music.mp3" : null,
-          sceneWords: ttsResult.sceneWords!,
-          allWords: ttsResult.words!,
+          sceneWords: ttsResult.sceneWords ?? score.scenes.map(() => []),
+          allWords: ttsResult.words ?? [],
           sceneSourceDurations: visualsResult.sceneSourceDurations,
+          voiceoverDurationSeconds: ttsResult.voiceoverDurationSeconds,
         },
         platformConfig.fps,
+        opts.noSubtitles,
+        {
+          videoVolume: opts.videoVolume,
+          ttsVolume: opts.ttsVolume,
+          targetDurationSeconds: filmMinutes != null ? filmMinutes * 60 : undefined,
+        },
       );
 
-      const totalFrames = getTotalDurationInFrames(compositionProps, platformConfig.fps);
+      const padToRequestedCut =
+        opts.platform === "youtube_horizontal" && filmMinutes != null
+          ? filmMinutes * 60
+          : undefined;
+      const totalFrames = getTotalDurationInFrames(compositionProps, platformConfig.fps, {
+        minDurationSeconds: padToRequestedCut,
+      });
 
       cb.onProgress?.("assembly", { type: "bundling" });
 
@@ -868,7 +1575,12 @@ function buildPipelineWorkflow(
       cb.onStageStart?.("critic");
       const start = Date.now();
       try {
-        const critiqueOutput = await evaluate(opts.llm, score, opts.topic, opts.pacing);
+        const critiqueOutput = await evaluate(
+          opts.llm,
+          score,
+          opts.topic,
+          criticOptions(opts, { productionNotes: summarizeVideoFallbacks(log.videoResolutions) }),
+        );
         const critique = critiqueOutput.data;
         llmUsages.push(critiqueOutput.usage);
         const dur = (Date.now() - start) / 1000;
@@ -879,11 +1591,15 @@ function buildPipelineWorkflow(
           score: critique.score,
           strengths: critique.strengths,
           weaknesses: critique.weaknesses,
+          findings: critique.findings ?? [],
         });
         log.stages.push({ name: "critic", duration: dur, status: "done" });
       } catch (err) {
         const dur = (Date.now() - start) / 1000;
-        cb.onStageSkip?.("critic", "evaluation failed");
+        cb.onStageSkip?.(
+          "critic",
+          `evaluation failed: ${err instanceof Error ? err.message : String(err)}`.slice(0, 180),
+        );
         log.stages.push({ name: "critic", duration: dur, status: "skipped", error: String(err) });
       }
 

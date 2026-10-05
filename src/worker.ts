@@ -2,6 +2,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { type Job, Worker } from "bullmq";
 import IORedis from "ioredis";
+import { z } from "zod";
+import { isIsolatedJobDir } from "./jobs/isolated.js";
 import type { PipelineCallbacks, StageName } from "./pipeline/orchestrator.js";
 import { runPipeline } from "./pipeline/orchestrator.js";
 import { createProviders, createVerificationModel } from "./providers/factory.js";
@@ -16,6 +18,8 @@ import type {
   TTSProviderKey,
   VideoProviderKey,
 } from "./schema/providers.js";
+import { startStickmanWorker } from "./stickman/worker.js";
+import { startVoxWorker } from "./vox/worker.js";
 
 const REDIS_URL = process.env["REDIS_URL"] ?? "redis://localhost:6379";
 const JOBS_DIR = process.env["JOBS_DIR"] ?? path.join(process.cwd(), "jobs");
@@ -45,8 +49,26 @@ interface JobData {
   dryRun: boolean;
   noMusic?: boolean;
   noVideo?: boolean;
+  noSubtitles?: boolean;
+  allowedVisualTypes?: string[];
   direction?: string;
+  targetDurationMinutes?: number;
   score?: Record<string, unknown>;
+  videoSceneMode?: string;
+  styleReferenceImage?: string; // base64
+  characterReferenceImage?: string; // base64 character model sheet
+  atelierMode?: boolean;
+  artStyleOverride?: string;
+  lookId?: string;
+  narrativeArc?: string;
+  characterLock?: string;
+  castMode?: string;
+  locationLock?: string;
+  objectLock?: string;
+  locationReferenceImage?: string; // base64 location bible board
+  muteCharacter?: boolean;
+  videoVolume?: number;
+  ttsVolume?: number;
   providers: {
     llm: string;
     tts: string;
@@ -58,7 +80,32 @@ interface JobData {
     llmModel?: string;
     llmBaseUrl?: string;
     searchProvider?: SearchProviderKey;
+    inworldVoice?: string;
+    geminiTtsVoice?: string;
+    grokTtsVoice?: string;
+    grokTtsSpeed?: number;
+    grokTtsModel?: string;
+    kokoroVoice?: string;
+    kokoroSpeed?: number;
+    runpodImageModel?: string;
+    runpodVideoModel?: string;
+    runpodImageSteps?: number;
+    runpodImageGuidance?: number;
+    runpodVideoResolution?: string;
+    runpodImageEndpointId?: string;
+    runpodVideoEndpointId?: string;
+    sharpiiImageModel?: string;
+    sharpiiVideoModel?: string;
+    atlasImageModel?: string;
+    atlasVideoModel?: string;
+    atlasTtsVoice?: string;
+    atlasTtsModel?: string;
+    atlasLipSyncModel?: string | null;
+    gflowImageModel?: string;
+    gflowVideoModel?: string;
+    gflowVideoMode?: string;
   };
+  userId?: string;
   keys: Record<string, string>;
   jobsDir: string;
 }
@@ -72,13 +119,37 @@ interface JobMeta {
   completedAt?: string;
   cancelRequested?: boolean;
   stages: Record<string, { status: string; detail?: string; durationSec?: number }>;
+  config?: {
+    llm?: string;
+    tts?: string;
+    image?: string;
+    video?: string;
+    music?: string;
+    platform?: string;
+    pacing?: string;
+    videoSceneMode?: string;
+    noVideo?: boolean;
+    noSubtitles?: boolean;
+    styleReference?: boolean;
+    characterReference?: boolean;
+    locationReference?: boolean;
+    atelierMode?: boolean;
+    artStyleOverride?: string;
+    lookId?: string;
+    narrativeArc?: string;
+    castMode?: string;
+    muteCharacter?: boolean;
+    videoVolume?: number;
+    ttsVolume?: number;
+  };
   costEstimate?: unknown;
   actualCost?: unknown;
   videoPath?: string;
+  userId?: string;
   runDir?: string;
   researchData?: { summary: string; key_facts: string[]; mood: string };
   score?: unknown; // DirectorScore
-  criticReview?: { score: number; strengths: string[]; weaknesses: string[] };
+  criticReview?: { score: number; strengths: string[]; weaknesses: string[]; findings?: string[] };
   musicTrack?: { trackId: string; mood: string; requestedMood: string; fallback: boolean };
   musicGeneration?: {
     provider: string;
@@ -87,6 +158,7 @@ interface JobMeta {
     fallback: boolean;
   };
   revisionHistory?: { round: number; score: number }[];
+  tiktokCaption?: { title: string; hashtags: string[]; caption: string };
   error?: string;
 }
 
@@ -99,8 +171,38 @@ function writeMeta(jobDir: string, meta: JobMeta) {
 const worker = new Worker<JobData>(
   "openreels",
   async (job: Job<JobData>) => {
-    const { topic, archetype, pacing, platform, dryRun, noMusic, noVideo, direction, score, providers, keys } =
-      job.data;
+    const {
+      topic,
+      archetype,
+      pacing,
+      platform,
+      dryRun,
+      noMusic,
+      noVideo,
+      noSubtitles,
+      allowedVisualTypes,
+      direction,
+      targetDurationMinutes,
+      score,
+      videoSceneMode,
+      styleReferenceImage,
+      characterReferenceImage,
+      locationReferenceImage,
+      atelierMode,
+      artStyleOverride,
+      lookId,
+      narrativeArc,
+      characterLock,
+      castMode,
+      locationLock,
+      objectLock,
+      muteCharacter,
+      videoVolume,
+      ttsVolume,
+      providers,
+      keys,
+      userId,
+    } = job.data;
     const jobDir = path.join(JOBS_DIR, job.id!);
     fs.mkdirSync(jobDir, { recursive: true });
 
@@ -108,10 +210,34 @@ const worker = new Worker<JobData>(
     const meta: JobMeta = {
       id: job.id!,
       topic,
+      userId,
       archetype,
       status: "running",
       createdAt: new Date().toISOString(),
       stages: {},
+      config: {
+        llm: providers.llm,
+        tts: providers.tts,
+        image: providers.image,
+        video: providers.video ?? undefined,
+        music: providers.music === "none" ? "bundled" : (providers.music ?? "bundled"),
+        platform,
+        pacing: pacing ?? undefined,
+        videoSceneMode: videoSceneMode ?? undefined,
+        noVideo: noVideo === true || undefined,
+        noSubtitles: noSubtitles === true || undefined,
+        styleReference: styleReferenceImage ? true : undefined,
+        characterReference: characterReferenceImage ? true : undefined,
+        locationReference: locationReferenceImage ? true : undefined,
+        atelierMode: atelierMode !== false,
+        artStyleOverride: artStyleOverride ?? undefined,
+        lookId: lookId ?? undefined,
+        narrativeArc: narrativeArc ?? undefined,
+        castMode: castMode === "hero" ? "hero" : "scene",
+        muteCharacter: muteCharacter === true || undefined,
+        videoVolume,
+        ttsVolume,
+      },
     };
 
     // Initialize all stages as pending
@@ -128,11 +254,44 @@ const worker = new Worker<JobData>(
       stock: providers.stock as StockProviderKey,
       video: providers.video as VideoProviderKey | undefined,
       videoModel: providers.videoModel,
-      music: (providers.music as MusicProviderKey) ?? "bundled",
-      keys,
+      music:
+        providers.music === "none"
+          ? "bundled"
+          : ((providers.music as MusicProviderKey) ?? "bundled"),
+      keys: {
+        ...keys,
+        ...(providers.runpodImageEndpointId
+          ? { RUNPOD_IMAGE_ENDPOINT_ID: providers.runpodImageEndpointId }
+          : {}),
+        ...(providers.runpodVideoEndpointId
+          ? { RUNPOD_VIDEO_ENDPOINT_ID: providers.runpodVideoEndpointId }
+          : {}),
+      },
       llmModel: providers.llmModel,
       llmBaseUrl: providers.llmBaseUrl,
       searchProvider: providers.searchProvider,
+      inworldVoice: providers.inworldVoice,
+      geminiTtsVoice: providers.geminiTtsVoice,
+      grokTtsVoice: providers.grokTtsVoice,
+      grokTtsSpeed: providers.grokTtsSpeed,
+      grokTtsModel: providers.grokTtsModel,
+      kokoroVoice: providers.kokoroVoice,
+      kokoroSpeed: providers.kokoroSpeed,
+      runpodImageModel: providers.runpodImageModel,
+      runpodVideoModel: providers.runpodVideoModel,
+      runpodImageSteps: providers.runpodImageSteps,
+      runpodImageGuidance: providers.runpodImageGuidance,
+      runpodVideoResolution: providers.runpodVideoResolution,
+      sharpiiImageModel: providers.sharpiiImageModel,
+      sharpiiVideoModel: providers.sharpiiVideoModel,
+      atlasImageModel: providers.atlasImageModel,
+      atlasVideoModel: providers.atlasVideoModel,
+      atlasTtsVoice: providers.atlasTtsVoice,
+      atlasTtsModel: providers.atlasTtsModel,
+      atlasLipSyncModel: providers.atlasLipSyncModel,
+      gflowImageModel: providers.gflowImageModel,
+      gflowVideoModel: providers.gflowVideoModel,
+      gflowVideoMode: providers.gflowVideoMode,
     });
 
     // Build callbacks that emit BullMQ progress events and update meta.json
@@ -206,6 +365,7 @@ const worker = new Worker<JobData>(
             score: data.score as number,
             strengths: data.strengths as string[],
             weaknesses: data.weaknesses as string[],
+            ...(Array.isArray(data.findings) ? { findings: data.findings as string[] } : {}),
           };
           writeMeta(jobDir, meta);
         }
@@ -252,6 +412,9 @@ const worker = new Worker<JobData>(
       gemini: "GOOGLE_API_KEY",
       openrouter: "OPENROUTER_API_KEY",
       "openai-compatible": "OPENREELS_LLM_API_KEY",
+      vivi: "VIVI_LLM_API_KEY",
+      alicloud: "ALICLOUD_API_KEY",
+      grok: "XAI_API_KEY",
     };
     const llmKeyName = LLM_KEY_MAP[providers.llm] ?? "ANTHROPIC_API_KEY";
     const llmKey = keys[llmKeyName];
@@ -279,20 +442,47 @@ const worker = new Worker<JobData>(
         stock: providerInstances.stock,
         videoProviders: noVideo ? [] : providerInstances.videoProviders,
         videoProvider: providers.video as VideoProviderKey | undefined,
+        gflowVideoMode: providers.gflowVideoMode,
         noVideo: noVideo === true,
+        noSubtitles: noSubtitles === true,
+        allowedVisualTypes,
         archetype,
         pacing,
         platform,
         dryRun,
-        noMusic,
+        noMusic: noMusic === true || providers.music === "none",
         musicProvider: providerInstances.music,
-        musicProviderKey: (providers.music as MusicProviderKey) ?? "bundled",
+        musicProviderKey:
+          ((providers.music === "none" ? "bundled" : providers.music) as MusicProviderKey) ??
+          "bundled",
         preview: false,
         outputDir: jobDir,
         yes: true,
         verifyModel,
         direction: effectiveDirection,
         replayScore,
+        targetDurationMinutes,
+        videoSceneMode,
+        styleReferenceImage: styleReferenceImage
+          ? Buffer.from(styleReferenceImage, "base64")
+          : undefined,
+        characterReferenceImage: characterReferenceImage
+          ? Buffer.from(characterReferenceImage, "base64")
+          : undefined,
+        locationReferenceImage: locationReferenceImage
+          ? Buffer.from(locationReferenceImage, "base64")
+          : undefined,
+        atelierMode: atelierMode !== false,
+        artStyleOverride: artStyleOverride ?? undefined,
+        lookId: lookId ?? undefined,
+        narrativeArc: narrativeArc ?? undefined,
+        characterLock: characterLock ?? undefined,
+        castMode: castMode ?? undefined,
+        locationLock: locationLock ?? undefined,
+        objectLock: objectLock ?? undefined,
+        muteCharacter: muteCharacter === true,
+        videoVolume,
+        ttsVolume,
       },
       callbacks,
     );
@@ -305,6 +495,27 @@ const worker = new Worker<JobData>(
       // Store runDir explicitly for frontend artifact fetching
       meta.runDir = path.relative(jobDir, result.outputDir);
     }
+
+    // Generate TikTok caption (title + hashtags) when platform is tiktok
+    if (platform === "tiktok" && !meta.cancelRequested) {
+      try {
+        const captionResult = await providerInstances.llm.generate({
+          systemPrompt:
+            "You are a viral TikTok content strategist. You write hooks and hashtags that maximize reach and monetization for Spanish-language and English-language finance/lifestyle content.",
+          userMessage: `Topic: "${topic}"\n\nGenerate a viral TikTok caption with:\n- title: a punchy hook (max 100 chars, same language as the topic)\n- hashtags: 7 viral hashtags for this niche (include mix of broad and niche tags)\n- caption: the full post caption combining title + hashtags\n\nReturn ONLY valid JSON.`,
+          schema: z.object({
+            title: z.string(),
+            hashtags: z.array(z.string()),
+            caption: z.string(),
+          }),
+        });
+        meta.tiktokCaption = captionResult.data;
+        console.log(`[job:${job.id}] TikTok caption generated: ${captionResult.data.title}`);
+      } catch (err) {
+        console.warn(`[job:${job.id}] TikTok caption generation failed (non-fatal): ${err}`);
+      }
+    }
+
     writeMeta(jobDir, meta);
 
     // Auto-prune old jobs if MAX_JOBS is set
@@ -324,7 +535,7 @@ const worker = new Worker<JobData>(
 function pruneOldJobs(jobsDir: string, maxJobs: number) {
   const dirs = fs
     .readdirSync(jobsDir, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
+    .filter((d) => d.isDirectory() && !isIsolatedJobDir(d.name))
     .map((d) => {
       const metaPath = path.join(jobsDir, d.name, "meta.json");
       try {
@@ -380,4 +591,8 @@ worker.on("failed", (job, err) => {
   }
 });
 
+startVoxWorker(redis);
+startStickmanWorker(redis);
 console.log("OpenReels worker started, waiting for jobs...");
+console.log("Vox Director worker started (isolated queue vox-director)");
+console.log("Stickman Studio worker started (isolated queue stickman-studio)");

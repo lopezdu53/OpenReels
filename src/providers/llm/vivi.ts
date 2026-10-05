@@ -1,0 +1,105 @@
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { generateText } from "ai";
+import type { LanguageModel } from "ai";
+import type { z } from "zod";
+import { BaseLLM } from "./base.js";
+import { parseLlmJson, schemaHint } from "./json-extract.js";
+import type { LLMResult } from "../../schema/providers.js";
+
+const VIVI_BASE_URL = "https://api.viviai.cc/v1";
+
+/** Default Claude SKU in VIVI's `claude特价` group. */
+export const DEFAULT_VIVI_LLM_MODEL = "claude-sonnet-4-6";
+
+/**
+ * VIVI keys are bound to a model group (often `claude特价`).
+ * Film/Flow keep an Atlas default (`deepseek-ai/...`) in the form state and
+ * used to send it even when the user picked VIVI — VIVI then 400s.
+ */
+export function resolveViviLlmModel(model?: string): string {
+  const m = model?.trim() ?? "";
+  if (!m) return DEFAULT_VIVI_LLM_MODEL;
+  if (m.includes("/") || /^(deepseek|qwen|gpt-|o1|o3|o4)/i.test(m)) {
+    return DEFAULT_VIVI_LLM_MODEL;
+  }
+  return m;
+}
+
+export class ViviLLM extends BaseLLM {
+  readonly id = "vivi" as const;
+  private provider: ReturnType<typeof createOpenAICompatible>;
+  private model: string;
+
+  constructor(
+    model: string = DEFAULT_VIVI_LLM_MODEL,
+    apiKey?: string,
+    searchTools?: Record<string, unknown>,
+  ) {
+    super(searchTools);
+    this.model = resolveViviLlmModel(model);
+    const key = apiKey ?? process.env["VIVI_LLM_API_KEY"];
+    if (!key) throw new Error("VIVI_LLM_API_KEY environment variable is required");
+    this.provider = createOpenAICompatible({
+      name: "vivi",
+      baseURL: VIVI_BASE_URL,
+      apiKey: key,
+    });
+  }
+
+  protected createLanguageModel(): LanguageModel {
+    return this.provider(this.model);
+  }
+
+  protected createSearchTools() {
+    return {};
+  }
+
+  /**
+   * VIVI doesn't support responseFormat or tool_use for structured outputs.
+   * Fall back to prompt-based JSON extraction: ask for JSON in the prompt,
+   * generate plain text, then parse and validate with the Zod schema.
+   */
+  protected async generateStructured<T extends z.ZodType>(opts: {
+    systemPrompt: string;
+    userMessage: string;
+    schema: T;
+  }): Promise<LLMResult<z.infer<T>>> {
+    const languageModel = this.createLanguageModel();
+
+    const systemWithJson =
+      opts.systemPrompt +
+      "\n\nCRITICAL: Your entire response MUST be a single valid JSON object. No markdown fences, no explanation, no text before or after. Just the raw JSON. Use the exact camelCase keys from the schema." +
+      schemaHint(opts.schema);
+
+    const result = await generateText({
+      model: languageModel,
+      system: systemWithJson,
+      prompt: opts.userMessage,
+      maxOutputTokens: 32000,
+    });
+
+    const text = result.text.trim();
+
+    // Strip optional markdown code fences (```json ... ```)
+    const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+
+    // Find the outermost JSON object
+    const start = stripped.indexOf("{");
+    const end = stripped.lastIndexOf("}");
+    if (start === -1 || end === -1) {
+      throw new Error(`VIVI did not return a JSON object. Response: ${stripped.slice(0, 200)}`);
+    }
+
+    const jsonStr = stripped.slice(start, end + 1);
+    const parsed: unknown = JSON.parse(jsonStr);
+    const validated = parseLlmJson(opts.schema, parsed);
+
+    return {
+      data: validated,
+      usage: {
+        inputTokens: result.usage.inputTokens ?? 0,
+        outputTokens: result.usage.outputTokens ?? 0,
+      },
+    };
+  }
+}
