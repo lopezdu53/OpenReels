@@ -177,7 +177,7 @@ export function HistoriaPage() {
   const [objectIds, setObjectIds] = useState<string[]>([]);
   const [locationIds, setLocationIds] = useState<string[]>([]);
   const [topic, setTopic] = useState("");
-  const [durationSec, setDurationSec] = useState(10);
+  const [durationSec, setDurationSec] = useState(8);
   const [aspect, setAspect] = useState("9:16");
   const [language, setLanguage] = useState("es");
   const [arc, setArc] = useState("joke_punchline");
@@ -394,7 +394,7 @@ export function HistoriaPage() {
                 aria-label="Duración"
                 value={String(durationSec)}
                 onValueChange={(value) => setDurationSec(Number(value))}
-                options={(catalog?.durations ?? [10, 20, 30, 60, 120, 300, 480, 900]).map((d) => ({
+                options={(catalog?.durations ?? [8, 16, 24, 32, 64, 120, 300, 480, 900]).map((d) => ({
                   value: String(d),
                   label: formatDuration(d),
                 }))}
@@ -557,7 +557,7 @@ export function HistoriaPage() {
             onGflowVideoModel={setGflowVideoModel}
             showVideo={animate}
             durationSec={durationSec}
-            gflowHint="Omni 10s. El primer still usa la ficha gflow del Casting. Audio Flow agachado + TTS Atlas."
+            gflowHint="Omni 8s (4/6/8s). 16s/24s/… son tomas de 8s. El primer still usa la ficha gflow del Casting. Audio Flow agachado + TTS Atlas."
           />
 
           {error && <p className="text-sm text-destructive">{error}</p>}

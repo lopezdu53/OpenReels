@@ -89,7 +89,7 @@ export function StudioVisualFields(props: {
     { id: "nano-lite", label: "Nano Banana 2 Lite", credits: 0 },
   ];
   const videos = catalog?.gflowVideoModels ?? [
-    { id: "omni-flash", label: "Omni 1.1 Flash", durations: [4, 6, 8, 10], creditPerSecond: 2 },
+    { id: "omni-flash", label: "Omni 1.1 Flash", durations: [4, 6, 8], creditPerSecond: 2 },
   ];
   const video = videos.find((m) => m.id === gflowVideoModel) ?? videos[0];
   const supported = video?.durations ?? [8];

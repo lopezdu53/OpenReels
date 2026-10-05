@@ -124,8 +124,11 @@ describe("stickman visuals", () => {
 
   it("writes a continuous I2V prompt with timed beats and no-cut language", () => {
     const script = draftScriptTemplate({ ...config, durationSec: 20, animate: true }, "wifi-20s");
-    const prompt = buildContinuousMotionPrompt(script, 10);
+    const prompt = buildContinuousMotionPrompt(script, 8);
+    expect(prompt).toContain("ONE CONTINUOUS 8s");
     expect(prompt).toContain("NO CUTS");
+    expect(prompt).toContain("[0.0–4.0s]");
+    expect(prompt).toContain("[4.0–8.0s]");
     expect(prompt).toContain("[0.0–");
     expect(prompt.toLowerCase()).toContain("morph");
     expect(pickMotionDuration([4, 6, 8], 20)).toBe(8);

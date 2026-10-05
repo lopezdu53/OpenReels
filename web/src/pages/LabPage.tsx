@@ -284,7 +284,7 @@ export function LabPage() {
           ? {
               model: gflowVidModel,
               mode: gflowVidMode,
-              ...(gflowVidModel === "omni-flash" ? { durationSeconds: vidDuration } : {}),
+              ...(gflowVidModel === "omni-flash" ? {} : {}),
             }
           : { durationSeconds: vidDuration }),
       });

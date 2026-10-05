@@ -108,7 +108,7 @@ class VideoModeTests(unittest.TestCase):
         )
         self.assertNotIn("--duration", args)
 
-    def test_omni_flash_keeps_duration(self):
+    def test_omni_flash_omits_duration_until_supported(self):
         args = _video_cli_args(
             mode="t2v",
             prompt="pan",
@@ -118,8 +118,8 @@ class VideoModeTests(unittest.TestCase):
             dest="out.mp4",
             still_path=None,
         )
-        self.assertIn("--duration", args)
-        self.assertIn("10", args)
+        self.assertNotIn("--duration", args)
+        self.assertIn("omni-flash", args)
 
     def test_i2v_args_need_still(self):
         args = _video_cli_args(

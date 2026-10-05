@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import type { ImageProvider } from "../schema/providers.js";
-import { lookPrompt, STICKMAN_STYLE_LOCK } from "./catalog.js";
+import { lookPrompt, omniClipSeconds, STICKMAN_STYLE_LOCK } from "./catalog.js";
 import { HISTORIA_STYLE_LOCK } from "./director.js";
 
 export { planMotionTakes } from "./catalog.js";
@@ -121,9 +121,9 @@ export function buildContinuousMotionPrompt(
     .filter((line): line is string => Boolean(line));
   const bridge =
     takeIndex > 0
-      ? "CONTINUE from the exact pose, camera, and line-art in the source image (last frame of the previous 10s Omni take). The first frame IS that image. Start moving immediately — do not hold a still. Then keep morphing. NO cut, NO new shot, NO reset."
+      ? `CONTINUE from the exact pose, camera, and line-art in the source image (last frame of the previous ${clipSeconds}s Omni take). The first frame IS that image. Start moving immediately — do not hold a still. Then keep morphing. NO cut, NO new shot, NO reset.`
       : script.contentHook && takeIndex === 0
-        ? "CONTENT HOOK TAKE: this first 10s is a trailer of the FULL video. Rapid in-shot teases of later poses, then morph into the real opening. Do not deliver the punchline yet."
+        ? `CONTENT HOOK TAKE: this first ${clipSeconds}s is a trailer of the FULL video. Rapid in-shot teases of later poses, then morph into the real opening. Do not deliver the punchline yet.`
         : "Start from the source still and begin moving immediately.";
   if (isHistoriaScript(script)) {
     return [
@@ -134,6 +134,8 @@ export function buildContinuousMotionPrompt(
       script.bible.objectLock ? `Locked objects: ${script.bible.objectLock}.` : "",
       script.bible.locationLock ? `Locked location: ${script.bible.locationLock}.` : "",
       `World: ${script.bible.world}.`,
+      clipSeconds === omniClipSeconds() ? "[0.0–4.0s] establish the pose and camera." : "",
+      clipSeconds === omniClipSeconds() ? "[4.0–8.0s] transform into the next pose." : "",
       ...timed,
       "Same faces, wardrobe, and props for the whole take.",
       HISTORIA_STYLE_LOCK,
@@ -148,6 +150,8 @@ export function buildContinuousMotionPrompt(
     `Look: ${lookPrompt(script.look)}.`,
     `Locked cast: ${castLock(script)}.`,
     `World: ${script.bible.world}.`,
+    clipSeconds === omniClipSeconds() ? "[0.0–4.0s] establish the pose and camera." : "",
+    clipSeconds === omniClipSeconds() ? "[4.0–8.0s] transform into the next pose." : "",
     ...timed,
     "Same stick figures, line weight, and wardrobe for the whole take.",
     "Limbs move. Oversized props and line-art architecture may grow, shatter, or morph.",

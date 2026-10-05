@@ -46,7 +46,7 @@ describe("stickman draftScriptTemplate", () => {
       "cafe-5m",
     );
     expect(hooked.beats[0]?.title).toBe("GANCHO");
-    expect(hooked.beats[0]?.durationSec).toBe(10);
+    expect(hooked.beats[0]?.durationSec).toBe(8);
     expect(hooked.contentHook).toBe(true);
     expect(hooked.captions).toBe(true);
   });

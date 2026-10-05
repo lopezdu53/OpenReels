@@ -98,6 +98,8 @@ export interface VideoProvider {
 export interface VideoResult {
   filePath: string;
   durationSeconds: number;
+  /** gflow dropped --duration after ConfigurationError. */
+  usedDefaultDuration?: boolean;
 }
 
 export interface MusicProvider {

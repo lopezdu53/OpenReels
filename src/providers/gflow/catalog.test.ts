@@ -9,7 +9,9 @@ import {
   gflowRelayPayloadTtlSeconds,
   gflowVideoBudgetSeconds,
   gflowVideoCredits,
+  omniDurationLabel,
   pickGflowDuration,
+  planOmniTakes,
   resolveGflowImageModel,
   resolveGflowVideoMode,
   resolveGflowVideoModel,
@@ -26,7 +28,7 @@ describe("gflow catalog", () => {
 
   it("caps duration to what the Veo model accepts", () => {
     expect(pickGflowDuration("veo-lite", 10)).toBe(8);
-    expect(pickGflowDuration("omni-flash", 10)).toBe(10);
+    expect(pickGflowDuration("omni-flash", 10)).toBe(8);
     expect(pickGflowDuration("veo-lite", 6)).toBe(6);
   });
 
@@ -64,12 +66,12 @@ describe("gflow catalog", () => {
     expect(gflowI2vShouldFallbackT2v("Token inválido")).toBe(false);
   });
 
-  it("only sends --duration for Omni Flash", () => {
+  it("does not send --duration for Omni until OMNI_10S_SUPPORTED", () => {
     expect(gflowSupportsDurationFlag("veo-lite")).toBe(false);
     expect(gflowSupportsDurationFlag("veo-fast")).toBe(false);
     expect(gflowCliDuration("veo-lite", 4)).toBeUndefined();
-    expect(gflowSupportsDurationFlag("omni-flash")).toBe(true);
-    expect(gflowCliDuration("omni-flash", 10)).toBe(10);
+    expect(gflowSupportsDurationFlag("omni-flash")).toBe(false);
+    expect(gflowCliDuration("omni-flash", 10)).toBeUndefined();
   });
 
   it("keeps LP video budget at 60+20 min and Redis video TTL at 90 min", () => {
@@ -80,12 +82,18 @@ describe("gflow catalog", () => {
   });
 
   it("prices Flow video credits at 720p x1 and images at 0", () => {
-    expect(gflowVideoCredits({ modelId: "omni-flash", durationSec: 10 })).toBe(20);
+    expect(gflowVideoCredits({ modelId: "omni-flash", durationSec: 10 })).toBe(16);
     expect(gflowVideoCredits({ modelId: "veo-lite", durationSec: 8 })).toBe(40);
     expect(gflowVideoCredits({ modelId: "veo-quality", durationSec: 8 })).toBe(160);
-    expect(gflowVideoCredits({ modelId: "omni-flash", durationSec: 10, resolution: "360p" })).toBe(
-      10,
-    );
-    expect(gflowVideoCredits({ modelId: "omni-flash", durationSec: 10, variants: 2 })).toBe(40);
+    expect(gflowVideoCredits({ modelId: "omni-flash", durationSec: 10, resolution: "360p" })).toBe(8);
+    expect(gflowVideoCredits({ modelId: "omni-flash", durationSec: 10, variants: 2 })).toBe(32);
+  });
+
+  it("plans Omni 30s as four 8s takes and labels 4/6/8s", () => {
+    expect(planOmniTakes(30)).toEqual([8, 8, 8, 8]);
+    expect(planOmniTakes(8)).toEqual([8]);
+    expect(planOmniTakes(16)).toEqual([8, 8]);
+    expect(omniDurationLabel()).toBe("4/6/8s");
+    expect(resolveGflowVideoModel("omni-flash").note).toBe("4/6/8s");
   });
 });

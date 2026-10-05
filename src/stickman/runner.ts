@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { getVideoDuration } from "../pipeline/utils.js";
 import { AtlasTTS } from "../providers/tts/atlas.js";
 import { createStudioImage, createStudioVideo } from "../studio/visual-provider.js";
 import { assembleStickman, concatMotionTakes, extractLastFrame } from "./assemble.js";
@@ -7,6 +8,7 @@ import {
   DEFAULT_STICKMAN_TTS_VOLUME,
   DEFAULT_STICKMAN_VIDEO_VOLUME,
   planMotionTakes,
+  planOmniTakes,
   resolveStickmanTtsModel,
 } from "./catalog.js";
 import { fileBigEnough, jobDir, readCastRef, readMeta, readScript, writeScript } from "./store.js";
@@ -133,7 +135,7 @@ async function generateOneTake(opts: {
   log: (line: string) => void;
   attempts: number;
   retryMs: number;
-}): Promise<void> {
+}): Promise<number> {
   const n = opts.takeIndex + 1;
   let lastErr: unknown;
   for (let attempt = 0; attempt < opts.attempts; attempt++) {
@@ -155,10 +157,14 @@ async function generateOneTake(opts: {
         negativePrompt: motionNegativePrompt(opts.script),
       });
       fs.copyFileSync(result.filePath, opts.takePath);
+      if (result.usedDefaultDuration) {
+        opts.log("gflow no pudo fijar la duración; se usó la duración por defecto de Flow");
+      }
+      const real = result.durationSeconds > 0.4 ? result.durationSeconds : opts.clipSeconds;
       opts.log(
-        `take ${n}/${opts.takeCount} ok → ${path.basename(opts.takePath)} (${opts.clipSeconds}s)`,
+        `take ${n}/${opts.takeCount} ok → ${path.basename(opts.takePath)} (${real.toFixed(1)}s)`,
       );
-      return;
+      return real;
     } catch (err) {
       lastErr = err;
       opts.log(`take ${n}/${opts.takeCount} error: ${err}`);
@@ -187,10 +193,12 @@ export async function generateChainedTakes(opts: {
   const retryMs = Math.max(0, opts.retryMs ?? 4000);
   for (const [i, clipSeconds] of opts.takes.entries()) {
     const takePath = path.join(opts.clipsDir, `take-${padTake(i + 1)}.mp4`);
+    let actual = clipSeconds;
     if (fileBigEnough(takePath, 20_000)) {
       opts.log(`take ${i + 1}/${opts.takes.length} ya existe → no llamo a Flow`);
+      actual = getVideoDuration(takePath) ?? clipSeconds;
     } else {
-      await generateOneTake({
+      actual = await generateOneTake({
         script: opts.script,
         video: opts.video,
         sourcePath,
@@ -206,9 +214,9 @@ export async function generateChainedTakes(opts: {
     }
     generated.push(takePath);
     if (i < opts.takes.length - 1) {
-      sourcePath = bridgeSource(opts, takePath, i, startSec + clipSeconds);
+      sourcePath = bridgeSource(opts, takePath, i, startSec + actual);
     }
-    startSec += clipSeconds;
+    startSec += actual;
   }
   return generated;
 }
@@ -244,7 +252,11 @@ export async function runMotion(
     script.beats.reduce((sum, beat) => sum + Math.max(1, beat.durationSec), 0),
     config.durationSec,
   );
-  const takes = planMotionTakes(video.supportedDurations, wanted);
+  const takes =
+    config.visualProvider === "gflow" &&
+    (config.gflowVideoModel || "omni-flash") === "omni-flash"
+      ? planOmniTakes(wanted)
+      : planMotionTakes(video.supportedDurations, wanted);
   const dest = path.join(clipsDir, "continuous.mp4");
   const label = config.visualProvider === "gflow" ? "gflow I2V" : "I2V";
   log(

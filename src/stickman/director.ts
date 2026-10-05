@@ -5,6 +5,7 @@ import {
 } from "../library/identity.js";
 import {
   lookPrompt,
+  omniClipSeconds,
   STICKMAN_STYLE_LOCK,
   STICKMAN_VO_HEAD_SEC,
   STICKMAN_VO_TAIL_SEC,
@@ -95,7 +96,7 @@ ${
 }
 ${
   config.contentHook
-    ? "CONTENT HOOK: the FIRST 10 SECONDS are a trailer of the FULL video. Tease the best visual beats and the punchline without delivering them. Beat 1 durationSec MUST be 10. Title it GANCHO. From second 10 onward tell the complete story."
+    ? `CONTENT HOOK: the FIRST ${omniClipSeconds()} SECONDS are a trailer of the FULL video. Tease the best visual beats and the punchline without delivering them. Beat 1 durationSec MUST be ${omniClipSeconds()}. Title it GANCHO. From second ${omniClipSeconds()} onward tell the complete story.`
     : ""
 }
 
@@ -106,8 +107,8 @@ Choose ONE narrative pattern that fits the source (do not invent a different gen
 Shape those jobs through the selected arc. Never flatten into a generic OpenReels hook/payoff.
 
 Visual-density recipe (continuous I2V when animate=${config.animate === true}):
-- Omni Flash takes are 10s (Veo 8s, Atlas up to 15s). Jobs longer than one clip CHAIN 10s takes: last frame of take N is the first frame of take N+1. Morph across the join. Never cut.
-- Each 10s take has in-shot moments: 0–3s establish, 3–7s transform the metaphor, 7–10s climax into the next pose.
+- Omni Flash takes are ${omniClipSeconds()}s (Veo 8s, Atlas up to 15s). Jobs longer than one clip CHAIN ${omniClipSeconds()}s takes: last frame of take N is the first frame of take N+1. Morph across the join. Never cut.
+- Each ${omniClipSeconds()}s take has in-shot moments: [0.0–4.0s] establish and [4.0–8.0s] transform into the next pose.
 - Perceptible visual change every 2–3 seconds. Camera may push/pull/pan/orbit. Environments MORPH; they do not cut.
 - At least four devices per beat: limb acting, environment transform, concrete metaphor, icon-only symbol, particles, camera move, oversized prop.
 - Beat N must inherit a visible pose/object/camera motion from beat N-1 (continuity interface).
@@ -164,7 +165,7 @@ ${
 }
 ${
   config.contentHook
-    ? "CONTENT HOOK: the FIRST 10 SECONDS are a trailer of the FULL video. Tease the best visual beats and the punchline without delivering them. Beat 1 durationSec MUST be 10. Title it GANCHO. From second 10 onward tell the complete story."
+    ? `CONTENT HOOK: the FIRST ${omniClipSeconds()} SECONDS are a trailer of the FULL video. Tease the best visual beats and the punchline without delivering them. Beat 1 durationSec MUST be ${omniClipSeconds()}. Title it GANCHO. From second ${omniClipSeconds()} onward tell the complete story.`
     : ""
 }
 
@@ -179,8 +180,8 @@ Choose ONE narrative pattern that fits the source (do not invent a different gen
 Shape those jobs through the selected arc. Never flatten into a generic OpenReels hook/payoff.
 
 Visual-density recipe (continuous I2V when animate=${config.animate === true}):
-- Omni Flash takes are 10s (Veo 8s, Atlas up to 15s). Jobs longer than one clip CHAIN 10s takes: last frame of take N is the first frame of take N+1. Morph across the join. Never cut.
-- Each 10s take has in-shot moments: 0–3s establish, 3–7s transform, 7–10s climax into the next pose.
+- Omni Flash takes are ${omniClipSeconds()}s (Veo 8s, Atlas up to 15s). Jobs longer than one clip CHAIN ${omniClipSeconds()}s takes: last frame of take N is the first frame of take N+1. Morph across the join. Never cut.
+- Each ${omniClipSeconds()}s take has in-shot moments: [0.0–4.0s] establish and [4.0–8.0s] transform into the next pose.
 - Perceptible visual change every 2–3 seconds. Camera may push/pull/pan/orbit. Environments MORPH; they do not cut.
 - Beat N must inherit a visible pose/object/camera motion from beat N-1 (continuity interface).
 - ${

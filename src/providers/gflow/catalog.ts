@@ -4,12 +4,39 @@ export const GFLOW_IMAGE_MODELS = [
   { id: "nano-lite", label: "Nano Banana 2 Lite", note: "rápido", credits: 0 },
 ] as const;
 
+/**
+ * gflow-cli 0.82.1 fails `--duration 10` on migrated Flow
+ * (`ConfigurationError` / no duration control offering 10s). Flow still
+ * delivers ~8s if we omit the flag. Flip this to true when gflow-cli
+ * can set 10s again — durations, CLI flag, planner and UI follow it.
+ */
+export const OMNI_10S_SUPPORTED = false;
+
+export function omniClipSeconds(): number {
+  return OMNI_10S_SUPPORTED ? 10 : 8;
+}
+
+export function omniSupportedDurations(): number[] {
+  return OMNI_10S_SUPPORTED ? [4, 6, 8, 10] : [4, 6, 8];
+}
+
+export function omniDurationLabel(): string {
+  return `${omniSupportedDurations().join("/")}s`;
+}
+
+/** Full-length Omni jobs: N clips of 8s (or 10s when supported). 30s → 4×8s. */
+export function planOmniTakes(wanted: number): number[] {
+  const clip = omniClipSeconds();
+  const n = Math.max(1, Math.ceil(Math.max(1, wanted) / clip));
+  return Array.from({ length: n }, () => clip);
+}
+
 export const GFLOW_VIDEO_MODELS = [
   {
     id: "omni-flash",
     label: "Omni 1.1 Flash",
-    note: "mejor plano continuo · 4–10s · se encadena",
-    durations: [4, 6, 8, 10],
+    note: omniDurationLabel(),
+    durations: omniSupportedDurations(),
     creditPerSecond: 2,
   },
   {
@@ -87,9 +114,9 @@ export function pickGflowDuration(modelId: string, wanted?: number): number {
   return spec.durations.find((d) => d >= target) ?? spec.durations[spec.durations.length - 1] ?? 6;
 }
 
-/** gflow 0.71: `--duration` only exists on Omni Flash. Veo has no duration row. */
+/** `--duration` only when Omni 10s is actually selectable on this gflow. */
 export function gflowSupportsDurationFlag(modelId?: string): boolean {
-  return resolveGflowVideoModel(modelId).id === "omni-flash";
+  return resolveGflowVideoModel(modelId).id === "omni-flash" && OMNI_10S_SUPPORTED;
 }
 
 /** Seconds to pass as `--duration`, or undefined to accept Flow's default. */

@@ -1,4 +1,7 @@
+import { omniClipSeconds, planOmniTakes } from "../providers/gflow/catalog.js";
 import type { StickmanCastMode } from "./types.js";
+
+export { omniClipSeconds, planOmniTakes } from "../providers/gflow/catalog.js";
 
 export const STICKMAN_LOOKS = [
   {
@@ -165,8 +168,8 @@ export const STICKMAN_VOICES = [
 ] as const;
 
 export const STICKMAN_ASPECTS = ["9:16", "16:9", "1:1"] as const;
-/** Omni Flash is 10s; jobs are multiples so we never ask Flow for 6s leftovers. */
-export const STICKMAN_DURATIONS = [10, 20, 30, 60, 120, 300, 480, 900] as const;
+/** Job lengths are multiples of the Omni clip (8s until OMNI_10S_SUPPORTED). */
+export const STICKMAN_DURATIONS = [8, 16, 24, 32, 64, 120, 300, 480, 900] as const;
 /** First-10s content hook is only offered on long jobs. */
 export const STICKMAN_HOOK_DURATIONS = [300, 480, 900] as const;
 export const STICKMAN_TAKE_XFADE_SEC = 0.12;
@@ -293,18 +296,18 @@ export function planMotionTakes(supported: readonly number[], wanted: number): n
   return takes;
 }
 
-/** Best gflow pair: Banana Pro (0 cr) + Omni, chained when the job is longer than 10s. */
+/** Best gflow pair: Banana Pro (0 cr) + Omni, chained in 8s takes (10s when supported). */
 export function recommendStickmanGflow(durationSec: number): {
   imageModel: string;
   videoModel: string;
   clipSeconds: number;
   takes: number[];
 } {
-  const takes = planMotionTakes([4, 6, 8, 10], durationSec);
+  const takes = planOmniTakes(durationSec);
   return {
     imageModel: DEFAULT_STICKMAN_GFLOW_IMAGE,
     videoModel: DEFAULT_STICKMAN_GFLOW_VIDEO,
-    clipSeconds: takes[0] ?? 10,
+    clipSeconds: takes[0] ?? omniClipSeconds(),
     takes,
   };
 }
@@ -353,6 +356,7 @@ export function recommendArc(topic: string): string {
 }
 
 export function beatCountForDuration(seconds: number): number {
+  if (seconds <= 8) return 3;
   if (seconds <= 10) return 3;
   if (seconds <= 20) return 4;
   if (seconds <= 30) return 6;
