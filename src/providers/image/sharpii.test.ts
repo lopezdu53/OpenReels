@@ -10,7 +10,7 @@ describe("SharpiiImage", () => {
   });
 
   it("posts a sync generate and downloads the PNG", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: string | URL, _init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/images/generate")) {
         return new Response(
@@ -28,7 +28,7 @@ describe("SharpiiImage", () => {
     const img = new SharpiiImage("nano-banana-2", "shp_test");
     const buf = await img.generate("a red car", undefined, undefined, "16:9");
     expect(buf.equals(png)).toBe(true);
-    const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body));
+    const body = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.body));
     expect(body.model).toBe("nano-banana-2");
     expect(body.aspect_ratio).toBe("16:9");
     expect(body.consent_confirmed).toBe(true);
@@ -37,7 +37,7 @@ describe("SharpiiImage", () => {
   });
 
   it("sends a data-URI reference on Nano Banana", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: string | URL, _init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/images/generate")) {
         return new Response(JSON.stringify({ data: { outputs: [{ url: "https://cdn.example/out.png" }] } }), {
@@ -49,7 +49,7 @@ describe("SharpiiImage", () => {
     vi.stubGlobal("fetch", fetchMock);
     const img = new SharpiiImage("nano-banana-2", "shp_test");
     await img.generate("same person", undefined, Buffer.alloc(120, 7), "16:9");
-    const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body));
+    const body = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.body));
     expect(body.consent_confirmed).toBe(true);
     expect(body.consentConfirmed).toBe(true);
     expect(body.reference_images[0]).toMatch(/^data:image\/png;base64,/);

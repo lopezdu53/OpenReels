@@ -204,7 +204,7 @@ export function auditDirectorScore(score: DirectorScore, opts: CriticEvalOptions
     const pacing = (opts.pacing && opts.pacing in PACING_CONFIG ? opts.pacing : undefined) as ScenePacing | undefined;
     const cfg = pacing ? PACING_CONFIG[pacing] : undefined;
     if (cfg) {
-      const [minW, maxW] = cfg.totalWords.split("-").map(Number);
+      const maxW = Number(cfg.totalWords.split("-")[1]);
       if (maxW && words > maxW + 20) {
         findings.push(`Pacing short: ${words} palabras vs presupuesto ${cfg.totalWords}.`);
         revisionFocus.push(`Recorta el locutor a ${cfg.totalWords} palabras totales.`);
@@ -263,7 +263,10 @@ export function auditDirectorScore(score: DirectorScore, opts: CriticEvalOptions
   };
 }
 
-export function applyAuditToCritique(critique: CritiquePatch, audit: ScoreAudit): CritiquePatch & { findings: string[] } {
+export function applyAuditToCritique(
+  critique: CritiquePatch,
+  audit: ScoreAudit,
+): CritiquePatch & { findings: string[]; weakest_scene_index: number | null } {
   const weaknesses = [...critique.weaknesses];
   for (const f of audit.findings) {
     if (audit.mode === "locked-script" && /locutor está bloqueado/.test(f)) continue;
@@ -292,6 +295,7 @@ export function applyAuditToCritique(critique: CritiquePatch, audit: ScoreAudit)
     weaknesses: weaknesses.slice(0, 6),
     revision_needed,
     revision_instructions,
+    weakest_scene_index: critique.weakest_scene_index ?? null,
     findings: audit.findings,
   };
 }

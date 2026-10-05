@@ -58,7 +58,7 @@ type KokoroTensor = new (type: string, data: Float32Array | number[], dims: numb
  * were dropped as "missing inputs". Reuse the constructor of tokenizer input_ids.
  */
 function tensorCtorOf(inputIds: { dims: number[] }): KokoroTensor {
-  const ctor = (inputIds as { constructor: KokoroTensor }).constructor;
+  const ctor = (inputIds as unknown as { constructor: KokoroTensor }).constructor;
   if (typeof ctor !== "function") {
     throw new Error("Kokoro input_ids is not a Tensor");
   }

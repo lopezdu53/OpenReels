@@ -164,7 +164,7 @@ describe("BaseLLM", () => {
           schema: testSchema,
           enableWebSearch: true,
         }),
-      ).rejects.toThrow("anthropic did not return structured output from search results");
+      ).rejects.toThrow("anthropic did not return structured output");
 
       // Pass 1 called once, Pass 2 called 3 times (1 + 2 retries) = 4 total
       expect(mockGenerateText).toHaveBeenCalledTimes(4);

@@ -36,7 +36,7 @@ export class SharpiiVideo implements VideoProvider {
     const firstFrame =
       opts.imageUrl?.startsWith("http") ? opts.imageUrl : toDataUri(opts.sourceImage);
     const klingI2v = spec.id.includes("kling") && spec.id.includes("i2v");
-    const audioSync = spec.audioSync ?? (spec.id.startsWith("sora-") ? "native" : "optional");
+    const audioSync = spec.id.startsWith("sora-") ? "native" : "optional";
 
     const outputs = await sharpiiGenerate(this.apiKey, "/videos/generate", {
       model: spec.id,

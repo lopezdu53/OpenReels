@@ -1,8 +1,8 @@
 import { DarkSelect } from "@/components/DarkSelect";
 import { cn } from "@/lib/utils";
 
-type GflowImage = { id: string; label: string; note?: string; credits?: number };
-type GflowVideo = {
+type FlowImage = { id: string; label: string; note?: string; credits?: number };
+type FlowVideo = {
   id: string;
   label: string;
   note?: string;
@@ -10,12 +10,17 @@ type GflowVideo = {
   creditPerSecond?: number;
 };
 
+export type StudioVisualKey = "atlas" | "gflow" | "toby";
+
 type Catalog = {
   visualProviders?: { key: string; label: string }[];
-  gflowImageModels?: GflowImage[];
-  gflowVideoModels?: GflowVideo[];
+  gflowImageModels?: FlowImage[];
+  gflowVideoModels?: FlowVideo[];
+  tobyImageModels?: FlowImage[];
+  tobyVideoModels?: FlowVideo[];
   atlasReady?: boolean;
   gflowBridge?: boolean;
+  tobyReady?: boolean;
   doctor?: { ok: boolean; detail: string };
 } | null;
 
@@ -46,7 +51,7 @@ function planTakes(supported: number[], wanted: number): number[] {
   return takes;
 }
 
-function videoCredits(model: GflowVideo | undefined, durationSec: number): number {
+function videoCredits(model: FlowVideo | undefined, durationSec: number): number {
   if (!model?.creditPerSecond) return 0;
   return planTakes(model.durations ?? [8], durationSec).reduce(
     (sum, clip) => sum + Math.round((model.creditPerSecond ?? 0) * clip),
@@ -56,8 +61,8 @@ function videoCredits(model: GflowVideo | undefined, durationSec: number): numbe
 
 export function StudioVisualFields(props: {
   catalog: Catalog;
-  visualProvider: "atlas" | "gflow";
-  onVisualProvider: (value: "atlas" | "gflow") => void;
+  visualProvider: StudioVisualKey;
+  onVisualProvider: (value: StudioVisualKey) => void;
   gflowImageModel: string;
   onGflowImageModel: (value: string) => void;
   gflowVideoModel: string;
@@ -66,6 +71,7 @@ export function StudioVisualFields(props: {
   disabled?: boolean;
   disabledHint?: string;
   gflowHint: string;
+  tobyHint?: string;
   durationSec?: number;
 }) {
   const {
@@ -80,17 +86,31 @@ export function StudioVisualFields(props: {
     disabled,
     disabledHint,
     gflowHint,
+    tobyHint,
     durationSec,
   } = props;
 
-  const images = catalog?.gflowImageModels ?? [
-    { id: "nano-pro", label: "Nano Banana Pro", credits: 0 },
-    { id: "nano2", label: "Nano Banana 2", credits: 0 },
-    { id: "nano-lite", label: "Nano Banana 2 Lite", credits: 0 },
-  ];
-  const videos = catalog?.gflowVideoModels ?? [
-    { id: "omni-flash", label: "Omni 1.1 Flash", durations: [4, 6, 8], creditPerSecond: 2 },
-  ];
+  const allowToby = (catalog?.visualProviders ?? []).some((p) => p.key === "toby");
+  const usingToby = visualProvider === "toby";
+  const usingFlow = visualProvider === "gflow" || usingToby;
+  const images = usingToby
+    ? (catalog?.tobyImageModels ?? [
+        { id: "nano-pro", label: "Toby_nano-pro", credits: 0 },
+        { id: "nano2", label: "Toby_nano2", credits: 0 },
+        { id: "nano-lite", label: "Toby_nano-lite", credits: 0 },
+      ])
+    : (catalog?.gflowImageModels ?? [
+        { id: "nano-pro", label: "Nano Banana Pro", credits: 0 },
+        { id: "nano2", label: "Nano Banana 2", credits: 0 },
+        { id: "nano-lite", label: "Nano Banana 2 Lite", credits: 0 },
+      ]);
+  const videos = usingToby
+    ? (catalog?.tobyVideoModels ?? [
+        { id: "omni-flash", label: "Toby_omni-flash", durations: [4, 6, 8], creditPerSecond: 2 },
+      ])
+    : (catalog?.gflowVideoModels ?? [
+        { id: "omni-flash", label: "Omni 1.1 Flash", durations: [4, 6, 8], creditPerSecond: 2 },
+      ]);
   const video = videos.find((m) => m.id === gflowVideoModel) ?? videos[0];
   const supported = video?.durations ?? [8];
   const takes =
@@ -111,7 +131,10 @@ export function StudioVisualFields(props: {
           className="mt-1 h-10 w-full min-w-full"
           value={visualProvider}
           disabled={disabled}
-          onValueChange={(value) => onVisualProvider(value === "gflow" ? "gflow" : "atlas")}
+          onValueChange={(value) => {
+            if (value === "toby" && allowToby) onVisualProvider("toby");
+            else onVisualProvider(value === "gflow" ? "gflow" : "atlas");
+          }}
           options={(catalog?.visualProviders ?? FALLBACK).map((p) => ({
             value: p.key,
             label: p.label,
@@ -121,18 +144,18 @@ export function StudioVisualFields(props: {
       {disabled && disabledHint ? (
         <p className="text-[11px] text-muted-foreground">{disabledHint}</p>
       ) : null}
-      {!disabled && visualProvider === "gflow" ? (
+      {!disabled && usingFlow ? (
         <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
             Imagen
             <DarkSelect
-              aria-label="Modelo Imagen gflow"
+              aria-label={usingToby ? "Modelo Imagen Toby" : "Modelo Imagen gflow"}
               value={gflowImageModel}
               onValueChange={onGflowImageModel}
               options={images.map((m) => ({
                 value: m.id,
                 label: m.label,
-                hint: `${m.note ?? "Flow"} · 0 créditos`,
+                hint: `${m.note ?? (usingToby ? "Toby Flow" : "Flow")} · 0 créditos`,
               }))}
             />
           </div>
@@ -140,7 +163,7 @@ export function StudioVisualFields(props: {
             <div className="flex items-center gap-2">
               Video
               <DarkSelect
-                aria-label="Modelo video gflow"
+                aria-label={usingToby ? "Modelo video Toby" : "Modelo video gflow"}
                 value={gflowVideoModel}
                 onValueChange={onGflowVideoModel}
                 options={videos.map((m) => {
@@ -159,12 +182,19 @@ export function StudioVisualFields(props: {
             {showVideo
               ? `Video ${video?.label ?? ""} ${takes.join("+")}s (${takes.length} toma${takes.length === 1 ? "" : "s"} encadenada${takes.length === 1 ? "" : "s"}) ≈ ${clipCredits} créditos Flow (720p ×1). `
               : ""}
-            {gflowHint}
-            {catalog?.gflowBridge === false
-              ? " El puente no está configurado en este entorno."
-              : catalog?.doctor && !catalog.doctor.ok
-                ? ` Puente: ${catalog.doctor.detail}`
-                : ""}
+            {usingToby
+              ? (tobyHint ??
+                "Toby Flow MCP: Chrome + extensión + Auto Download. Créditos de tu cuenta Flow, no de Toby.")
+              : gflowHint}
+            {usingToby
+              ? catalog?.tobyReady === false
+                ? " Falta TOBY_MCP_TOKEN en video / video-worker."
+                : ""
+              : catalog?.gflowBridge === false
+                ? " El puente no está configurado en este entorno."
+                : catalog?.doctor && !catalog.doctor.ok
+                  ? ` Puente: ${catalog.doctor.detail}`
+                  : ""}
           </p>
         </div>
       ) : !disabled ? (

@@ -550,7 +550,7 @@ export function HistoriaPage() {
           <StudioVisualFields
             catalog={catalog}
             visualProvider={visualProvider}
-            onVisualProvider={setVisualProvider}
+            onVisualProvider={(v) => setVisualProvider(v === "gflow" ? "gflow" : "atlas")}
             gflowImageModel={gflowImageModel}
             onGflowImageModel={setGflowImageModel}
             gflowVideoModel={gflowVideoModel}

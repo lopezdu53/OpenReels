@@ -423,7 +423,7 @@ export function VoxPage() {
           <StudioVisualFields
             catalog={catalog}
             visualProvider={mode === "aroll" ? "atlas" : visualProvider}
-            onVisualProvider={setVisualProvider}
+            onVisualProvider={(v) => setVisualProvider(v === "gflow" ? "gflow" : "atlas")}
             gflowImageModel={gflowImageModel}
             onGflowImageModel={setGflowImageModel}
             gflowVideoModel={gflowVideoModel}

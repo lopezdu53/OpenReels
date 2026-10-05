@@ -246,7 +246,7 @@ async function bridgeGenerateVideoNow(opts: {
         ? probed
         : typeof duration === "number"
           ? duration
-          : opts.durationSeconds;
+          : (opts.durationSeconds ?? 8);
     return { filePath: dest, durationSeconds };
   };
 

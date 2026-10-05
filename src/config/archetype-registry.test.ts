@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { getArchetype, listArchetypes } from "./archetype-registry.js";
 
 describe("listArchetypes", () => {
-  it("returns all 14 archetype names", () => {
+  it("returns all 15 archetype names", () => {
     const names = listArchetypes();
-    expect(names).toHaveLength(14);
+    expect(names).toHaveLength(15);
+    expect(names).toContain("style_override");
     expect(names).toContain("editorial_caricature");
     expect(names).toContain("warm_narrative");
     expect(names).toContain("studio_realism");

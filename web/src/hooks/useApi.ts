@@ -182,6 +182,8 @@ export interface ProviderOptions {
   }[];
   gflowImageModels?: { id: string; label: string; note?: string }[];
   gflowVideoModels?: { id: string; label: string; note?: string; durations?: number[] }[];
+  tobyImageModels?: { id: string; label: string; note?: string }[];
+  tobyVideoModels?: { id: string; label: string; note?: string; durations?: number[] }[];
 }
 
 export interface StatsResponse {
@@ -1170,9 +1172,19 @@ export const api = {
         durations?: number[];
         creditPerSecond?: number;
       }[];
+      tobyImageModels?: { id: string; label: string; note?: string; credits?: number }[];
+      tobyVideoModels?: {
+        id: string;
+        label: string;
+        note?: string;
+        durations?: number[];
+        creditPerSecond?: number;
+      }[];
       llms?: { id: string; label: string; note: string; recommended?: boolean }[];
       atlasReady?: boolean;
       gflowBridge?: boolean;
+      tobyReady?: boolean;
+      defaultVisualProvider?: "atlas" | "gflow" | "toby";
       doctor?: { ok: boolean; detail: string };
     }>("/stickman/catalog");
   },

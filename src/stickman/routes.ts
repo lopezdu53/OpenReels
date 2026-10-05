@@ -7,9 +7,13 @@ import { requireUser } from "../auth/plugin.js";
 import { sendArtifact } from "../http/send-artifact.js";
 import { resolveAtlasApiKey } from "../providers/atlas/client.js";
 import { gflowBridgeUrl } from "../providers/gflow/bridge.js";
-import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "../providers/gflow/catalog.js";
 import { gflowDoctor } from "../providers/gflow/client.js";
-import { resolveStudioVisualProvider, STUDIO_VISUAL_PROVIDERS } from "../studio/visual-provider.js";
+import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "../providers/gflow/catalog.js";
+import { TOBY_IMAGE_MODELS, TOBY_VIDEO_MODELS, tobyReady } from "../providers/toby/catalog.js";
+import {
+  resolveStickmanVisualProvider,
+  STICKMAN_VISUAL_PROVIDERS,
+} from "../studio/visual-provider.js";
 import {
   clampStickmanVoiceSpeed,
   clampStickmanVolume,
@@ -64,6 +68,14 @@ import {
 import type { StickmanJobConfig, StickmanScript } from "./types.js";
 import { createStickmanQueue, getStickmanQueueStats } from "./worker.js";
 
+function jobParam(request: AuthedRequest): string {
+  return String((request.params as { id?: string }).id ?? "");
+}
+
+function splatParam(request: AuthedRequest): string {
+  return String((request.params as { "*"?: string })["*"] ?? "");
+}
+
 function parseStickmanCreateBody(
   body: Record<string, unknown>,
 ): { error: string } | { config: StickmanJobConfig } {
@@ -107,12 +119,15 @@ function parseStickmanCreateBody(
         voiceId,
         String(body.atlasTtsModel ?? DEFAULT_STICKMAN_TTS_MODEL),
       ),
-      visualProvider: resolveStudioVisualProvider(
+      visualProvider: resolveStickmanVisualProvider(
         typeof body.visualProvider === "string" ? body.visualProvider : undefined,
       ),
       gflowImageModel: body.gflowImageModel ? String(body.gflowImageModel) : undefined,
       gflowVideoModel: body.gflowVideoModel ? String(body.gflowVideoModel) : undefined,
       gflowVideoMode: body.gflowVideoMode ? String(body.gflowVideoMode) : undefined,
+      tobyImageModel: body.tobyImageModel ? String(body.tobyImageModel) : undefined,
+      tobyVideoModel: body.tobyVideoModel ? String(body.tobyVideoModel) : undefined,
+      tobyVideoMode: body.tobyVideoMode ? String(body.tobyVideoMode) : undefined,
       llmModel: isStickmanLlmId(String(body.llmModel ?? ""))
         ? String(body.llmModel)
         : DEFAULT_STICKMAN_LLM,
@@ -151,14 +166,20 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     defaultTtsModel: DEFAULT_STICKMAN_TTS_MODEL,
     defaultLlm: DEFAULT_STICKMAN_LLM,
     llms: STICKMAN_LLMS,
-    visualProviders: [...STUDIO_VISUAL_PROVIDERS],
+    visualProviders: [...STICKMAN_VISUAL_PROVIDERS],
     gflowImageModels: GFLOW_IMAGE_MODELS,
     gflowVideoModels: GFLOW_VIDEO_MODELS.filter((m) => m.id !== "veo-lite-lp"),
+    tobyImageModels: TOBY_IMAGE_MODELS,
+    tobyVideoModels: TOBY_VIDEO_MODELS.filter((m) => m.id !== "veo-lite-lp"),
     recommendedGflow: recommendStickmanGflow(20),
     defaultGflowImage: DEFAULT_STICKMAN_GFLOW_IMAGE,
     defaultGflowVideo: DEFAULT_STICKMAN_GFLOW_VIDEO,
+    defaultTobyImage: DEFAULT_STICKMAN_GFLOW_IMAGE,
+    defaultTobyVideo: DEFAULT_STICKMAN_GFLOW_VIDEO,
+    defaultVisualProvider: tobyReady() ? "toby" : "gflow",
     atlasReady: Boolean(resolveAtlasApiKey()),
     gflowBridge: Boolean(gflowBridgeUrl()),
+    tobyReady: tobyReady(),
     doctor: await gflowDoctor(),
   }));
 
@@ -206,7 +227,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       const queueStats = await getStickmanQueueStats(redis);
@@ -225,7 +246,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       if (meta.status !== "awaiting_script") {
@@ -249,7 +270,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       const body = (request.body ?? {}) as {
@@ -325,7 +346,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       reply.hijack();
@@ -335,7 +356,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
         Connection: "keep-alive",
       });
       const send = () => {
-        const cur = readMeta(request.params.id);
+        const cur = readMeta(jobParam(request));
         if (!cur) return;
         reply.raw.write(
           `data: ${JSON.stringify({ ...cur, stills: stillFiles(cur.id), hasFinal: Boolean(finalPath(cur.id)) })}\n\n`,
@@ -354,12 +375,12 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      if (!isStickmanJobId(request.params.id))
+      if (!isStickmanJobId(jobParam(request)))
         return reply.status(400).send({ error: "id inválido" });
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
-      const rel = request.params["*"];
+      const rel = splatParam(request);
       const full = path.resolve(jobDir(meta.id), rel);
       if (
         !full.startsWith(path.resolve(jobDir(meta.id)) + path.sep) &&
@@ -377,7 +398,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       setStatus(meta.id, "cancelled", "cancelled", "Cancelado");

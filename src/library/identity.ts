@@ -623,8 +623,8 @@ export function applyVisualIdentity(
     }
     if (castMode === "hero" && (scene.visual_type === "ai_image" || scene.visual_type === "stock_image")) {
       const heroMoves = ["pan_left", "pan_right", "zoom_in"] as const;
-      if (motion === "static" || motion === "zoom_in") {
-        motion = heroMoves[i % heroMoves.length];
+      if (motion === "static" || motion === "zoom_in" || motion == null) {
+        motion = heroMoves[i % heroMoves.length]!;
       }
     }
 

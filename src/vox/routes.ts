@@ -42,6 +42,14 @@ import {
 import type { VoxBeatsDoc, VoxJobConfig, VoxMode } from "./types.js";
 import { createVoxQueue, getVoxQueueStats } from "./worker.js";
 
+function jobParam(request: AuthedRequest): string {
+  return String((request.params as { id?: string }).id ?? "");
+}
+
+function splatParam(request: AuthedRequest): string {
+  return String((request.params as { "*"?: string })["*"] ?? "");
+}
+
 function ownerOk(meta: { userId: string }, userId: string): boolean {
   return meta.userId === userId;
 }
@@ -188,7 +196,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       const beats = readBeats(meta.id);
@@ -208,7 +216,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       if (meta.status !== "awaiting_beats") {
@@ -228,7 +236,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       if (meta.status !== "awaiting_beats")
@@ -258,7 +266,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       if (meta.status !== "baking" && meta.status !== "failed") {
@@ -289,7 +297,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       if (meta.status !== "awaiting_style")
@@ -323,7 +331,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       reply.hijack();
@@ -333,7 +341,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
         Connection: "keep-alive",
       });
       const send = () => {
-        const cur = readMeta(request.params.id);
+        const cur = readMeta(jobParam(request));
         if (!cur) return;
         reply.raw.write(
           `data: ${JSON.stringify({ ...cur, bakeoff: bakeoffFiles(cur.id), hasFinal: Boolean(finalPath(cur.id)) })}\n\n`,
@@ -352,11 +360,11 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      if (!isVoxJobId(request.params.id)) return reply.status(400).send({ error: "id inválido" });
-      const meta = readMeta(request.params.id);
+      if (!isVoxJobId(jobParam(request))) return reply.status(400).send({ error: "id inválido" });
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
-      const rel = request.params["*"];
+      const rel = splatParam(request);
       const full = path.resolve(jobDir(meta.id), rel);
       if (
         !full.startsWith(path.resolve(jobDir(meta.id)) + path.sep) &&
@@ -374,7 +382,7 @@ export async function registerVoxRoutes(app: FastifyInstance, redis: IORedis): P
     async (request: AuthedRequest, reply) => {
       const user = requireUser(request, reply);
       if (!user) return;
-      const meta = readMeta(request.params.id);
+      const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
       setStatus(meta.id, "cancelled", "cancelled", "Cancelado");

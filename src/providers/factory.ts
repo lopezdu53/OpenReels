@@ -313,6 +313,8 @@ export function createProviders(config: ProviderConfig): Providers {
       : primary;
   } else if (config.image === "gflow") {
     imageGen = new GflowImage(config.gflowImageModel);
+  } else if (config.image === "toby") {
+    throw new Error("Toby solo está en Stickman y Lab");
   } else if (config.image === "alicloud") {
     const primary = new AliCloudImage(undefined, alicloudKey);
     // Fallback chain: alicloud → vivi → gemini
@@ -413,6 +415,8 @@ export function createProviders(config: ProviderConfig): Providers {
     videoProviders.push(new SharpiiVideo(config.sharpiiVideoModel ?? DEFAULT_SHARPII_VIDEO_MODEL, sharpiiKey));
   } else if (videoPrimary === "gflow") {
     videoProviders.push(new GflowVideo(config.gflowVideoModel, config.gflowVideoMode));
+  } else if (videoPrimary === "toby") {
+    throw new Error("Toby solo está en Stickman y Lab");
   } else if (videoPrimary === "atlas") {
     if (atlasKey) {
       videoProviders.push(new AtlasVideo(config.atlasVideoModel, atlasKey, config.atlasLipSyncModel));

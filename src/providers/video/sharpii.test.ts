@@ -11,7 +11,7 @@ describe("SharpiiVideo", () => {
   });
 
   it("submits I2V, polls the task, and writes the file", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: string | URL, _init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith("/videos/generate")) {
         return new Response(JSON.stringify({ data: { task: { id: "task_1" } } }), { status: 202 });
@@ -31,10 +31,10 @@ describe("SharpiiVideo", () => {
       return new Response("no", { status: 404 });
     });
     vi.stubGlobal("fetch", fetchMock);
-    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn: TimerHandler) => {
-      if (typeof fn === "function") fn();
-      return 0 as unknown as NodeJS.Timeout;
-    });
+    vi.spyOn(globalThis, "setTimeout").mockImplementation(((fn: () => void) => {
+      fn();
+      return 0;
+    }) as unknown as typeof setTimeout);
 
     const video = new SharpiiVideo("kling-v2.6-pro-i2v", "shp_test");
     expect(video.supportedDurations).toEqual([5, 10]);
@@ -46,7 +46,7 @@ describe("SharpiiVideo", () => {
     expect(result.durationSeconds).toBe(5);
     expect(fs.existsSync(result.filePath)).toBe(true);
     fs.unlinkSync(result.filePath);
-    const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body));
+    const body = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.body));
     expect(body.model).toBe("kling-v2.6-pro-i2v");
     expect(body.first_frame_url).toMatch(/^data:image\/png;base64,/);
     expect(body.audio_sync).toBe(false);
