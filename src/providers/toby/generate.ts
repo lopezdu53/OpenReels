@@ -47,7 +47,7 @@ async function downloadUrl(url: string): Promise<Buffer> {
   return buf;
 }
 
-function pickBuffer(kind: "image" | "video", payload: unknown): Buffer | null {
+function pickBuffer(_kind: "image" | "video", payload: unknown): Buffer | null {
   const media = extractMediaUrls(payload);
   const data = media.dataUris
     .map(dataUriToBuffer)
