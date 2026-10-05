@@ -158,13 +158,14 @@ describe("InworldTTS", () => {
   });
 
   describe("generate error paths", () => {
-    it("throws when text exceeds 2000 characters", async () => {
+    it("splits text over 2000 characters into chunks", async () => {
+      const fetchMock = mockFetchResponse(VALID_RESPONSE);
+      vi.stubGlobal("fetch", fetchMock);
       const tts = new InworldTTS();
       const longText = "a".repeat(2001);
-
-      await expect(tts.generate(longText)).rejects.toThrow(
-        "Inworld TTS limit exceeded: script is 2001 chars, max 2000",
-      );
+      const result = await tts.generate(longText);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(result.audio.length).toBeGreaterThan(0);
     });
 
     it("throws on non-200 API response", async () => {
