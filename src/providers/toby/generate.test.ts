@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateTobyImage, resetTobyLockForTests } from "./generate.js";
 import { resetTobyInboxForTests } from "./inbox.js";
-import { resetTobyMcpSessionForTests } from "./mcp.js";
+import { resetTobyMcpSessionForTests, tobyCallTool } from "./mcp.js";
 
 vi.mock("./mcp.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./mcp.js")>();
@@ -43,5 +43,14 @@ describe("Toby generate", () => {
     process.env["TOBY_REDIS"] = "0";
     const buf = await generateTobyImage({ prompt: "gato", aspect: "9:16", model: "Toby_nano-pro" });
     expect(buf.length).toBeGreaterThan(1000);
+    expect(vi.mocked(tobyCallTool)).toHaveBeenCalledWith(
+      "gen_image",
+      expect.objectContaining({
+        provider: "flow",
+        model: "Nano Banana Pro",
+        aspect_ratio: "9:16",
+      }),
+      expect.any(Number),
+    );
   });
 });

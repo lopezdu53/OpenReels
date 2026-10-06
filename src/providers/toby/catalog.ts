@@ -38,18 +38,20 @@ export const DEFAULT_TOBY_IMAGE_MODEL = "nano-pro";
 export const DEFAULT_TOBY_VIDEO_MODEL = "omni-flash";
 export const DEFAULT_TOBY_VIDEO_MODE: GflowVideoMode = "i2v";
 
+/** Names the Toby MCP `model` field accepts (not gflow-cli ids). */
 const FLOW_IMAGE_NAMES: Record<string, string> = {
   "nano-pro": "Nano Banana Pro",
   nano2: "Nano Banana 2",
-  "nano-lite": "Nano Banana 2 Lite",
+  /** Flow MCP lists Pro + Banana 2; Lite is the same family. */
+  "nano-lite": "Nano Banana 2",
 };
 
 const FLOW_VIDEO_NAMES: Record<string, string> = {
-  "omni-flash": "Omni 1.1 Flash",
+  "omni-flash": "Omni Flash",
   "veo-lite": "Veo 3.1 Lite",
   "veo-fast": "Veo 3.1 Fast",
   "veo-quality": "Veo 3.1 Quality",
-  "veo-lite-lp": "Veo 3.1 Lite LP",
+  "veo-lite-lp": "Veo 3.1 Lite",
 };
 
 export function resolveTobyImageModel(id?: string): string {

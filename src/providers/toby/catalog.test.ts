@@ -6,6 +6,7 @@ import {
   resolveTobyVideoModel,
   stripTobyLabel,
   tobyFlowImageName,
+  tobyFlowVideoName,
   tobyModelLabel,
   TOBY_IMAGE_MODELS,
   TOBY_VIDEO_MODELS,
@@ -25,5 +26,9 @@ describe("Toby catalog", () => {
     expect(resolveTobyImageModel()).toBe(DEFAULT_TOBY_IMAGE_MODEL);
     expect(resolveTobyVideoModel("Toby_omni-flash").id).toBe(DEFAULT_TOBY_VIDEO_MODEL);
     expect(tobyFlowImageName("nano2")).toBe("Nano Banana 2");
+    expect(tobyFlowImageName("Toby_nano-pro")).toBe("Nano Banana Pro");
+    expect(tobyFlowImageName("nano-lite")).toBe("Nano Banana 2");
+    expect(tobyFlowVideoName("omni-flash")).toBe("Omni Flash");
+    expect(tobyFlowVideoName("Toby_veo-lite")).toBe("Veo 3.1 Lite");
   });
 });
