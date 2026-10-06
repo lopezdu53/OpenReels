@@ -186,6 +186,21 @@ export async function renderStills(
     let buf: Buffer | undefined;
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt++) {
+      log(
+        attempt === 0
+          ? `still ${beat.id}/${script.beats.length} enviando a Flow (Auto Download + watch.mjs)…`
+          : `still ${beat.id}/${script.beats.length} reintento ${attempt + 1}/3…`,
+      );
+      const tick = setInterval(() => {
+        try {
+          onBeat?.();
+          log(
+            `still ${beat.id}/${script.beats.length} sigue en Flow — no está colgado, espera el archivo`,
+          );
+        } catch {
+          /* cancel via interruptTobyForJob */
+        }
+      }, 12_000);
       try {
         buf = await image.generate(
           prompt,
@@ -197,10 +212,15 @@ export async function renderStills(
         break;
       } catch (err) {
         lastError = err;
+        if (/fue cancelado/i.test(String(err))) {
+          throw err instanceof Error ? err : new Error(String(err));
+        }
         if (!isTransient(err) || attempt === 2) break;
         const delay = 2000 * 2 ** attempt;
         log(`beat ${beat.id} still retry ${attempt + 1}: ${err}`);
         await new Promise((r) => setTimeout(r, delay));
+      } finally {
+        clearInterval(tick);
       }
     }
     if (!buf) {

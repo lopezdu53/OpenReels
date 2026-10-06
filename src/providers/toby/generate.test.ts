@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { generateTobyImage, resetTobyLockForTests } from "./generate.js";
+import {
+  generateTobyImage,
+  interruptTobyForJob,
+  resetTobyLockForTests,
+  setTobyOwner,
+} from "./generate.js";
 import { completeTobyFifo, resetTobyInboxForTests } from "./inbox.js";
 import { resetTobyMcpSessionForTests, tobyCallTool } from "./mcp.js";
 
@@ -95,5 +100,17 @@ describe("Toby generate", () => {
     const second = await generateTobyImage({ prompt: "dos", aspect: "9:16", model: "Toby_nano-pro" });
     expect(second.length).toBeGreaterThan(1000);
     expect(vi.mocked(tobyCallTool)).toHaveBeenCalledTimes(2);
+  });
+
+  it("unblocks a hung gen_image when that Stickman job is cancelled", async () => {
+    process.env["TOBY_REDIS"] = "0";
+    process.env["TOBY_SUBMIT_GAP_MS"] = "0";
+    vi.mocked(tobyCallTool).mockImplementation(() => new Promise(() => {}));
+    setTobyOwner("stickman-1");
+    const hung = generateTobyImage({ prompt: "x", aspect: "9:16", model: "Toby_nano-pro" });
+    await new Promise((r) => setTimeout(r, 40));
+    await interruptTobyForJob("stickman-other");
+    await interruptTobyForJob("stickman-1");
+    await expect(hung).rejects.toThrow(/cancelado/i);
   });
 });

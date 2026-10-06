@@ -53,6 +53,30 @@ describe("stickman queue snapshot", () => {
     expect(snap.workerLive).toBe(true);
   });
 
+  it("hides cancelled BullMQ leftovers from producing", () => {
+    const snap = buildStickmanQueueSnapshot({
+      waitingCount: 0,
+      activeCount: 3,
+      failed: 0,
+      delayed: 0,
+      workerLive: true,
+      producingIds: ["stickman-old", "stickman-now"],
+      queuedIds: [],
+      forId: "stickman-now",
+      metaOf: (id) =>
+        id === "stickman-old"
+          ? { topic: "tito de vacaciones en dubai", kind: "historia", status: "cancelled" }
+          : {
+              topic: "como hacer dinero sin saber nada",
+              kind: "stickman",
+              status: "producing",
+              detail: "Dibujando palitos",
+            },
+    });
+    expect(snap.producing.map((row) => row.topic)).toEqual(["como hacer dinero sin saber nada"]);
+    expect(snap.active).toBe(1);
+  });
+
   it("omits position when the job is the one producing", () => {
     const snap = buildStickmanQueueSnapshot({
       waitingCount: 0,

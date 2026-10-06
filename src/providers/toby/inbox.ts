@@ -210,6 +210,14 @@ export async function getTobyPublicAsset(
   return { mime: hit.mime, bytes: hit.bytes };
 }
 
+export async function failAllTobyPending(error: string): Promise<number> {
+  const pending = await listTobyPending();
+  for (const job of pending) {
+    await completeTobyResult(job.id, { ok: false, error }).catch(() => undefined);
+  }
+  return pending.length;
+}
+
 /** Test helper: drop in-memory queues. */
 export function resetTobyInboxForTests(): void {
   memResults.clear();
