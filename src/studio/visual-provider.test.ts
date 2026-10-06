@@ -17,6 +17,7 @@ describe("studio visual provider", () => {
     expect(resolveStudioVisualProvider("atlas")).toBe("atlas");
     expect(resolveStudioVisualProvider("nope")).toBe("atlas");
     expect(resolveStudioVisualProvider("toby")).toBe("atlas");
+    expect(resolveStickmanVisualProvider("toby")).toBe("toby");
   });
 
   it("accepts gflow on shared studio surfaces", () => {

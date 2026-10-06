@@ -183,6 +183,20 @@ export function StickmanJobPage() {
     }
   }
 
+  async function cancelJob() {
+    if (!id) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api.cancelStickmanJob(id);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function remixVoice() {
     if (!id) return;
     setBusy(true);
@@ -291,6 +305,14 @@ export function StickmanJobPage() {
               </Button>
             </div>
           </section>
+        )}
+
+        {(job.status === "producing" || job.status === "awaiting_script") && (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => void cancelJob()} disabled={busy}>
+              Cancelar
+            </Button>
+          </div>
         )}
 
         {job.status === "producing" && (

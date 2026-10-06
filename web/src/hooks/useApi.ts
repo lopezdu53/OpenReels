@@ -1165,6 +1165,8 @@ export const api = {
       aspects: string[];
       durations: number[];
       hookDurations?: number[];
+      stillIntervals?: number[];
+      defaultStillInterval?: number;
       defaultMuteCharacter?: boolean;
       defaultContentHook?: boolean;
       defaultCaptions?: boolean;
@@ -1239,6 +1241,8 @@ export const api = {
       aspects: string[];
       durations: number[];
       hookDurations?: number[];
+      stillIntervals?: number[];
+      defaultStillInterval?: number;
       defaultMuteCharacter?: boolean;
       defaultContentHook?: boolean;
       defaultCaptions?: boolean;
@@ -1256,6 +1260,16 @@ export const api = {
       llms?: { id: string; label: string; note: string; recommended?: boolean }[];
       atlasReady?: boolean;
       gflowBridge?: boolean;
+      tobyReady?: boolean;
+      defaultVisualProvider?: "atlas" | "gflow" | "toby";
+      tobyImageModels?: { id: string; label: string; note?: string; credits?: number }[];
+      tobyVideoModels?: {
+        id: string;
+        label: string;
+        note?: string;
+        durations?: number[];
+        creditPerSecond?: number;
+      }[];
       doctor?: { ok: boolean; detail: string };
     }>("/historia/catalog");
   },

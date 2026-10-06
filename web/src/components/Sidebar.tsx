@@ -61,6 +61,8 @@ const NAV_ITEMS: {
     { path: "/admin", label: "Admin", icon: Shield, admin: true },
   ];
 
+const USER_NAV = new Set(["/dashboard", "/analytic", "/learning", "/casting", "/lab"]);
+
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
@@ -102,7 +104,11 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
       </div>
 
       <nav className={cn("mt-8 flex flex-col gap-1", collapsed ? "px-2" : "px-5")}>
-        {NAV_ITEMS.filter((item) => !item.admin || user?.role === "admin").map((item) => {
+        {NAV_ITEMS.filter((item) => {
+          if (item.admin) return user?.role === "admin";
+          if (user?.role === "admin") return true;
+          return USER_NAV.has(item.path);
+        }).map((item) => {
           const childActive = item.children?.some((c) => location.pathname.startsWith(c.path));
           const active = item.path === "/analytic" ? location.pathname === "/analytic" : isActive(item.path);
           return (

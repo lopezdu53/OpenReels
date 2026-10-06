@@ -13,7 +13,7 @@ const base: StickmanJobConfig = {
   voiceId: "eve",
   voiceSpeed: 1,
   captions: true,
-  animate: false,
+  animate: true,
   imageModel: "google/nano-banana-2-lite/text-to-image",
   videoModel: "bytedance/seedance-2.0-mini/image-to-video",
   atlasTtsModel: "xai/tts-v1",
@@ -49,6 +49,12 @@ describe("stickman draftScriptTemplate", () => {
     expect(hooked.beats[0]?.durationSec).toBe(8);
     expect(hooked.contentHook).toBe(true);
     expect(hooked.captions).toBe(true);
+    const stillsOnly = draftScriptTemplate(
+      { ...base, animate: false, stillIntervalSec: 10, durationSec: 60 },
+      "cafe-stills",
+    );
+    expect(stillsOnly.beats).toHaveLength(6);
+    expect(stillsOnly.beats.every((b) => b.durationSec === 10)).toBe(true);
   });
 
   it("keeps the Atlas voice the user picked even if the director changes voice_id", () => {

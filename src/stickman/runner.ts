@@ -4,6 +4,7 @@ import { getVideoDuration } from "../pipeline/utils.js";
 import { AtlasTTS } from "../providers/tts/atlas.js";
 import { createStudioImage, createStudioVideo, isFlowCreditsVisual } from "../studio/visual-provider.js";
 import { assembleStickman, concatMotionTakes, extractLastFrame } from "./assemble.js";
+import { assertStickmanActive } from "./cancel.js";
 import {
   DEFAULT_STICKMAN_TTS_VOLUME,
   DEFAULT_STICKMAN_VIDEO_VOLUME,
@@ -62,7 +63,9 @@ export async function runVisuals(
     gflowModel: config.gflowImageModel,
     tobyModel: config.tobyImageModel,
   });
-  const paths = await renderStills(jobDir(id), script, image, log, readCastRef(id));
+  const paths = await renderStills(jobDir(id), script, image, log, readCastRef(id), () =>
+    assertStickmanActive(id),
+  );
   writeScript(id, script);
   return paths;
 }

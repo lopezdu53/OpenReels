@@ -119,6 +119,8 @@ export interface StickmanJobConfig {
   voiceSpeed: number;
   captions: boolean;
   animate: boolean;
+  /** Seconds per still when animate is false (5 or 10). */
+  stillIntervalSec?: number;
   /** Default true: no spoken TTS; Flow SFX still mix in. */
   muteCharacter?: boolean;
   /** First 10s trailer of the full video. Only for 5/8/15 min. */

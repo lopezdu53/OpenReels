@@ -177,7 +177,8 @@ export function HistoriaPage() {
   const [objectIds, setObjectIds] = useState<string[]>([]);
   const [locationIds, setLocationIds] = useState<string[]>([]);
   const [topic, setTopic] = useState("");
-  const [durationSec, setDurationSec] = useState(8);
+  const [durationSec, setDurationSec] = useState(30);
+  const [stillIntervalSec, setStillIntervalSec] = useState(10);
   const [aspect, setAspect] = useState("9:16");
   const [language, setLanguage] = useState("es");
   const [arc, setArc] = useState("joke_punchline");
@@ -190,7 +191,7 @@ export function HistoriaPage() {
   const [videoVolume, setVideoVolume] = useState(0.5);
   const [ttsVolume, setTtsVolume] = useState(1);
   const [animate, setAnimate] = useState(true);
-  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("gflow");
+  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow" | "toby">("toby");
   const [gflowImageModel, setGflowImageModel] = useState("nano-pro");
   const [gflowVideoModel, setGflowVideoModel] = useState("omni-flash");
   const [busy, setBusy] = useState(false);
@@ -199,7 +200,12 @@ export function HistoriaPage() {
   useEffect(() => {
     api
       .historiaCatalog()
-      .then(setCatalog)
+      .then((c) => {
+        setCatalog(c);
+        if (c.defaultVisualProvider === "toby" || c.defaultVisualProvider === "gflow" || c.defaultVisualProvider === "atlas") {
+          setVisualProvider(c.defaultVisualProvider);
+        }
+      })
       .catch(() => {});
     api
       .listHistoriaJobs()
@@ -239,6 +245,7 @@ export function HistoriaPage() {
         voiceSpeed,
         captions,
         animate,
+        stillIntervalSec: animate ? undefined : stillIntervalSec,
         muteCharacter,
         contentHook: hookAvailable(durationSec) ? contentHook : false,
         videoVolume,
@@ -247,6 +254,9 @@ export function HistoriaPage() {
         gflowImageModel: visualProvider === "gflow" ? gflowImageModel : undefined,
         gflowVideoModel: visualProvider === "gflow" ? gflowVideoModel : undefined,
         gflowVideoMode: visualProvider === "gflow" ? "i2v" : undefined,
+        tobyImageModel: visualProvider === "toby" ? gflowImageModel : undefined,
+        tobyVideoModel: visualProvider === "toby" ? gflowVideoModel : undefined,
+        tobyVideoMode: visualProvider === "toby" ? "i2v" : undefined,
         llmModel,
       });
       navigate(`/historia/${res.id}`);
@@ -394,7 +404,7 @@ export function HistoriaPage() {
                 aria-label="Duración"
                 value={String(durationSec)}
                 onValueChange={(value) => setDurationSec(Number(value))}
-                options={(catalog?.durations ?? [8, 16, 24, 32, 64, 120, 300, 480, 900]).map((d) => ({
+                options={(catalog?.durations ?? [10, 30, 60, 120, 180, 300, 600, 900, 1200, 1800]).map((d) => ({
                   value: String(d),
                   label: formatDuration(d),
                 }))}
@@ -524,6 +534,20 @@ export function HistoriaPage() {
               />
               Plano continuo I2V (tomas encadenadas, sin freeze)
             </label>
+            {!animate && (
+              <div className="flex items-center gap-2">
+                Imagen cada
+                <DarkSelect
+                  aria-label="Intervalo de stills"
+                  value={String(stillIntervalSec)}
+                  onValueChange={(value) => setStillIntervalSec(Number(value))}
+                  options={(catalog?.stillIntervals ?? [5, 10]).map((n) => ({
+                    value: String(n),
+                    label: `${n}s`,
+                  }))}
+                />
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -550,7 +574,7 @@ export function HistoriaPage() {
           <StudioVisualFields
             catalog={catalog}
             visualProvider={visualProvider}
-            onVisualProvider={(v) => setVisualProvider(v === "gflow" ? "gflow" : "atlas")}
+            onVisualProvider={setVisualProvider}
             gflowImageModel={gflowImageModel}
             onGflowImageModel={setGflowImageModel}
             gflowVideoModel={gflowVideoModel}
@@ -558,6 +582,7 @@ export function HistoriaPage() {
             showVideo={animate}
             durationSec={durationSec}
             gflowHint="Omni 8s (4/6/8s). 16s/24s/… son tomas de 8s. El primer still usa la ficha gflow del Casting. Audio Flow agachado + TTS Atlas."
+            tobyHint="Toby Flow MCP. Chrome + extensión + Auto Download. El primer still usa la ficha del Casting. Voz: Atlas."
           />
 
           {error && <p className="text-sm text-destructive">{error}</p>}

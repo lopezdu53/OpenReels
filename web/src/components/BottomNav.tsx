@@ -1,7 +1,10 @@
 import { BarChart3, Clapperboard, Film, LayoutDashboard, LayoutGrid, Newspaper, PersonStanding, Sparkles, Users, Workflow } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { StatsResponse } from "@/hooks/useApi";
+import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
+
+const USER_NAV = new Set(["/dashboard", "/analytic", "/learning", "/casting", "/lab"]);
 
 const NAV_ITEMS: { path: string; label: string; icon: typeof LayoutDashboard; cta?: boolean }[] = [
   { path: "/dashboard", label: "Panel", icon: LayoutDashboard },
@@ -22,6 +25,9 @@ interface BottomNavProps {
 
 export function BottomNav({ stats }: BottomNavProps) {
   const location = useLocation();
+  const { user } = useAuth();
+  const items =
+    user?.role === "admin" ? NAV_ITEMS : NAV_ITEMS.filter((item) => USER_NAV.has(item.path));
 
   const isActive = (path: string) => {
     if (path === "/") return location.pathname === "/";
@@ -30,7 +36,7 @@ export function BottomNav({ stats }: BottomNavProps) {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 flex h-16 items-center justify-around border-t border-white/8 bg-black/80 px-1 backdrop-blur-xl">
-      {NAV_ITEMS.map((item) => {
+      {items.map((item) => {
         const active = isActive(item.path);
         const cta = Boolean(item.cta);
         return (
