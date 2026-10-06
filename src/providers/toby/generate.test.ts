@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateTobyImage, resetTobyLockForTests } from "./generate.js";
-import { resetTobyInboxForTests } from "./inbox.js";
+import { completeTobyFifo, resetTobyInboxForTests } from "./inbox.js";
 import { resetTobyMcpSessionForTests, tobyCallTool } from "./mcp.js";
 
 vi.mock("./mcp.js", async (importOriginal) => {
@@ -28,6 +28,9 @@ describe("Toby generate", () => {
     resetTobyLockForTests();
     vi.unstubAllGlobals();
     delete process.env["TOBY_REDIS"];
+    vi.mocked(tobyCallTool).mockImplementation(async () => ({
+      content: [{ type: "text", text: "https://cdn.example/still.png" }],
+    }));
   });
 
   it("downloads the MCP image URL", async () => {
@@ -52,5 +55,16 @@ describe("Toby generate", () => {
       }),
       expect.any(Number),
     );
+  });
+
+  it("takes the Windows inbox file while MCP is still open", async () => {
+    process.env["TOBY_REDIS"] = "0";
+    vi.mocked(tobyCallTool).mockImplementation(() => new Promise(() => {}));
+    const pending = generateTobyImage({ prompt: "ciudad", aspect: "9:16", model: "Toby_nano-pro" });
+    await new Promise((r) => setTimeout(r, 40));
+    const matched = await completeTobyFifo("image", { ok: true, bytes: png.toString("base64") });
+    expect(matched).toBeTruthy();
+    const buf = await pending;
+    expect(buf.length).toBeGreaterThan(1000);
   });
 });
