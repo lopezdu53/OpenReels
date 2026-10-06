@@ -48,6 +48,10 @@ function assetKey(id: string): string {
 }
 
 export async function registerTobyPending(kind: "image" | "video"): Promise<string> {
+  const { stale } = pickTobyInboxTarget(await listTobyPending(), kind);
+  for (const job of stale) {
+    await dropPending(job.id);
+  }
   const id = randomUUID();
   const job: TobyPendingJob = { id, kind, createdAt: Date.now() };
   if (tobyRedisEnabled()) {
@@ -114,16 +118,37 @@ export async function completeTobyResult(id: string, result: TobyInboxResult): P
   await dropPending(id);
 }
 
-/** Oldest pending of this kind (FIFO for the Windows Auto Download folder). */
+/** Leftover Lab/Stickman waits steal the next JPEG if we keep FIFO. */
+export const TOBY_PENDING_STALE_MS = 8 * 60 * 1000;
+
+export function pickTobyInboxTarget(
+  pending: TobyPendingJob[],
+  kind: "image" | "video",
+  now = Date.now(),
+): { newest?: TobyPendingJob; stale: TobyPendingJob[] } {
+  const ofKind = pending.filter((job) => job.kind === kind);
+  const stale = ofKind.filter((job) => now - job.createdAt > TOBY_PENDING_STALE_MS);
+  const live = ofKind
+    .filter((job) => now - job.createdAt <= TOBY_PENDING_STALE_MS)
+    .sort((a, b) => b.createdAt - a.createdAt);
+  return { newest: live[0], stale };
+}
+
+/** Newest live pending of this kind (not the oldest leftover). */
 export async function completeTobyFifo(
   kind: "image" | "video",
   result: TobyInboxResult,
 ): Promise<string | null> {
-  const pending = (await listTobyPending()).filter((j) => j.kind === kind);
-  const oldest = pending.sort((a, b) => a.createdAt - b.createdAt)[0];
-  if (!oldest) return null;
-  await completeTobyResult(oldest.id, result);
-  return oldest.id;
+  const { newest, stale } = pickTobyInboxTarget(await listTobyPending(), kind);
+  for (const job of stale) {
+    await completeTobyResult(job.id, {
+      ok: false,
+      error: "Toby pending viejo; el archivo fue a un trabajo más reciente",
+    }).catch(() => undefined);
+  }
+  if (!newest) return null;
+  await completeTobyResult(newest.id, result);
+  return newest.id;
 }
 
 export async function waitTobyResult(id: string, timeoutMs: number): Promise<Buffer> {
