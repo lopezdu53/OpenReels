@@ -63,6 +63,9 @@ export async function runVisuals(
     gflowModel: config.gflowImageModel,
     tobyModel: config.tobyImageModel,
   });
+  log(
+    `stills ${script.beats.length} · ${config.visualProvider ?? "toby"} · Flow no manda bytes: hace falta watch.mjs`,
+  );
   const paths = await renderStills(jobDir(id), script, image, log, readCastRef(id), () =>
     assertStickmanActive(id),
   );

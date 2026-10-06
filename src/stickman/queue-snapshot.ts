@@ -44,6 +44,12 @@ export function rowFromJobMeta(
   };
 }
 
+const DEAD_STATUSES = new Set(["cancelled", "completed", "failed"]);
+
+export function isLiveQueueRow(row: StickmanQueueRow): boolean {
+  return !DEAD_STATUSES.has(row.status);
+}
+
 export function buildStickmanQueueSnapshot(input: {
   waitingCount: number;
   activeCount: number;
@@ -55,12 +61,18 @@ export function buildStickmanQueueSnapshot(input: {
   metaOf: (id: string) => Parameters<typeof rowFromJobMeta>[1];
   forId?: string;
 }): StickmanQueueSnapshot {
-  const producing = input.producingIds.filter(Boolean).map((id) => rowFromJobMeta(id, input.metaOf(id)));
-  const queued = input.queuedIds.filter(Boolean).map((id) => rowFromJobMeta(id, input.metaOf(id)));
+  const producing = input.producingIds
+    .filter(Boolean)
+    .map((id) => rowFromJobMeta(id, input.metaOf(id)))
+    .filter(isLiveQueueRow);
+  const queued = input.queuedIds
+    .filter(Boolean)
+    .map((id) => rowFromJobMeta(id, input.metaOf(id)))
+    .filter(isLiveQueueRow);
   const pos = input.forId ? queued.findIndex((row) => row.id === input.forId) : -1;
   return {
-    waiting: input.waitingCount,
-    active: input.activeCount,
+    waiting: queued.length,
+    active: producing.length,
     failed: input.failed,
     delayed: input.delayed,
     workerLive: input.workerLive,

@@ -18,6 +18,7 @@ import { dataUriToBuffer, extractMcpBuffers, extractMediaUrls } from "./extract.
 import {
   completeTobyResult,
   dropTobyPending,
+  failAllTobyPending,
   putTobyPublicAsset,
   registerTobyPending,
   waitTobyResult,
@@ -29,6 +30,18 @@ function sleep(ms: number): Promise<void> {
 }
 
 let chain: Promise<void> = Promise.resolve();
+let tobyOwner: string | undefined;
+let inflightAbort: (() => void) | undefined;
+
+export function setTobyOwner(id: string | undefined): void {
+  tobyOwner = id;
+}
+
+export async function interruptTobyForJob(id: string): Promise<void> {
+  if (!id || tobyOwner !== id) return;
+  inflightAbort?.();
+  await failAllTobyPending("El trabajo fue cancelado");
+}
 
 function withTobyLock<T>(fn: () => Promise<T>): Promise<T> {
   const run = chain.then(fn, fn);
@@ -142,6 +155,7 @@ export async function generateTobyImage(opts: {
     }
     const timeoutMs = tobyImageTimeoutMs();
     const ctrl = new AbortController();
+    inflightAbort = () => ctrl.abort();
     const mcpPromise = tobyCallTool("gen_image", args, timeoutMs, ctrl.signal)
       .then((mcpResult) => pickRemote("image", mcpResult))
       .catch(async (err) => {
@@ -158,6 +172,7 @@ export async function generateTobyImage(opts: {
         ctrl.abort(),
       );
     } finally {
+      inflightAbort = undefined;
       ctrl.abort();
       resetTobyMcpSession();
       const gap = tobySubmitGapMs();
@@ -199,6 +214,7 @@ export async function generateTobyVideo(opts: {
     }
     const timeoutMs = tobyVideoTimeoutMs();
     const ctrl = new AbortController();
+    inflightAbort = () => ctrl.abort();
     const mcpPromise = tobyCallTool("gen_video", args, timeoutMs, ctrl.signal)
       .then((mcpResult) => pickRemote("video", mcpResult))
       .catch(async (err) => {
@@ -216,6 +232,7 @@ export async function generateTobyVideo(opts: {
         ctrl.abort(),
       );
     } finally {
+      inflightAbort = undefined;
       ctrl.abort();
       resetTobyMcpSession();
       const gap = tobySubmitGapMs();
@@ -234,4 +251,6 @@ export async function generateTobyVideo(opts: {
 
 export function resetTobyLockForTests(): void {
   chain = Promise.resolve();
+  tobyOwner = undefined;
+  inflightAbort = undefined;
 }

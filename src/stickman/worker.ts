@@ -2,7 +2,8 @@ import type { Job } from "bullmq";
 import { Queue, Worker } from "bullmq";
 import type IORedis from "ioredis";
 import { resolveAtlasApiKey } from "../providers/atlas/client.js";
-import { assertStickmanActive, isStickmanCancelledError } from "./cancel.js";
+import { assertStickmanActive, dropDeadStickmanQueueJobs, isStickmanCancelledError } from "./cancel.js";
+import { setTobyOwner } from "../providers/toby/generate.js";
 import { DEFAULT_STICKMAN_TTS_MODEL } from "./catalog.js";
 import { estimateStickmanCost, type StickmanLlmUsage, ttsUsd } from "./cost.js";
 import { runAssemble, runMotion, runTts, runVisuals } from "./runner.js";
@@ -38,6 +39,7 @@ export async function getStickmanQueueStats(
   const q = opts?.queue ?? new Queue(STICKMAN_QUEUE_NAME, { connection });
   const owned = !opts?.queue;
   try {
+    await dropDeadStickmanQueueJobs(q).catch(() => undefined);
     const [counts, waitingJobs, activeJobs] = await Promise.all([
       q.getJobCounts("wait", "active", "failed", "delayed"),
       q.getWaiting(0, 49),
@@ -208,6 +210,7 @@ export function startStickmanWorker(connection: IORedis): Worker {
     async (job: Job<StickmanWork>) => {
       const { id, action } = job.data;
       console.log(`[stickman] ${action ?? "produce"} ${id} dir=${stickmanJobsDir()}`);
+      setTobyOwner(id);
       try {
         if (action === "remix-audio") await handleRemixAudio(id, connection);
         else await handleProduce(id, connection);
@@ -224,6 +227,8 @@ export function startStickmanWorker(connection: IORedis): Worker {
           console.error(`[stickman] could not write failure for ${id}`, statusErr);
         }
         throw err;
+      } finally {
+        setTobyOwner(undefined);
       }
     },
     {
