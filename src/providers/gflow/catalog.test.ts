@@ -21,6 +21,8 @@ import {
 describe("gflow catalog", () => {
   it("defaults unknown image models to nano2 and aliases Banana / Imagen 4", () => {
     expect(resolveGflowImageModel("nope")).toBe("nano2");
+    expect(resolveGflowImageModel("nano2.1")).toBe("nano2");
+    expect(resolveGflowImageModel("nano-banana-2.1")).toBe("nano2");
     expect(resolveGflowImageModel("image4")).toBe("nano-lite");
     expect(gflowImageCliId("nano-lite")).toBe("image4");
     expect(gflowImageCredits("nano-pro")).toBe(0);

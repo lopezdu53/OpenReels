@@ -1,6 +1,6 @@
 export const GFLOW_IMAGE_MODELS = [
   { id: "nano-pro", label: "Nano Banana Pro", note: "mejor palito", credits: 0 },
-  { id: "nano2", label: "Nano Banana 2", note: "equilibrado", credits: 0 },
+  { id: "nano2", label: "Nano Banana 2.1", note: "sustituye a Banana 2", credits: 0 },
   { id: "nano-lite", label: "Nano Banana 2 Lite", note: "rápido", credits: 0 },
 ] as const;
 
@@ -78,6 +78,9 @@ const IMAGE_ALIASES: Record<string, string> = {
   "nano-banana-pro": "nano-pro",
   "banana-pro": "nano-pro",
   "nano-banana-2": "nano2",
+  "nano-banana-2.1": "nano2",
+  "nano2.1": "nano2",
+  nano21: "nano2",
   "nano-banana-2-lite": "nano-lite",
 };
 
