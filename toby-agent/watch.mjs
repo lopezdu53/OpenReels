@@ -88,10 +88,43 @@ async function waitStable(file, tries = 8) {
   return fs.statSync(file).size;
 }
 
-async function upload(file) {
+async function waitingKinds() {
+  try {
+    const res = await fetch(`${base}/api/v1/toby/pending`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    return new Set((data.jobs || []).map((j) => j.kind).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
+
+function newestOfKind(kind) {
+  let best = "";
+  let bestM = 0;
+  for (const name of fs.readdirSync(dir)) {
+    const full = path.join(dir, name);
+    if (kindOf(full) !== kind) continue;
+    try {
+      const st = fs.statSync(full);
+      if (!st.isFile() || st.size < 1000) continue;
+      if (st.mtimeMs >= bestM) {
+        bestM = st.mtimeMs;
+        best = full;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return best;
+}
+
+async function upload(file, force = false) {
   const kind = kindOf(file);
-  if (!kind || seen.has(file)) return;
-  seen.add(file);
+  if (!kind) return;
+  if (!force && seen.has(file)) return;
+  if (!force) seen.add(file);
   const size = await waitStable(file);
   if (size < 1000) return;
   const bytes = fs.readFileSync(file).toString("base64");
@@ -110,9 +143,10 @@ async function upload(file) {
   });
   const text = await res.text();
   console.log(new Date().toISOString(), path.basename(file), res.status, text.slice(0, 200));
+  if (res.ok) seen.add(file);
 }
 
-function scan() {
+async function scan() {
   if (!fs.existsSync(dir)) return;
   for (const name of fs.readdirSync(dir)) {
     const full = path.join(dir, name);
@@ -122,6 +156,11 @@ function scan() {
     } catch {
       /* ignore */
     }
+  }
+  const waiting = await waitingKinds();
+  for (const kind of waiting) {
+    const newest = newestOfKind(kind);
+    if (newest) void upload(newest, true);
   }
 }
 
