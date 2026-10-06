@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { tobyAgentToken, tobyReady } from "./catalog.js";
+import { resetTobyPipeline } from "./generate.js";
 import {
   completeTobyFifo,
   completeTobyResult,
@@ -35,6 +36,11 @@ export async function registerTobyRoutes(app: FastifyInstance): Promise<void> {
     ready: tobyReady(),
     pending: (await listTobyPending()).length,
   }));
+
+  app.post("/api/v1/toby/reset", async () => {
+    await resetTobyPipeline("reset desde Lab");
+    return { ok: true, ready: tobyReady(), pending: (await listTobyPending()).length };
+  });
 
   app.get("/api/v1/toby/public/:id", async (request, reply) => {
     const id = String((request.params as { id: string }).id ?? "").trim();
