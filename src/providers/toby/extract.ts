@@ -62,3 +62,39 @@ export function dataUriToBuffer(uri: string): Buffer | null {
     return null;
   }
 }
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+/** MCP `content: [{ type: "image", data, mimeType }]` — Toby often omits http URLs. */
+export function extractMcpBuffers(payload: unknown, kind: "image" | "video"): Buffer[] {
+  const out: Buffer[] = [];
+  const walk = (value: unknown, depth: number): void => {
+    if (depth > 12 || value == null) return;
+    if (Array.isArray(value)) {
+      for (const item of value) walk(item, depth + 1);
+      return;
+    }
+    const rec = asRecord(value);
+    if (!rec) return;
+    const type = String(rec.type ?? rec.kind ?? "").toLowerCase();
+    const mime = String(rec.mimeType ?? rec.mime ?? rec.media_type ?? "").toLowerCase();
+    const raw = rec.data ?? rec.blob ?? rec.b64 ?? rec.bytes;
+    const wantsImage = kind === "image" && (type === "image" || mime.startsWith("image/"));
+    const wantsVideo = kind === "video" && (type === "video" || mime.startsWith("video/"));
+    if ((wantsImage || wantsVideo) && typeof raw === "string" && raw.length > 80) {
+      const trimmed = raw.includes(",") && raw.startsWith("data:") ? raw.slice(raw.indexOf(",") + 1) : raw;
+      try {
+        const buf = Buffer.from(trimmed, "base64");
+        const min = kind === "video" ? 8_000 : 800;
+        if (buf.length >= min) out.push(buf);
+      } catch {
+        /* ignore */
+      }
+    }
+    for (const nested of Object.values(rec)) walk(nested, depth + 1);
+  };
+  walk(payload, 0);
+  return out;
+}

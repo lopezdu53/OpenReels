@@ -49,35 +49,55 @@ export async function registerTobyRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true, jobs: await listTobyPending() };
   });
 
+  async function applyInbox(
+    request: { body: unknown },
+    reply: { status: (n: number) => { send: (b: unknown) => unknown } },
+    allowExplicitId: boolean,
+  ) {
+    const body = request.body as TobyInboxResult & {
+      id?: string;
+      kind?: "image" | "video";
+      png?: string;
+      mp4?: string;
+    };
+    const bytes = body.bytes ?? body.png ?? body.mp4;
+    const result: TobyInboxResult = {
+      ok: body.ok !== false,
+      bytes,
+      mime: body.mime,
+      filename: body.filename,
+      error: body.error,
+    };
+    const id = allowExplicitId ? String(body.id ?? "").trim() : "";
+    if (id) {
+      await completeTobyResult(id, result);
+      return { ok: true, id };
+    }
+    const kind = body.kind === "video" ? "video" : "image";
+    const matched = await completeTobyFifo(kind, result);
+    if (!matched) return reply.status(409).send({ ok: false, error: "No hay trabajo Toby pendiente" });
+    return { ok: true, id: matched };
+  }
+
   app.post(
     "/api/v1/toby/inbox",
     { bodyLimit: 80 * 1024 * 1024 },
     async (request, reply) => {
       const denied = requireAgent(request, reply);
       if (denied) return denied;
-      const body = request.body as TobyInboxResult & {
-        id?: string;
-        kind?: "image" | "video";
-        png?: string;
-        mp4?: string;
-      };
-      const bytes = body.bytes ?? body.png ?? body.mp4;
-      const result: TobyInboxResult = {
-        ok: body.ok !== false,
-        bytes,
-        mime: body.mime,
-        filename: body.filename,
-        error: body.error,
-      };
-      const id = String(body.id ?? "").trim();
-      if (id) {
-        await completeTobyResult(id, result);
-        return { ok: true, id };
+      return applyInbox(request, reply, true);
+    },
+  );
+
+  /** Studio Lab: Flow already saved the file on Windows — attach it here. */
+  app.post(
+    "/api/v1/toby/catch",
+    { bodyLimit: 80 * 1024 * 1024 },
+    async (request, reply) => {
+      if ((await listTobyPending()).length < 1) {
+        return reply.status(409).send({ ok: false, error: "No hay trabajo Toby pendiente" });
       }
-      const kind = body.kind === "video" ? "video" : "image";
-      const matched = await completeTobyFifo(kind, result);
-      if (!matched) return reply.status(409).send({ ok: false, error: "No hay trabajo Toby pendiente" });
-      return { ok: true, id: matched };
+      return applyInbox(request, reply, false);
     },
   );
 }

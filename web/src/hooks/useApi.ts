@@ -840,6 +840,13 @@ export const api = {
     });
   },
 
+  catchTobyFile(data: { kind?: "image" | "video"; bytes: string; mime?: string; filename?: string }) {
+    return fetchJson<{ ok: boolean; id: string }>("/toby/catch", {
+      method: "POST",
+      body: JSON.stringify({ ok: true, ...data }),
+    });
+  },
+
   testImage(data: {
     provider?: string;
     prompt: string;

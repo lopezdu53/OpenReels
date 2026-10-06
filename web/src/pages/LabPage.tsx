@@ -260,6 +260,27 @@ export function LabPage() {
     }
   };
 
+  const catchTobyDownload = (kind: "image" | "video") => async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImgError("");
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.onerror = () => reject(reader.error ?? new Error("read"));
+        reader.readAsDataURL(file);
+      });
+      const bytes = dataUrl.split(",")[1];
+      if (!bytes) throw new Error("archivo vacío");
+      await api.catchTobyFile({ kind, bytes, mime: file.type || undefined, filename: file.name });
+    } catch (err) {
+      if (kind === "image") setImgError(String(err));
+      else setVidError(String(err));
+    }
+  };
+
   // ── Video test ──────────────────────────────────────────────────────────────
   const handleImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -610,7 +631,8 @@ export function LabPage() {
           {imgProvider === "toby" && (
             <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-2">
               <p className="text-[11px] text-muted-foreground">
-                Toby Flow MCP. Modelos listados como Toby_nano-pro, Toby_nano2, Toby_nano-lite.
+                Toby Flow MCP. Modelos Toby_nano-pro / Toby_nano2 / Toby_nano-lite. Flow guarda
+                el JPEG en Windows; OpenReels no lo ve hasta que el agente o este Lab lo suban.
               </p>
               <div>
                 <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo Imagen</label>
@@ -716,6 +738,17 @@ export function LabPage() {
           <Button onClick={runImage} disabled={imgLoading || !imgPrompt.trim()} className="w-full">
             {imgLoading ? <><Loader2 className="size-4 mr-2 animate-spin" />Generando imagen...</> : "Generar imagen"}
           </Button>
+          {imgProvider === "toby" && imgLoading && (
+            <label className="block rounded-[12px] border border-dashed border-primary/40 px-3 py-2 text-[12px] text-muted-foreground cursor-pointer">
+              Si Flow ya descargó la imagen, elígela aquí para desbloquear el Lab.
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="mt-2 block w-full text-[12px]"
+                onChange={catchTobyDownload("image")}
+              />
+            </label>
+          )}
           {imgError && <ErrorBox msg={imgError} />}
           {imgResult && (
             <ResultBox>
@@ -1024,6 +1057,17 @@ export function LabPage() {
                 ? "Generar video t2v"
                 : "Generar video I2V"}
           </Button>
+          {vidProvider === "toby" && vidLoading && (
+            <label className="block rounded-[12px] border border-dashed border-primary/40 px-3 py-2 text-[12px] text-muted-foreground cursor-pointer">
+              Si Flow ya descargó el MP4, elígelo aquí para desbloquear el Lab.
+              <input
+                type="file"
+                accept="video/mp4,video/webm,video/quicktime"
+                className="mt-2 block w-full text-[12px]"
+                onChange={catchTobyDownload("video")}
+              />
+            </label>
+          )}
           {vidError && <ErrorBox msg={vidError} />}
           {vidResult && (
             <ResultBox>

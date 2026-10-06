@@ -13,7 +13,7 @@ import {
   type TobyVideoMode,
 } from "./catalog.js";
 import { TobyError } from "./errors.js";
-import { dataUriToBuffer, extractMediaUrls } from "./extract.js";
+import { dataUriToBuffer, extractMcpBuffers, extractMediaUrls } from "./extract.js";
 import {
   completeTobyResult,
   dropTobyPending,
@@ -47,13 +47,50 @@ async function downloadUrl(url: string): Promise<Buffer> {
   return buf;
 }
 
-function pickBuffer(_kind: "image" | "video", payload: unknown): Buffer | null {
+function pickBuffer(kind: "image" | "video", payload: unknown): Buffer | null {
+  const embedded = extractMcpBuffers(payload, kind)[0];
+  if (embedded) return embedded;
   const media = extractMediaUrls(payload);
   const data = media.dataUris
     .map(dataUriToBuffer)
     .find((b) => b && b.length > 800);
   if (data) return data;
   return null;
+}
+
+function isHardTobyFailure(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /VALIDATION|invalid for flow|Unauthenticat|401|Falta TOBY_MCP_TOKEN|Token inválido/i.test(msg);
+}
+
+/** Inbox can land while MCP is still open — Flow already downloaded on Windows. */
+async function firstTobyBytes(
+  jobId: string,
+  mcpPromise: Promise<Buffer | null>,
+  inboxPromise: Promise<Buffer>,
+): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
+    let done = false;
+    const finishOk = (buf: Buffer, fromMcp: boolean) => {
+      if (done) return;
+      done = true;
+      if (fromMcp) void dropTobyPending(jobId);
+      resolve(buf);
+    };
+    const finishErr = (err: unknown) => {
+      if (done) return;
+      done = true;
+      reject(err);
+    };
+    mcpPromise
+      .then((buf) => {
+        if (buf && buf.length >= 1000) finishOk(buf, true);
+      })
+      .catch((err) => {
+        if (isHardTobyFailure(err)) finishErr(err);
+      });
+    inboxPromise.then((buf) => finishOk(buf, false), finishErr);
+  });
 }
 
 async function pickRemote(kind: "image" | "video", payload: unknown): Promise<Buffer | null> {
@@ -96,21 +133,19 @@ export async function generateTobyImage(opts: {
       args.images = refs;
       args.image_urls = refs;
     }
-    let mcpResult: unknown;
-    try {
-      mcpResult = await tobyCallTool("gen_image", args, tobyImageTimeoutMs());
-    } catch (err) {
-      await completeTobyResult(jobId, { ok: false, error: err instanceof Error ? err.message : String(err) }).catch(
-        () => undefined,
-      );
-      throw err;
-    }
-    const fromMcp = await pickRemote("image", mcpResult);
-    if (fromMcp && fromMcp.length >= 1000) {
-      await dropTobyPending(jobId);
-      return fromMcp;
-    }
-    return waitTobyResult(jobId, tobyImageTimeoutMs());
+    const timeoutMs = tobyImageTimeoutMs();
+    const mcpPromise = tobyCallTool("gen_image", args, timeoutMs)
+      .then((mcpResult) => pickRemote("image", mcpResult))
+      .catch(async (err) => {
+        if (isHardTobyFailure(err)) {
+          await completeTobyResult(jobId, {
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          }).catch(() => undefined);
+        }
+        throw err;
+      });
+    return firstTobyBytes(jobId, mcpPromise, waitTobyResult(jobId, timeoutMs));
   });
 }
 
@@ -145,18 +180,19 @@ export async function generateTobyVideo(opts: {
       args.images = [imageUrl];
       args.initial_frame = imageUrl;
     }
-    let mcpResult: unknown;
-    try {
-      mcpResult = await tobyCallTool("gen_video", args, tobyVideoTimeoutMs());
-    } catch (err) {
-      await completeTobyResult(jobId, { ok: false, error: err instanceof Error ? err.message : String(err) }).catch(
-        () => undefined,
-      );
-      throw err;
-    }
-    const fromMcp = await pickRemote("video", mcpResult);
-    const buf = fromMcp && fromMcp.length >= 20_000 ? fromMcp : await waitTobyResult(jobId, tobyVideoTimeoutMs());
-    if (fromMcp && fromMcp.length >= 20_000) await dropTobyPending(jobId);
+    const timeoutMs = tobyVideoTimeoutMs();
+    const mcpPromise = tobyCallTool("gen_video", args, timeoutMs)
+      .then((mcpResult) => pickRemote("video", mcpResult))
+      .catch(async (err) => {
+        if (isHardTobyFailure(err)) {
+          await completeTobyResult(jobId, {
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          }).catch(() => undefined);
+        }
+        throw err;
+      });
+    const buf = await firstTobyBytes(jobId, mcpPromise, waitTobyResult(jobId, timeoutMs));
     if (buf.length < 20_000) throw new TobyError(`Toby video too small (${buf.length} bytes)`);
     const dest = path.join(os.tmpdir(), `openreels-toby-${Date.now()}.mp4`);
     fs.writeFileSync(dest, buf);
