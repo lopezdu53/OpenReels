@@ -7,6 +7,7 @@ import {
   tobyFlowVideoName,
   tobyImageTimeoutMs,
   tobyPublicBaseUrl,
+  tobySubmitGapMs,
   tobyVideoTimeoutMs,
   resolveTobyImageModel,
   resolveTobyVideoModel,
@@ -21,7 +22,11 @@ import {
   registerTobyPending,
   waitTobyResult,
 } from "./inbox.js";
-import { tobyCallTool } from "./mcp.js";
+import { resetTobyMcpSession, tobyCallTool } from "./mcp.js";
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 let chain: Promise<void> = Promise.resolve();
 
@@ -68,6 +73,7 @@ async function firstTobyBytes(
   jobId: string,
   mcpPromise: Promise<Buffer | null>,
   inboxPromise: Promise<Buffer>,
+  cancelMcp?: () => void,
 ): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
     let done = false;
@@ -75,6 +81,7 @@ async function firstTobyBytes(
       if (done) return;
       done = true;
       if (fromMcp) void dropTobyPending(jobId);
+      else cancelMcp?.();
       resolve(buf);
     };
     const finishErr = (err: unknown) => {
@@ -134,7 +141,8 @@ export async function generateTobyImage(opts: {
       args.image_urls = refs;
     }
     const timeoutMs = tobyImageTimeoutMs();
-    const mcpPromise = tobyCallTool("gen_image", args, timeoutMs)
+    const ctrl = new AbortController();
+    const mcpPromise = tobyCallTool("gen_image", args, timeoutMs, ctrl.signal)
       .then((mcpResult) => pickRemote("image", mcpResult))
       .catch(async (err) => {
         if (isHardTobyFailure(err)) {
@@ -145,7 +153,16 @@ export async function generateTobyImage(opts: {
         }
         throw err;
       });
-    return firstTobyBytes(jobId, mcpPromise, waitTobyResult(jobId, timeoutMs));
+    try {
+      return await firstTobyBytes(jobId, mcpPromise, waitTobyResult(jobId, timeoutMs), () =>
+        ctrl.abort(),
+      );
+    } finally {
+      ctrl.abort();
+      resetTobyMcpSession();
+      const gap = tobySubmitGapMs();
+      if (gap > 0) await sleep(gap);
+    }
   });
 }
 
@@ -181,7 +198,8 @@ export async function generateTobyVideo(opts: {
       args.initial_frame = imageUrl;
     }
     const timeoutMs = tobyVideoTimeoutMs();
-    const mcpPromise = tobyCallTool("gen_video", args, timeoutMs)
+    const ctrl = new AbortController();
+    const mcpPromise = tobyCallTool("gen_video", args, timeoutMs, ctrl.signal)
       .then((mcpResult) => pickRemote("video", mcpResult))
       .catch(async (err) => {
         if (isHardTobyFailure(err)) {
@@ -192,7 +210,17 @@ export async function generateTobyVideo(opts: {
         }
         throw err;
       });
-    const buf = await firstTobyBytes(jobId, mcpPromise, waitTobyResult(jobId, timeoutMs));
+    let buf: Buffer;
+    try {
+      buf = await firstTobyBytes(jobId, mcpPromise, waitTobyResult(jobId, timeoutMs), () =>
+        ctrl.abort(),
+      );
+    } finally {
+      ctrl.abort();
+      resetTobyMcpSession();
+      const gap = tobySubmitGapMs();
+      if (gap > 0) await sleep(gap);
+    }
     if (buf.length < 20_000) throw new TobyError(`Toby video too small (${buf.length} bytes)`);
     const dest = path.join(os.tmpdir(), `openreels-toby-${Date.now()}.mp4`);
     fs.writeFileSync(dest, buf);

@@ -42,10 +42,14 @@ export async function tobyMcpRpc(
   params: Record<string, unknown> | undefined,
   session: { id?: string },
   timeoutMs = 120_000,
+  signal?: AbortSignal,
 ): Promise<{ rpc: JsonRpc; sessionId?: string }> {
   const token = tobyMcpToken();
   if (!token) throw new TobyError("Falta TOBY_MCP_TOKEN (extensión Toby → Settings → AI / MCP)");
   const ctrl = new AbortController();
+  const onAbort = () => ctrl.abort();
+  if (signal?.aborted) ctrl.abort();
+  else signal?.addEventListener("abort", onAbort, { once: true });
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const headers: Record<string, string> = {
@@ -82,6 +86,7 @@ export async function tobyMcpRpc(
     const msg = err instanceof Error ? err.message : String(err);
     throw new TobyError(`Toby MCP no responde (${tobyMcpUrl()}): ${msg}`, true);
   } finally {
+    signal?.removeEventListener("abort", onAbort);
     clearTimeout(timer);
   }
 }
@@ -112,6 +117,7 @@ export async function tobyCallTool(
   name: string,
   args: Record<string, unknown>,
   timeoutMs: number,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const session = await tobyMcpSession();
   const { rpc } = await tobyMcpRpc(
@@ -119,6 +125,7 @@ export async function tobyCallTool(
     { name, arguments: args },
     session,
     timeoutMs,
+    signal,
   );
   const result = rpc.result as { isError?: boolean; content?: unknown } | undefined;
   if (result && result.isError) {
@@ -154,6 +161,10 @@ export function formatTobyToolError(name: string, content: unknown): string {
   return `Toby ${name}: ${raw.slice(0, 280)}`;
 }
 
-export function resetTobyMcpSessionForTests(): void {
+export function resetTobyMcpSession(): void {
   sessionCache = { at: 0 };
+}
+
+export function resetTobyMcpSessionForTests(): void {
+  resetTobyMcpSession();
 }
