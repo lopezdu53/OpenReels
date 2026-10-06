@@ -81,6 +81,15 @@ function isHardTobyFailure(err: unknown): boolean {
   return /VALIDATION|invalid for flow|Unauthenticat|401|Falta TOBY_MCP_TOKEN|Token inválido/i.test(msg);
 }
 
+/** MCP never reached Flow — do not sit 10 min on the inbox. */
+export function isTobySubmitFailure(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (isHardTobyFailure(err)) return true;
+  return /Toby MCP no responde|HTTP [45]\d\d|Falta TOBY|initialize|ENOTFOUND|ECONNREFUSED|fetch failed|certificate|Token inválido/i.test(
+    msg,
+  );
+}
+
 /** Inbox can land while MCP is still open — Flow already downloaded on Windows. */
 async function firstTobyBytes(
   jobId: string,
@@ -107,7 +116,7 @@ async function firstTobyBytes(
         if (buf && buf.length >= 1000) finishOk(buf, true);
       })
       .catch((err) => {
-        if (isHardTobyFailure(err)) finishErr(err);
+        finishErr(err);
       });
     inboxPromise.then((buf) => finishOk(buf, false), finishErr);
   });
@@ -156,10 +165,14 @@ export async function generateTobyImage(opts: {
     const timeoutMs = tobyImageTimeoutMs();
     const ctrl = new AbortController();
     inflightAbort = () => ctrl.abort();
-    const mcpPromise = tobyCallTool("gen_image", args, timeoutMs, ctrl.signal)
+    let submitted = false;
+    const mcpPromise = tobyCallTool("gen_image", args, timeoutMs, ctrl.signal, () => {
+      submitted = true;
+      console.log(`[toby] gen_image enviado · ${tobyFlowImageName(model)} · ${opts.aspect}`);
+    })
       .then((mcpResult) => pickRemote("image", mcpResult))
       .catch(async (err) => {
-        if (isHardTobyFailure(err)) {
+        if (!submitted || isTobySubmitFailure(err)) {
           await completeTobyResult(jobId, {
             ok: false,
             error: err instanceof Error ? err.message : String(err),
@@ -215,10 +228,14 @@ export async function generateTobyVideo(opts: {
     const timeoutMs = tobyVideoTimeoutMs();
     const ctrl = new AbortController();
     inflightAbort = () => ctrl.abort();
-    const mcpPromise = tobyCallTool("gen_video", args, timeoutMs, ctrl.signal)
+    let submitted = false;
+    const mcpPromise = tobyCallTool("gen_video", args, timeoutMs, ctrl.signal, () => {
+      submitted = true;
+      console.log(`[toby] gen_video enviado · ${tobyFlowVideoName(spec.id)}`);
+    })
       .then((mcpResult) => pickRemote("video", mcpResult))
       .catch(async (err) => {
-        if (isHardTobyFailure(err)) {
+        if (!submitted || isTobySubmitFailure(err)) {
           await completeTobyResult(jobId, {
             ok: false,
             error: err instanceof Error ? err.message : String(err),
@@ -247,6 +264,15 @@ export async function generateTobyVideo(opts: {
       durationSeconds: probed && probed > 0.4 ? probed : (opts.durationSeconds ?? 8),
     };
   });
+}
+
+export async function resetTobyPipeline(reason = "Toby reset"): Promise<void> {
+  inflightAbort?.();
+  await failAllTobyPending(reason).catch(() => undefined);
+  resetTobyMcpSession();
+  chain = Promise.resolve();
+  tobyOwner = undefined;
+  inflightAbort = undefined;
 }
 
 export function resetTobyLockForTests(): void {

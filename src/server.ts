@@ -45,7 +45,7 @@ import {
   sortedAtlasVideoModels,
 } from "./providers/atlas/catalog.js";
 import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "./providers/gflow/catalog.js";
-import { TOBY_IMAGE_MODELS, TOBY_VIDEO_MODELS } from "./providers/toby/catalog.js";
+import { TOBY_IMAGE_MODELS, TOBY_VIDEO_MODELS, tobyReady } from "./providers/toby/catalog.js";
 import { registerTobyRoutes } from "./providers/toby/routes.js";
 import { AliCloudLLM } from "./providers/llm/alicloud.js";
 import { AnthropicLLM } from "./providers/llm/anthropic.js";
@@ -380,6 +380,7 @@ app.get("/api/v1/providers", async () => ({
   gflowVideoModels: GFLOW_VIDEO_MODELS,
   tobyImageModels: TOBY_IMAGE_MODELS,
   tobyVideoModels: TOBY_VIDEO_MODELS,
+  tobyReady: tobyReady(),
   atelierStyles: ATELIER_STYLES,
   image: [
     { key: "gflow", label: "gflow-cli (Imagen / Flow)" },

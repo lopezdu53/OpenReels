@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   generateTobyImage,
   interruptTobyForJob,
+  isTobySubmitFailure,
   resetTobyLockForTests,
   setTobyOwner,
 } from "./generate.js";
@@ -63,6 +64,7 @@ describe("Toby generate", () => {
       }),
       expect.any(Number),
       expect.any(AbortSignal),
+      expect.any(Function),
     );
   });
 
@@ -112,5 +114,17 @@ describe("Toby generate", () => {
     await interruptTobyForJob("stickman-other");
     await interruptTobyForJob("stickman-1");
     await expect(hung).rejects.toThrow(/cancelado/i);
+  });
+
+  it("fails immediately when MCP never reaches Flow (does not hold the lock 10 min)", async () => {
+    process.env["TOBY_REDIS"] = "0";
+    process.env["TOBY_SUBMIT_GAP_MS"] = "0";
+    vi.mocked(tobyCallTool).mockRejectedValue(new Error("Toby MCP no responde (https://mcp.labs.toby.vn/mcp): aborted"));
+    const started = Date.now();
+    await expect(
+      generateTobyImage({ prompt: "lab", aspect: "9:16", model: "Toby_nano-pro" }),
+    ).rejects.toThrow(/no responde/i);
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(isTobySubmitFailure(new Error("Toby MCP no responde: aborted"))).toBe(true);
   });
 });

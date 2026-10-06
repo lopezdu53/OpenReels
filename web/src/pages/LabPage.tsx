@@ -633,7 +633,20 @@ export function LabPage() {
               <p className="text-[11px] text-muted-foreground">
                 Toby Flow MCP. Modelos Toby_nano-pro / Toby_nano2.1 / Toby_nano-lite. Flow guarda
                 el JPEG en Windows; OpenReels no lo ve hasta que el agente o este Lab lo suban.
+                {providers?.tobyReady === false
+                  ? " Falta TOBY_MCP_TOKEN en el contenedor video."
+                  : " Token MCP listo."}
               </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 text-[12px]"
+                onClick={() => {
+                  void api.resetToby().catch((err) => setImgError(String(err)));
+                }}
+              >
+                Soltar lock Toby
+              </Button>
               <div>
                 <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo Imagen</label>
                 <Select value={tobyImgModel} onValueChange={(v) => v && setTobyImgModel(v)}>

@@ -105,7 +105,7 @@ export async function tobyMcpSession(force = false): Promise<{ id?: string }> {
       clientInfo: { name: "openreels", version: "1.0" },
     },
     {},
-    30_000,
+    12_000,
   );
   const session = { id: init.sessionId };
   await tobyMcpRpc("notifications/initialized", {}, session, 15_000).catch(() => undefined);
@@ -118,8 +118,11 @@ export async function tobyCallTool(
   args: Record<string, unknown>,
   timeoutMs: number,
   signal?: AbortSignal,
+  onSession?: () => void,
 ): Promise<unknown> {
   const session = await tobyMcpSession();
+  onSession?.();
+  console.log(`[toby] MCP tools/call ${name}`);
   const { rpc } = await tobyMcpRpc(
     "tools/call",
     { name, arguments: args },

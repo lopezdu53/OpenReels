@@ -184,6 +184,7 @@ export interface ProviderOptions {
   gflowVideoModels?: { id: string; label: string; note?: string; durations?: number[] }[];
   tobyImageModels?: { id: string; label: string; note?: string }[];
   tobyVideoModels?: { id: string; label: string; note?: string; durations?: number[] }[];
+  tobyReady?: boolean;
 }
 
 export interface StatsResponse {
@@ -844,6 +845,12 @@ export const api = {
     return fetchJson<{ ok: boolean; id: string }>("/toby/catch", {
       method: "POST",
       body: JSON.stringify({ ok: true, ...data }),
+    });
+  },
+
+  resetToby() {
+    return fetchJson<{ ok: boolean; ready: boolean; pending: number }>("/toby/reset", {
+      method: "POST",
     });
   },
 
