@@ -2,6 +2,7 @@ import { Clapperboard, Loader2, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { DarkSelect } from "@/components/DarkSelect";
+import { queueChipForJob, StudioQueuePanel, useStudioQueue } from "@/components/StudioQueuePanel";
 import { CharacterStudio } from "@/components/film/CharacterStudio";
 import { LocationStudio } from "@/components/film/LocationStudio";
 import { ObjectStudio } from "@/components/film/ObjectStudio";
@@ -170,6 +171,7 @@ export function HistoriaPage() {
     null,
   );
   const [jobs, setJobs] = useState<StickmanJobMeta[]>([]);
+  const studioQueue = useStudioQueue();
   const [characters, setCharacters] = useState<LibraryCharacter[]>([]);
   const [objects, setObjects] = useState<LibraryObject[]>([]);
   const [locations, setLocations] = useState<LibraryLocation[]>([]);
@@ -286,6 +288,8 @@ export function HistoriaPage() {
             . Mismas duraciones, voz, volúmenes y plano continuo I2V.
           </p>
         </div>
+
+        <StudioQueuePanel queue={studioQueue} compact />
 
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5 space-y-4">
           <Input
@@ -633,6 +637,11 @@ export function HistoriaPage() {
                     </div>
                     <div className="space-y-2 p-3">
                       <p className="truncate text-sm font-medium">{j.topic}</p>
+                      {queueChipForJob(studioQueue, j.id) && (
+                        <p className="text-[11px] font-medium text-primary">
+                          {queueChipForJob(studioQueue, j.id)}
+                        </p>
+                      )}
                       <div className="flex flex-wrap gap-1">
                         {jobChips(j).map((chip) => (
                           <span

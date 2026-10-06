@@ -1202,6 +1202,10 @@ export const api = {
     return fetchJson<{ jobs: StickmanJobMeta[] }>("/stickman/jobs");
   },
 
+  getStickmanQueue() {
+    return fetchJson<StickmanQueueSnapshot>("/stickman/queue");
+  },
+
   createStickmanJob(data: Record<string, unknown>) {
     return fetchJson<{ id: string; status: string }>("/stickman/jobs", {
       method: "POST",
@@ -1319,6 +1323,26 @@ export interface VoxJobDetail extends VoxJobMeta {
   };
 }
 
+export interface StickmanQueueRow {
+  id: string;
+  topic: string;
+  kind: "stickman" | "historia";
+  status: string;
+  stage: string;
+  detail: string;
+}
+
+export interface StickmanQueueSnapshot {
+  waiting: number;
+  active: number;
+  failed: number;
+  delayed: number;
+  workerLive: boolean;
+  producing?: StickmanQueueRow[];
+  queued?: StickmanQueueRow[];
+  position?: number;
+}
+
 export interface StickmanJobMeta {
   id: string;
   kind: "stickman" | "historia";
@@ -1366,13 +1390,7 @@ export interface StickmanJobMeta {
 export interface StickmanJobDetail extends StickmanJobMeta {
   script?: unknown;
   stills?: string[];
-  queue?: {
-    waiting: number;
-    active: number;
-    failed: number;
-    delayed: number;
-    workerLive: boolean;
-  };
+  queue?: StickmanQueueSnapshot;
 }
 
 export interface AuthUser {

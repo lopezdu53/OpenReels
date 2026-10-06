@@ -2,6 +2,7 @@ import { Loader2, PersonStanding, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DarkSelect } from "@/components/DarkSelect";
+import { queueChipForJob, StudioQueuePanel, useStudioQueue } from "@/components/StudioQueuePanel";
 import { StudioVisualFields } from "@/components/StudioVisualFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -156,6 +157,7 @@ export function StickmanPage() {
     null,
   );
   const [jobs, setJobs] = useState<StickmanJobMeta[]>([]);
+  const studioQueue = useStudioQueue();
   const [topic, setTopic] = useState("");
   const [durationSec, setDurationSec] = useState(30);
   const [stillIntervalSec, setStillIntervalSec] = useState(10);
@@ -254,6 +256,8 @@ export function StickmanPage() {
             (16s = 2 tomas). Audio de Flow agachado + TTS Atlas. Atlas visual sigue disponible.
           </p>
         </div>
+
+        <StudioQueuePanel queue={studioQueue} compact />
 
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5 space-y-4">
           <Input
@@ -543,6 +547,11 @@ export function StickmanPage() {
                     </div>
                     <div className="space-y-2 p-3">
                       <p className="truncate text-sm font-medium">{j.topic}</p>
+                      {queueChipForJob(studioQueue, j.id) && (
+                        <p className="text-[11px] font-medium text-primary">
+                          {queueChipForJob(studioQueue, j.id)}
+                        </p>
+                      )}
                       <div className="flex flex-wrap gap-1">
                         {jobChips(j).map((chip) => (
                           <span

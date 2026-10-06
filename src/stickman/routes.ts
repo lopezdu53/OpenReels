@@ -191,6 +191,12 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     doctor: await gflowDoctor(),
   }));
 
+  app.get("/api/v1/stickman/queue", async (request: AuthedRequest, reply) => {
+    const user = requireUser(request, reply);
+    if (!user) return;
+    return getStickmanQueueStats(redis, { queue });
+  });
+
   app.get("/api/v1/stickman/jobs", async (request: AuthedRequest, reply) => {
     const user = requireUser(request, reply);
     if (!user) return;
@@ -238,7 +244,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
       const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
-      const queueStats = await getStickmanQueueStats(redis);
+      const queueStats = await getStickmanQueueStats(redis, { forId: meta.id, queue });
       return {
         ...meta,
         script: readScript(meta.id),
@@ -364,11 +370,21 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
         Connection: "keep-alive",
       });
       const send = () => {
-        const cur = readMeta(jobParam(request));
-        if (!cur) return;
-        reply.raw.write(
-          `data: ${JSON.stringify({ ...cur, stills: stillFiles(cur.id), hasFinal: Boolean(finalPath(cur.id)) })}\n\n`,
-        );
+        void (async () => {
+          const cur = readMeta(jobParam(request));
+          if (!cur) return;
+          const queueStats = await getStickmanQueueStats(redis, { forId: cur.id, queue }).catch(
+            () => undefined,
+          );
+          reply.raw.write(
+            `data: ${JSON.stringify({
+              ...cur,
+              stills: stillFiles(cur.id),
+              hasFinal: Boolean(finalPath(cur.id)),
+              queue: queueStats,
+            })}\n\n`,
+          );
+        })();
       };
       send();
       const timer = setInterval(send, 1500);
