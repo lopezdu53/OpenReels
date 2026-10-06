@@ -26,6 +26,7 @@ describe("studio visual provider", () => {
 
   it("lists Toby first on Stickman only", () => {
     expect(STICKMAN_VISUAL_PROVIDERS.map((p) => p.key)).toEqual(["toby", "gflow", "atlas"]);
+    expect(resolveStickmanVisualProvider()).toBe("toby");
     expect(resolveStickmanVisualProvider("toby")).toBe("toby");
     expect(createStudioImage({ visualProvider: "toby" })).toBeInstanceOf(TobyImage);
     expect(createStudioImage({ visualProvider: "gflow" })).toBeInstanceOf(GflowImage);

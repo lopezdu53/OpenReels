@@ -15,6 +15,9 @@ export const TOBY_MCP_DEFAULT_URL = "https://mcp.labs.toby.vn/mcp";
 /** UI / catalog label: Toby_<flow-model-id> */
 export function tobyModelLabel(id: string): string {
   const stripped = stripTobyLabel(id);
+  if (stripped === "nano2" || stripped === "nano2.1" || stripped === "nano21") {
+    return "Toby_nano2.1";
+  }
   return `Toby_${stripped}`;
 }
 
@@ -41,8 +44,9 @@ export const DEFAULT_TOBY_VIDEO_MODE: GflowVideoMode = "i2v";
 /** Names the Toby MCP `model` field accepts (not gflow-cli ids). */
 const FLOW_IMAGE_NAMES: Record<string, string> = {
   "nano-pro": "Nano Banana Pro",
-  nano2: "Nano Banana 2",
-  /** Flow MCP lists Pro + Banana 2; Lite is the same family. */
+  /** Flow replaced Nano Banana 2 with 2.1 (Toby toast / MCP model list). */
+  nano2: "Nano Banana 2.1",
+  /** Lite stays the older family name until Flow lists a 2.1 Lite. */
   "nano-lite": "Nano Banana 2",
 };
 

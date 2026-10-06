@@ -33,9 +33,9 @@ export function resolveStudioVisualProvider(raw?: string): StudioVisualProvider 
 }
 
 export function resolveStickmanVisualProvider(raw?: string): StickmanVisualProvider {
-  if (raw === "toby") return "toby";
   if (raw === "gflow") return "gflow";
-  return "atlas";
+  if (raw === "atlas") return "atlas";
+  return "toby";
 }
 
 export function isFlowCreditsVisual(raw?: string): boolean {

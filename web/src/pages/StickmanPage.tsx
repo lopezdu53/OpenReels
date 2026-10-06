@@ -172,7 +172,7 @@ export function StickmanPage() {
   const [videoVolume, setVideoVolume] = useState(0.5);
   const [ttsVolume, setTtsVolume] = useState(1);
   const [animate, setAnimate] = useState(true);
-  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow" | "toby">("gflow");
+  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow" | "toby">("toby");
   const [gflowImageModel, setGflowImageModel] = useState("nano-pro");
   const [gflowVideoModel, setGflowVideoModel] = useState("omni-flash");
   const [busy, setBusy] = useState(false);
@@ -248,7 +248,7 @@ export function StickmanPage() {
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
             Videos de palitos 2D. Historia: director de stickman (no OpenReels). Visuales: Toby
-            (Flow MCP, modelos Toby_nano-pro / Toby_omni-flash) o gflow. Omni en tomas de 8s
+            (Flow MCP, Toby_nano-pro / Toby_nano2.1 / Toby_omni-flash) o gflow. Omni en tomas de 8s
             (16s = 2 tomas). Audio de Flow agachado + TTS Atlas. Atlas visual sigue disponible.
           </p>
         </div>

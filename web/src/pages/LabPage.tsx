@@ -617,7 +617,7 @@ export function LabPage() {
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {(providers?.gflowImageModels ?? [
-                      { id: "nano2", label: "Imagen Nano 2" },
+                      { id: "nano2", label: "Imagen Nano 2.1" },
                       { id: "nano-pro", label: "Imagen Nano Pro" },
                       { id: "image4", label: "Imagen 4" },
                     ]).map((m) => (
@@ -631,7 +631,7 @@ export function LabPage() {
           {imgProvider === "toby" && (
             <div className="rounded-[12px] border border-primary/30 bg-primary/5 p-3 space-y-2">
               <p className="text-[11px] text-muted-foreground">
-                Toby Flow MCP. Modelos Toby_nano-pro / Toby_nano2 / Toby_nano-lite. Flow guarda
+                Toby Flow MCP. Modelos Toby_nano-pro / Toby_nano2.1 / Toby_nano-lite. Flow guarda
                 el JPEG en Windows; OpenReels no lo ve hasta que el agente o este Lab lo suban.
               </p>
               <div>
@@ -641,7 +641,7 @@ export function LabPage() {
                   <SelectContent>
                     {(providers?.tobyImageModels ?? [
                       { id: "nano-pro", label: "Toby_nano-pro" },
-                      { id: "nano2", label: "Toby_nano2" },
+                      { id: "nano2", label: "Toby_nano2.1" },
                       { id: "nano-lite", label: "Toby_nano-lite" },
                     ]).map((m) => (
                       <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>

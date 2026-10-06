@@ -176,7 +176,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     defaultGflowVideo: DEFAULT_STICKMAN_GFLOW_VIDEO,
     defaultTobyImage: DEFAULT_STICKMAN_GFLOW_IMAGE,
     defaultTobyVideo: DEFAULT_STICKMAN_GFLOW_VIDEO,
-    defaultVisualProvider: tobyReady() ? "toby" : "gflow",
+    defaultVisualProvider: "toby",
     atlasReady: Boolean(resolveAtlasApiKey()),
     gflowBridge: Boolean(gflowBridgeUrl()),
     tobyReady: tobyReady(),

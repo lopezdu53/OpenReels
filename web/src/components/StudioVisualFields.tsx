@@ -96,12 +96,12 @@ export function StudioVisualFields(props: {
   const images = usingToby
     ? (catalog?.tobyImageModels ?? [
         { id: "nano-pro", label: "Toby_nano-pro", credits: 0 },
-        { id: "nano2", label: "Toby_nano2", credits: 0 },
+        { id: "nano2", label: "Toby_nano2.1", credits: 0 },
         { id: "nano-lite", label: "Toby_nano-lite", credits: 0 },
       ])
     : (catalog?.gflowImageModels ?? [
         { id: "nano-pro", label: "Nano Banana Pro", credits: 0 },
-        { id: "nano2", label: "Nano Banana 2", credits: 0 },
+        { id: "nano2", label: "Nano Banana 2.1", credits: 0 },
         { id: "nano-lite", label: "Nano Banana 2 Lite", credits: 0 },
       ]);
   const videos = usingToby

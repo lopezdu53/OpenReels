@@ -16,16 +16,20 @@ describe("Toby catalog", () => {
   it("labels models as Toby_<id>", () => {
     expect(tobyModelLabel("omni-flash")).toBe("Toby_omni-flash");
     expect(tobyModelLabel("Toby_nano-pro")).toBe("Toby_nano-pro");
+    expect(tobyModelLabel("nano2")).toBe("Toby_nano2.1");
     expect(stripTobyLabel("Toby_veo-lite")).toBe("veo-lite");
     expect(TOBY_IMAGE_MODELS.every((m) => m.label.startsWith("Toby_"))).toBe(true);
+    expect(TOBY_IMAGE_MODELS.map((m) => m.label)).toContain("Toby_nano2.1");
     expect(TOBY_VIDEO_MODELS.map((m) => m.label)).toContain("Toby_omni-flash");
   });
 
   it("resolves Flow ids and names", () => {
     expect(resolveTobyImageModel("Toby_nano-pro")).toBe("nano-pro");
+    expect(resolveTobyImageModel("Toby_nano2.1")).toBe("nano2");
     expect(resolveTobyImageModel()).toBe(DEFAULT_TOBY_IMAGE_MODEL);
     expect(resolveTobyVideoModel("Toby_omni-flash").id).toBe(DEFAULT_TOBY_VIDEO_MODEL);
-    expect(tobyFlowImageName("nano2")).toBe("Nano Banana 2");
+    expect(tobyFlowImageName("nano2")).toBe("Nano Banana 2.1");
+    expect(tobyFlowImageName("nano2.1")).toBe("Nano Banana 2.1");
     expect(tobyFlowImageName("Toby_nano-pro")).toBe("Nano Banana Pro");
     expect(tobyFlowImageName("nano-lite")).toBe("Nano Banana 2");
     expect(tobyFlowVideoName("omni-flash")).toBe("Omni Flash");
