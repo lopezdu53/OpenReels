@@ -2,6 +2,7 @@ import type { Job } from "bullmq";
 import { Queue, Worker } from "bullmq";
 import type IORedis from "ioredis";
 import { resolveAtlasApiKey } from "../providers/atlas/client.js";
+import { assertStickmanActive, isStickmanCancelledError } from "./cancel.js";
 import { DEFAULT_STICKMAN_TTS_MODEL } from "./catalog.js";
 import { estimateStickmanCost, type StickmanLlmUsage, ttsUsd } from "./cost.js";
 import { runAssemble, runMotion, runTts, runVisuals } from "./runner.js";
@@ -54,7 +55,8 @@ function logTo(id: string) {
     if (!line.trim()) return;
     console.log(`[stickman ${id}] ${line.slice(0, 300)}`);
     const meta = readMeta(id);
-    if (meta) setStatus(id, meta.status, meta.stage, line.slice(0, 180));
+    if (!meta || meta.status === "cancelled") throw new Error("El trabajo fue cancelado");
+    setStatus(id, meta.status, meta.stage, line.slice(0, 180));
   };
 }
 
@@ -151,6 +153,7 @@ async function handleProduce(id: string, redis: IORedis): Promise<void> {
     return;
   }
   const key = apiKeyOf(id);
+  assertStickmanActive(id);
   if (meta.config.muteCharacter === true) {
     log("personaje mudo: sin TTS Atlas, sí efectos de Flow");
   } else {
@@ -164,9 +167,11 @@ async function handleProduce(id: string, redis: IORedis): Promise<void> {
     meta.kind === "historia" ? "Generando stills del Casting" : "Dibujando palitos",
   );
   await runVisuals(id, meta.config, key, log);
+  assertStickmanActive(id);
   markPreview(id);
   setStatus(id, "producing", "motion", script.animate ? "Animando flipbook" : "Hold + zoom");
   await runMotion(id, meta.config, key, log);
+  assertStickmanActive(id);
   setStatus(id, "producing", "assemble", "Ensamblando final.mp4");
   await runAssemble(id, log);
   let extraUsage: StickmanLlmUsage | undefined;
@@ -196,6 +201,10 @@ export function startStickmanWorker(connection: IORedis): Worker {
         if (action === "remix-audio") await handleRemixAudio(id, connection);
         else await handleProduce(id, connection);
       } catch (err) {
+        if (isStickmanCancelledError(err)) {
+          setStatus(id, "cancelled", "cancelled", "Cancelado");
+          return;
+        }
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[stickman] produce ${id} failed: ${msg}`);
         try {

@@ -157,7 +157,8 @@ export function StickmanPage() {
   );
   const [jobs, setJobs] = useState<StickmanJobMeta[]>([]);
   const [topic, setTopic] = useState("");
-  const [durationSec, setDurationSec] = useState(8);
+  const [durationSec, setDurationSec] = useState(30);
+  const [stillIntervalSec, setStillIntervalSec] = useState(10);
   const [aspect, setAspect] = useState("9:16");
   const [language, setLanguage] = useState("es");
   const [look, setLook] = useState("classic");
@@ -214,6 +215,7 @@ export function StickmanPage() {
         voiceSpeed,
         captions,
         animate,
+        stillIntervalSec: animate ? undefined : stillIntervalSec,
         muteCharacter,
         contentHook: hookAvailable(durationSec) ? contentHook : false,
         videoVolume,
@@ -312,7 +314,7 @@ export function StickmanPage() {
                 aria-label="Duración"
                 value={String(durationSec)}
                 onValueChange={(value) => setDurationSec(Number(value))}
-                options={(catalog?.durations ?? [8, 16, 24, 32, 64, 120, 300, 480, 900]).map((d) => ({
+                options={(catalog?.durations ?? [10, 30, 60, 120, 180, 300, 600, 900, 1200, 1800]).map((d) => ({
                   value: String(d),
                   label: formatStickmanDuration(d),
                 }))}
@@ -442,6 +444,20 @@ export function StickmanPage() {
               />
               Plano continuo I2V (tomas encadenadas, sin freeze)
             </label>
+            {!animate && (
+              <div className="flex items-center gap-2">
+                Imagen cada
+                <DarkSelect
+                  aria-label="Intervalo de stills"
+                  value={String(stillIntervalSec)}
+                  onValueChange={(value) => setStillIntervalSec(Number(value))}
+                  options={(catalog?.stillIntervals ?? [5, 10]).map((n) => ({
+                    value: String(n),
+                    label: `${n}s`,
+                  }))}
+                />
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">

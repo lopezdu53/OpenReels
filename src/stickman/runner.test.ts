@@ -14,7 +14,7 @@ const DOT_PNG = Buffer.from(
 
 const config: StickmanJobConfig = {
   topic: "patos y palitos",
-  durationSec: 20,
+  durationSec: 30,
   aspect: "9:16",
   language: "es",
   look: "classic",

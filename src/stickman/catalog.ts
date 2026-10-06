@@ -168,10 +168,13 @@ export const STICKMAN_VOICES = [
 ] as const;
 
 export const STICKMAN_ASPECTS = ["9:16", "16:9", "1:1"] as const;
-/** Job lengths are multiples of the Omni clip (8s until OMNI_10S_SUPPORTED). */
-export const STICKMAN_DURATIONS = [8, 16, 24, 32, 64, 120, 300, 480, 900] as const;
-/** First-10s content hook is only offered on long jobs. */
-export const STICKMAN_HOOK_DURATIONS = [300, 480, 900] as const;
+/** Stickman / Historia: 10s → 30 min. */
+export const STICKMAN_DURATIONS = [10, 30, 60, 120, 180, 300, 600, 900, 1200, 1800] as const;
+/** First-10s content hook on jobs of 5 min or longer. */
+export const STICKMAN_HOOK_DURATIONS = [300, 600, 900, 1200, 1800] as const;
+/** When I2V is off, one still every 5s or 10s. */
+export const STICKMAN_STILL_INTERVALS = [5, 10] as const;
+export const DEFAULT_STICKMAN_STILL_INTERVAL = 10;
 export const STICKMAN_TAKE_XFADE_SEC = 0.12;
 /** Default Flow/video bed. User-facing default is 50%. */
 export const DEFAULT_STICKMAN_VIDEO_VOLUME = 0.5;
@@ -356,15 +359,31 @@ export function recommendArc(topic: string): string {
 }
 
 export function beatCountForDuration(seconds: number): number {
-  if (seconds <= 8) return 3;
   if (seconds <= 10) return 3;
-  if (seconds <= 20) return 4;
   if (seconds <= 30) return 6;
   if (seconds <= 60) return 8;
   if (seconds <= 120) return 12;
+  if (seconds <= 180) return 14;
   if (seconds <= 300) return 18;
-  if (seconds <= 480) return 24;
-  return 36;
+  if (seconds <= 600) return 24;
+  if (seconds <= 900) return 36;
+  if (seconds <= 1200) return 42;
+  return 54;
+}
+
+export function resolveStillInterval(raw?: unknown): 5 | 10 {
+  return Number(raw) === 5 ? 5 : 10;
+}
+
+export function beatCountForJob(config: {
+  durationSec: number;
+  animate?: boolean;
+  stillIntervalSec?: number;
+}): number {
+  if (config.animate === false) {
+    return Math.max(1, Math.round(config.durationSec / resolveStillInterval(config.stillIntervalSec)));
+  }
+  return beatCountForDuration(config.durationSec);
 }
 
 export function frameSize(aspect: string): { w: number; h: number } {

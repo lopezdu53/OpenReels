@@ -1,5 +1,6 @@
 import {
-  beatCountForDuration,
+  beatCountForJob,
+  resolveStillInterval,
   DEFAULT_STICKMAN_IMAGE_MODEL,
   DEFAULT_STICKMAN_LLM,
   DEFAULT_STICKMAN_VIDEO_MODEL,
@@ -111,12 +112,14 @@ function beatNarration(i: number, n: number, topic: string, language: string, hi
 }
 
 function templateBeats(config: StickmanJobConfig): StickmanBeat[] {
-  const n = beatCountForDuration(config.durationSec);
-  const hook = config.contentHook === true;
+  const n = beatCountForJob(config);
+  const stillOnly = config.animate === false;
+  const interval = resolveStillInterval(config.stillIntervalSec);
+  const hook = config.contentHook === true && !stillOnly;
   const hookSec = omniClipSeconds();
   const remaining = hook ? Math.max(2, config.durationSec - hookSec) : config.durationSec;
   const storyBeats = hook ? Math.max(1, n - 1) : n;
-  const dur = Math.max(2, Math.round(remaining / storyBeats));
+  const dur = stillOnly ? interval : Math.max(2, Math.round(remaining / storyBeats));
   const look = config.look || (isHistoriaConfig(config) ? "casting" : "classic");
   const historia = isHistoriaConfig(config);
   const names = (config.castRoster ?? []).map((c) => c.name);
@@ -211,7 +214,7 @@ export async function draftScriptWithAtlas(
   config: StickmanJobConfig,
   project: string,
 ): Promise<{ script: StickmanScript; usage?: StickmanLlmUsage }> {
-  const n = beatCountForDuration(config.durationSec);
+  const n = beatCountForJob(config);
   const fallback = draftScriptTemplate(config, project);
   const prompt = directorPromptFor(config, n, JSON.stringify(fallback).slice(0, 2500));
   const model = config.llmModel || DEFAULT_STICKMAN_LLM;

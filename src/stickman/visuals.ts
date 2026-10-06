@@ -165,6 +165,7 @@ export async function renderStills(
   image: ImageProvider,
   log: (line: string) => void,
   seedRef?: Buffer,
+  onBeat?: () => void,
 ): Promise<string[]> {
   const dir = path.join(root, "stills");
   fs.mkdirSync(dir, { recursive: true });
@@ -180,6 +181,7 @@ export async function renderStills(
       log(`still ${beat.id}/${script.beats.length} ya existe → ${path.basename(dest)}`);
       continue;
     }
+    onBeat?.();
     const prompt = buildStillPrompt(script, beat);
     let buf: Buffer | undefined;
     let lastError: unknown;

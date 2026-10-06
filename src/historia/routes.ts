@@ -7,7 +7,11 @@ import { resolveAtlasApiKey } from "../providers/atlas/client.js";
 import { gflowBridgeUrl } from "../providers/gflow/bridge.js";
 import { GFLOW_IMAGE_MODELS, GFLOW_VIDEO_MODELS } from "../providers/gflow/catalog.js";
 import { gflowDoctor } from "../providers/gflow/client.js";
-import { resolveStudioVisualProvider, STUDIO_VISUAL_PROVIDERS } from "../studio/visual-provider.js";
+import { TOBY_IMAGE_MODELS, TOBY_VIDEO_MODELS, tobyReady } from "../providers/toby/catalog.js";
+import {
+  resolveStickmanVisualProvider,
+  STICKMAN_VISUAL_PROVIDERS,
+} from "../studio/visual-provider.js";
 import {
   clampStickmanVoiceSpeed,
   clampStickmanVolume,
@@ -21,7 +25,9 @@ import {
   DEFAULT_STICKMAN_TTS_MODEL,
   DEFAULT_STICKMAN_TTS_VOLUME,
   DEFAULT_STICKMAN_VIDEO_MODEL,
+  DEFAULT_STICKMAN_STILL_INTERVAL,
   DEFAULT_STICKMAN_VIDEO_VOLUME,
+  resolveStillInterval,
   isArcId,
   isStickmanLlmId,
   isStickmanVoiceId,
@@ -32,6 +38,7 @@ import {
   STICKMAN_ASPECTS,
   STICKMAN_DURATIONS,
   STICKMAN_HOOK_DURATIONS,
+  STICKMAN_STILL_INTERVALS,
   STICKMAN_LLMS,
   STICKMAN_VOICES,
   stickmanHookAvailable,
@@ -72,7 +79,7 @@ function parseHistoriaCreateBody(
   if (topic.length < 4) return { error: "Escribe un tema (mín. 4 caracteres)" };
   const durationSec = Number(body.durationSec ?? 30);
   if (!STICKMAN_DURATIONS.includes(durationSec as (typeof STICKMAN_DURATIONS)[number])) {
-    return { error: "Duración: 8s, 16s, 24s, 32s, 1 min, 2 min, 5 min, 8 min o 15 min" };
+    return { error: "Duración: 10s, 30s, 1 min, 2 min, 3 min, 5 min, 10 min, 15 min, 20 min o 30 min" };
   }
   const aspect = String(body.aspect ?? "9:16");
   if (!STICKMAN_ASPECTS.includes(aspect as (typeof STICKMAN_ASPECTS)[number])) {
@@ -154,6 +161,8 @@ function parseHistoriaCreateBody(
       voiceSpeed: clampStickmanVoiceSpeed(body.voiceSpeed),
       captions: body.captions === true,
       animate: body.animate === true,
+      stillIntervalSec:
+        body.animate === true ? undefined : resolveStillInterval(body.stillIntervalSec),
       muteCharacter: body.muteCharacter !== false,
       contentHook: stickmanHookAvailable(durationSec) && body.contentHook === true,
       videoVolume: clampStickmanVolume(body.videoVolume, DEFAULT_STICKMAN_VIDEO_VOLUME),
@@ -164,12 +173,15 @@ function parseHistoriaCreateBody(
         voiceId,
         String(body.atlasTtsModel ?? DEFAULT_STICKMAN_TTS_MODEL),
       ),
-      visualProvider: resolveStudioVisualProvider(
+      visualProvider: resolveStickmanVisualProvider(
         typeof body.visualProvider === "string" ? body.visualProvider : undefined,
       ),
       gflowImageModel: body.gflowImageModel ? String(body.gflowImageModel) : undefined,
       gflowVideoModel: body.gflowVideoModel ? String(body.gflowVideoModel) : undefined,
       gflowVideoMode: body.gflowVideoMode ? String(body.gflowVideoMode) : undefined,
+      tobyImageModel: body.tobyImageModel ? String(body.tobyImageModel) : undefined,
+      tobyVideoModel: body.tobyVideoModel ? String(body.tobyVideoModel) : undefined,
+      tobyVideoMode: body.tobyVideoMode ? String(body.tobyVideoMode) : undefined,
       llmModel: isStickmanLlmId(String(body.llmModel ?? ""))
         ? String(body.llmModel)
         : DEFAULT_STICKMAN_LLM,
@@ -184,6 +196,8 @@ export async function registerHistoriaRoutes(app: FastifyInstance, redis: IORedi
     aspects: STICKMAN_ASPECTS,
     durations: STICKMAN_DURATIONS,
     hookDurations: STICKMAN_HOOK_DURATIONS,
+    stillIntervals: STICKMAN_STILL_INTERVALS,
+    defaultStillInterval: DEFAULT_STICKMAN_STILL_INTERVAL,
     defaultMuteCharacter: DEFAULT_STICKMAN_MUTE_CHARACTER,
     defaultContentHook: DEFAULT_STICKMAN_CONTENT_HOOK,
     defaultCaptions: DEFAULT_STICKMAN_CAPTIONS,
@@ -194,14 +208,20 @@ export async function registerHistoriaRoutes(app: FastifyInstance, redis: IORedi
     defaultTtsModel: DEFAULT_STICKMAN_TTS_MODEL,
     defaultLlm: DEFAULT_STICKMAN_LLM,
     llms: STICKMAN_LLMS,
-    visualProviders: [...STUDIO_VISUAL_PROVIDERS],
+    visualProviders: [...STICKMAN_VISUAL_PROVIDERS],
     gflowImageModels: GFLOW_IMAGE_MODELS,
     gflowVideoModels: GFLOW_VIDEO_MODELS.filter((m) => m.id !== "veo-lite-lp"),
+    tobyImageModels: TOBY_IMAGE_MODELS,
+    tobyVideoModels: TOBY_VIDEO_MODELS.filter((m) => m.id !== "veo-lite-lp"),
     recommendedGflow: recommendStickmanGflow(20),
     defaultGflowImage: DEFAULT_STICKMAN_GFLOW_IMAGE,
     defaultGflowVideo: DEFAULT_STICKMAN_GFLOW_VIDEO,
+    defaultTobyImage: DEFAULT_STICKMAN_GFLOW_IMAGE,
+    defaultTobyVideo: DEFAULT_STICKMAN_GFLOW_VIDEO,
+    defaultVisualProvider: "toby",
     atlasReady: Boolean(resolveAtlasApiKey()),
     gflowBridge: Boolean(gflowBridgeUrl()),
+    tobyReady: tobyReady(),
     doctor: await gflowDoctor(),
   }));
 

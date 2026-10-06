@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   beatCountForDuration,
+  beatCountForJob,
   clampStickmanVoiceSpeed,
   clampStickmanVolume,
   formatStickmanDuration,
@@ -25,20 +26,20 @@ describe("stickman catalog", () => {
     expect(recommendArc("Bitcoin vs el negocio tradicional")).toBe("vs_debate");
   });
 
-  it("sizes beat counts for 8s through 8 min", () => {
-    expect(beatCountForDuration(8)).toBe(3);
-    expect(beatCountForDuration(16)).toBe(4);
-    expect(beatCountForDuration(24)).toBe(6);
-    expect(beatCountForDuration(32)).toBe(8);
-    expect(beatCountForDuration(64)).toBe(12);
+  it("sizes beat counts for 10s through 30 min", () => {
+    expect(beatCountForDuration(10)).toBe(3);
+    expect(beatCountForDuration(30)).toBe(6);
+    expect(beatCountForDuration(60)).toBe(8);
     expect(beatCountForDuration(120)).toBe(12);
     expect(beatCountForDuration(300)).toBe(18);
-    expect(beatCountForDuration(480)).toBe(24);
     expect(beatCountForDuration(900)).toBe(36);
-    expect(STICKMAN_DURATIONS).toEqual([8, 16, 24, 32, 64, 120, 300, 480, 900]);
+    expect(beatCountForDuration(1800)).toBe(54);
+    expect(STICKMAN_DURATIONS).toEqual([10, 30, 60, 120, 180, 300, 600, 900, 1200, 1800]);
     expect(formatStickmanDuration(120)).toBe("2 min");
-    expect(formatStickmanDuration(900)).toBe("15 min");
-    expect(formatStickmanDuration(16)).toBe("16s");
+    expect(formatStickmanDuration(1800)).toBe("30 min");
+    expect(formatStickmanDuration(10)).toBe("10s");
+    expect(beatCountForJob({ durationSec: 60, animate: false, stillIntervalSec: 10 })).toBe(6);
+    expect(beatCountForJob({ durationSec: 60, animate: false, stillIntervalSec: 5 })).toBe(12);
   });
 
   it("clamps narration speed and keeps a 0.3s/0.5s spoken window", () => {
@@ -85,7 +86,7 @@ describe("stickman catalog", () => {
   it("gates the 10s hook and publish networks by aspect", () => {
     expect(stickmanHookAvailable(10)).toBe(false);
     expect(stickmanHookAvailable(300)).toBe(true);
-    expect(stickmanHookAvailable(480)).toBe(true);
+    expect(stickmanHookAvailable(600)).toBe(true);
     expect(stickmanHookAvailable(900)).toBe(true);
     expect(publishPlatformsForAspect("16:9")).toEqual(["youtube", "facebook"]);
     expect(publishPlatformsForAspect("9:16")).toEqual([

@@ -40,13 +40,17 @@ import {
   STICKMAN_ARCS,
   STICKMAN_ASPECTS,
   STICKMAN_CASTS,
+  DEFAULT_STICKMAN_STILL_INTERVAL,
+  resolveStillInterval,
   STICKMAN_DURATIONS,
   STICKMAN_HOOK_DURATIONS,
+  STICKMAN_STILL_INTERVALS,
   STICKMAN_LLMS,
   STICKMAN_LOOKS,
   STICKMAN_VOICES,
   stickmanHookAvailable,
 } from "./catalog.js";
+import { cancelStickmanWork } from "./cancel.js";
 import { llmUsd } from "./cost.js";
 import { draftScript } from "./draft.js";
 import {
@@ -83,7 +87,7 @@ function parseStickmanCreateBody(
   if (topic.length < 4) return { error: "Escribe un tema (mín. 4 caracteres)" };
   const durationSec = Number(body.durationSec ?? 30);
   if (!STICKMAN_DURATIONS.includes(durationSec as (typeof STICKMAN_DURATIONS)[number])) {
-    return { error: "Duración: 8s, 16s, 24s, 32s, 1 min, 2 min, 5 min, 8 min o 15 min" };
+    return { error: "Duración: 10s, 30s, 1 min, 2 min, 3 min, 5 min, 10 min, 15 min, 20 min o 30 min" };
   }
   const aspect = String(body.aspect ?? "9:16");
   if (!STICKMAN_ASPECTS.includes(aspect as (typeof STICKMAN_ASPECTS)[number])) {
@@ -109,6 +113,8 @@ function parseStickmanCreateBody(
       voiceSpeed: clampStickmanVoiceSpeed(body.voiceSpeed),
       captions: body.captions === true,
       animate: body.animate === true,
+      stillIntervalSec:
+        body.animate === true ? undefined : resolveStillInterval(body.stillIntervalSec),
       muteCharacter: body.muteCharacter !== false,
       contentHook: stickmanHookAvailable(durationSec) && body.contentHook === true,
       videoVolume: clampStickmanVolume(body.videoVolume, DEFAULT_STICKMAN_VIDEO_VOLUME),
@@ -151,6 +157,8 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
     aspects: STICKMAN_ASPECTS,
     durations: STICKMAN_DURATIONS,
     hookDurations: STICKMAN_HOOK_DURATIONS,
+    stillIntervals: STICKMAN_STILL_INTERVALS,
+    defaultStillInterval: DEFAULT_STICKMAN_STILL_INTERVAL,
     defaultMuteCharacter: DEFAULT_STICKMAN_MUTE_CHARACTER,
     defaultContentHook: DEFAULT_STICKMAN_CONTENT_HOOK,
     defaultCaptions: DEFAULT_STICKMAN_CAPTIONS,
@@ -401,7 +409,7 @@ export async function registerStickmanRoutes(app: FastifyInstance, redis: IORedi
       const meta = readMeta(jobParam(request));
       if (!meta || !ownerOk(meta, user.id))
         return reply.status(404).send({ error: "No encontrado" });
-      setStatus(meta.id, "cancelled", "cancelled", "Cancelado");
+      await cancelStickmanWork(meta.id, queue);
       return { ok: true };
     },
   );
