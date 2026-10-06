@@ -87,12 +87,9 @@ export async function generateTobyImage(opts: {
     const args: Record<string, unknown> = {
       prompt: opts.prompt,
       provider: "flow",
-      model,
-      model_name: tobyFlowImageName(model),
+      model: tobyFlowImageName(model),
       aspect_ratio: opts.aspect,
-      aspect: opts.aspect,
       count: 1,
-      job_id: jobId,
     };
     if (refs.length) {
       args.refs = refs;
@@ -138,11 +135,8 @@ export async function generateTobyVideo(opts: {
     const args: Record<string, unknown> = {
       prompt: opts.prompt,
       provider: "flow",
-      model: spec.id,
-      model_name: tobyFlowVideoName(spec.id),
+      model: tobyFlowVideoName(spec.id),
       aspect_ratio: opts.aspect,
-      aspect: opts.aspect,
-      job_id: jobId,
     };
     if (opts.durationSeconds) args.duration = opts.durationSeconds;
     if (imageUrl) {

@@ -122,9 +122,36 @@ export async function tobyCallTool(
   );
   const result = rpc.result as { isError?: boolean; content?: unknown } | undefined;
   if (result && result.isError) {
-    throw new TobyError(`Toby ${name} error: ${JSON.stringify(result.content ?? result).slice(0, 400)}`);
+    throw new TobyError(formatTobyToolError(name, result.content ?? result));
   }
   return rpc.result ?? rpc;
+}
+
+export function formatTobyToolError(name: string, content: unknown): string {
+  const blobs: string[] = [];
+  if (Array.isArray(content)) {
+    for (const item of content) {
+      if (item && typeof item === "object" && "text" in item) {
+        blobs.push(String((item as { text?: string }).text ?? ""));
+      }
+    }
+  } else if (typeof content === "string") {
+    blobs.push(content);
+  } else {
+    blobs.push(JSON.stringify(content));
+  }
+  for (const blob of blobs) {
+    try {
+      const parsed = JSON.parse(blob) as { message?: string; error_code?: string };
+      if (parsed.message) {
+        return `Toby ${name}: ${parsed.message}`;
+      }
+    } catch {
+      /* raw text */
+    }
+  }
+  const raw = blobs.join(" ").trim() || JSON.stringify(content);
+  return `Toby ${name}: ${raw.slice(0, 280)}`;
 }
 
 export function resetTobyMcpSessionForTests(): void {
