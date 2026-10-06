@@ -2,6 +2,7 @@ import { ArrowLeft, Check, Clapperboard, Loader2, PersonStanding } from "lucide-
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { CompletedJobMedia } from "@/components/JobShareBar";
+import { StudioQueuePanel } from "@/components/StudioQueuePanel";
 import { mediaAspect } from "@/components/JobVideo";
 import { Button } from "@/components/ui/button";
 import { api, type StickmanJobDetail } from "@/hooks/useApi";
@@ -225,8 +226,6 @@ export function StickmanJobPage() {
   }
 
   const historia = pathname.startsWith("/historia") || job.kind === "historia";
-  const queued = job.status === "producing" && /en cola/i.test(job.detail);
-  const workerDown = job.queue ? !job.queue.workerLive : false;
   const stageIndex = STAGES.findIndex((s) => s.id === job.stage);
 
   return (
@@ -321,15 +320,7 @@ export function StickmanJobPage() {
               <Loader2 className="size-4 animate-spin" />
               {job.stage}: {job.detail}
             </p>
-            {queued && (
-              <div className="space-y-2 rounded-2xl border border-border bg-card p-4 text-sm">
-                <p>
-                  {workerDown
-                    ? "El worker de Stickman no está conectado. Reimplementa video-worker en EasyPanel (misma rama y mismas variables que video)."
-                    : "Si no avanza: en video-worker quita cualquier volumen extra montado en /app/jobs/stickman. Deja solo jobs_data → /app/jobs."}
-                </p>
-              </div>
-            )}
+            <StudioQueuePanel queue={job.queue} jobId={job.id} />
           </div>
         )}
 

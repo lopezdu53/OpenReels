@@ -7,6 +7,10 @@ import { DEFAULT_STICKMAN_TTS_MODEL } from "./catalog.js";
 import { estimateStickmanCost, type StickmanLlmUsage, ttsUsd } from "./cost.js";
 import { runAssemble, runMotion, runTts, runVisuals } from "./runner.js";
 import {
+  buildStickmanQueueSnapshot,
+  type StickmanQueueSnapshot,
+} from "./queue-snapshot.js";
+import {
   hydrateJobFromSnapshot,
   isStickmanFinalReady,
   readMeta,
@@ -27,26 +31,33 @@ export const STICKMAN_LOCK_RENEW_MS = 15_000;
 
 export type StickmanWork = { id: string; action: "produce" | "remix-audio" };
 
-export async function getStickmanQueueStats(connection: IORedis): Promise<{
-  waiting: number;
-  active: number;
-  failed: number;
-  delayed: number;
-  workerLive: boolean;
-}> {
-  const q = new Queue(STICKMAN_QUEUE_NAME, { connection });
+export async function getStickmanQueueStats(
+  connection: IORedis,
+  opts?: { forId?: string; queue?: Queue },
+): Promise<StickmanQueueSnapshot> {
+  const q = opts?.queue ?? new Queue(STICKMAN_QUEUE_NAME, { connection });
+  const owned = !opts?.queue;
   try {
-    const counts = await q.getJobCounts("wait", "active", "failed", "delayed");
+    const [counts, waitingJobs, activeJobs] = await Promise.all([
+      q.getJobCounts("wait", "active", "failed", "delayed"),
+      q.getWaiting(0, 49),
+      q.getActive(0, 9),
+    ]);
     const beat = await connection.get(STICKMAN_WORKER_HEARTBEAT_KEY);
-    return {
-      waiting: counts.wait ?? 0,
-      active: counts.active ?? 0,
+    const workId = (job: Job) => String((job.data as StickmanWork | undefined)?.id ?? "");
+    return buildStickmanQueueSnapshot({
+      waitingCount: counts.wait ?? 0,
+      activeCount: counts.active ?? 0,
       failed: counts.failed ?? 0,
       delayed: counts.delayed ?? 0,
       workerLive: Boolean(beat),
-    };
+      producingIds: activeJobs.map(workId),
+      queuedIds: waitingJobs.map(workId),
+      metaOf: readMeta,
+      forId: opts?.forId,
+    });
   } finally {
-    await q.close();
+    if (owned) await q.close();
   }
 }
 
