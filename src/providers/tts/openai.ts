@@ -14,8 +14,16 @@ export class OpenAITTS implements TTSProvider {
   private client: OpenAI;
   private model: string;
   private voice: string;
+  private speed: number;
+  private instructions?: string;
 
-  constructor(model: string = "gpt-4o-mini-tts", apiKey?: string) {
+  constructor(
+    model: string = "gpt-4o-mini-tts",
+    apiKey?: string,
+    voice: string = "alloy",
+    speed: number = 1,
+    instructions?: string,
+  ) {
     const key = apiKey ?? process.env["OPENAI_API_KEY"];
     if (!key)
       throw new Error(
@@ -23,7 +31,9 @@ export class OpenAITTS implements TTSProvider {
       );
     this.client = new OpenAI({ apiKey: key });
     this.model = model;
-    this.voice = "alloy";
+    this.voice = voice || "alloy";
+    this.speed = Math.min(4, Math.max(0.25, speed));
+    this.instructions = instructions?.trim() || undefined;
   }
 
   async generate(text: string): Promise<TTSResult> {
@@ -34,6 +44,10 @@ export class OpenAITTS implements TTSProvider {
         voice: this.voice as "alloy",
         input: text,
         response_format: "wav",
+        ...(this.speed !== 1 ? { speed: this.speed } : {}),
+        ...(this.instructions && this.model.includes("gpt-4o")
+          ? { instructions: this.instructions }
+          : {}),
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

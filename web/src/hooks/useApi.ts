@@ -1191,6 +1191,36 @@ export const api = {
     return fetchJson<{ ok: boolean }>(`/vox/jobs/${id}/cancel`, { method: "POST" });
   },
 
+  naraCatalog() {
+    return fetchJson<NaraCatalog>("/nara/catalog");
+  },
+
+  listNaraJobs() {
+    return fetchJson<{ jobs: NaraJobMeta[] }>("/nara/jobs");
+  },
+
+  createNaraJob(data: Record<string, unknown>) {
+    return fetchJson<{ id: string; status: string; targetWords: number }>("/nara/jobs", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  getNaraJob(id: string) {
+    return fetchJson<NaraJobDetail>(`/nara/jobs/${id}`);
+  },
+
+  resynthesizeNaraJob(id: string, data: Record<string, unknown>) {
+    return fetchJson<{ ok: boolean; status: string }>(`/nara/jobs/${id}/resynthesize`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  cancelNaraJob(id: string) {
+    return fetchJson<{ ok: boolean }>(`/nara/jobs/${id}/cancel`, { method: "POST" });
+  },
+
   stickmanCatalog() {
     return fetchJson<{
       looks: { id: string; label: string; mood: string }[];
@@ -1330,6 +1360,74 @@ export const api = {
     }>(`/me/jobs/${id}/publish`, { method: "POST", body: JSON.stringify({ platforms }) });
   },
 };
+
+export interface NaraVoiceOpt {
+  id: string;
+  label: string;
+  gender?: string;
+  language?: string;
+}
+
+export interface NaraModelOpt {
+  id: string;
+  label: string;
+  note?: string;
+  usdPer1kChars?: number;
+  voices?: NaraVoiceOpt[];
+}
+
+export interface NaraTtsProviderCatalog {
+  key: string;
+  label: string;
+  category: string;
+  hint: string;
+  readyEnv: string;
+  controls: {
+    voices: boolean;
+    models: boolean;
+    speed: boolean;
+    language: boolean;
+    tone: boolean;
+    stability: boolean;
+    customVoice: boolean;
+  };
+  defaultVoice?: string;
+  defaultModel?: string;
+  defaultSpeed?: number;
+  speedMin?: number;
+  speedMax?: number;
+  voices: NaraVoiceOpt[];
+  models: NaraModelOpt[];
+}
+
+export interface NaraCatalog {
+  durations: number[];
+  languages: { id: string; label: string }[];
+  tones: { id: string; label: string; hint: string }[];
+  providers: NaraTtsProviderCatalog[];
+  defaultProvider: string;
+  defaultDuration: number;
+  ready: Record<string, boolean>;
+  wordsPerMinute: number;
+}
+
+export interface NaraJobMeta {
+  id: string;
+  idea: string;
+  title?: string;
+  status: string;
+  stage: string;
+  detail: string;
+  error?: string;
+  createdAt: string;
+  hasMp3?: boolean;
+  scriptChars?: number;
+}
+
+export interface NaraJobDetail extends NaraJobMeta {
+  script: string | null;
+  config?: Record<string, unknown>;
+}
 
 export interface VoxJobMeta {
   id: string;

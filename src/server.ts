@@ -84,6 +84,9 @@ import { publishCompletedJob } from "./publish/run.js";
 import { DirectorScore } from "./schema/director-score.js";
 import type { SearchProviderKey } from "./schema/providers.js";
 import { registerHistoriaRoutes } from "./historia/routes.js";
+import { registerNaraRoutes } from "./nara/routes.js";
+import { ensureNaraJobsDir, naraJobsDir } from "./nara/store.js";
+import { getNaraQueueStats } from "./nara/worker.js";
 import { registerStickmanRoutes } from "./stickman/routes.js";
 import { ensureStickmanJobsDir, stickmanJobsDir } from "./stickman/store.js";
 import { getStickmanQueueStats } from "./stickman/worker.js";
@@ -102,6 +105,7 @@ const WEB_DIST = path.join(process.cwd(), "web", "dist");
 fs.mkdirSync(JOBS_DIR, { recursive: true });
 ensureVoxJobsDir();
 ensureStickmanJobsDir();
+ensureNaraJobsDir();
 
 /** Validate job ID to prevent path traversal — must be alphanumeric/hyphen/underscore only */
 function isValidJobId(id: string): boolean {
@@ -174,6 +178,13 @@ app.get("/api/v1/health", async () => {
     delayed: 0,
     workerLive: false,
   }));
+  const nara = await getNaraQueueStats(redis).catch(() => ({
+    waiting: 0,
+    active: 0,
+    failed: 0,
+    delayed: 0,
+    workerLive: false,
+  }));
 
   return {
     status: redisOk ? "healthy" : "degraded",
@@ -181,6 +192,7 @@ app.get("/api/v1/health", async () => {
     jobsDir: jobsDirStats ? "exists" : "missing",
     voxJobsDir: voxDirStats ? "exists" : "missing",
     stickmanJobsDir: stickDirStats ? "exists" : "missing",
+    naraJobsDir: fs.statSync(naraJobsDir(), { throwIfNoEntry: false }) ? "exists" : "missing",
     vox: {
       dir: voxDir,
       ...vox,
@@ -188,6 +200,10 @@ app.get("/api/v1/health", async () => {
     stickman: {
       dir: stickDir,
       ...stickman,
+    },
+    nara: {
+      dir: naraJobsDir(),
+      ...nara,
     },
     keys: {
       ANTHROPIC_API_KEY: !!process.env["ANTHROPIC_API_KEY"],
@@ -447,6 +463,7 @@ await registerLibraryRoutes(app);
 await registerVoxRoutes(app, redis);
 await registerStickmanRoutes(app, redis);
 await registerHistoriaRoutes(app, redis);
+await registerNaraRoutes(app, redis);
 
 // --- API Test endpoints ---
 

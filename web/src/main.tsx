@@ -14,6 +14,8 @@ import { CastingPage } from "@/pages/CastingPage";
 import { HistoriaPage } from "@/pages/HistoriaPage";
 import { StickmanJobPage } from "@/pages/StickmanJobPage";
 import { StickmanPage } from "@/pages/StickmanPage";
+import { NaraJobPage } from "@/pages/NaraJobPage";
+import { NaraPage } from "@/pages/NaraPage";
 import { VoxJobPage } from "@/pages/VoxJobPage";
 import { VoxPage } from "@/pages/VoxPage";
 import { GalleryPage } from "@/pages/GalleryPage";
@@ -48,6 +50,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/flow" element={<AdminStudio><FlowPage /></AdminStudio>} />
             <Route path="/vox" element={<AdminStudio><VoxPage /></AdminStudio>} />
             <Route path="/vox/:id" element={<AdminStudio><VoxJobPage /></AdminStudio>} />
+            <Route path="/nara" element={<AdminStudio><NaraPage /></AdminStudio>} />
+            <Route path="/nara/:id" element={<AdminStudio><NaraJobPage /></AdminStudio>} />
             <Route path="/stickman" element={<AdminStudio><StickmanPage /></AdminStudio>} />
             <Route path="/stickman/:id" element={<AdminStudio><StickmanJobPage /></AdminStudio>} />
             <Route path="/historia" element={<AdminStudio><HistoriaPage /></AdminStudio>} />

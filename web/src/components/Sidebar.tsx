@@ -4,6 +4,7 @@ import {
   DollarSign,
   Film,
   FlaskConical,
+  AudioLines,
   Newspaper,
   PersonStanding,
   Users,
@@ -43,6 +44,7 @@ const NAV_ITEMS: {
     { path: "/film", label: "Nuevo Film", icon: Film },
     { path: "/flow", label: "Nuevo Flow", icon: Workflow },
     { path: "/vox", label: "Nuevo Vox", icon: Newspaper },
+    { path: "/nara", label: "Nuevo Nara", icon: AudioLines },
     { path: "/stickman", label: "Nuevo Stickman", icon: PersonStanding },
     {
       path: "/casting",
@@ -78,6 +80,7 @@ export function Sidebar({ collapsed, onToggle, stats }: SidebarProps) {
     if (path === "/film") return location.pathname === "/film";
     if (path === "/flow") return location.pathname === "/flow";
     if (path === "/vox") return location.pathname === "/vox" || location.pathname.startsWith("/vox/");
+    if (path === "/nara") return location.pathname === "/nara" || location.pathname.startsWith("/nara/");
     if (path === "/stickman") return location.pathname === "/stickman" || location.pathname.startsWith("/stickman/");
     if (path === "/casting") return location.pathname === "/casting";
     if (path === "/historia") return location.pathname === "/historia" || location.pathname.startsWith("/historia/");
