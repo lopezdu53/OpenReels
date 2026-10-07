@@ -5,12 +5,25 @@ const ELEVENLABS_BASE = "https://api.elevenlabs.io/v1";
 export class ElevenLabsTTS implements TTSProvider {
   private apiKey: string;
   private voiceId: string;
+  private stability: number;
+  private similarityBoost: number;
+  private style: number;
+  private speed: number;
 
-  constructor(voiceId: string = "yl2ZDV1MzN4HbQJbMihG", apiKey?: string) {
+  constructor(
+    voiceId: string = "yl2ZDV1MzN4HbQJbMihG",
+    apiKey?: string,
+    settings?: { stability?: number; similarityBoost?: number; style?: number; speed?: number },
+  ) {
     const key = apiKey ?? process.env["ELEVENLABS_API_KEY"];
     if (!key) throw new Error("ELEVENLABS_API_KEY environment variable is required");
     this.apiKey = key;
     this.voiceId = voiceId;
+    this.stability = settings?.stability != null ? Math.min(1, Math.max(0, settings.stability)) : 0.5;
+    this.similarityBoost =
+      settings?.similarityBoost != null ? Math.min(1, Math.max(0, settings.similarityBoost)) : 0.75;
+    this.style = settings?.style != null ? Math.min(1, Math.max(0, settings.style)) : 0;
+    this.speed = settings?.speed != null ? Math.min(1.2, Math.max(0.7, settings.speed)) : 1;
   }
 
   async generate(text: string): Promise<TTSResult> {
@@ -26,8 +39,10 @@ export class ElevenLabsTTS implements TTSProvider {
           text,
           model_id: "eleven_multilingual_v2",
           voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
+            stability: this.stability,
+            similarity_boost: this.similarityBoost,
+            ...(this.style > 0 ? { style: this.style } : {}),
+            ...(this.speed !== 1 ? { speed: this.speed } : {}),
           },
         }),
       },

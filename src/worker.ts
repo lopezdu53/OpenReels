@@ -18,6 +18,7 @@ import type {
   TTSProviderKey,
   VideoProviderKey,
 } from "./schema/providers.js";
+import { startNaraWorker } from "./nara/worker.js";
 import { startStickmanWorker } from "./stickman/worker.js";
 import { startVoxWorker } from "./vox/worker.js";
 
@@ -601,6 +602,8 @@ worker.on("failed", (job, err) => {
 
 startVoxWorker(redis);
 startStickmanWorker(redis);
+startNaraWorker(redis);
 console.log("OpenReels worker started, waiting for jobs...");
 console.log("Vox Director worker started (isolated queue vox-director)");
 console.log("Stickman Studio worker started (isolated queue stickman-studio)");
+console.log("Nara Studio worker started (isolated queue nara-studio)");

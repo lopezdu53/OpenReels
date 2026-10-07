@@ -1,4 +1,4 @@
-import { BarChart3, Clapperboard, Film, LayoutDashboard, LayoutGrid, Newspaper, PersonStanding, Sparkles, Users, Workflow } from "lucide-react";
+import { AudioLines, BarChart3, Clapperboard, Film, LayoutDashboard, LayoutGrid, Newspaper, PersonStanding, Sparkles, Users, Workflow } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import type { StatsResponse } from "@/hooks/useApi";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,6 +13,7 @@ const NAV_ITEMS: { path: string; label: string; icon: typeof LayoutDashboard; ct
   { path: "/film", label: "Film", icon: Film },
   { path: "/flow", label: "Flow", icon: Workflow },
   { path: "/vox", label: "Vox", icon: Newspaper },
+  { path: "/nara", label: "Nara", icon: AudioLines },
   { path: "/stickman", label: "Stickman", icon: PersonStanding },
   { path: "/casting", label: "Casting", icon: Users },
   { path: "/historia", label: "Historia", icon: Clapperboard },
