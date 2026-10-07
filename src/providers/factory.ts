@@ -333,10 +333,7 @@ export function createProviders(config: ProviderConfig): Providers {
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "atlas", "gemini")
       : primary;
   } else if (config.image === "cloudflare") {
-    const primary = new CloudflareImage(config.cloudflareImageModel, k["CLOUDFLARE_API_TOKEN"]);
-    imageGen = googleKey
-      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "cloudflare", "gemini")
-      : primary;
+    imageGen = new CloudflareImage(config.cloudflareImageModel, k["CLOUDFLARE_API_TOKEN"]);
   } else if (config.image === "gflow") {
     imageGen = new GflowImage(config.gflowImageModel);
   } else if (config.image === "toby") {

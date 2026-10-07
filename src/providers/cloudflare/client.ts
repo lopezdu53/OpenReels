@@ -22,8 +22,7 @@ export function cloudflareReady(): boolean {
 export function cloudflareRunUrl(model: string, accountId?: string): string {
   const id = cloudflareAccountId(accountId);
   if (!id) throw new Error("Falta CLOUDFLARE_ACCOUNT_ID");
-  const encoded = model.startsWith("@") ? model : encodeURIComponent(model);
-  return `https://api.cloudflare.com/client/v4/accounts/${id}/ai/run/${encoded}`;
+  return `https://api.cloudflare.com/client/v4/accounts/${id}/ai/run/${encodeURIComponent(model)}`;
 }
 
 export function cloudflareOpenAiBase(accountId?: string): string {
@@ -35,17 +34,34 @@ export function cloudflareOpenAiBase(accountId?: string): string {
 export async function cloudflareRun(
   model: string,
   body: unknown,
-  opts?: { token?: string; accountId?: string; timeoutMs?: number },
+  opts?: { token?: string; accountId?: string; timeoutMs?: number; multipart?: boolean },
 ): Promise<{ json: unknown; buffer?: Buffer }> {
   const token = cloudflareApiToken(opts?.token);
   if (!token) throw new Error("Falta CLOUDFLARE_API_TOKEN (Workers AI → Use REST API)");
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+  let payload: string | FormData;
+  if (opts?.multipart) {
+    const form = new FormData();
+    const rec = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
+    for (const [key, value] of Object.entries(rec)) {
+      if (value == null) continue;
+      if (Buffer.isBuffer(value)) {
+        form.append(key, new Blob([new Uint8Array(value)]), `${key}.png`);
+      } else if (value instanceof Blob) {
+        form.append(key, value);
+      } else {
+        form.append(key, String(value));
+      }
+    }
+    payload = form;
+  } else {
+    headers["Content-Type"] = "application/json";
+    payload = JSON.stringify(body);
+  }
   const res = await fetch(cloudflareRunUrl(model, opts?.accountId), {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
+    headers,
+    body: payload,
     signal: AbortSignal.timeout(opts?.timeoutMs ?? 120_000),
   });
   const ct = res.headers.get("content-type") ?? "";
