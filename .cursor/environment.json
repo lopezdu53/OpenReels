@@ -1,0 +1,20 @@
+{
+  "name": "OpenReels",
+  "install": "./.cursor/install.sh",
+  "start": "./.cursor/start.sh",
+  "terminals": [
+    {
+      "name": "api",
+      "command": "npx tsx src/server.ts",
+      "description": "Fastify REST API (port 3000) that serves the web UI from web/dist and enqueues render jobs."
+    },
+    {
+      "name": "worker",
+      "command": "npx tsx src/worker.ts",
+      "description": "BullMQ worker that runs the 6-stage video generation pipeline for queued jobs."
+    }
+  ],
+  "ports": [
+    { "name": "web", "port": 3000 }
+  ]
+}
