@@ -15,6 +15,11 @@ import {
   atlasLipSyncPerSecondUsd,
   atlasVideoPerSecondUsd,
 } from "../providers/atlas/catalog.js";
+import {
+  cloudflareImageUsd,
+  cloudflareLlmPricing,
+  cloudflareTtsPer1kChars,
+} from "../providers/cloudflare/catalog.js";
 
 export interface CostBreakdown {
   llmCost: number;
@@ -77,6 +82,7 @@ const LLM_PRICING = {
     perOutputToken: 15 / 1_000_000, // $15 per 1M output tokens
   },
   atlas: atlasLlmPricing(),
+  cloudflare: cloudflareLlmPricing(),
 };
 
 const PRICING = {
@@ -88,6 +94,7 @@ const PRICING = {
     "openai-tts": 0.00005, // ~$0.05 per 1K chars (gpt-4o-mini-tts: $0.60/1M text tokens in + $12/1M audio tokens out)
     "grok-tts": 0.000015, // $15 per 1M chars (x.ai/voice/text-to-speech)
     "atlas-tts": ATLAS_TTS_PER_1K_CHARS / 1000, // $0.015 per 1K chars (xai/tts-v1)
+    "cloudflare-tts": cloudflareTtsPer1kChars() / 1000, // Aura-2 ES $0.03 / 1K chars
   } satisfies Record<TTSProviderKey, number>,
   // Gemini 3.1 Flash Image Preview: $60/M output tokens
   // 1080x1920 (>1024px, <=2048px) = 1680 tokens = $0.101/image
@@ -112,6 +119,7 @@ function perImageCost(imageProvider: ImageProviderKey): number {
   if (imageProvider === "sharpii") return sharpiiImageUsd();
   if (imageProvider === "atlas") return atlasImageUsd();
   if (imageProvider === "gflow" || imageProvider === "toby") return 0;
+  if (imageProvider === "cloudflare") return cloudflareImageUsd();
   return PRICING.geminiPerImage;
 }
 
@@ -122,6 +130,7 @@ function videoPerSecondCost(videoProvider?: VideoProviderKey): number {
   if (videoProvider === "sharpii") return sharpiiVideoPerSecondUsd();
   if (videoProvider === "atlas") return atlasVideoPerSecondUsd() + atlasLipSyncPerSecondUsd();
   if (videoProvider === "gflow" || videoProvider === "toby") return 0;
+  if (videoProvider === "cloudflare") return 0;
   return PRICING.veoLitePerSecond;
 }
 

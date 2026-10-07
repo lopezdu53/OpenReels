@@ -52,6 +52,16 @@ import { AnthropicLLM } from "./providers/llm/anthropic.js";
 import { AtlasLLM } from "./providers/llm/atlas.js";
 import { GeminiLLM } from "./providers/llm/gemini.js";
 import { GrokLLM } from "./providers/llm/grok.js";
+import { CloudflareLLM } from "./providers/llm/cloudflare.js";
+import {
+  CLOUDFLARE_IMAGE_MODELS,
+  CLOUDFLARE_LLM_MODELS,
+  CLOUDFLARE_TTS_MODELS,
+  CLOUDFLARE_TTS_SPEAKERS_EN,
+  CLOUDFLARE_TTS_SPEAKERS_ES,
+} from "./providers/cloudflare/catalog.js";
+import { cloudflareReady } from "./providers/cloudflare/client.js";
+import { CloudflareTTS } from "./providers/tts/cloudflare.js";
 import { OpenAILLM } from "./providers/llm/openai.js";
 import { OpenRouterLLM } from "./providers/llm/openrouter.js";
 import { ViviLLM } from "./providers/llm/vivi.js";
@@ -199,6 +209,8 @@ app.get("/api/v1/health", async () => {
       SHARPII_API_KEY: !!process.env["SHARPII_API_KEY"],
       ATLASCLOUD_API_KEY: !!process.env["ATLASCLOUD_API_KEY"],
       YOUTUBE_API_KEY: !!process.env["YOUTUBE_API_KEY"],
+      CLOUDFLARE_API_TOKEN: !!process.env["CLOUDFLARE_API_TOKEN"],
+      CLOUDFLARE_ACCOUNT_ID: !!process.env["CLOUDFLARE_ACCOUNT_ID"],
       GFLOW_BRIDGE_URL: !!process.env["GFLOW_BRIDGE_URL"],
       GFLOW_BRIDGE_TOKEN: !!process.env["GFLOW_BRIDGE_TOKEN"],
       GFLOW_BRIDGE_RELAY:
@@ -297,6 +309,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "vivi", label: "VIVI (Claude)" },
     { key: "alicloud", label: "Alibaba Cloud" },
     { key: "grok", label: "Grok (xAI)" },
+    { key: "cloudflare", label: "Cloudflare Workers AI" },
   ],
   search: [
     { key: "native", label: "Native (provider built-in)" },
@@ -311,11 +324,27 @@ app.get("/api/v1/providers", async () => ({
     { key: "gemini-tts", label: "Gemini TTS" },
     { key: "openai-tts", label: "OpenAI TTS" },
     { key: "grok-tts", label: "Grok TTS" },
+    { key: "cloudflare-tts", label: "Cloudflare Aura TTS" },
   ],
   inworldVoices: INWORLD_VOICES.map((v) => ({ id: v.id, label: v.label, lang: v.lang })),
   geminiTtsVoices: GEMINI_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
   grokTtsVoices: GROK_TTS_VOICES.map((v) => ({ id: v.id, label: v.label, gender: v.gender })),
   grokTtsModels: GROK_TTS_MODELS.map((m) => ({ id: m.id, label: m.label })),
+  cloudflareLlmModels: CLOUDFLARE_LLM_MODELS.map((m) => ({
+    ...m,
+    priceLabel: `$${m.inputPer1M} / $${m.outputPer1M} por 1M`,
+  })),
+  cloudflareImageModels: CLOUDFLARE_IMAGE_MODELS.map((m) => ({
+    ...m,
+    priceLabel: `$${m.usdPerImage} / imagen`,
+  })),
+  cloudflareTtsModels: CLOUDFLARE_TTS_MODELS.map((m) => ({
+    ...m,
+    priceLabel: `$${m.usdPer1kChars} / 1K chars`,
+  })),
+  cloudflareTtsSpeakersEs: CLOUDFLARE_TTS_SPEAKERS_ES,
+  cloudflareTtsSpeakersEn: CLOUDFLARE_TTS_SPEAKERS_EN,
+  cloudflareReady: cloudflareReady(),
   kokoroVoices: KOKORO_VOICES.map((v) => ({
     id: v.id,
     label: v.label,
@@ -393,6 +422,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "runpod", label: "RunPod (FLUX / Wan públicos)" },
     { key: "fal", label: "fal.ai (FLUX)" },
     { key: "sharpii", label: "Sharpii (Nano Banana / Flux / MJ)" },
+    { key: "cloudflare", label: "Cloudflare Workers AI (FLUX)" },
   ],
   video: [
     { key: "gflow", label: "gflow-cli (Veo I2V)" },
@@ -405,6 +435,7 @@ app.get("/api/v1/providers", async () => ({
     { key: "vidu-q2-fast", label: "VIDU Q2 Fast (~27cr/5s)" },
     { key: "vidu-q3-fast", label: "VIDU Q3 Fast" },
     { key: "runpod", label: "RunPod (Wan / Kling / Seedance)" },
+    { key: "cloudflare", label: "Cloudflare Workers AI (sin I2V en catálogo)" },
   ],
 }));
 
@@ -448,6 +479,8 @@ app.post("/api/v1/test/llm", async (request, reply) => {
           return new GrokLLM(model);
         case "atlas":
           return new AtlasLLM(model);
+        case "cloudflare":
+          return new CloudflareLLM(model);
         default:
           return new AnthropicLLM(model);
       }
@@ -494,6 +527,8 @@ app.post("/api/v1/test/tts", async (request, reply) => {
           return new KokoroTTS(voice, speed);
         case "atlas-tts":
           return new AtlasTTS(voice);
+        case "cloudflare-tts":
+          return new CloudflareTTS(model, voice);
         default:
           return new ElevenLabsTTS();
       }
@@ -656,6 +691,9 @@ interface CreateJobBody {
     atlasTtsVoice?: string;
     atlasTtsModel?: string;
     atlasLipSyncModel?: string | null;
+    cloudflareTtsVoice?: string;
+    cloudflareTtsModel?: string;
+    cloudflareImageModel?: string;
     gflowImageModel?: string;
     gflowVideoModel?: string;
     gflowVideoMode?: string;
@@ -903,6 +941,9 @@ app.post<{ Body: CreateJobBody }>("/api/v1/jobs", async (request, reply) => {
       atlasTtsVoice: providers?.atlasTtsVoice,
       atlasTtsModel: providers?.atlasTtsModel,
       atlasLipSyncModel: providers?.atlasLipSyncModel,
+      cloudflareTtsVoice: providers?.cloudflareTtsVoice,
+      cloudflareTtsModel: providers?.cloudflareTtsModel,
+      cloudflareImageModel: providers?.cloudflareImageModel,
       gflowImageModel: providers?.gflowImageModel,
       gflowVideoModel: providers?.gflowVideoModel,
       gflowVideoMode: providers?.gflowVideoMode,

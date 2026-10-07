@@ -107,6 +107,9 @@ async function main(): Promise<void> {
     atlasVideoModel: opts.atlasVideoModel,
     atlasTtsVoice: opts.atlasTtsVoice,
     atlasLipSyncModel: opts.atlasLipSyncModel,
+    cloudflareImageModel: opts.cloudflareImageModel,
+    cloudflareTtsModel: opts.cloudflareTtsModel,
+    cloudflareTtsVoice: opts.cloudflareTtsVoice,
   });
 
   // Create CLI callbacks for terminal progress display

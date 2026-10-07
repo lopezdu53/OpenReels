@@ -7,7 +7,8 @@ export type SheetImageProvider =
   | "grok"
   | "runpod"
   | "fal"
-  | "alicloud";
+  | "alicloud"
+  | "cloudflare";
 
 export const SHEET_IMAGE_PROVIDERS: { key: SheetImageProvider; label: string }[] = [
   { key: "gflow", label: "gflow (Nano Banana)" },
@@ -18,6 +19,7 @@ export const SHEET_IMAGE_PROVIDERS: { key: SheetImageProvider; label: string }[]
   { key: "runpod", label: "RunPod (público)" },
   { key: "fal", label: "fal.ai" },
   { key: "alicloud", label: "Alibaba Cloud" },
+  { key: "cloudflare", label: "Cloudflare FLUX" },
 ];
 
 export const CASTING_SHEET_PROVIDERS: { key: SheetImageProvider; label: string }[] = [
@@ -29,6 +31,7 @@ export const CASTING_SHEET_PROVIDERS: { key: SheetImageProvider; label: string }
   { key: "runpod", label: "RunPod (público)" },
   { key: "fal", label: "fal.ai" },
   { key: "alicloud", label: "Alibaba Cloud" },
+  { key: "cloudflare", label: "Cloudflare FLUX" },
 ];
 
 export const DEFAULT_CASTING_SHEET_PROVIDER: SheetImageProvider = "gflow";
@@ -51,7 +54,8 @@ export function normalizeSheetProvider(
     v === "grok" ||
     v === "runpod" ||
     v === "fal" ||
-    v === "alicloud"
+    v === "alicloud" ||
+    v === "cloudflare"
   ) {
     return v;
   }

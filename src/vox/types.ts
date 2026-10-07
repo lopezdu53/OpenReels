@@ -94,7 +94,7 @@ export interface VoxJobConfig {
   captionStyle: string;
   watermark: string;
   realPeople: boolean;
-  visualProvider?: "atlas" | "gflow";
+  visualProvider?: "atlas" | "gflow" | "cloudflare";
   gflowImageModel?: string;
   gflowVideoModel?: string;
   gflowVideoMode?: string;

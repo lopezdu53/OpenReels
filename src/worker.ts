@@ -101,6 +101,9 @@ interface JobData {
     atlasTtsVoice?: string;
     atlasTtsModel?: string;
     atlasLipSyncModel?: string | null;
+    cloudflareTtsVoice?: string;
+    cloudflareTtsModel?: string;
+    cloudflareImageModel?: string;
     gflowImageModel?: string;
     gflowVideoModel?: string;
     gflowVideoMode?: string;
@@ -289,6 +292,9 @@ const worker = new Worker<JobData>(
       atlasTtsVoice: providers.atlasTtsVoice,
       atlasTtsModel: providers.atlasTtsModel,
       atlasLipSyncModel: providers.atlasLipSyncModel,
+      cloudflareTtsVoice: providers.cloudflareTtsVoice,
+      cloudflareTtsModel: providers.cloudflareTtsModel,
+      cloudflareImageModel: providers.cloudflareImageModel,
       gflowImageModel: providers.gflowImageModel,
       gflowVideoModel: providers.gflowVideoModel,
       gflowVideoMode: providers.gflowVideoMode,
@@ -415,6 +421,8 @@ const worker = new Worker<JobData>(
       vivi: "VIVI_LLM_API_KEY",
       alicloud: "ALICLOUD_API_KEY",
       grok: "XAI_API_KEY",
+      atlas: "ATLASCLOUD_API_KEY",
+      cloudflare: "CLOUDFLARE_API_TOKEN",
     };
     const llmKeyName = LLM_KEY_MAP[providers.llm] ?? "ANTHROPIC_API_KEY";
     const llmKey = keys[llmKeyName];

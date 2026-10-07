@@ -19,6 +19,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { AtlasModelFields } from "@/components/AtlasModelFields";
+import { CloudflareModelFields } from "@/components/CloudflareModelFields";
 import { DarkSelect } from "@/components/DarkSelect";
 import { CastModePicker, type FilmCastMode } from "@/components/film/CastModePicker";
 import { CharacterStudio } from "@/components/film/CharacterStudio";
@@ -204,9 +205,11 @@ const FALLBACK = {
     { key: "grok", label: "Grok (xAI)" },
     { key: "vivi", label: "VIVI (Claude)" },
     { key: "alicloud", label: "Alibaba Cloud" },
+    { key: "cloudflare", label: "Cloudflare Workers AI" },
   ],
   tts: [
     { key: "atlas-tts", label: "ATLAS" },
+    { key: "cloudflare-tts", label: "Cloudflare Aura TTS" },
     { key: "elevenlabs", label: "ElevenLabs" },
     { key: "kokoro", label: "Kokoro (Local)" },
     { key: "gemini-tts", label: "Gemini TTS" },
@@ -224,6 +227,7 @@ const FALLBACK = {
     { key: "fal", label: "fal.ai" },
     { key: "sharpii", label: "Sharpii" },
     { key: "alicloud", label: "Alibaba Cloud" },
+    { key: "cloudflare", label: "Cloudflare FLUX" },
   ],
   video: [
     { key: "atlas", label: "ATLAS" },
@@ -233,6 +237,7 @@ const FALLBACK = {
     { key: "vivi", label: "VIVI (Grok Video)" },
     { key: "runpod", label: "RunPod (público)" },
     { key: "sharpii", label: "Sharpii (Kling / Seedance)" },
+    { key: "cloudflare", label: "Cloudflare (sin I2V)" },
   ],
   search: [{ key: "tavily", label: "Tavily" }],
 };
@@ -388,6 +393,11 @@ export function FilmPage() {
     "bytedance/seedance-2.0-mini/image-to-video",
   );
   const [atlasLipSyncModel, setAtlasLipSyncModel] = useState("veed/lipsync");
+  const [cloudflareTtsModel, setCloudflareTtsModel] = useState("@cf/deepgram/aura-2-es");
+  const [cloudflareTtsVoice, setCloudflareTtsVoice] = useState("aquila");
+  const [cloudflareImageModel, setCloudflareImageModel] = useState(
+    "@cf/black-forest-labs/flux-1-schnell",
+  );
   const [videoSceneMode, setVideoSceneMode] = useState("every2");
   const [musicProvider, setMusicProvider] = useState("bundled");
   const [runpodImageModel, setRunpodImageModel] = useState("p-image-t2i");
@@ -515,20 +525,31 @@ export function FilmPage() {
         ? undefined
         : providers?.atlasLipSyncModels?.find((m) => m.id === atlasLipSyncModel);
     const tts = providers?.atlasTtsModels?.find((m) => m.id === atlasTtsModel);
+    const cfLlm = providers?.cloudflareLlmModels?.find((m) => m.id === llmModel);
+    const cfImg = providers?.cloudflareImageModels?.find((m) => m.id === cloudflareImageModel);
+    const cfTts = providers?.cloudflareTtsModels?.find((m) => m.id === cloudflareTtsModel);
     return {
       ...base,
       llm: {
         ...base.llm,
         atlas: llm ? { inputPer1M: llm.inputPer1M, outputPer1M: llm.outputPer1M } : base.llm.atlas,
+        cloudflare: cfLlm
+          ? { inputPer1M: cfLlm.inputPer1M, outputPer1M: cfLlm.outputPer1M }
+          : base.llm.cloudflare,
       },
       tts: {
         ...base.tts,
         "atlas-tts": tts ? { per1kChars: tts.usdPer1kChars } : base.tts["atlas-tts"],
+        "cloudflare-tts": cfTts ? { per1kChars: cfTts.usdPer1kChars } : base.tts["cloudflare-tts"],
       },
-      image: { ...base.image, atlas: img ? { perImage: img.usd } : base.image.atlas },
+      image: {
+        ...base.image,
+        atlas: img ? { perImage: img.usd } : base.image.atlas,
+        cloudflare: cfImg ? { perImage: cfImg.usdPerImage } : base.image.cloudflare,
+      },
       video: { ...base.video, atlas: { perSecond: (vid?.usd ?? 0.011) + (lip?.usd ?? 0) } },
     };
-  }, [providers, llmModel, atlasImageModel, atlasVideoModel, atlasLipSyncModel, atlasTtsModel]);
+  }, [providers, llmModel, atlasImageModel, atlasVideoModel, atlasLipSyncModel, atlasTtsModel, cloudflareImageModel, cloudflareTtsModel]);
   const costPreview = useMemo(
     () =>
       estimateJobCost(
@@ -640,6 +661,11 @@ export function FilmPage() {
       ...(ttsProvider === "atlas-tts" ? { atlasTtsVoice, atlasTtsModel } : {}),
       ...(imageProvider === "atlas" ? { atlasImageModel } : {}),
       ...(llmProvider === "atlas" ? { llmModel: llmModel || DEFAULT_FILM_LLM } : {}),
+      ...(llmProvider === "cloudflare"
+        ? { llmModel: llmModel || "@cf/meta/llama-3.1-8b-instruct-fp8-fast" }
+        : {}),
+      ...(ttsProvider === "cloudflare-tts" ? { cloudflareTtsVoice, cloudflareTtsModel } : {}),
+      ...(imageProvider === "cloudflare" ? { cloudflareImageModel } : {}),
       ...(videoProvider === "atlas"
         ? {
             atlasVideoModel,
@@ -1195,6 +1221,22 @@ export function FilmPage() {
                     />
                   </Field>
                 ) : null}
+                {llmProvider === "cloudflare" ? (
+                  <CloudflareModelFields
+                    providers={providers}
+                    fieldClass={FIELD}
+                    showLlm
+                    values={{
+                      llmModel,
+                      ttsModel: cloudflareTtsModel,
+                      ttsVoice: cloudflareTtsVoice,
+                      imageModel: cloudflareImageModel,
+                    }}
+                    onChange={(patch) => {
+                      if (patch.llmModel) setLlmModel(patch.llmModel);
+                    }}
+                  />
+                ) : null}
                 {llmProvider === "atlas" ? (
                   <AtlasModelFields
                     providers={providers}
@@ -1320,6 +1362,26 @@ export function FilmPage() {
                   }}
                   speed={kokoroSpeed}
                   onSpeedChange={setKokoroSpeed}
+                />
+              ) : null}
+              {ttsProvider === "cloudflare-tts" ? (
+                <CloudflareModelFields
+                  providers={providers}
+                  fieldClass={FIELD}
+                  showTts
+                  values={{
+                    llmModel,
+                    ttsModel: cloudflareTtsModel,
+                    ttsVoice: cloudflareTtsVoice,
+                    imageModel: cloudflareImageModel,
+                  }}
+                  onChange={(patch) => {
+                    if (patch.ttsModel) setCloudflareTtsModel(patch.ttsModel);
+                    if (patch.ttsVoice) {
+                      setCloudflareTtsVoice(patch.ttsVoice);
+                      setMuteCharacter(false);
+                    }
+                  }}
                 />
               ) : null}
               {ttsProvider === "atlas-tts" ? (
@@ -1668,6 +1730,24 @@ export function FilmPage() {
                       </div>
                     ) : null}
                   </div>
+                ) : null}
+                {imageProvider === "cloudflare" || videoProvider === "cloudflare" ? (
+                  <CloudflareModelFields
+                    providers={providers}
+                    fieldClass={FIELD}
+                    title="Cloudflare · T2I"
+                    showImage={imageProvider === "cloudflare"}
+                    showVideo={videoProvider === "cloudflare"}
+                    values={{
+                      llmModel,
+                      ttsModel: cloudflareTtsModel,
+                      ttsVoice: cloudflareTtsVoice,
+                      imageModel: cloudflareImageModel,
+                    }}
+                    onChange={(patch) => {
+                      if (patch.imageModel) setCloudflareImageModel(patch.imageModel);
+                    }}
+                  />
                 ) : null}
                 {imageProvider === "atlas" || videoProvider === "atlas" ? (
                   <AtlasModelFields

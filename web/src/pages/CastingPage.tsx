@@ -22,6 +22,7 @@ const CASTING_PROVIDERS: ProviderOption[] = [
   { key: "runpod", label: "RunPod (público)" },
   { key: "fal", label: "fal.ai" },
   { key: "alicloud", label: "Alibaba Cloud" },
+  { key: "cloudflare", label: "Cloudflare FLUX" },
 ];
 
 const TABS = [

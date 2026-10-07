@@ -447,4 +447,25 @@ describe("validateEnv", () => {
     delete process.env["ANTHROPIC_API_KEY"];
     delete process.env["ELEVENLABS_API_KEY"];
   });
+
+  it("requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN", () => {
+    process.env["ANTHROPIC_API_KEY"] = "test";
+    process.env["ELEVENLABS_API_KEY"] = "test";
+    delete process.env["CLOUDFLARE_ACCOUNT_ID"];
+    delete process.env["CLOUDFLARE_API_TOKEN"];
+
+    validateEnv({
+      provider: "cloudflare",
+      ttsProvider: "cloudflare-tts",
+      imageProvider: "cloudflare",
+    });
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    const output = errorSpy.mock.calls.flat().join("");
+    expect(output).toContain("CLOUDFLARE_API_TOKEN");
+    expect(output).toContain("CLOUDFLARE_ACCOUNT_ID");
+
+    delete process.env["ANTHROPIC_API_KEY"];
+    delete process.env["ELEVENLABS_API_KEY"];
+  });
 });

@@ -11,6 +11,7 @@ import { OpenAIImage } from "../providers/image/openai.js";
 import { generateOrientedImage } from "../providers/image/dimensions.js";
 import { RunPodImage } from "../providers/image/runpod.js";
 import { ViviImage } from "../providers/image/vivi.js";
+import { CloudflareImage } from "../providers/image/cloudflare.js";
 import {
   buildCharacterSheetPrompt,
   buildLocationSheetPrompt,
@@ -316,6 +317,8 @@ function createSheetImageGen(provider: string, model?: string) {
       return new RunPodImage();
     case "fal":
       return new FalImage();
+    case "cloudflare":
+      return new CloudflareImage(model);
     default:
       return new ViviImage();
   }

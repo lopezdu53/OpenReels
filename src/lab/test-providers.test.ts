@@ -28,5 +28,6 @@ describe("Lab test providers", () => {
     expect(labVideoRequiresStill("toby", "t2v")).toBe(false);
     expect(labVideoRequiresStill("toby", "i2v")).toBe(true);
     expect(labVideoRequiresStill("atlas", "t2v")).toBe(true);
+    expect(labVideoRequiresStill("cloudflare")).toBe(true);
   });
 });

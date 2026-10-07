@@ -57,6 +57,11 @@ import { OpenAICompatibleLLM } from "./llm/openai-compatible.js";
 import { OpenRouterLLM } from "./llm/openrouter.js";
 import { resolveViviLlmModel, ViviLLM } from "./llm/vivi.js";
 import { AtlasLLM } from "./llm/atlas.js";
+import { CloudflareLLM } from "./llm/cloudflare.js";
+import { CloudflareImage } from "./image/cloudflare.js";
+import { CloudflareTTS } from "./tts/cloudflare.js";
+import { CloudflareVideo } from "./video/cloudflare.js";
+import { cloudflareApiToken, cloudflareOpenAiBase } from "./cloudflare/client.js";
 import { BundledMusic } from "./music/bundled-adapter.js";
 import { LyriaMusic } from "./music/lyria.js";
 import { createTavilySearchTools } from "./search/tavily.js";
@@ -118,6 +123,9 @@ export interface ProviderConfig {
   atlasTtsVoice?: string;
   atlasTtsModel?: string;
   atlasLipSyncModel?: string | null;
+  cloudflareTtsVoice?: string;
+  cloudflareTtsModel?: string;
+  cloudflareImageModel?: string;
   gflowImageModel?: string;
   gflowVideoModel?: string;
   gflowVideoMode?: string;
@@ -216,6 +224,9 @@ export function createProviders(config: ProviderConfig): Providers {
     case "atlas":
       llm = new AtlasLLM(config.llmModel, k["ATLASCLOUD_API_KEY"], searchTools);
       break;
+    case "cloudflare":
+      llm = new CloudflareLLM(config.llmModel, k["CLOUDFLARE_API_TOKEN"], searchTools);
+      break;
     default:
       llm = new AnthropicLLM(config.llmModel, k["ANTHROPIC_API_KEY"], searchTools);
       break;
@@ -253,6 +264,16 @@ export function createProviders(config: ProviderConfig): Providers {
     case "atlas-tts":
       tts = new AlignedTTSProvider(
         new AtlasTTS(config.atlasTtsVoice, k["ATLASCLOUD_API_KEY"], undefined, config.atlasTtsModel),
+        aligner,
+      );
+      break;
+    case "cloudflare-tts":
+      tts = new AlignedTTSProvider(
+        new CloudflareTTS(
+          config.cloudflareTtsModel,
+          config.cloudflareTtsVoice,
+          k["CLOUDFLARE_API_TOKEN"],
+        ),
         aligner,
       );
       break;
@@ -310,6 +331,11 @@ export function createProviders(config: ProviderConfig): Providers {
     const primary = new AtlasImage(config.atlasImageModel, atlasKey);
     imageGen = googleKey
       ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "atlas", "gemini")
+      : primary;
+  } else if (config.image === "cloudflare") {
+    const primary = new CloudflareImage(config.cloudflareImageModel, k["CLOUDFLARE_API_TOKEN"]);
+    imageGen = googleKey
+      ? new FallbackImageProvider(primary, new GeminiImage(undefined, googleKey), "cloudflare", "gemini")
       : primary;
   } else if (config.image === "gflow") {
     imageGen = new GflowImage(config.gflowImageModel);
@@ -413,6 +439,12 @@ export function createProviders(config: ProviderConfig): Providers {
     else if (alicloudKey) videoProviders.push(new AliCloudVideo(undefined, alicloudKey));
   } else if (videoPrimary === "sharpii") {
     videoProviders.push(new SharpiiVideo(config.sharpiiVideoModel ?? DEFAULT_SHARPII_VIDEO_MODEL, sharpiiKey));
+  } else if (videoPrimary === "cloudflare") {
+    const cfKey = cloudflareApiToken(k["CLOUDFLARE_API_TOKEN"]);
+    if (cfKey) videoProviders.push(new CloudflareVideo(cfKey));
+    if (googleKey) videoProviders.push(new GeminiVideo(config.videoModel, googleKey));
+    else if (xaiKey) videoProviders.push(new GrokVideo(xaiKey));
+    else if (falKey) videoProviders.push(new FalVideo(undefined, falKey));
   } else if (videoPrimary === "gflow") {
     videoProviders.push(new GflowVideo(config.gflowVideoModel, config.gflowVideoMode));
   } else if (videoPrimary === "toby") {
@@ -486,6 +518,16 @@ export function createVerificationModel(
       if (!key) throw new Error("XAI_API_KEY is required for Grok provider");
       const grok = createOpenAICompatible({ name: "grok", baseURL: "https://api.x.ai/v1", apiKey: key });
       return grok(model ?? "grok-4");
+    }
+    case "cloudflare": {
+      const key = cloudflareApiToken(apiKey);
+      if (!key) throw new Error("CLOUDFLARE_API_TOKEN is required for Cloudflare provider");
+      const cf = createOpenAICompatible({
+        name: "cloudflare",
+        baseURL: cloudflareOpenAiBase(),
+        apiKey: key,
+      });
+      return cf(model ?? "@cf/meta/llama-3.1-8b-instruct-fp8-fast");
     }
     case "atlas": {
       const key = resolveAtlasApiKey(apiKey);

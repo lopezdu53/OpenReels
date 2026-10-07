@@ -30,6 +30,10 @@ import { AtlasLLM } from "./llm/atlas.js";
 import { AtlasTTS } from "./tts/atlas.js";
 import { AtlasImage } from "./image/atlas.js";
 import { AtlasVideo } from "./video/atlas.js";
+import { CloudflareLLM } from "./llm/cloudflare.js";
+import { CloudflareTTS } from "./tts/cloudflare.js";
+import { CloudflareImage } from "./image/cloudflare.js";
+import { CloudflareVideo } from "./video/cloudflare.js";
 
 vi.mock("./llm/anthropic.js", () => ({
   AnthropicLLM: vi.fn().mockImplementation(() => ({ id: "anthropic", generate: vi.fn() })),
@@ -137,6 +141,18 @@ vi.mock("./image/atlas.js", () => ({
 }));
 vi.mock("./video/atlas.js", () => ({
   AtlasVideo: vi.fn().mockImplementation(() => ({ supportedDurations: [4, 5, 6, 8, 10], generate: vi.fn() })),
+}));
+vi.mock("./llm/cloudflare.js", () => ({
+  CloudflareLLM: vi.fn().mockImplementation(() => ({ id: "cloudflare", generate: vi.fn() })),
+}));
+vi.mock("./tts/cloudflare.js", () => ({
+  CloudflareTTS: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
+}));
+vi.mock("./image/cloudflare.js", () => ({
+  CloudflareImage: vi.fn().mockImplementation(() => ({ generate: vi.fn() })),
+}));
+vi.mock("./video/cloudflare.js", () => ({
+  CloudflareVideo: vi.fn().mockImplementation(() => ({ supportedDurations: [], generate: vi.fn() })),
 }));
 
 describe("createProviders", () => {
@@ -693,6 +709,36 @@ describe("createProviders", () => {
       "atlas-key",
       "veed/lipsync",
     );
+    expect(AlignedTTSProvider).toHaveBeenCalled();
+  });
+
+  it("creates Cloudflare LLM/TTS/image and a video stub", () => {
+    createProviders({
+      llm: "cloudflare",
+      tts: "cloudflare-tts",
+      image: "cloudflare",
+      video: "cloudflare",
+      llmModel: "@cf/meta/llama-3.1-8b-instruct-fp8-fast",
+      cloudflareImageModel: "@cf/black-forest-labs/flux-1-schnell",
+      cloudflareTtsModel: "@cf/deepgram/aura-2-es",
+      cloudflareTtsVoice: "aquila",
+      keys: { CLOUDFLARE_API_TOKEN: "cf-token", CLOUDFLARE_ACCOUNT_ID: "acct" },
+    });
+    expect(CloudflareLLM).toHaveBeenCalledWith(
+      "@cf/meta/llama-3.1-8b-instruct-fp8-fast",
+      "cf-token",
+      expect.anything(),
+    );
+    expect(CloudflareTTS).toHaveBeenCalledWith(
+      "@cf/deepgram/aura-2-es",
+      "aquila",
+      "cf-token",
+    );
+    expect(CloudflareImage).toHaveBeenCalledWith(
+      "@cf/black-forest-labs/flux-1-schnell",
+      "cf-token",
+    );
+    expect(CloudflareVideo).toHaveBeenCalled();
     expect(AlignedTTSProvider).toHaveBeenCalled();
   });
 });

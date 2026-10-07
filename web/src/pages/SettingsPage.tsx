@@ -29,6 +29,11 @@ const API_KEY_FIELDS = [
     label:
       "ATLAS (Short / Film / Flow / Vox / Stickman) — clave del servidor, no se pega en la web",
   },
+  { key: "CLOUDFLARE_ACCOUNT_ID", label: "Cloudflare Account ID (Workers AI REST)" },
+  {
+    key: "CLOUDFLARE_API_TOKEN",
+    label: "Cloudflare Workers AI (LLM / Aura TTS / FLUX T2I) — token del dashboard",
+  },
   { key: "TAVILY_API_KEY", label: "Tavily (búsqueda web)" },
   { key: "YOUTUBE_API_KEY", label: "YouTube Data API v3 (Analítica)" },
 ];
@@ -181,7 +186,9 @@ export function SettingsPage() {
           <p className="mb-4 text-[13px] text-muted-foreground">
             Configura el costo por unidad de cada proveedor (USD). Vivi se cobra en yuanes según
             https://api.viviai.cc/pricing: 20 ¥ = $2.98 USD. Claude Sonnet 4.6 ¥3/¥15 por 1M; imagen
-            Nano Banana ¥0.135/call; Grok Video ¥0.30/clip.
+            Nano Banana ¥0.135/call; Grok Video ¥0.30/clip. Cloudflare Workers AI: 10k neurons/día
+            gratis, luego $0.011 / 1k neurons — Llama 3.1 8B Fast $0.045/$0.384 por 1M; FLUX Schnell
+            ~$0.00085/img; Aura-2 ES $0.03 / 1K chars. No hay I2V en el catálogo.
           </p>
 
           {/* LLM */}

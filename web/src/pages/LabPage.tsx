@@ -29,6 +29,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     alicloud:   { inputPer1M: 0.5,  outputPer1M: 2.0  },
     grok:       { inputPer1M: 3.0,  outputPer1M: 15.0 },
     atlas:      { inputPer1M: 0.14, outputPer1M: 0.28 },
+    cloudflare: { inputPer1M: 0.045, outputPer1M: 0.384 },
   },
   tts: {
     elevenlabs:  { per1kChars: 0.33  },
@@ -38,6 +39,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     kokoro:      { per1kChars: 0.0   },
     inworld:     { per1kChars: 0.05  },
     "atlas-tts": { per1kChars: 0.015 },
+    "cloudflare-tts": { per1kChars: 0.03 },
   },
   image: {
     gemini:   { perImage: 0.04 },
@@ -50,6 +52,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     atlas:    { perImage: 0.04 },
     gflow:    { perImage: 0 },
     toby:     { perImage: 0 },
+    cloudflare: { perImage: 0.00085 },
   },
   video: {
     gemini: { perSecond: 0.05 },
@@ -61,6 +64,7 @@ export const DEFAULT_PRICES: ApiPrices = {
     runpod: { perSecond: 0.02 },
     sharpii: { perSecond: 0.076 },
     atlas:   { perSecond: 0.024 },
+    cloudflare: { perSecond: 0 },
   },
 };
 
@@ -177,6 +181,8 @@ export function LabPage() {
   const [imgSteps, setImgSteps] = useState(4);
   const [sharpiiImgModel, setSharpiiImgModel] = useState("nano-banana-2");
   const [atlasImgModel, setAtlasImgModel] = useState("google/nano-banana-2-lite/text-to-image");
+  const [cfImgModel, setCfImgModel] = useState("@cf/black-forest-labs/flux-1-schnell");
+  const [cfTtsModel, setCfTtsModel] = useState("@cf/deepgram/aura-2-es");
   const [atlasVidModel, setAtlasVidModel] = useState("bytedance/seedance-2.0-mini/image-to-video");
   const [atlasLipModel, setAtlasLipModel] = useState("veed/lipsync");
   const [imgResult, setImgResult] = useState<{ imageBase64: string; durationMs: number } | null>(null);
@@ -228,6 +234,7 @@ export function LabPage() {
             ? { voice: ttsVoice }
             : {}),
         ...(ttsProvider === "grok-tts" ? { speed: ttsSpeed } : {}),
+        ...(ttsProvider === "cloudflare-tts" ? { model: cfTtsModel } : {}),
       });
       setTtsResult(r);
       setTimeout(() => audioRef.current?.play().catch(() => {}), 100);
@@ -249,6 +256,7 @@ export function LabPage() {
         ...(imgProvider === "runpod" ? { model: imgModel, steps: imgSteps } : {}),
         ...(imgProvider === "sharpii" ? { model: sharpiiImgModel } : {}),
         ...(imgProvider === "atlas" ? { model: atlasImgModel } : {}),
+        ...(imgProvider === "cloudflare" ? { model: cfImgModel } : {}),
         ...(imgProvider === "gflow" ? { model: gflowImgModel } : {}),
         ...(imgProvider === "toby" ? { model: tobyImgModel } : {}),
       });
@@ -376,7 +384,15 @@ export function LabPage() {
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="mb-1.5 block text-[12px] text-muted-foreground">Proveedor</label>
-              <Select value={llmProvider} onValueChange={(v) => v && setLlmProvider(v)}>
+              <Select
+                value={llmProvider}
+                onValueChange={(v) => {
+                  if (!v) return;
+                  setLlmProvider(v);
+                  if (v === "cloudflare") setLlmModel("@cf/meta/llama-3.1-8b-instruct-fp8-fast");
+                  if (v === "atlas") setLlmModel("deepseek-ai/deepseek-v4-flash");
+                }}
+              >
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {llmProviders.map(p => <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>)}
@@ -396,6 +412,17 @@ export function LabPage() {
                           {m.label} · {m.priceLabel ?? `$${m.inputPer1M} / $${m.outputPer1M}`}
                         </SelectItem>
                       ))}
+                  </SelectContent>
+                </Select>
+              ) : llmProvider === "cloudflare" ? (
+                <Select value={llmModel} onValueChange={(v) => v && setLlmModel(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.cloudflareLlmModels ?? []).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label} · ${m.inputPer1M}/${m.outputPer1M} por 1M
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               ) : (
@@ -449,6 +476,8 @@ export function LabPage() {
               if (v === "kokoro") {
                 setTtsVoice(KOKORO_DEFAULT_CONNECT_MIX);
                 setTtsSpeed(1.1);
+              } else if (v === "cloudflare-tts") {
+                setTtsVoice("aquila");
               } else {
                 setTtsVoice("");
               }
@@ -520,6 +549,38 @@ export function LabPage() {
                 <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
                   <span>0.7x lento</span><span>1.0x normal</span><span>1.5x rápido</span>
                 </div>
+              </div>
+            </>
+          )}
+
+          {ttsProvider === "cloudflare-tts" && (
+            <>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Modelo Aura · $0.03 / 1K chars</label>
+                <Select value={cfTtsModel} onValueChange={(v) => v && setCfTtsModel(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(providers?.cloudflareTtsModels ?? []).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.label} · ${m.usdPer1kChars} / 1K
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-[12px] text-muted-foreground">Speaker</label>
+                <Select value={ttsVoice || "aquila"} onValueChange={(v) => v && setTtsVoice(v)}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(cfTtsModel.includes("-en")
+                      ? (providers?.cloudflareTtsSpeakersEn ?? [])
+                      : (providers?.cloudflareTtsSpeakersEs ?? [])
+                    ).map((v) => (
+                      <SelectItem key={v.id} value={v.id}>{v.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </>
           )}
@@ -662,6 +723,21 @@ export function LabPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+          )}
+          {imgProvider === "cloudflare" && (
+            <div>
+              <label className="mb-1.5 block text-[12px] text-muted-foreground">FLUX · ~$0.00085 / imagen</label>
+              <Select value={cfImgModel} onValueChange={(v) => v && setCfImgModel(v)}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(providers?.cloudflareImageModels ?? []).map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.label} · ${m.usdPerImage} / img
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
           {imgProvider === "atlas" && (
@@ -926,6 +1002,11 @@ export function LabPage() {
                 </div>
               </div>
             </div>
+          )}
+          {vidProvider === "cloudflare" && (
+            <p className="text-[12px] text-amber-200/90">
+              Cloudflare Workers AI no ofrece I2V (oct 2026). Esta prueba fallará a propósito: usa FLUX T2I + Atlas/gflow/fal/Grok.
+            </p>
           )}
           {vidProvider === "atlas" && (
             <div className="grid sm:grid-cols-2 gap-3">
