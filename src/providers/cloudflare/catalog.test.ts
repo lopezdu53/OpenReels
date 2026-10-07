@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { cloudflareRunUrl } from "./client.js";
 import {
   cloudflareImageUsd,
   cloudflareLlmPricing,
@@ -24,5 +25,14 @@ describe("Cloudflare Workers AI catalog", () => {
     expect(resolveCloudflareLlm("nope")).toBe(DEFAULT_CLOUDFLARE_LLM);
     expect(resolveCloudflareImage("nope")).toBe(DEFAULT_CLOUDFLARE_IMAGE);
     expect(resolveCloudflareTts("@cf/deepgram/aura-1")).toBe("@cf/deepgram/aura-1");
+  });
+});
+
+describe("cloudflareRunUrl encoding", () => {
+  it("percent-encodes @cf model paths", () => {
+    process.env["CLOUDFLARE_ACCOUNT_ID"] = "acct";
+    expect(cloudflareRunUrl("@cf/meta/llama-3.1-8b-instruct-fp8-fast")).toContain(
+      "%40cf%2Fmeta%2Fllama-3.1-8b-instruct-fp8-fast",
+    );
   });
 });
