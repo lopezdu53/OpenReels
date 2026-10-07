@@ -1,9 +1,5 @@
 import type { TTSProvider, TTSResult } from "../../schema/providers.js";
-import {
-  DEFAULT_CLOUDFLARE_TTS,
-  DEFAULT_CLOUDFLARE_TTS_SPEAKER,
-  resolveCloudflareTts,
-} from "../cloudflare/catalog.js";
+import { DEFAULT_CLOUDFLARE_TTS_SPEAKER, resolveCloudflareTts } from "../cloudflare/catalog.js";
 import { cloudflareApiToken, cloudflareRun } from "../cloudflare/client.js";
 
 export class CloudflareTTS implements TTSProvider {

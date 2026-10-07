@@ -18,7 +18,7 @@ export function isStickmanCancelledError(err: unknown): boolean {
   return err instanceof StickmanCancelledError || /fue cancelado/i.test(String(err));
 }
 
-async function dropQueueJob(job: Job<{ id: string; action?: string }>): Promise<void> {
+async function dropQueueJob<T>(job: Job<T>): Promise<void> {
   try {
     await job.moveToFailed(new Error("Cancelled by user"), "0", true);
   } catch {
@@ -31,8 +31,8 @@ async function dropQueueJob(job: Job<{ id: string; action?: string }>): Promise<
   }
 }
 
-export async function dropDeadStickmanQueueJobs(
-  queue: Queue<{ id: string; action?: string }>,
+export async function dropDeadStickmanQueueJobs<T extends { id: string }>(
+  queue: Queue<T>,
 ): Promise<void> {
   const jobs = await queue.getJobs(["wait", "waiting", "delayed", "paused", "active"]);
   for (const job of jobs) {
@@ -44,9 +44,9 @@ export async function dropDeadStickmanQueueJobs(
   }
 }
 
-export async function cancelStickmanWork(
+export async function cancelStickmanWork<T extends { id: string }>(
   id: string,
-  queue?: Queue<{ id: string; action?: string }>,
+  queue?: Queue<T>,
 ): Promise<void> {
   setStatus(id, "cancelled", "cancelled", "Cancelado");
   await interruptTobyForJob(id);

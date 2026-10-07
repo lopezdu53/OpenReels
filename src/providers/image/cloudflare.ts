@@ -1,5 +1,5 @@
 import type { ImageProvider } from "../../schema/providers.js";
-import { DEFAULT_CLOUDFLARE_IMAGE, resolveCloudflareImage } from "../cloudflare/catalog.js";
+import { resolveCloudflareImage } from "../cloudflare/catalog.js";
 import { cloudflareApiToken, cloudflareRun } from "../cloudflare/client.js";
 
 export class CloudflareImage implements ImageProvider {
