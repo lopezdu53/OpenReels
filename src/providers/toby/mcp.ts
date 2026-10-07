@@ -137,6 +137,19 @@ export async function tobyCallTool(
   return rpc.result ?? rpc;
 }
 
+export function explainTobyUserError(raw: string): string {
+  const text = raw.replace(/\s+/g, " ").trim();
+  if (
+    /phiên đăng nhập|dang nhap mcp|no mcp (login )?session|not logged in|reconnect.*(account|tài khoản|tai khoan)|sidebar/i.test(
+      text,
+    ) &&
+    /mcp|toby|flow/i.test(text)
+  ) {
+    return "Toby Flow no tiene sesión en Chrome. Abre la extensión Toby → sidebar de Flow, inicia sesión (Google) y pulsa conectar. El token de EasyPanel no basta: Flow tiene que estar logueado en el PC.";
+  }
+  return text;
+}
+
 export function formatTobyToolError(name: string, content: unknown): string {
   const blobs: string[] = [];
   if (Array.isArray(content)) {
@@ -154,14 +167,14 @@ export function formatTobyToolError(name: string, content: unknown): string {
     try {
       const parsed = JSON.parse(blob) as { message?: string; error_code?: string };
       if (parsed.message) {
-        return `Toby ${name}: ${parsed.message}`;
+        return `Toby ${name}: ${explainTobyUserError(parsed.message)}`;
       }
     } catch {
       /* raw text */
     }
   }
   const raw = blobs.join(" ").trim() || JSON.stringify(content);
-  return `Toby ${name}: ${raw.slice(0, 280)}`;
+  return `Toby ${name}: ${explainTobyUserError(raw).slice(0, 280)}`;
 }
 
 export function resetTobyMcpSession(): void {
