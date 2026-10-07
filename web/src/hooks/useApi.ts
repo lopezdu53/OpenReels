@@ -171,6 +171,31 @@ export interface ProviderOptions {
     kind?: "video_audio" | "image_audio";
     priceLabel?: string;
   }[];
+  cloudflareLlmModels?: {
+    id: string;
+    label: string;
+    inputPer1M: number;
+    outputPer1M: number;
+    note?: string;
+    priceLabel?: string;
+  }[];
+  cloudflareImageModels?: {
+    id: string;
+    label: string;
+    usdPerImage: number;
+    note?: string;
+    priceLabel?: string;
+  }[];
+  cloudflareTtsModels?: {
+    id: string;
+    label: string;
+    usdPer1kChars: number;
+    note?: string;
+    priceLabel?: string;
+  }[];
+  cloudflareTtsSpeakersEs?: VoiceOption[];
+  cloudflareTtsSpeakersEn?: VoiceOption[];
+  cloudflareReady?: boolean;
   sharpiiImageModels?: { id: string; label: string; credits: number; usd: number }[];
   sharpiiVideoModels?: {
     id: string;
@@ -625,6 +650,9 @@ export interface CreateJobRequest {
     atlasTtsModel?: string;
     atlasTtsVoice?: string;
     atlasLipSyncModel?: string | null;
+    cloudflareTtsVoice?: string;
+    cloudflareTtsModel?: string;
+    cloudflareImageModel?: string;
     gflowImageModel?: string;
     gflowVideoModel?: string;
     gflowVideoMode?: string;

@@ -3,6 +3,7 @@ export const FLOW_IMAGE_PROVIDERS = [
   { key: "gflow", label: "gflow-cli (Imagen · Flow)" },
   { key: "vivi", label: "VIVI" },
   { key: "atlas", label: "ATLAS" },
+  { key: "cloudflare", label: "Cloudflare FLUX" },
 ] as const;
 
 export const FLOW_VIDEO_PROVIDERS = [
@@ -14,6 +15,7 @@ export const FLOW_TTS_PROVIDERS = [
   { key: "atlas-tts", label: "ATLAS" },
   { key: "grok-tts", label: "Grok TTS" },
   { key: "gemini-tts", label: "Gemini TTS" },
+  { key: "cloudflare-tts", label: "Cloudflare Aura TTS" },
 ] as const;
 
 export const DEFAULT_FLOW_IMAGE = "gflow";

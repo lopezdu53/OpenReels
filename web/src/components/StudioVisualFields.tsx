@@ -10,7 +10,7 @@ type FlowVideo = {
   creditPerSecond?: number;
 };
 
-export type StudioVisualKey = "atlas" | "gflow" | "toby";
+export type StudioVisualKey = "atlas" | "gflow" | "toby" | "cloudflare";
 
 type Catalog = {
   visualProviders?: { key: string; label: string }[];
@@ -133,7 +133,9 @@ export function StudioVisualFields(props: {
           disabled={disabled}
           onValueChange={(value) => {
             if (value === "toby" && allowToby) onVisualProvider("toby");
-            else onVisualProvider(value === "gflow" ? "gflow" : "atlas");
+            else if (value === "gflow") onVisualProvider("gflow");
+            else if (value === "cloudflare") onVisualProvider("cloudflare");
+            else onVisualProvider("atlas");
           }}
           options={(catalog?.visualProviders ?? FALLBACK).map((p) => ({
             value: p.key,
@@ -197,6 +199,10 @@ export function StudioVisualFields(props: {
                   : ""}
           </p>
         </div>
+      ) : !disabled && visualProvider === "cloudflare" ? (
+        <p className="text-[11px] text-muted-foreground">
+          Cloudflare FLUX T2I (~$0.00085/img). Workers AI no tiene I2V: anima con Atlas, gflow, fal o Grok.
+        </p>
       ) : !disabled ? (
         <p className="text-[11px] text-muted-foreground">
           Atlas Cloud usa <span className="font-medium text-foreground">ATLASCLOUD_API_KEY</span>{" "}

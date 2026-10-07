@@ -22,11 +22,12 @@ describe("studio visual provider", () => {
 
   it("accepts gflow on shared studio surfaces", () => {
     expect(resolveStudioVisualProvider("gflow")).toBe("gflow");
-    expect(STUDIO_VISUAL_PROVIDERS.map((p) => p.key)).toEqual(["atlas", "gflow"]);
+    expect(STUDIO_VISUAL_PROVIDERS.map((p) => p.key)).toEqual(["atlas", "gflow", "cloudflare"]);
+    expect(resolveStudioVisualProvider("cloudflare")).toBe("cloudflare");
   });
 
   it("lists Toby first on Stickman only", () => {
-    expect(STICKMAN_VISUAL_PROVIDERS.map((p) => p.key)).toEqual(["toby", "gflow", "atlas"]);
+    expect(STICKMAN_VISUAL_PROVIDERS.map((p) => p.key)).toEqual(["toby", "gflow", "atlas", "cloudflare"]);
     expect(resolveStickmanVisualProvider()).toBe("toby");
     expect(resolveStickmanVisualProvider("toby")).toBe("toby");
     expect(createStudioImage({ visualProvider: "toby" })).toBeInstanceOf(TobyImage);

@@ -121,7 +121,7 @@ export function VoxPage() {
   ]);
   const [realPeople, setRealPeople] = useState(false);
   const [captions, setCaptions] = useState(true);
-  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow">("atlas");
+  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow" | "cloudflare">("atlas");
   const [gflowImageModel, setGflowImageModel] = useState("nano2");
   const [gflowVideoModel, setGflowVideoModel] = useState("veo-lite");
   const [anchorPhoto, setAnchorPhoto] = useState("");
@@ -351,7 +351,7 @@ export function VoxPage() {
                 type="checkbox"
                 checked={visualProvider === "atlas" && realPeople}
                 onChange={(e) => setRealPeople(e.target.checked)}
-                disabled={visualProvider === "gflow"}
+                disabled={visualProvider !== "atlas"}
               />
               Personas/marcas reales (Kling · Atlas)
             </label>
@@ -423,7 +423,9 @@ export function VoxPage() {
           <StudioVisualFields
             catalog={catalog}
             visualProvider={mode === "aroll" ? "atlas" : visualProvider}
-            onVisualProvider={(v) => setVisualProvider(v === "gflow" ? "gflow" : "atlas")}
+            onVisualProvider={(v) =>
+              setVisualProvider(v === "gflow" ? "gflow" : v === "cloudflare" ? "cloudflare" : "atlas")
+            }
             gflowImageModel={gflowImageModel}
             onGflowImageModel={setGflowImageModel}
             gflowVideoModel={gflowVideoModel}

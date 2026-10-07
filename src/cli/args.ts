@@ -33,6 +33,9 @@ export interface CLIOptions {
   atlasVideoModel?: string;
   atlasTtsVoice?: string;
   atlasLipSyncModel?: string | null;
+  cloudflareTtsVoice?: string;
+  cloudflareTtsModel?: string;
+  cloudflareImageModel?: string;
   llmModel?: string;
   llmBaseUrl?: string;
   searchProvider?: SearchProviderKey;
@@ -111,6 +114,7 @@ export function parseArgs(): CLIOptions {
           "vivi",
           "alicloud",
           "atlas",
+          "cloudflare",
         ])
         .default("anthropic"),
     )
@@ -130,12 +134,12 @@ export function parseArgs(): CLIOptions {
     )
     .addOption(
       new Option("-i, --image-provider <provider>", "Image generation provider")
-        .choices(["gemini", "openai", "grok", "vivi", "alicloud", "runpod", "fal", "sharpii", "atlas"])
+        .choices(["gemini", "openai", "grok", "vivi", "alicloud", "runpod", "fal", "sharpii", "atlas", "cloudflare"])
         .default("gemini"),
     )
     .addOption(
       new Option("--tts-provider <provider>", "TTS provider")
-        .choices(["elevenlabs", "inworld", "kokoro", "gemini-tts", "openai-tts", "grok-tts", "atlas-tts"])
+        .choices(["elevenlabs", "inworld", "kokoro", "gemini-tts", "openai-tts", "grok-tts", "atlas-tts", "cloudflare-tts"])
         .default("elevenlabs"),
     )
     .option(
@@ -159,6 +163,9 @@ export function parseArgs(): CLIOptions {
     .option("--atlas-image-model <model>", "Atlas image model (default: nano-banana-2-lite)")
     .option("--atlas-video-model <model>", "Atlas I2V model (default: seedance-2.0-mini)")
     .option("--atlas-tts-voice <voice>", "Atlas TTS voice (eve/ara/leo/rex/sal)", "eve")
+    .option("--cloudflare-image-model <model>", "Cloudflare T2I model (default: flux-1-schnell)")
+    .option("--cloudflare-tts-model <model>", "Cloudflare TTS model (default: aura-2-es)")
+    .option("--cloudflare-tts-voice <voice>", "Cloudflare Aura speaker (default: aquila)")
     .option("--atlas-lipsync-model <model>", "Atlas lip-sync model (default: veed/lipsync; 'none' disables)")
     .option("-a, --archetype <archetype>", "Visual archetype override")
     .addOption(
@@ -199,6 +206,7 @@ export function parseArgs(): CLIOptions {
         "runpod",
         "sharpii",
         "atlas",
+        "cloudflare",
         "vidu",
         "vidu-q3-pro",
         "vidu-q3-fast",
@@ -296,6 +304,9 @@ export function parseArgs(): CLIOptions {
     atlasTtsVoice: opts["atlasTtsVoice"] as string | undefined,
     atlasLipSyncModel:
       opts["atlasLipsyncModel"] === "none" ? null : (opts["atlasLipsyncModel"] as string | undefined),
+    cloudflareImageModel: opts["cloudflareImageModel"] as string | undefined,
+    cloudflareTtsModel: opts["cloudflareTtsModel"] as string | undefined,
+    cloudflareTtsVoice: opts["cloudflareTtsVoice"] as string | undefined,
     llmModel: opts["llmModel"] as string | undefined,
     llmBaseUrl: opts["llmBaseUrl"] as string | undefined,
     searchProvider: opts["searchProvider"] as SearchProviderKey | undefined,

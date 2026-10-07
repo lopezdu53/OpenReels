@@ -40,6 +40,7 @@ import { VIDEO_SCENE_MODE_OPTIONS } from "@/lib/video-scene-modes";
 import { fetchUsdToCopRate } from "@/lib/cop-rate";
 import { loadPrices } from "@/pages/LabPage";
 import { AtlasModelFields } from "@/components/AtlasModelFields";
+import { CloudflareModelFields } from "@/components/CloudflareModelFields";
 
 const TOPIC_CATEGORIES: Record<string, string[]> = {
   Historia: [
@@ -85,6 +86,8 @@ const DISPLAY_NAMES: Record<string, string> = {
   grok: "Grok (xAI)",
   atlas: "ATLAS",
   "atlas-tts": "ATLAS",
+  cloudflare: "Cloudflare Workers AI",
+  "cloudflare-tts": "Cloudflare Aura TTS",
   vivi: "VIVI",
   elevenlabs: "ElevenLabs",
   inworld: "Inworld",
@@ -116,9 +119,11 @@ const FALLBACK = {
     { key: "grok", label: "Grok (xAI)" },
     { key: "vivi", label: "VIVI (Claude)" },
     { key: "alicloud", label: "Alibaba Cloud" },
+    { key: "cloudflare", label: "Cloudflare Workers AI" },
   ],
   tts: [
     { key: "atlas-tts", label: "ATLAS" },
+    { key: "cloudflare-tts", label: "Cloudflare Aura TTS" },
     { key: "elevenlabs", label: "ElevenLabs" },
     { key: "kokoro", label: "Kokoro (Local)" },
     { key: "gemini-tts", label: "Gemini TTS" },
@@ -134,6 +139,7 @@ const FALLBACK = {
     { key: "vivi", label: "VIVI (Gemini Image)" },
     { key: "runpod", label: "RunPod (público)" },
     { key: "sharpii", label: "Sharpii" },
+    { key: "cloudflare", label: "Cloudflare FLUX" },
   ],
   video: [
     { key: "atlas", label: "ATLAS" },
@@ -143,6 +149,7 @@ const FALLBACK = {
     { key: "vivi", label: "VIVI (Grok Video)" },
     { key: "runpod", label: "RunPod (público)" },
     { key: "sharpii", label: "Sharpii (Kling / Seedance)" },
+    { key: "cloudflare", label: "Cloudflare (sin I2V)" },
   ],
   search: [
     { key: "tavily", label: "Tavily" },
@@ -201,6 +208,11 @@ export function HomePage() {
   const [atlasImageModel, setAtlasImageModel] = useState("google/nano-banana-2-lite/text-to-image");
   const [atlasVideoModel, setAtlasVideoModel] = useState("bytedance/seedance-2.0-mini/image-to-video");
   const [atlasLipSyncModel, setAtlasLipSyncModel] = useState("veed/lipsync");
+  const [cloudflareTtsModel, setCloudflareTtsModel] = useState("@cf/deepgram/aura-2-es");
+  const [cloudflareTtsVoice, setCloudflareTtsVoice] = useState("aquila");
+  const [cloudflareImageModel, setCloudflareImageModel] = useState(
+    "@cf/black-forest-labs/flux-1-schnell",
+  );
   const [videoSceneMode, setVideoSceneMode] = useState("auto");
   const [pacing, setPacing] = useState("");
   const [targetDurationMinutes, setTargetDurationMinutes] = useState(5);
@@ -258,14 +270,31 @@ export function HomePage() {
     const vid = providers?.atlasVideoModels?.find((m) => m.id === atlasVideoModel);
     const lip = atlasLipSyncModel === "none" ? undefined : providers?.atlasLipSyncModels?.find((m) => m.id === atlasLipSyncModel);
     const tts = providers?.atlasTtsModels?.find((m) => m.id === atlasTtsModel);
+    const cfLlm = providers?.cloudflareLlmModels?.find((m) => m.id === llmModel);
+    const cfImg = providers?.cloudflareImageModels?.find((m) => m.id === cloudflareImageModel);
+    const cfTts = providers?.cloudflareTtsModels?.find((m) => m.id === cloudflareTtsModel);
     return {
       ...base,
-      llm: { ...base.llm, atlas: llm ? { inputPer1M: llm.inputPer1M, outputPer1M: llm.outputPer1M } : base.llm.atlas },
-      tts: { ...base.tts, "atlas-tts": tts ? { per1kChars: tts.usdPer1kChars } : base.tts["atlas-tts"] },
-      image: { ...base.image, atlas: img ? { perImage: img.usd } : base.image.atlas },
+      llm: {
+        ...base.llm,
+        atlas: llm ? { inputPer1M: llm.inputPer1M, outputPer1M: llm.outputPer1M } : base.llm.atlas,
+        cloudflare: cfLlm
+          ? { inputPer1M: cfLlm.inputPer1M, outputPer1M: cfLlm.outputPer1M }
+          : base.llm.cloudflare,
+      },
+      tts: {
+        ...base.tts,
+        "atlas-tts": tts ? { per1kChars: tts.usdPer1kChars } : base.tts["atlas-tts"],
+        "cloudflare-tts": cfTts ? { per1kChars: cfTts.usdPer1kChars } : base.tts["cloudflare-tts"],
+      },
+      image: {
+        ...base.image,
+        atlas: img ? { perImage: img.usd } : base.image.atlas,
+        cloudflare: cfImg ? { perImage: cfImg.usdPerImage } : base.image.cloudflare,
+      },
       video: { ...base.video, atlas: { perSecond: (vid?.usd ?? 0.011) + (lip?.usd ?? 0) } },
     };
-  }, [providers, llmModel, atlasImageModel, atlasVideoModel, atlasLipSyncModel, atlasTtsModel]);
+  }, [providers, llmModel, atlasImageModel, atlasVideoModel, atlasLipSyncModel, atlasTtsModel, cloudflareImageModel, cloudflareTtsModel]);
   const costPreview = useMemo(
     () =>
       estimateJobCost(
@@ -354,6 +383,11 @@ export function HomePage() {
           ...(llmProvider === "atlas"
             ? { llmModel: llmModel || "deepseek-ai/deepseek-v4-flash" }
             : {}),
+          ...(llmProvider === "cloudflare"
+            ? { llmModel: llmModel || "@cf/meta/llama-3.1-8b-instruct-fp8-fast" }
+            : {}),
+          ...(ttsProvider === "cloudflare-tts" ? { cloudflareTtsVoice, cloudflareTtsModel } : {}),
+          ...(imageProvider === "cloudflare" ? { cloudflareImageModel } : {}),
           ...(videoProvider === "atlas"
             ? { atlasVideoModel, atlasLipSyncModel: atlasLipSyncModel === "none" ? null : atlasLipSyncModel }
             : {}),
@@ -504,6 +538,22 @@ export function HomePage() {
                   </Field>
                 )}
               </div>
+              {llmProvider === "cloudflare" && (
+                <CloudflareModelFields
+                  providers={providers}
+                  fieldClass={field}
+                  showLlm
+                  values={{
+                    llmModel,
+                    ttsModel: cloudflareTtsModel,
+                    ttsVoice: cloudflareTtsVoice,
+                    imageModel: cloudflareImageModel,
+                  }}
+                  onChange={(patch) => {
+                    if (patch.llmModel) setLlmModel(patch.llmModel);
+                  }}
+                />
+              )}
               {llmProvider === "atlas" && (
                 <AtlasModelFields
                   providers={providers}
@@ -597,6 +647,23 @@ export function HomePage() {
                   </>
                 )}
               </div>
+              {ttsProvider === "cloudflare-tts" && (
+                <CloudflareModelFields
+                  providers={providers}
+                  fieldClass={field}
+                  showTts
+                  values={{
+                    llmModel,
+                    ttsModel: cloudflareTtsModel,
+                    ttsVoice: cloudflareTtsVoice,
+                    imageModel: cloudflareImageModel,
+                  }}
+                  onChange={(patch) => {
+                    if (patch.ttsModel) setCloudflareTtsModel(patch.ttsModel);
+                    if (patch.ttsVoice) setCloudflareTtsVoice(patch.ttsVoice);
+                  }}
+                />
+              )}
               {ttsProvider === "atlas-tts" && (
                 <AtlasModelFields
                   providers={providers}
@@ -798,6 +865,24 @@ export function HomePage() {
                 </div>
               )}
 
+              {(imageProvider === "cloudflare" || videoProvider === "cloudflare") && (
+                <CloudflareModelFields
+                  providers={providers}
+                  fieldClass={field}
+                  title="Cloudflare · T2I"
+                  showImage={imageProvider === "cloudflare"}
+                  showVideo={videoProvider === "cloudflare"}
+                  values={{
+                    llmModel,
+                    ttsModel: cloudflareTtsModel,
+                    ttsVoice: cloudflareTtsVoice,
+                    imageModel: cloudflareImageModel,
+                  }}
+                  onChange={(patch) => {
+                    if (patch.imageModel) setCloudflareImageModel(patch.imageModel);
+                  }}
+                />
+              )}
               {(imageProvider === "atlas" || videoProvider === "atlas") && (
                 <AtlasModelFields
                   providers={providers}

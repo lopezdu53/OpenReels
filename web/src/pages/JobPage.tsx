@@ -545,6 +545,8 @@ const PROVIDER_LABELS: Record<string, string> = {
   "openai-compatible": "Custom LLM",
   atlas: "ATLAS",
   "atlas-tts": "ATLAS",
+  cloudflare: "Cloudflare",
+  "cloudflare-tts": "Cloudflare Aura",
   // TTS
   elevenlabs: "ElevenLabs",
   inworld: "Inworld",

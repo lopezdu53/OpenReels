@@ -84,6 +84,26 @@ export function validateEnv(opts: {
         opts.videoProvider === "grok",
     },
     {
+      key: "CLOUDFLARE_API_TOKEN",
+      provider: "Cloudflare Workers AI (LLM/TTS/T2I)",
+      signupUrl: "https://developers.cloudflare.com/workers-ai/get-started/rest-api/",
+      required:
+        opts.provider === "cloudflare" ||
+        opts.imageProvider === "cloudflare" ||
+        opts.ttsProvider === "cloudflare-tts" ||
+        opts.videoProvider === "cloudflare",
+    },
+    {
+      key: "CLOUDFLARE_ACCOUNT_ID",
+      provider: "Cloudflare Account ID (Workers AI REST)",
+      signupUrl: "https://developers.cloudflare.com/workers-ai/get-started/rest-api/",
+      required:
+        opts.provider === "cloudflare" ||
+        opts.imageProvider === "cloudflare" ||
+        opts.ttsProvider === "cloudflare-tts" ||
+        opts.videoProvider === "cloudflare",
+    },
+    {
       key: "VIVI_LLM_API_KEY",
       provider: "VIVI AI (LLM)",
       signupUrl: "https://viviai.cc/",

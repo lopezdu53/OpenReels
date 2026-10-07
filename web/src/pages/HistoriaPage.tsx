@@ -28,6 +28,7 @@ const CASTING_PROVIDERS: ProviderOption[] = [
   { key: "runpod", label: "RunPod (público)" },
   { key: "fal", label: "fal.ai" },
   { key: "alicloud", label: "Alibaba Cloud" },
+  { key: "cloudflare", label: "Cloudflare FLUX" },
 ];
 
 const FALLBACK_VOICES = [
@@ -193,7 +194,7 @@ export function HistoriaPage() {
   const [videoVolume, setVideoVolume] = useState(0.5);
   const [ttsVolume, setTtsVolume] = useState(1);
   const [animate, setAnimate] = useState(true);
-  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow" | "toby">("toby");
+  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow" | "toby" | "cloudflare">("toby");
   const [gflowImageModel, setGflowImageModel] = useState("nano-pro");
   const [gflowVideoModel, setGflowVideoModel] = useState("omni-flash");
   const [busy, setBusy] = useState(false);

@@ -127,6 +127,16 @@ describe("estimateCost", () => {
     expect(atlas.videoCost).toBeCloseTo(6 * 0.024);
   });
 
+  it("uses Cloudflare list prices for LLM, Aura TTS and FLUX", () => {
+    const score = makeScore([{ visual_type: "ai_image", script_line: "Hello world" }]);
+    const cf = estimateCost(score, "cloudflare", "cloudflare-tts", undefined, "cloudflare");
+    const gemini = estimateCost(score, "gemini", "elevenlabs", undefined, "anthropic");
+    expect(cf.llmCost).toBeGreaterThan(0);
+    expect(cf.llmCost).toBeLessThan(gemini.llmCost);
+    expect(cf.imageCost).toBeCloseTo(0.00085);
+    expect(cf.ttsCost).toBeGreaterThan(0);
+  });
+
   it("uses fal pricing when fal video provider specified", () => {
     const score = makeScore([{ visual_type: "ai_video", script_line: "Video" }]);
     const gemini = estimateCost(score, "gemini", "elevenlabs", undefined);

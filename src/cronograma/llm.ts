@@ -1,6 +1,7 @@
 import { AliCloudLLM } from "../providers/llm/alicloud.js";
 import { AnthropicLLM } from "../providers/llm/anthropic.js";
 import { AtlasLLM } from "../providers/llm/atlas.js";
+import { CloudflareLLM } from "../providers/llm/cloudflare.js";
 import { GeminiLLM } from "../providers/llm/gemini.js";
 import { GrokLLM } from "../providers/llm/grok.js";
 import { OpenAILLM } from "../providers/llm/openai.js";
@@ -15,6 +16,7 @@ export const CRONOGRAMA_LLMS: { key: LLMProviderKey; label: string; env: string 
   { key: "gemini", label: "Gemini", env: "GOOGLE_API_KEY" },
   { key: "grok", label: "Grok", env: "XAI_API_KEY" },
   { key: "atlas", label: "Atlas Cloud", env: "ATLASCLOUD_API_KEY" },
+  { key: "cloudflare", label: "Cloudflare Workers AI", env: "CLOUDFLARE_API_TOKEN" },
   { key: "openrouter", label: "OpenRouter", env: "OPENROUTER_API_KEY" },
   { key: "alicloud", label: "AliCloud", env: "ALICLOUD_API_KEY" },
 ];
@@ -25,12 +27,16 @@ export const CRONOGRAMA_IMAGES: { key: ImageProviderKey; label: string; env: str
   { key: "openai", label: "OpenAI imagen", env: "OPENAI_API_KEY" },
   { key: "grok", label: "Grok imagen", env: "XAI_API_KEY" },
   { key: "atlas", label: "Atlas imagen", env: "ATLASCLOUD_API_KEY" },
+  { key: "cloudflare", label: "Cloudflare FLUX", env: "CLOUDFLARE_API_TOKEN" },
   { key: "fal", label: "Fal", env: "FAL_API_KEY" },
   { key: "sharpii", label: "Sharpii", env: "SHARPII_API_KEY" },
   { key: "alicloud", label: "AliCloud imagen", env: "ALICLOUD_API_KEY" },
 ];
 
 export function providerReady(env: string): boolean {
+  if (env === "CLOUDFLARE_API_TOKEN") {
+    return Boolean(process.env["CLOUDFLARE_API_TOKEN"]?.trim() && process.env["CLOUDFLARE_ACCOUNT_ID"]?.trim());
+  }
   return Boolean(process.env[env]?.trim());
 }
 
@@ -63,6 +69,8 @@ export function createCronogramaLlm(key: string, model?: string): LLMProvider {
       return new GrokLLM(model);
     case "atlas":
       return new AtlasLLM(model);
+    case "cloudflare":
+      return new CloudflareLLM(model);
     default:
       return new AnthropicLLM(model);
   }

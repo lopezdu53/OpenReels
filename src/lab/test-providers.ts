@@ -9,6 +9,7 @@ import { RunPodImage } from "../providers/image/runpod.js";
 import { SharpiiImage } from "../providers/image/sharpii.js";
 import { TobyImage } from "../providers/image/toby.js";
 import { ViviImage } from "../providers/image/vivi.js";
+import { CloudflareImage } from "../providers/image/cloudflare.js";
 import { resolveGflowVideoMode } from "../providers/gflow/catalog.js";
 import { resolveTobyVideoMode } from "../providers/toby/catalog.js";
 import { AtlasVideo } from "../providers/video/atlas.js";
@@ -20,6 +21,7 @@ import { RunPodVideo } from "../providers/video/runpod.js";
 import { SharpiiVideo } from "../providers/video/sharpii.js";
 import { TobyVideo } from "../providers/video/toby.js";
 import { ViviVideo } from "../providers/video/vivi.js";
+import { CloudflareVideo } from "../providers/video/cloudflare.js";
 import type { ImageProvider, VideoProvider } from "../schema/providers.js";
 
 export function createLabImageProvider(opts: {
@@ -49,6 +51,8 @@ export function createLabImageProvider(opts: {
       return new SharpiiImage(opts.model);
     case "atlas":
       return new AtlasImage(opts.model);
+    case "cloudflare":
+      return new CloudflareImage(opts.model);
     default:
       return new GeminiImage();
   }
@@ -78,6 +82,8 @@ export function createLabVideoProvider(opts: {
       return new SharpiiVideo(opts.model);
     case "atlas":
       return new AtlasVideo(opts.model, undefined, opts.lipSyncModel === "none" ? null : opts.lipSyncModel);
+    case "cloudflare":
+      return new CloudflareVideo();
     default:
       return new GeminiVideo();
   }
@@ -85,5 +91,6 @@ export function createLabVideoProvider(opts: {
 
 export function labVideoRequiresStill(provider?: string, mode?: string): boolean {
   if (provider === "toby") return resolveTobyVideoMode(mode) === "i2v";
+  if (provider === "cloudflare") return true;
   return provider !== "gflow" || resolveGflowVideoMode(mode) === "i2v";
 }
