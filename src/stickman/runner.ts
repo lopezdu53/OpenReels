@@ -1,6 +1,8 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getVideoDuration } from "../pipeline/utils.js";
+import { createNaraTts } from "../nara/tts.js";
+import type { TTSProviderKey } from "../schema/providers.js";
 import { AtlasTTS } from "../providers/tts/atlas.js";
 import { createStudioImage, createStudioVideo, isFlowCreditsVisual } from "../studio/visual-provider.js";
 import { assembleStickman, concatMotionTakes, extractLastFrame } from "./assemble.js";
@@ -40,8 +42,21 @@ export async function runTts(
   const model = resolveStickmanTtsModel(voiceId, ttsModel);
   const speed = meta?.config.voiceSpeed ?? script.voice.speed ?? 1;
   const language = meta?.config.language || script.language || script.voice.language || "es";
-  log(`TTS Atlas ${model} · voz ${voiceId} · ${text.length} caracteres · velocidad ${speed}`);
-  const tts = new AtlasTTS(voiceId, apiKey, speed, model, language);
+  const ttsProvider = (meta?.config.ttsProvider ?? "atlas-tts") as TTSProviderKey;
+  log(`TTS ${ttsProvider} ${model} · voz ${voiceId} · ${text.length} caracteres · velocidad ${speed}`);
+  const tts =
+    ttsProvider === "atlas-tts"
+      ? new AtlasTTS(voiceId, apiKey || undefined, speed, model, language)
+      : createNaraTts({
+          idea: meta?.topic ?? "",
+          durationSec: meta?.config.durationSec ?? 30,
+          language,
+          tone: "neutral",
+          ttsProvider,
+          ttsModel: meta?.config.ttsModel ?? model,
+          voice: voiceId,
+          speed,
+        });
   const { audio } = await tts.generate(text);
   fs.writeFileSync(dest, audio);
   if (!fileBigEnough(dest, 1000)) throw new Error("Atlas TTS escribió un voiceover vacío");
@@ -58,13 +73,15 @@ export async function runVisuals(
   if (!script) throw new Error("Falta script.json");
   const image = createStudioImage({
     visualProvider: config.visualProvider,
+    imageProvider: config.imageProvider,
+    imageModel: config.imageModel || script.image_model,
     atlasModel: script.image_model,
-    atlasKey: apiKey,
+    atlasKey: apiKey || undefined,
     gflowModel: config.gflowImageModel,
     tobyModel: config.tobyImageModel,
   });
   log(
-    `stills ${script.beats.length} · ${config.visualProvider ?? "toby"} · Flow no manda bytes: hace falta watch.mjs`,
+    `stills ${script.beats.length} · ${config.imageProvider ?? config.visualProvider ?? "toby"} · Flow no manda bytes: hace falta watch.mjs`,
   );
   const paths = await renderStills(jobDir(id), script, image, log, readCastRef(id), () =>
     assertStickmanActive(id),
@@ -244,8 +261,10 @@ export async function runMotion(
   fs.mkdirSync(clipsDir, { recursive: true });
   const video = createStudioVideo({
     visualProvider: config.visualProvider,
+    videoProvider: config.videoProvider,
+    videoModel: config.videoModel || script.video_model,
     atlasModel: script.video_model,
-    atlasKey: apiKey,
+    atlasKey: apiKey || undefined,
     gflowModel: config.gflowVideoModel,
     gflowMode: config.gflowVideoMode,
     tobyModel: config.tobyVideoModel,
@@ -262,17 +281,17 @@ export async function runMotion(
     config.durationSec,
   );
   const takes =
-    isFlowCreditsVisual(config.visualProvider) &&
-    (config.visualProvider === "toby"
-      ? config.tobyVideoModel || "omni-flash"
-      : config.gflowVideoModel || "omni-flash") === "omni-flash"
+    isFlowCreditsVisual(config.videoProvider ?? config.visualProvider) &&
+    ((config.videoProvider ?? config.visualProvider) === "toby"
+      ? config.tobyVideoModel || config.videoModel || "omni-flash"
+      : config.gflowVideoModel || config.videoModel || "omni-flash") === "omni-flash"
       ? planOmniTakes(wanted)
       : planMotionTakes(video.supportedDurations, wanted);
   const dest = path.join(clipsDir, "continuous.mp4");
   const label =
-    config.visualProvider === "toby"
+    (config.videoProvider ?? config.visualProvider) === "toby"
       ? "Toby I2V"
-      : config.visualProvider === "gflow"
+      : (config.videoProvider ?? config.visualProvider) === "gflow"
         ? "gflow I2V"
         : "I2V";
   log(

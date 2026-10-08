@@ -6,7 +6,7 @@ import { queueChipForJob, StudioQueuePanel, useStudioQueue } from "@/components/
 import { CharacterStudio } from "@/components/film/CharacterStudio";
 import { LocationStudio } from "@/components/film/LocationStudio";
 import { ObjectStudio } from "@/components/film/ObjectStudio";
-import { StudioVisualFields } from "@/components/StudioVisualFields";
+import { HistoriaEngineFields } from "@/components/HistoriaEngineFields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,17 +29,6 @@ const CASTING_PROVIDERS: ProviderOption[] = [
   { key: "fal", label: "fal.ai" },
   { key: "alicloud", label: "Alibaba Cloud" },
   { key: "cloudflare", label: "Cloudflare FLUX" },
-];
-
-const FALLBACK_VOICES = [
-  { id: "eve", label: "Eve", note: "enérgica" },
-  { id: "ara", label: "Ara", note: "cálida" },
-  { id: "leo", label: "Leo", note: "clara" },
-  { id: "rex", label: "Rex", note: "segura" },
-  { id: "sal", label: "Sal", note: "suave" },
-  { id: "Kore", label: "Kore", note: "firme" },
-  { id: "Aoede", label: "Aoede", note: "ligera" },
-  { id: "Puck", label: "Puck", note: "alegre" },
 ];
 
 const FALLBACK_ARCS = [
@@ -187,16 +176,20 @@ export function HistoriaPage() {
   const [arc, setArc] = useState("joke_punchline");
   const [voiceId, setVoiceId] = useState("eve");
   const [voiceSpeed, setVoiceSpeed] = useState(1);
-  const [llmModel, setLlmModel] = useState("google/gemini-2.5-flash");
+  const [llmProvider, setLlmProvider] = useState("cloudflare");
+  const [llmModel, setLlmModel] = useState("@cf/meta/llama-3.1-8b-instruct-fp8-fast");
+  const [ttsProvider, setTtsProvider] = useState("grok-tts");
+  const [ttsModel, setTtsModel] = useState("");
   const [captions, setCaptions] = useState(false);
   const [muteCharacter, setMuteCharacter] = useState(true);
   const [contentHook, setContentHook] = useState(false);
   const [videoVolume, setVideoVolume] = useState(0.5);
   const [ttsVolume, setTtsVolume] = useState(1);
-  const [animate, setAnimate] = useState(true);
-  const [visualProvider, setVisualProvider] = useState<"atlas" | "gflow" | "toby" | "cloudflare">("toby");
-  const [gflowImageModel, setGflowImageModel] = useState("nano-pro");
-  const [gflowVideoModel, setGflowVideoModel] = useState("omni-flash");
+  const [animate, setAnimate] = useState(false);
+  const [imageProvider, setImageProvider] = useState("cloudflare");
+  const [imageModel, setImageModel] = useState("@cf/black-forest-labs/flux-1-schnell");
+  const [videoProvider, setVideoProvider] = useState("toby");
+  const [videoModel, setVideoModel] = useState("omni-flash");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -205,9 +198,15 @@ export function HistoriaPage() {
       .historiaCatalog()
       .then((c) => {
         setCatalog(c);
-        if (c.defaultVisualProvider === "toby" || c.defaultVisualProvider === "gflow" || c.defaultVisualProvider === "atlas") {
-          setVisualProvider(c.defaultVisualProvider);
-        }
+        if (c.defaultLlmProvider) setLlmProvider(c.defaultLlmProvider);
+        if (c.defaultLlm) setLlmModel(c.defaultLlm);
+        if (c.defaultTtsProvider) setTtsProvider(c.defaultTtsProvider);
+        if (c.defaultTtsVoice) setVoiceId(c.defaultTtsVoice);
+        if (c.defaultImageProvider) setImageProvider(c.defaultImageProvider);
+        if (c.defaultImageModel) setImageModel(c.defaultImageModel);
+        if (c.defaultVideoProvider) setVideoProvider(c.defaultVideoProvider);
+        if (c.defaultVideoModel) setVideoModel(c.defaultVideoModel);
+        if (c.defaultAnimate === false) setAnimate(false);
       })
       .catch(() => {});
     api
@@ -253,14 +252,27 @@ export function HistoriaPage() {
         contentHook: hookAvailable(durationSec) ? contentHook : false,
         videoVolume,
         ttsVolume,
-        visualProvider,
-        gflowImageModel: visualProvider === "gflow" ? gflowImageModel : undefined,
-        gflowVideoModel: visualProvider === "gflow" ? gflowVideoModel : undefined,
-        gflowVideoMode: visualProvider === "gflow" ? "i2v" : undefined,
-        tobyImageModel: visualProvider === "toby" ? gflowImageModel : undefined,
-        tobyVideoModel: visualProvider === "toby" ? gflowVideoModel : undefined,
-        tobyVideoMode: visualProvider === "toby" ? "i2v" : undefined,
+        llmProvider,
         llmModel,
+        ttsProvider,
+        ttsModel: ttsModel || undefined,
+        imageProvider,
+        imageModel,
+        videoProvider,
+        videoModel,
+        visualProvider:
+          imageProvider === "toby" ||
+          imageProvider === "gflow" ||
+          imageProvider === "atlas" ||
+          imageProvider === "cloudflare"
+            ? imageProvider
+            : "cloudflare",
+        gflowImageModel: imageProvider === "gflow" ? imageModel : undefined,
+        gflowVideoModel: videoProvider === "gflow" ? videoModel : undefined,
+        gflowVideoMode: videoProvider === "gflow" ? "i2v" : undefined,
+        tobyImageModel: imageProvider === "toby" ? imageModel : undefined,
+        tobyVideoModel: videoProvider === "toby" ? videoModel : undefined,
+        tobyVideoMode: videoProvider === "toby" ? "i2v" : undefined,
       });
       navigate(`/historia/${res.id}`);
     } catch (err) {
@@ -439,54 +451,8 @@ export function HistoriaPage() {
                 ]}
               />
             </div>
-            <div className="flex items-center gap-2">
-              Voz Atlas
-              <DarkSelect
-                aria-label="Voz"
-                value={voiceId}
-                onValueChange={(value) => {
-                  setVoiceId(value);
-                  setMuteCharacter(false);
-                }}
-                options={(catalog?.voices ?? FALLBACK_VOICES).map((v) => ({
-                  value: v.id,
-                  label: `${v.label} · ${v.note}`,
-                }))}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              Velocidad
-              <DarkSelect
-                aria-label="Velocidad de narración"
-                value={String(voiceSpeed)}
-                onValueChange={(value) => setVoiceSpeed(Number(value))}
-                options={[0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4, 1.5].map((n) => ({
-                  value: String(n),
-                  label: n === 1 ? "1× normal" : n < 1 ? `${n}× lenta` : `${n}× rápida`,
-                }))}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              LLM historia
-              <DarkSelect
-                aria-label="LLM de la historia"
-                className="min-w-[14rem]"
-                value={llmModel}
-                onValueChange={setLlmModel}
-                options={(
-                  catalog?.llms ?? [
-                    {
-                      id: "google/gemini-2.5-flash",
-                      label: "Gemini 2.5 Flash",
-                      note: "mejor para historia",
-                    },
-                  ]
-                ).map((llm) => ({
-                  value: llm.id,
-                  label: llm.label,
-                  hint: llm.note,
-                }))}
-              />
+            <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+              TTS {ttsProvider} · {voiceId} · LLM {llmProvider}
             </div>
             <label className="flex items-center gap-2">
               <input
@@ -502,7 +468,7 @@ export function HistoriaPage() {
               </p>
             ) : (
               <p className="text-[11px] text-muted-foreground">
-                TTS Atlas Cloud (xAI, Gemini Flash o MiniMax según la voz).
+                TTS {ttsProvider}. Elige una voz abajo y desmarca “Sin voz”.
               </p>
             )}
             <label
@@ -576,18 +542,38 @@ export function HistoriaPage() {
             </p>
           </div>
 
-          <StudioVisualFields
-            catalog={catalog}
-            visualProvider={visualProvider}
-            onVisualProvider={setVisualProvider}
-            gflowImageModel={gflowImageModel}
-            onGflowImageModel={setGflowImageModel}
-            gflowVideoModel={gflowVideoModel}
-            onGflowVideoModel={setGflowVideoModel}
+          <HistoriaEngineFields
+            llmProviders={catalog?.llmProviders ?? []}
+            imageProviders={catalog?.imageProviders ?? []}
+            videoProviders={catalog?.videoProviders ?? []}
+            ttsProviders={catalog?.ttsProviders ?? []}
+            llmProvider={llmProvider}
+            onLlmProvider={setLlmProvider}
+            llmModel={llmModel}
+            onLlmModel={setLlmModel}
+            ttsProvider={ttsProvider}
+            onTtsProvider={(key) => {
+              setTtsProvider(key);
+              setMuteCharacter(false);
+            }}
+            ttsModel={ttsModel}
+            onTtsModel={setTtsModel}
+            voiceId={voiceId}
+            onVoiceId={(id) => {
+              setVoiceId(id);
+              setMuteCharacter(false);
+            }}
+            voiceSpeed={voiceSpeed}
+            onVoiceSpeed={setVoiceSpeed}
+            imageProvider={imageProvider}
+            onImageProvider={setImageProvider}
+            imageModel={imageModel}
+            onImageModel={setImageModel}
+            videoProvider={videoProvider}
+            onVideoProvider={setVideoProvider}
+            videoModel={videoModel}
+            onVideoModel={setVideoModel}
             showVideo={animate}
-            durationSec={durationSec}
-            gflowHint="Omni 8s (4/6/8s). 16s/24s/… son tomas de 8s. El primer still usa la ficha gflow del Casting. Audio Flow agachado + TTS Atlas."
-            tobyHint="Toby Flow MCP. Chrome + extensión + Auto Download. El primer still usa la ficha del Casting. Voz: Atlas."
           />
 
           {error && <p className="text-sm text-destructive">{error}</p>}

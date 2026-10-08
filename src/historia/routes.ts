@@ -12,6 +12,22 @@ import {
   resolveStickmanVisualProvider,
   STICKMAN_VISUAL_PROVIDERS,
 } from "../studio/visual-provider.js";
+import { isNaraTtsKey } from "../nara/catalog.js";
+import {
+  DEFAULT_HISTORIA_ANIMATE,
+  DEFAULT_HISTORIA_IMAGE_MODEL,
+  DEFAULT_HISTORIA_IMAGE_PROVIDER,
+  DEFAULT_HISTORIA_LLM_MODEL,
+  DEFAULT_HISTORIA_LLM_PROVIDER,
+  DEFAULT_HISTORIA_TTS_PROVIDER,
+  DEFAULT_HISTORIA_TTS_VOICE,
+  DEFAULT_HISTORIA_VIDEO_MODEL,
+  DEFAULT_HISTORIA_VIDEO_PROVIDER,
+  historiaEngineCatalog,
+  isHistoriaImageProvider,
+  isHistoriaLlmProvider,
+  isHistoriaVideoProvider,
+} from "./catalog.js";
 import {
   clampStickmanVoiceSpeed,
   clampStickmanVolume,
@@ -19,18 +35,13 @@ import {
   DEFAULT_STICKMAN_CONTENT_HOOK,
   DEFAULT_STICKMAN_GFLOW_IMAGE,
   DEFAULT_STICKMAN_GFLOW_VIDEO,
-  DEFAULT_STICKMAN_IMAGE_MODEL,
-  DEFAULT_STICKMAN_LLM,
   DEFAULT_STICKMAN_MUTE_CHARACTER,
   DEFAULT_STICKMAN_TTS_MODEL,
   DEFAULT_STICKMAN_TTS_VOLUME,
-  DEFAULT_STICKMAN_VIDEO_MODEL,
   DEFAULT_STICKMAN_STILL_INTERVAL,
   DEFAULT_STICKMAN_VIDEO_VOLUME,
   resolveStillInterval,
   isArcId,
-  isStickmanLlmId,
-  isStickmanVoiceId,
   recommendArc,
   recommendStickmanGflow,
   resolveStickmanTtsModel,
@@ -87,7 +98,22 @@ function parseHistoriaCreateBody(
   }
   const arc = String(body.arc ?? recommendArc(topic));
   if (!isArcId(arc)) return { error: "Arco inválido" };
-  const voiceId = isStickmanVoiceId(String(body.voiceId ?? "eve")) ? String(body.voiceId) : "eve";
+  const voiceId = String(body.voiceId ?? DEFAULT_HISTORIA_TTS_VOICE).trim() || DEFAULT_HISTORIA_TTS_VOICE;
+  const llmProvider = isHistoriaLlmProvider(String(body.llmProvider ?? ""))
+    ? String(body.llmProvider)
+    : DEFAULT_HISTORIA_LLM_PROVIDER;
+  const ttsProvider = isNaraTtsKey(String(body.ttsProvider ?? ""))
+    ? String(body.ttsProvider)
+    : DEFAULT_HISTORIA_TTS_PROVIDER;
+  const imageProvider = isHistoriaImageProvider(String(body.imageProvider ?? ""))
+    ? String(body.imageProvider)
+    : DEFAULT_HISTORIA_IMAGE_PROVIDER;
+  const videoProvider = isHistoriaVideoProvider(String(body.videoProvider ?? ""))
+    ? String(body.videoProvider)
+    : DEFAULT_HISTORIA_VIDEO_PROVIDER;
+  const llmModel = String(body.llmModel ?? DEFAULT_HISTORIA_LLM_MODEL).trim() || DEFAULT_HISTORIA_LLM_MODEL;
+  const imageModel = String(body.imageModel ?? DEFAULT_HISTORIA_IMAGE_MODEL).trim() || DEFAULT_HISTORIA_IMAGE_MODEL;
+  const videoModel = String(body.videoModel ?? DEFAULT_HISTORIA_VIDEO_MODEL).trim() || DEFAULT_HISTORIA_VIDEO_MODEL;
 
   const characterIds = idsOf(body.characterIds).slice(0, MAX_CAST);
   const objectIds = idsOf(body.objectIds).slice(0, MAX_OBJECTS);
@@ -167,24 +193,35 @@ function parseHistoriaCreateBody(
       contentHook: stickmanHookAvailable(durationSec) && body.contentHook === true,
       videoVolume: clampStickmanVolume(body.videoVolume, DEFAULT_STICKMAN_VIDEO_VOLUME),
       ttsVolume: clampStickmanVolume(body.ttsVolume, DEFAULT_STICKMAN_TTS_VOLUME),
-      imageModel: String(body.imageModel ?? DEFAULT_STICKMAN_IMAGE_MODEL),
-      videoModel: String(body.videoModel ?? DEFAULT_STICKMAN_VIDEO_MODEL),
+      imageModel,
+      videoModel,
       atlasTtsModel: resolveStickmanTtsModel(
         voiceId,
         String(body.atlasTtsModel ?? DEFAULT_STICKMAN_TTS_MODEL),
       ),
       visualProvider: resolveStickmanVisualProvider(
-        typeof body.visualProvider === "string" ? body.visualProvider : undefined,
+        imageProvider === "toby" || imageProvider === "gflow" || imageProvider === "atlas" || imageProvider === "cloudflare"
+          ? imageProvider
+          : typeof body.visualProvider === "string"
+            ? body.visualProvider
+            : undefined,
       ),
-      gflowImageModel: body.gflowImageModel ? String(body.gflowImageModel) : undefined,
-      gflowVideoModel: body.gflowVideoModel ? String(body.gflowVideoModel) : undefined,
-      gflowVideoMode: body.gflowVideoMode ? String(body.gflowVideoMode) : undefined,
-      tobyImageModel: body.tobyImageModel ? String(body.tobyImageModel) : undefined,
-      tobyVideoModel: body.tobyVideoModel ? String(body.tobyVideoModel) : undefined,
-      tobyVideoMode: body.tobyVideoMode ? String(body.tobyVideoMode) : undefined,
-      llmModel: isStickmanLlmId(String(body.llmModel ?? ""))
-        ? String(body.llmModel)
-        : DEFAULT_STICKMAN_LLM,
+      gflowImageModel:
+        imageProvider === "gflow" ? imageModel : body.gflowImageModel ? String(body.gflowImageModel) : undefined,
+      gflowVideoModel:
+        videoProvider === "gflow" ? videoModel : body.gflowVideoModel ? String(body.gflowVideoModel) : undefined,
+      gflowVideoMode: videoProvider === "gflow" || body.gflowVideoMode ? "i2v" : undefined,
+      tobyImageModel:
+        imageProvider === "toby" ? imageModel : body.tobyImageModel ? String(body.tobyImageModel) : undefined,
+      tobyVideoModel:
+        videoProvider === "toby" ? videoModel : body.tobyVideoModel ? String(body.tobyVideoModel) : undefined,
+      tobyVideoMode: videoProvider === "toby" || body.tobyVideoMode ? "i2v" : undefined,
+      llmModel,
+      llmProvider,
+      ttsProvider,
+      ttsModel: body.ttsModel ? String(body.ttsModel) : undefined,
+      imageProvider,
+      videoProvider,
     },
   };
 }
@@ -203,11 +240,9 @@ export async function registerHistoriaRoutes(app: FastifyInstance, redis: IORedi
     defaultCaptions: DEFAULT_STICKMAN_CAPTIONS,
     defaultVideoVolume: DEFAULT_STICKMAN_VIDEO_VOLUME,
     defaultTtsVolume: DEFAULT_STICKMAN_TTS_VOLUME,
-    defaultImageModel: DEFAULT_STICKMAN_IMAGE_MODEL,
-    defaultVideoModel: DEFAULT_STICKMAN_VIDEO_MODEL,
     defaultTtsModel: DEFAULT_STICKMAN_TTS_MODEL,
-    defaultLlm: DEFAULT_STICKMAN_LLM,
     llms: STICKMAN_LLMS,
+    ...historiaEngineCatalog(),
     visualProviders: [...STICKMAN_VISUAL_PROVIDERS],
     gflowImageModels: GFLOW_IMAGE_MODELS,
     gflowVideoModels: GFLOW_VIDEO_MODELS.filter((m) => m.id !== "veo-lite-lp"),
@@ -218,7 +253,8 @@ export async function registerHistoriaRoutes(app: FastifyInstance, redis: IORedi
     defaultGflowVideo: DEFAULT_STICKMAN_GFLOW_VIDEO,
     defaultTobyImage: DEFAULT_STICKMAN_GFLOW_IMAGE,
     defaultTobyVideo: DEFAULT_STICKMAN_GFLOW_VIDEO,
-    defaultVisualProvider: "toby",
+    defaultVisualProvider: DEFAULT_HISTORIA_IMAGE_PROVIDER,
+    defaultAnimate: DEFAULT_HISTORIA_ANIMATE,
     atlasReady: Boolean(resolveAtlasApiKey()),
     gflowBridge: Boolean(gflowBridgeUrl()),
     tobyReady: tobyReady(),

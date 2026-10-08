@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { createHistoriaLlm } from "../historia/llm.js";
 import {
   beatCountForJob,
   resolveStillInterval,
@@ -282,16 +284,96 @@ export async function draftScriptWithAtlas(
   };
 }
 
+const DraftBeatSchema = z.object({
+  title: z.string(),
+  pose: z.string(),
+  scene: z.string(),
+  narration: z.string(),
+  durationSec: z.number().optional(),
+});
+
+const DraftSchema = z.object({
+  beats: z.array(DraftBeatSchema).min(2),
+  bible: z
+    .object({
+      world: z.string().optional(),
+    })
+    .optional(),
+});
+
+function mergeDraft(
+  fallback: StickmanScript,
+  parsed: { beats: Array<Partial<StickmanBeat> & { title: string; pose: string; scene: string; narration: string }>; bible?: { world?: string } },
+  config: StickmanJobConfig,
+  project: string,
+): StickmanScript {
+  return {
+    ...fallback,
+    project,
+    style: isHistoriaConfig(config) ? "historia" : "stickman",
+    muteCharacter: config.muteCharacter === true,
+    contentHook: config.contentHook === true,
+    captions: config.captions === true,
+    bible: {
+      ...fallback.bible,
+      world: parsed.bible?.world || fallback.bible.world,
+    },
+    voice: lockStickmanVoice(fallback.voice, undefined, config),
+    beats: parsed.beats.map((beat, i) => ({
+      ...fallback.beats[i],
+      ...beat,
+      id: i + 1,
+      durationSec: Math.max(2, Number(beat.durationSec) || fallback.beats[i]?.durationSec || 3),
+    })),
+  };
+}
+
+export async function draftScriptWithLlm(
+  config: StickmanJobConfig,
+  project: string,
+): Promise<{ script: StickmanScript; usage?: StickmanLlmUsage }> {
+  const n = beatCountForJob(config);
+  const fallback = draftScriptTemplate(config, project);
+  const prompt = directorPromptFor(config, n, JSON.stringify(fallback).slice(0, 2500));
+  const llm = createHistoriaLlm(config.llmProvider, config.llmModel);
+  const result = await llm.generate({
+    systemPrompt: isHistoriaConfig(config)
+      ? "You are the Historia Video Director. Output JSON only. Use only the Casting roster. Never write stick figures, OpenReels scores, or collage briefs."
+      : "You are the Stickman Video Director. Output JSON only. Never write OpenReels, collage, or 3D hero briefs.",
+    userMessage: prompt,
+    schema: DraftSchema,
+  });
+  if (!Array.isArray(result.data.beats) || result.data.beats.length < 2) {
+    throw new Error("LLM historia script missing beats");
+  }
+  return {
+    usage: {
+      promptTokens: result.usage.inputTokens,
+      completionTokens: result.usage.outputTokens,
+      totalTokens: result.usage.inputTokens + result.usage.outputTokens,
+    },
+    script: mergeDraft(fallback, result.data, config, project),
+  };
+}
+
 export async function draftScript(
   config: StickmanJobConfig,
   apiKey?: string,
 ): Promise<{ script: StickmanScript; usage?: StickmanLlmUsage }> {
   const project = `${slug(config.topic)}-${config.durationSec}s`;
-  if (apiKey) {
+  const provider = config.llmProvider ?? (apiKey ? "atlas" : undefined);
+  if (provider === "atlas" && apiKey) {
     try {
       return await draftScriptWithAtlas(apiKey, config, project);
     } catch (err) {
       console.warn(`[stickman] Atlas script draft failed, using template: ${err}`);
+    }
+  }
+  if (provider && provider !== "atlas") {
+    try {
+      return await draftScriptWithLlm(config, project);
+    } catch (err) {
+      console.warn(`[historia] ${provider} script draft failed, using template: ${err}`);
     }
   }
   return { script: draftScriptTemplate(config, project) };
