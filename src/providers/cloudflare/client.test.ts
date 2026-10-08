@@ -2,10 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cloudflareRun, cloudflareRunUrl } from "./client.js";
 
 describe("cloudflareRunUrl", () => {
-  it("encodes slashes in @cf model ids", () => {
+  it("keeps slashes in @cf model ids so Workers AI can route", () => {
     process.env["CLOUDFLARE_ACCOUNT_ID"] = "acct";
     expect(cloudflareRunUrl("@cf/black-forest-labs/flux-1-schnell")).toBe(
-      "https://api.cloudflare.com/client/v4/accounts/acct/ai/run/%40cf%2Fblack-forest-labs%2Fflux-1-schnell",
+      "https://api.cloudflare.com/client/v4/accounts/acct/ai/run/%40cf/black-forest-labs/flux-1-schnell",
     );
   });
 });

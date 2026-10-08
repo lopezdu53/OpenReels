@@ -188,14 +188,14 @@ export async function renderStills(
     for (let attempt = 0; attempt < 3; attempt++) {
       log(
         attempt === 0
-          ? `still ${beat.id}/${script.beats.length} enviando a Flow (Auto Download + watch.mjs)…`
+          ? `still ${beat.id}/${script.beats.length} generando…`
           : `still ${beat.id}/${script.beats.length} reintento ${attempt + 1}/3…`,
       );
       const tick = setInterval(() => {
         try {
           onBeat?.();
           log(
-            `still ${beat.id}/${script.beats.length} sigue en Flow — no está colgado, espera el archivo`,
+            `still ${beat.id}/${script.beats.length} sigue generando — no está colgado`,
           );
         } catch {
           /* cancel via interruptTobyForJob */
@@ -224,7 +224,8 @@ export async function renderStills(
       }
     }
     if (!buf) {
-      if (previous) {
+      const fatal = /cloudflare|no route for that uri|401|403/i.test(String(lastError));
+      if (previous && !fatal) {
         log(`beat ${beat.id} failed (${lastError}); holding previous stickman still`);
         buf = previous;
       } else {

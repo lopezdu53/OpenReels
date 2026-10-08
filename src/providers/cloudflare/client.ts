@@ -19,10 +19,20 @@ export function cloudflareReady(): boolean {
   return Boolean(cloudflareAccountId() && cloudflareApiToken());
 }
 
+/** Keep `@cf/org/model` slashes. Encoding `/` as `%2F` returns HTTP 400 "No route for that URI". */
+export function encodeCloudflareModelPath(model: string): string {
+  return model
+    .replace(/^\/+/, "")
+    .split("/")
+    .filter(Boolean)
+    .map((seg) => encodeURIComponent(seg))
+    .join("/");
+}
+
 export function cloudflareRunUrl(model: string, accountId?: string): string {
   const id = cloudflareAccountId(accountId);
   if (!id) throw new Error("Falta CLOUDFLARE_ACCOUNT_ID");
-  return `https://api.cloudflare.com/client/v4/accounts/${id}/ai/run/${encodeURIComponent(model)}`;
+  return `https://api.cloudflare.com/client/v4/accounts/${id}/ai/run/${encodeCloudflareModelPath(model)}`;
 }
 
 export function cloudflareOpenAiBase(accountId?: string): string {
@@ -38,7 +48,10 @@ export async function cloudflareRun(
 ): Promise<{ json: unknown; buffer?: Buffer }> {
   const token = cloudflareApiToken(opts?.token);
   if (!token) throw new Error("Falta CLOUDFLARE_API_TOKEN (Workers AI → Use REST API)");
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    "cf-aig-gateway-id": process.env["CLOUDFLARE_AI_GATEWAY"]?.trim() || "default",
+  };
   let payload: string | FormData;
   if (opts?.multipart) {
     const form = new FormData();
