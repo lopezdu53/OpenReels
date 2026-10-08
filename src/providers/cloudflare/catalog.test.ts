@@ -29,10 +29,10 @@ describe("Cloudflare Workers AI catalog", () => {
 });
 
 describe("cloudflareRunUrl encoding", () => {
-  it("percent-encodes @cf model paths", () => {
+  it("does not flatten @cf model slashes (No route for that URI)", () => {
     process.env["CLOUDFLARE_ACCOUNT_ID"] = "acct";
-    expect(cloudflareRunUrl("@cf/meta/llama-3.1-8b-instruct-fp8-fast")).toContain(
-      "%40cf%2Fmeta%2Fllama-3.1-8b-instruct-fp8-fast",
-    );
+    const url = cloudflareRunUrl("@cf/meta/llama-3.1-8b-instruct-fp8-fast");
+    expect(url).toContain("/ai/run/%40cf/meta/llama-3.1-8b-instruct-fp8-fast");
+    expect(url).not.toContain("%2F");
   });
 });
