@@ -138,6 +138,11 @@ export interface StickmanJobConfig {
   tobyVideoModel?: string;
   tobyVideoMode?: string;
   llmModel?: string;
+  llmProvider?: string;
+  ttsProvider?: string;
+  ttsModel?: string;
+  imageProvider?: string;
+  videoProvider?: string;
   atlasKey?: string;
 }
 

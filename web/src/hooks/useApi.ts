@@ -1327,10 +1327,22 @@ export const api = {
         creditPerSecond?: number;
       }[];
       llms?: { id: string; label: string; note: string; recommended?: boolean }[];
+      llmProviders?: { key: string; label: string; category: string; models: { id: string; label: string; note?: string }[]; defaultModel?: string }[];
+      ttsProviders?: NaraTtsProviderCatalog[];
+      imageProviders?: { key: string; label: string; category: string; models: { id: string; label: string; note?: string }[]; defaultModel?: string }[];
+      videoProviders?: { key: string; label: string; category: string; models: { id: string; label: string; note?: string }[]; defaultModel?: string }[];
+      defaultLlmProvider?: string;
+      defaultTtsProvider?: string;
+      defaultTtsVoice?: string;
+      defaultImageProvider?: string;
+      defaultImageModel?: string;
+      defaultVideoProvider?: string;
+      defaultVideoModel?: string;
+      defaultAnimate?: boolean;
       atlasReady?: boolean;
       gflowBridge?: boolean;
       tobyReady?: boolean;
-      defaultVisualProvider?: "atlas" | "gflow" | "toby";
+      defaultVisualProvider?: "atlas" | "gflow" | "toby" | "cloudflare";
       tobyImageModels?: { id: string; label: string; note?: string; credits?: number }[];
       tobyVideoModels?: {
         id: string;

@@ -12,6 +12,7 @@ import { AtlasVideo } from "../providers/video/atlas.js";
 import { CloudflareVideo } from "../providers/video/cloudflare.js";
 import { GflowVideo } from "../providers/video/gflow.js";
 import { TobyVideo } from "../providers/video/toby.js";
+import { createLabImageProvider, createLabVideoProvider } from "../lab/test-providers.js";
 import type { ImageProvider, VideoProvider } from "../schema/providers.js";
 
 /** Historia / Vox / Film: Atlas + gflow only. */
@@ -51,26 +52,36 @@ export function isFlowCreditsVisual(raw?: string): boolean {
 
 export function createStudioImage(opts: {
   visualProvider?: string;
+  imageProvider?: string;
+  imageModel?: string;
   atlasModel?: string;
   atlasKey?: string;
   gflowModel?: string;
   tobyModel?: string;
 }): ImageProvider {
-  const stickman = resolveStickmanVisualProvider(opts.visualProvider);
-  if (stickman === "cloudflare" || opts.visualProvider === "cloudflare") {
-    return new CloudflareImage();
+  if (opts.imageProvider && !["toby", "gflow", "atlas", "cloudflare"].includes(opts.imageProvider)) {
+    return createLabImageProvider({
+      provider: opts.imageProvider,
+      model: opts.imageModel || opts.atlasModel,
+    });
+  }
+  const stickman = resolveStickmanVisualProvider(opts.imageProvider || opts.visualProvider);
+  if (stickman === "cloudflare" || opts.visualProvider === "cloudflare" || opts.imageProvider === "cloudflare") {
+    return new CloudflareImage(opts.imageModel || opts.atlasModel);
   }
   if (stickman === "toby") {
-    return new TobyImage(opts.tobyModel || DEFAULT_TOBY_IMAGE_MODEL);
+    return new TobyImage(opts.tobyModel || opts.imageModel || DEFAULT_TOBY_IMAGE_MODEL);
   }
-  if (resolveStudioVisualProvider(opts.visualProvider) === "gflow") {
-    return new GflowImage(opts.gflowModel || DEFAULT_GFLOW_IMAGE_MODEL);
+  if (stickman === "gflow" || resolveStudioVisualProvider(opts.visualProvider) === "gflow") {
+    return new GflowImage(opts.gflowModel || opts.imageModel || DEFAULT_GFLOW_IMAGE_MODEL);
   }
-  return new AtlasImage(opts.atlasModel, opts.atlasKey);
+  return new AtlasImage(opts.imageModel || opts.atlasModel, opts.atlasKey);
 }
 
 export function createStudioVideo(opts: {
   visualProvider?: string;
+  videoProvider?: string;
+  videoModel?: string;
   atlasModel?: string;
   atlasKey?: string;
   gflowModel?: string;
@@ -78,21 +89,28 @@ export function createStudioVideo(opts: {
   tobyModel?: string;
   tobyMode?: string;
 }): VideoProvider {
-  const stickman = resolveStickmanVisualProvider(opts.visualProvider);
-  if (stickman === "cloudflare" || opts.visualProvider === "cloudflare") {
+  if (opts.videoProvider && !["toby", "gflow", "atlas", "cloudflare"].includes(opts.videoProvider)) {
+    return createLabVideoProvider({
+      provider: opts.videoProvider,
+      model: opts.videoModel || opts.atlasModel,
+      mode: opts.gflowMode || opts.tobyMode || "i2v",
+    });
+  }
+  const stickman = resolveStickmanVisualProvider(opts.videoProvider || opts.visualProvider);
+  if (stickman === "cloudflare" || opts.visualProvider === "cloudflare" || opts.videoProvider === "cloudflare") {
     return new CloudflareVideo();
   }
   if (stickman === "toby") {
     return new TobyVideo(
-      opts.tobyModel || DEFAULT_TOBY_VIDEO_MODEL,
+      opts.tobyModel || opts.videoModel || DEFAULT_TOBY_VIDEO_MODEL,
       opts.tobyMode || DEFAULT_TOBY_VIDEO_MODE,
     );
   }
-  if (resolveStudioVisualProvider(opts.visualProvider) === "gflow") {
+  if (stickman === "gflow" || resolveStudioVisualProvider(opts.visualProvider) === "gflow") {
     return new GflowVideo(
-      opts.gflowModel || DEFAULT_GFLOW_VIDEO_MODEL,
+      opts.gflowModel || opts.videoModel || DEFAULT_GFLOW_VIDEO_MODEL,
       opts.gflowMode || DEFAULT_GFLOW_VIDEO_MODE,
     );
   }
-  return new AtlasVideo(opts.atlasModel, opts.atlasKey, null);
+  return new AtlasVideo(opts.videoModel || opts.atlasModel, opts.atlasKey, null);
 }

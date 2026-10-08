@@ -117,9 +117,12 @@ function finishProduce(id: string, extraUsage: StickmanLlmUsage | undefined): vo
   });
 }
 
+function atlasKeyOf(id: string): string | undefined {
+  return resolveAtlasApiKey(readMeta(id)?.config.atlasKey) || undefined;
+}
+
 function apiKeyOf(id: string): string {
-  const meta = readMeta(id);
-  const key = resolveAtlasApiKey(meta?.config.atlasKey);
+  const key = atlasKeyOf(id);
   if (!key) throw new Error("Falta ATLASCLOUD_API_KEY en el servidor (video / video-worker)");
   return key;
 }
@@ -165,12 +168,12 @@ async function handleProduce(id: string, redis: IORedis): Promise<void> {
     }
     return;
   }
-  const key = apiKeyOf(id);
+  const key = atlasKeyOf(id) ?? "";
   assertStickmanActive(id);
   if (meta.config.muteCharacter === true) {
-    log("personaje mudo: sin TTS Atlas, sí efectos de Flow");
+    log("personaje mudo: sin TTS, sí efectos de Flow");
   } else {
-    setStatus(id, "producing", "tts", "Generando voz Atlas");
+    setStatus(id, "producing", "tts", `Generando voz ${meta.config.ttsProvider ?? "Atlas"}`);
     await runTts(id, key, meta.config.atlasTtsModel || DEFAULT_STICKMAN_TTS_MODEL, log);
   }
   setStatus(
@@ -188,7 +191,7 @@ async function handleProduce(id: string, redis: IORedis): Promise<void> {
   setStatus(id, "producing", "assemble", "Ensamblando final.mp4");
   await runAssemble(id, log);
   let extraUsage: StickmanLlmUsage | undefined;
-  if (meta.config.aspect === "16:9") {
+  if (meta.config.aspect === "16:9" && key) {
     setStatus(id, "producing", "youtube", "Portada y SEO YouTube");
     extraUsage = await runYoutubePack(id, key, log);
   }
